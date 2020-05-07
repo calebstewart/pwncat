@@ -256,6 +256,7 @@ class PtyHandler:
         self.enter_raw(save=False)
 
     def do_download(self, argv):
+        """ Download a file from the remote host """
 
         parser = argparse.ArgumentParser(prog="download")
         parser.add_argument(
@@ -299,8 +300,9 @@ class PtyHandler:
             return
         size = int(size)
 
-        with ProgressBar(f"downloading with {download.NAME}") as pb:
-
+        with ProgressBar(
+            [("#888888", "downloading with "), ("fg:ansiyellow", f"{download.NAME}")]
+        ) as pb:
             counter = pb(range(os.path.getsize(path)))
             last_update = time.time()
 
@@ -370,7 +372,9 @@ class PtyHandler:
 
         upload = UploaderClass(self, remote_path=outfile, local_path=path)
 
-        with ProgressBar(f"uploading via {upload.NAME}") as pb:
+        with ProgressBar(
+            [("#888888", "uploading via "), ("fg:ansiyellow", f"{upload.NAME}")]
+        ) as pb:
 
             counter = pb(range(os.path.getsize(path)))
             last_update = time.time()
