@@ -23,7 +23,7 @@ behaves correctly.
 
 `pwncat` has a few useful features baked in for interacting with a remote shell.
 You can access a local command interpreter at any time by getting to a blank
-line and pressing the sequence `~C` (that's `Shift+\`` then `Shift+c`). This new
+line and pressing the sequence `~C` (that's ``Shift+``` then `Shift+c`). This new
 prompt provides some basic interaction between your local host and the remote
 host.
 
