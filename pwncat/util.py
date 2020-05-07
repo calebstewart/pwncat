@@ -5,6 +5,7 @@ from socketserver import TCPServer, BaseRequestHandler
 from functools import partial
 from colorama import Fore
 from io import TextIOWrapper
+import socket
 import threading
 import logging
 import termios
@@ -57,6 +58,30 @@ class SingleFileServer(BaseHTTPRequestHandler):
         return
 
 
+class SingleFileReceiver(BaseHTTPRequestHandler):
+    def __init__(self, request, addr, server, name, dest_path, progress):
+        self.dest_path = dest_path
+        self.file_name = name
+        self.progress = progress
+        super(SingleFileReceiver, self).__init__(request, addr, server)
+
+    def do_POST(self):
+        """ handle http POST request """
+
+        if self.path != f"/{self.file_name}":
+            self.send_error(404)
+            return
+
+        self.send_response(200)
+        self.end_headers()
+
+        with open(self.dest_path, "wb") as fp:
+            copyfileobj(self.rfile, fp, self.progress)
+
+    def log_message(self, *args, **kwargs):
+        return
+
+
 def copyfileobj(src, dst, callback):
     """ Copy a file object to another file object with a callback.
         This method assumes that both files are binary and support readinto
@@ -65,22 +90,29 @@ def copyfileobj(src, dst, callback):
     try:
         length = os.stat(src.fileno()).st_size
         length = min(length, 1024 * 1024)
-    except OSError:
+    except (OSError, AttributeError):
         length = 1024 * 1024
 
     copied = 0
-    with memoryview(bytearray(length)) as mv:
-        while True:
-            n = src.readinto(mv)
-            if not n:
-                break
-            if n < length:
-                with mv[:n] as smv:
-                    dst.write(smv)
-            else:
-                dst.write(mv)
-            copied += n
-            callback(copied, n)
+
+    if getattr(src, "readinto", None) is None:
+        for chunk in iter(lambda: src.read(length), b""):
+            dst.write(chunk)
+            copied += len(chunk)
+            callback(copied, len(chunk))
+    else:
+        with memoryview(bytearray(length)) as mv:
+            while True:
+                n = src.readinto(mv)
+                if not n:
+                    break
+                if n < length:
+                    with mv[:n] as smv:
+                        dst.write(smv)
+                else:
+                    dst.write(mv)
+                copied += n
+                callback(copied, n)
 
 
 def enter_raw_mode():
@@ -150,6 +182,53 @@ def serve_http_file(
     return server
 
 
+def receive_http_file(
+    dest_path: str, name: str, port: int = 0, progress: Callable = None
+) -> HTTPServer:
+    """ Serve a single file on the given port over HTTP. """
+
+    # Create an HTTP server
+    server = HTTPServer(
+        ("0.0.0.0", port),
+        partial(SingleFileReceiver, name=name, dest_path=dest_path, progress=progress),
+    )
+
+    # Start serving the file
+    thread = threading.Thread(target=lambda: server.serve_forever(), daemon=True)
+    thread.start()
+
+    return server
+
+
+def receive_raw_file(
+    dest_path: str, name: str, port: int = 0, progress: Callable = None
+) -> TCPServer:
+    """ Serve a file on the given port """
+
+    class SocketWrapper:
+        def __init__(self, sock):
+            self.s = sock
+
+        def read(self, n: int):
+            try:
+                return self.s.recv(n)
+            except socket.timeout:
+                return b""
+
+    class ReceiveFile(BaseRequestHandler):
+        def handle(self):
+            # We shouldn't block that long during a streaming transfer
+            self.request.settimeout(1)
+            with open(dest_path, "wb") as fp:
+                copyfileobj(SocketWrapper(self.request), fp, progress)
+
+    server = TCPServer(("0.0.0.0", port), ReceiveFile)
+    thread = threading.Thread(target=lambda: server.serve_forever(), daemon=True)
+    thread.start()
+
+    return server
+
+
 def serve_raw_file(
     path: str, name: str, port: int = 0, progress: Callable = None
 ) -> TCPServer:
@@ -166,6 +245,7 @@ def serve_raw_file(
         def handle(self):
             with open(path, "rb") as fp:
                 copyfileobj(fp, SocketWrapper(self.request), progress)
+            self.request.close()
 
     server = TCPServer(("0.0.0.0", port), SendFile)
     thread = threading.Thread(target=lambda: server.serve_forever(), daemon=True)
@@ -220,5 +300,5 @@ def error(message, overlay=False):
     log("error", message, overlay)
 
 
-def progress(message, overlay=False):
-    log("prog", message, overlay)
+# def progress(message, overlay=False):
+#    log("prog", message, overlay)

