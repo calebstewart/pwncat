@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from prompt_toolkit import prompt, PromptSession
+from prompt_toolkit import prompt, PromptSession, ANSI
 from prompt_toolkit.shortcuts import ProgressBar
 import subprocess
 import logging
@@ -64,7 +64,9 @@ class PtyHandler:
         self.known_binaries = {}
         self.vars = {"lhost": None}
         self.remote_prompt = b"\\[\\033[01;32m\\]\\u@\\h\\[\\033[00m\\]:\\[\\033[01;34m\\]\\w\\[\\033[00m\\]\\$"
-        self.prompt = PromptSession("localhost$ ")
+        self.prompt = PromptSession(
+            [("", "(local) "), ("#ff0000", "pwncat"), ("", "$ ")]
+        )
         self.binary_aliases = {
             "python": [
                 "python2",
