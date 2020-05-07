@@ -15,20 +15,20 @@ def find(pty: "pwncat.pty.PtyHandler", hint: str = None) -> Type[Downloader]:
     """ Locate an applicable downloader """
 
     if hint is not None:
-        """ Try to return the requested downloader """
+        # Try to return the requested downloader
         for d in all_downloaders:
             if d.NAME != hint:
                 continue
             d.check(pty)
             return d
-        else:
-            raise DownloadError(f"{hint}: no such downloader")
+
+        raise DownloadError(f"{hint}: no such downloader")
 
     for d in downloaders:
         try:
             d.check(pty)
             return d
-        except DownloadError as e:
+        except DownloadError:
             continue
 
     try:

