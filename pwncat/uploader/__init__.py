@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from typing import Type
+from typing import Type, List
 
 from pwncat.uploader.base import Uploader, UploadError
 from pwncat.uploader.nc import NetcatUploader
@@ -9,6 +9,11 @@ from pwncat.uploader.shell import ShellUploader
 all_uploaders = [NetcatUploader, CurlUploader, ShellUploader]
 uploaders = [NetcatUploader, CurlUploader]
 fallback = ShellUploader
+
+
+def get_names() -> List[str]:
+    """ Return the names of all uploaders """
+    return [u.NAME for u in all_uploaders]
 
 
 def find(pty: "pwncat.pty.PtyHandler", hint: str = None) -> Type[Uploader]:
