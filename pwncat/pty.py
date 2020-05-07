@@ -14,6 +14,7 @@ import os
 
 from pwncat import util
 from pwncat import downloader, uploader
+from colorama import Fore
 
 
 class State(enum.Enum):
@@ -62,6 +63,7 @@ class PtyHandler:
         self.lhost = None
         self.known_binaries = {}
         self.vars = {"lhost": util.get_ip_addr()}
+        self.remote_prompt = b"\\[\\033[01;32m\\]\\u@\\h\\[\\033[00m\\]:\\[\\033[01;34m\\]\\w\\[\\033[00m\\]\\$"
         self.prompt = PromptSession(
             [("", "(local) "), ("#ff0000", "pwncat"), ("", "$ ")]
         )
@@ -87,7 +89,7 @@ class PtyHandler:
         self.recvuntil(b"\n")
 
         util.info("setting terminal prompt", overlay=True)
-        client.sendall(b'export PS1="(remote) \\u@\\h\\$ "\n\n')
+        client.sendall(b'export PS1="(remote) %b "\n\n' % self.remote_prompt)
         self.recvuntil(b"\n")
         self.recvuntil(b"\n")
 
@@ -96,7 +98,10 @@ class PtyHandler:
         # so, we manually resolve a list of useful binaries prior to spawning
         # a pty
         for name in PtyHandler.INTERESTING_BINARIES:
-            util.info(f"resolving remote binary: {name}", overlay=True)
+            util.info(
+                f"resolving remote binary: {Fore.YELLOW}{name}{Fore.RESET}",
+                overlay=True,
+            )
 
             # Look for the given binary
             response = self.run(f"which {shlex.quote(name)}", has_pty=False)
@@ -117,12 +122,13 @@ class PtyHandler:
             raise RuntimeError("no available methods to spawn a pty!")
 
         # Open the PTY
-
-        util.info(f"opening pseudoterminal via {method}", overlay=True)
+        util.info(
+            f"opening pseudoterminal via {Fore.GREEN}{method}{Fore.RESET}", overlay=True
+        )
         client.sendall(method_cmd.encode("utf-8") + b"\n")
 
         util.info("setting terminal prompt", overlay=True)
-        client.sendall(b'export PS1="(remote) \\u@\\h\\$ "\r')
+        client.sendall(b'export PS1="(remote) %b "\r' % self.remote_prompt)
         self.recvuntil(b"\r\n")
         self.recvuntil(b"\r\n")
 
@@ -502,6 +508,7 @@ class PtyHandler:
         result = b""
         while not result.endswith(needle):
             result += self.client.recv(1, flags)
+            # print(result)
 
         return result
 
