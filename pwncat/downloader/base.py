@@ -5,6 +5,7 @@ from socketserver import TCPServer, BaseRequestHandler
 from functools import partial
 import threading
 import socket
+import os
 
 from pwncat import util
 
@@ -54,18 +55,30 @@ class HttpPostFileReceiver(BaseHTTPRequestHandler):
         self.on_progress = on_progress
         super(HttpPostFileReceiver, self).__init__(request, addr, server)
 
-    def do_POST(self):
+    def do_PUT(self):
         """ handle http POST request """
 
-        if self.path != "/":
+        if self.path != f"/{os.path.basename(self.downloader.remote_path)}":
             self.send_error(404)
             return
 
+        length = int(self.headers["Content-Length"])
+        copied = 0
+        chunksz = 1024 * 1024
+
         self.send_response(200)
+        self.send_header("Content-Length", "1")
         self.end_headers()
+        self.flush_headers()
+
+        self.rfile = self.rfile.detach()
 
         with open(self.downloader.local_path, "wb") as filp:
-            util.copyfileobj(self.rfile, filp, self.on_progress)
+            while copied < length:
+                block = self.rfile.read(chunksz)
+                filp.write(block)
+                copied += len(block)
+                self.on_progress(copied, len(block))
 
     def log_message(self, *args, **kwargs):
         return

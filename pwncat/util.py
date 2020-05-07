@@ -16,7 +16,7 @@ import sys
 import os
 
 
-def copyfileobj(src, dst, callback):
+def copyfileobj(src, dst, callback, nomv=False):
     """ Copy a file object to another file object with a callback.
         This method assumes that both files are binary and support readinto
     """
@@ -29,7 +29,7 @@ def copyfileobj(src, dst, callback):
 
     copied = 0
 
-    if getattr(src, "readinto", None) is None:
+    if getattr(src, "readinto", None) is None or nomv:
         for chunk in iter(lambda: src.read(length), b""):
             dst.write(chunk)
             copied += len(chunk)
