@@ -29,8 +29,8 @@ class PtyHandler:
     on the local end """
 
     OPEN_METHODS = {
-        "script": "exec {} -qc /bin/sh /dev/null",
-        "python": "exec {} -c \"import pty; pty.spawn('/bin/sh')\"",
+        "script": "exec {} -qc /bin/bash /dev/null",
+        "python": "exec {} -c \"import pty; pty.spawn('/bin/bash')\"",
     }
 
     INTERESTING_BINARIES = [
@@ -115,8 +115,14 @@ class PtyHandler:
             raise RuntimeError("no available methods to spawn a pty!")
 
         # Open the PTY
+
         util.info(f"opening pseudoterminal via {method}", overlay=True)
         client.sendall(method_cmd.encode("utf-8") + b"\n")
+
+        util.info("setting terminal prompt", overlay=True)
+        client.sendall(b'export PS1="(remote) \\u@\\h\\$ "\r')
+        self.recvuntil(b"\r\n")
+        self.recvuntil(b"\r\n")
 
         # Make sure HISTFILE is unset in this PTY (it resets when a pty is
         # opened)

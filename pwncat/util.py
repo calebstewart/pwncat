@@ -3,7 +3,7 @@ from typing import Tuple, BinaryIO, Callable
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import TCPServer, BaseRequestHandler
 from functools import partial
-from colorama import Fore
+from colorama import Fore, Style
 from io import TextIOWrapper
 import socket
 import threading
@@ -121,7 +121,8 @@ def enter_raw_mode():
         returns: the old state of the terminal
     """
 
-    info("setting terminal to raw mode and disabling echo")
+    info("setting terminal to raw mode and disabling echo", overlay=True)
+    success("pwncat is ready\n", overlay=True)
 
     # Ensure we don't have any weird buffering issues
     sys.stdout.flush()
@@ -162,7 +163,7 @@ def enter_raw_mode():
 def restore_terminal(state):
     """ restore the stdio state from the result of "enter_raw_mode" """
     termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, state[0])
-    tty.setcbreak(sys.stdin)
+    # tty.setcbreak(sys.stdin)
     fcntl.fcntl(sys.stdin, fcntl.F_SETFL, state[1])
     sys.stdout.write("\n")
     info("local terminal restored")
@@ -268,10 +269,11 @@ def log(level, message, overlay=False):
     global LAST_PROG_ANIM
 
     prefix = {
-        "info": f"[{Fore.BLUE}+{Fore.RESET}] ",
-        "warn": f"[{Fore.YELLOW}?{Fore.RESET}] ",
-        "error": f"[{Fore.RED}!{Fore.RESET}] ",
-        "prog": f"[{Fore.CYAN}+{Fore.RESET}] ",
+        "info": f"[{Fore.BLUE}+{Fore.RESET}]",
+        "success": f"[{Fore.GREEN}+{Fore.RESET}]",
+        "warn": f"[{Fore.YELLOW}?{Fore.RESET}]",
+        "error": f"[{Fore.RED}!{Fore.RESET}]",
+        "prog": f"[{Fore.CYAN}+{Fore.RESET}]",
     }
 
     if overlay:
@@ -283,7 +285,10 @@ def log(level, message, overlay=False):
         LAST_PROG_ANIM = (LAST_PROG_ANIM + 1) % len(PROG_ANIMATION)
         prefix["prog"] = prefix["prog"].replace("+", PROG_ANIMATION[LAST_PROG_ANIM])
 
-    LAST_LOG_MESSAGE = (f"{prefix[level]} {message}", overlay)
+    LAST_LOG_MESSAGE = (
+        f"{prefix[level]} {Style.DIM}{message}{Style.RESET_ALL}",
+        overlay,
+    )
     sys.stdout.write(LAST_LOG_MESSAGE[0])
 
     if not overlay:
@@ -302,6 +307,10 @@ def warn(message, overlay=False):
 
 def error(message, overlay=False):
     log("error", message, overlay)
+
+
+def success(message, overlay=False):
+    log("success", message, overlay)
 
 
 # def progress(message, overlay=False):
