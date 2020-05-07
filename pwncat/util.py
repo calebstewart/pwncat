@@ -5,6 +5,7 @@ from socketserver import TCPServer, BaseRequestHandler
 from functools import partial
 from colorama import Fore, Style
 from io import TextIOWrapper
+import netifaces
 import socket
 import threading
 import logging
@@ -13,73 +14,6 @@ import fcntl
 import tty
 import sys
 import os
-
-
-class SingleFileServer(BaseHTTPRequestHandler):
-    def __init__(
-        self,
-        request,
-        addr,
-        server,
-        name: str,
-        path: str,
-        content_type="application/octet-stream",
-        progress=None,
-    ):
-        self.file_name = name
-        self.file_path = path
-        self.content_type = content_type
-        self.progress = progress
-
-        super(SingleFileServer, self).__init__(request, addr, server)
-
-    def do_GET(self):
-        """ Handle GET requests """
-
-        # We only serve this one file
-        if self.path != f"/{self.file_name}":
-            self.send_error(404)
-            return
-
-        length = os.path.getsize(self.file_path)
-
-        # Send response headers
-        self.send_response(200)
-        self.send_header("Content-Type", self.content_type)
-        self.send_header("Content-Length", str(length))
-        self.end_headers()
-
-        # Send data
-        with open(self.file_path, "rb") as fp:
-            copyfileobj(fp, self.wfile, self.progress)
-
-    def log_message(self, fmt, *args):
-        """ BE QUIET """
-        return
-
-
-class SingleFileReceiver(BaseHTTPRequestHandler):
-    def __init__(self, request, addr, server, name, dest_path, progress):
-        self.dest_path = dest_path
-        self.file_name = name
-        self.progress = progress
-        super(SingleFileReceiver, self).__init__(request, addr, server)
-
-    def do_POST(self):
-        """ handle http POST request """
-
-        if self.path != f"/{self.file_name}":
-            self.send_error(404)
-            return
-
-        self.send_response(200)
-        self.end_headers()
-
-        with open(self.dest_path, "wb") as fp:
-            copyfileobj(self.rfile, fp, self.progress)
-
-    def log_message(self, *args, **kwargs):
-        return
 
 
 def copyfileobj(src, dst, callback):
@@ -169,94 +103,42 @@ def restore_terminal(state):
     info("local terminal restored")
 
 
-def serve_http_file(
-    path: str, name: str, port: int = 0, progress: Callable = None
-) -> HTTPServer:
-    """ Serve a single file on the given port over HTTP. """
+def get_ip_addr() -> str:
+    """ Retrieve the current IP address. This will return the first tun/tap
+    interface if availabe. Otherwise, it will return the first "normal" 
+    interface with no preference for wired/wireless. """
 
-    # Create an HTTP server
-    server = HTTPServer(
-        ("0.0.0.0", port),
-        partial(SingleFileServer, name=name, path=path, progress=progress),
-    )
+    PROTO = netifaces.AF_INET
+    ifaces = [
+        iface
+        for iface in netifaces.interfaces()
+        if not iface.startswith("virbr")
+        and not iface.startswith("lo")
+        and not iface.startswith("docker")
+    ]
+    targets = []
 
-    # Start serving the file
-    thread = threading.Thread(target=lambda: server.serve_forever(), daemon=True)
-    thread.start()
+    # look for a tun/tap interface
+    for iface in ifaces:
+        if iface.startswith("tun") or iface.startswith("tap"):
+            addrs = netifaces.ifaddresses(iface)
+            print(addrs)
+            if PROTO not in addrs:
+                continue
+            for a in addrs[PROTO]:
+                if "addr" in a:
+                    return a["addr"]
 
-    return server
+    # Try again. We don't care what kind now
+    for iface in ifaces:
+        addrs = netifaces.ifaddresses(iface)
+        if PROTO not in addrs:
+            continue
+        for a in addrs[PROTO]:
+            if "addr" in a:
+                return a["addr"]
 
-
-def receive_http_file(
-    dest_path: str, name: str, port: int = 0, progress: Callable = None
-) -> HTTPServer:
-    """ Serve a single file on the given port over HTTP. """
-
-    # Create an HTTP server
-    server = HTTPServer(
-        ("0.0.0.0", port),
-        partial(SingleFileReceiver, name=name, dest_path=dest_path, progress=progress),
-    )
-
-    # Start serving the file
-    thread = threading.Thread(target=lambda: server.serve_forever(), daemon=True)
-    thread.start()
-
-    return server
-
-
-def receive_raw_file(
-    dest_path: str, name: str, port: int = 0, progress: Callable = None
-) -> TCPServer:
-    """ Serve a file on the given port """
-
-    class SocketWrapper:
-        def __init__(self, sock):
-            self.s = sock
-
-        def read(self, n: int):
-            try:
-                return self.s.recv(n)
-            except socket.timeout:
-                return b""
-
-    class ReceiveFile(BaseRequestHandler):
-        def handle(self):
-            # We shouldn't block that long during a streaming transfer
-            self.request.settimeout(1)
-            with open(dest_path, "wb") as fp:
-                copyfileobj(SocketWrapper(self.request), fp, progress)
-
-    server = TCPServer(("0.0.0.0", port), ReceiveFile)
-    thread = threading.Thread(target=lambda: server.serve_forever(), daemon=True)
-    thread.start()
-
-    return server
-
-
-def serve_raw_file(
-    path: str, name: str, port: int = 0, progress: Callable = None
-) -> TCPServer:
-    """ Serve a file on the given port """
-
-    class SocketWrapper:
-        def __init__(self, sock):
-            self.s = sock
-
-        def write(self, n: int):
-            return self.s.send(n)
-
-    class SendFile(BaseRequestHandler):
-        def handle(self):
-            with open(path, "rb") as fp:
-                copyfileobj(fp, SocketWrapper(self.request), progress)
-            self.request.close()
-
-    server = TCPServer(("0.0.0.0", port), SendFile)
-    thread = threading.Thread(target=lambda: server.serve_forever(), daemon=True)
-    thread.start()
-
-    return server
+    return None
 
 
 LAST_LOG_MESSAGE = ("", False)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from typing import Type
+from typing import Type, List
 
 from pwncat.downloader.base import Downloader, DownloadError
 from pwncat.downloader.nc import NetcatDownloader
@@ -9,6 +9,11 @@ from pwncat.downloader.shell import ShellDownloader
 all_downloaders = [NetcatDownloader, CurlDownloader, ShellDownloader]
 downloaders = [NetcatDownloader, CurlDownloader]
 fallback = ShellDownloader
+
+
+def get_names() -> List[str]:
+    """ get the names of all downloaders """
+    return [d.NAME for d in all_downloaders]
 
 
 def find(pty: "pwncat.pty.PtyHandler", hint: str = None) -> Type[Downloader]:

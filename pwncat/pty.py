@@ -61,7 +61,7 @@ class PtyHandler:
         self.input = b""
         self.lhost = None
         self.known_binaries = {}
-        self.vars = {"lhost": None}
+        self.vars = {"lhost": util.get_ip_addr()}
         self.prompt = PromptSession(
             [("", "(local) "), ("#ff0000", "pwncat"), ("", "$ ")]
         )
@@ -255,6 +255,7 @@ class PtyHandler:
         parser.add_argument(
             "--method",
             "-m",
+            choices=downloader.get_names(),
             default=None,
             help="set the download method (default: auto)",
         )
@@ -329,6 +330,7 @@ class PtyHandler:
         parser.add_argument(
             "--method",
             "-m",
+            choices=uploader.get_names(),
             default=None,
             help="set the download method (default: auto)",
         )
