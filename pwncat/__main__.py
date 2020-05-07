@@ -99,7 +99,7 @@ def main():
     except ConnectionResetError:
         handler.restore()
         util.warn("connection reset by remote host")
-    else:
+    finally:
         # Restore the shell
         handler.restore()
 

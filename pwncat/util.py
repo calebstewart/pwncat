@@ -127,10 +127,14 @@ def enter_raw_mode():
     sys.stdout.flush()
 
     # Python doesn't provide a way to use setvbuf, so we reopen stdout
-    # and specify no buffering
-    old_stdout = sys.stdout
+    # and specify no buffering. Duplicating stdin allows the user to press C-d
+    # at the local prompt, and still be able to return to the remote prompt.
+    try:
+        os.dup2(sys.stdin.fileno(), sys.stdout.fileno())
+    except OSError:
+        pass
     sys.stdout = TextIOWrapper(
-        os.fdopen(sys.stdout.fileno(), "ba+", buffering=0),
+        os.fdopen(os.dup(sys.stdin.fileno()), "bw", buffering=0),
         write_through=True,
         line_buffering=False,
     )
