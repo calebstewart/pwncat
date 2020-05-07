@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from typing import Type
 
 from pwncat.downloader.base import Downloader, DownloadError
 from pwncat.downloader.nc import NetcatDownloader
@@ -10,7 +11,7 @@ downloaders = [NetcatDownloader, CurlDownloader]
 fallback = ShellDownloader
 
 
-def find(pty: "pwncat.pty.PtyHandler", hint: str = None) -> Downloader:
+def find(pty: "pwncat.pty.PtyHandler", hint: str = None) -> Type[Downloader]:
     """ Locate an applicable downloader """
 
     if hint is not None:
@@ -20,12 +21,18 @@ def find(pty: "pwncat.pty.PtyHandler", hint: str = None) -> Downloader:
                 continue
             d.check(pty)
             return d
+        else:
+            raise DownloadError(f"{hint}: no such downloader")
 
     for d in downloaders:
         try:
             d.check(pty)
             return d
-        except DownloadError:
+        except DownloadError as e:
             continue
 
-    raise DownloadError("no acceptable downloaders found")
+    try:
+        fallback.check(pty)
+        return fallback
+    except:
+        raise DownloadError("no acceptable downloaders found")

@@ -23,8 +23,10 @@ class ShellDownloader(Downloader):
             while True:
 
                 # Read the data
-                x = yield "dd if={} bs={} skip={} count=1 2>/dev/null | base64 -w0".format(
-                    remote_path, self.BLOCKSZ, blocknr
+                x = self.pty.run(
+                    "dd if={} bs={} skip={} count=1 2>/dev/null | base64 -w0".format(
+                        remote_path, self.BLOCKSZ, blocknr
+                    )
                 )
                 if x == b"" or x == b"\r\n":
                     break
@@ -34,7 +36,7 @@ class ShellDownloader(Downloader):
 
                 # Send the data and call the progress function
                 filp.write(data)
-                copied += data
+                copied += len(data)
                 self.on_progress(copied, len(data))
 
                 # Increment block number

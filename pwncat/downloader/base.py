@@ -4,6 +4,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import TCPServer, BaseRequestHandler
 from functools import partial
 import threading
+import socket
 
 from pwncat import util
 
@@ -46,8 +47,11 @@ class Downloader:
 
 
 class HttpPostFileReceiver(BaseHTTPRequestHandler):
-    def __init__(self, request, addr, server, downloader: "HTTPDownloader"):
+    def __init__(
+        self, request, addr, server, downloader: "HTTPDownloader", on_progress: Callable
+    ):
         self.downloader = downloader
+        self.on_progress = on_progress
         super(HttpPostFileReceiver, self).__init__(request, addr, server)
 
     def do_POST(self):
@@ -61,7 +65,7 @@ class HttpPostFileReceiver(BaseHTTPRequestHandler):
         self.end_headers()
 
         with open(self.downloader.local_path, "wb") as filp:
-            util.copyfileobj(self.rfile, filp, self.downloader.progress)
+            util.copyfileobj(self.rfile, filp, self.on_progress)
 
     def log_message(self, *args, **kwargs):
         return
@@ -79,19 +83,15 @@ class HTTPDownloader(Downloader):
             raise DownloadError("no lhost provided")
 
     def __init__(
-        self,
-        pty: "pwncat.pty.PtyHandler",
-        remote_path: str,
-        local_path: str,
-        on_progress: Callable = None,
+        self, pty: "pwncat.pty.PtyHandler", remote_path: str, local_path: str,
     ):
         super(HTTPDownloader, self).__init__(pty, remote_path, local_path)
         self.server = None
-        self.on_progress = on_progress
 
     def serve(self, on_progress: Callable):
         self.server = HTTPServer(
-            ("0.0.0.0", 0), partial(HttpPostFileReceiver, downloader=self)
+            ("0.0.0.0", 0),
+            partial(HttpPostFileReceiver, downloader=self, on_progress=on_progress),
         )
 
         thread = threading.Thread(
@@ -116,27 +116,33 @@ class RawDownloader(Downloader):
             raise DownloadError("no lhost provided")
 
     def __init__(
-        self,
-        pty: "pwncat.pty.PtyHandler",
-        remote_path: str,
-        local_path: str,
-        on_progress: Callable = None,
+        self, pty: "pwncat.pty.PtyHandler", remote_path: str, local_path: str,
     ):
         super(RawDownloader, self).__init__(pty, remote_path, local_path)
         self.server = None
-        self.on_progress = on_progress
 
     def serve(self, on_progress: Callable):
 
         # Make sure it is accessible to the subclass
         local_path = self.local_path
 
+        class SocketWrapper:
+            def __init__(self, sock):
+                self.s = sock
+
+            def read(self, n: int):
+                try:
+                    return self.s.recv(n)
+                except socket.timeout:
+                    return b""
+
         # Class to handle incoming connections
         class ReceiveFile(BaseRequestHandler):
             def handle(self):
                 self.request.settimeout(1)
                 with open(local_path, "wb") as fp:
-                    util.copyfileobj(self.request.makefile("rb"), fp, on_progress)
+                    util.copyfileobj(SocketWrapper(self.request), fp, on_progress)
+                self.request.close()
 
         self.server = TCPServer(("0.0.0.0", 0), ReceiveFile)
 
