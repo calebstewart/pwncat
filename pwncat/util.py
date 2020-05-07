@@ -4,6 +4,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import TCPServer, BaseRequestHandler
 from functools import partial
 from colorama import Fore
+from io import TextIOWrapper
 import threading
 import logging
 import termios
@@ -92,6 +93,15 @@ def enter_raw_mode():
 
     # Ensure we don't have any weird buffering issues
     sys.stdout.flush()
+
+    # Python doesn't provide a way to use setvbuf, so we reopen stdout
+    # and specify no buffering
+    old_stdout = sys.stdout
+    sys.stdout = TextIOWrapper(
+        os.fdopen(sys.stdout.fileno(), "ba+", buffering=0),
+        write_through=True,
+        line_buffering=False,
+    )
 
     # Grab and duplicate current attributes
     fild = sys.stdin.fileno()
