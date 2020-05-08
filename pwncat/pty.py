@@ -27,7 +27,8 @@ import os
 
 from pwncat import util
 from pwncat import downloader, uploader, privesc
-from pwncat.lexer import LocalCommandLexer
+from pwncat.lexer import LocalCommandLexer, PwncatStyle
+
 from colorama import Fore
 
 
@@ -355,6 +356,7 @@ class PtyHandler:
             completer=CommandCompleter(completer_graph),
             auto_suggest=AutoSuggestFromHistory(),
             lexer=PygmentsLexer(LocalCommandLexer),
+            style=PwncatStyle,
         )
 
     def which(self, name: str, request=True) -> str:
