@@ -5,6 +5,7 @@ from socketserver import TCPServer, BaseRequestHandler
 from functools import partial
 import threading
 import socket
+import os
 
 from pwncat import util
 
@@ -96,7 +97,7 @@ class HTTPUploader(Uploader):
     def serve(self, on_progress: Callable):
         self.server = HTTPServer(
             ("0.0.0.0", 0),
-            partial(HttpGetFileHandler, downloader=self, on_progress=on_progress),
+            partial(HttpGetFileHandler, uploader=self, on_progress=on_progress),
         )
 
         thread = threading.Thread(

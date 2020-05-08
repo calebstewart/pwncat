@@ -56,7 +56,7 @@ def enter_raw_mode():
     """
 
     info("setting terminal to raw mode and disabling echo", overlay=True)
-    success("pwncat is ready\n", overlay=True)
+    success("pwncat is ready 🐈\n", overlay=True)
 
     # Ensure we don't have any weird buffering issues
     sys.stdout.flush()

@@ -80,6 +80,9 @@ class HttpPostFileReceiver(BaseHTTPRequestHandler):
                 copied += len(block)
                 self.on_progress(copied, len(block))
 
+    def do_POST(self):
+        return self.do_PUT()
+
     def log_message(self, *args, **kwargs):
         return
 

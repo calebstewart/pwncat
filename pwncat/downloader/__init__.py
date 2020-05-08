@@ -5,8 +5,16 @@ from pwncat.downloader.base import Downloader, DownloadError
 from pwncat.downloader.nc import NetcatDownloader
 from pwncat.downloader.curl import CurlDownloader
 from pwncat.downloader.shell import ShellDownloader
+from pwncat.downloader.wget import WgetDownloader
+from pwncat.downloader.bashtcp import BashTCPDownloader
 
-all_downloaders = [NetcatDownloader, CurlDownloader, ShellDownloader]
+all_downloaders = [
+    NetcatDownloader,
+    CurlDownloader,
+    WgetDownloader,
+    ShellDownloader,
+    BashTCPDownloader,
+]
 downloaders = [NetcatDownloader, CurlDownloader]
 fallback = ShellDownloader
 

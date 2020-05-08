@@ -5,8 +5,16 @@ from pwncat.uploader.base import Uploader, UploadError
 from pwncat.uploader.nc import NetcatUploader
 from pwncat.uploader.curl import CurlUploader
 from pwncat.uploader.shell import ShellUploader
+from pwncat.uploader.bashtcp import BashTCPUploader
+from pwncat.uploader.wget import WgetUploader
 
-all_uploaders = [NetcatUploader, CurlUploader, ShellUploader]
+all_uploaders = [
+    NetcatUploader,
+    CurlUploader,
+    ShellUploader,
+    BashTCPUploader,
+    WgetUploader,
+]
 uploaders = [NetcatUploader, CurlUploader]
 fallback = ShellUploader
 
