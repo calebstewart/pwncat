@@ -23,8 +23,13 @@ class Downloader:
     def check(cls, pty: "pwncat.pty.PtyHandler") -> bool:
         """ Check if the given PTY connection can support this downloader """
         for binary in cls.BINARIES:
-            if pty.which(binary) is None:
-                raise DownloadError(f"required remote binary not found: {binary}")
+            if isinstance(binary, list) or isinstance(binary, tuple):
+                for equivalent in binary:
+                    if pty.which(equivalent):
+                        return
+            elif pty.which(binary) is not None:
+                return
+            raise DownloadError(f"required remote binary not found: {binary}")
 
     def __init__(self, pty: "pwncat.pty.PtyHandler", remote_path: str, local_path: str):
         self.pty = pty

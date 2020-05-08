@@ -28,6 +28,7 @@ import os
 from pwncat import util
 from pwncat import downloader, uploader, privesc
 from pwncat.lexer import LocalCommandLexer
+from pwncat.file import RemoteBinaryPipe
 from colorama import Fore
 
 
@@ -260,7 +261,9 @@ class PtyHandler:
         self.run("unset HISTFILE; export HISTCONTROL=ignorespace")
 
         util.info("setting terminal prompt", overlay=True)
-        self.run(f'export PS1="{self.remote_prefix} $PS1"')
+        self.run(
+            f'export SAVED_PS1="$PS1"; export PS1="{self.remote_prefix} $SAVED_PS1"'
+        )
 
         # Locate interesting binaries
         # The auto-resolving doesn't work correctly until we have a pty
@@ -303,7 +306,9 @@ class PtyHandler:
         self.has_prompt = True
 
         util.info("setting terminal prompt", overlay=True)
-        self.run(f'export PS1="{self.remote_prefix} $PS1"')
+        self.run(
+            f'export SAVED_PS1="$PS1"; export PS1="{self.remote_prefix} $SAVED_PS1"'
+        )
 
         # Make sure HISTFILE is unset in this PTY (it resets when a pty is
         # opened)
@@ -452,6 +457,9 @@ class PtyHandler:
                         result = self.run(line[1:])
                         sys.stdout.buffer.write(result)
                         continue
+                    elif line[0] == "-":
+                        self.run(line[1:], wait=False)
+                        continue
 
                 argv = shlex.split(line)
 
@@ -539,6 +547,12 @@ class PtyHandler:
 
             def on_progress(copied, blocksz):
                 """ Update the progress bar """
+                if blocksz == -1:
+                    counter.stopped = True
+                    counter.done = True
+                    pb.invalidate()
+                    return
+
                 counter.items_completed += blocksz
                 if counter.items_completed >= counter.total:
                     counter.done = True
@@ -546,15 +560,11 @@ class PtyHandler:
                 if (time.time() - last_update) > 0.1:
                     pb.invalidate()
 
-            download.serve(on_progress)
-
-            download.command()
-
             try:
-                while not counter.done:
-                    time.sleep(0.1)
-            except KeyboardInterrupt:
-                pass
+                download.serve(on_progress)
+                if download.command():
+                    while not counter.done:
+                        time.sleep(0.2)
             finally:
                 download.shutdown()
 
@@ -653,6 +663,11 @@ class PtyHandler:
             help_msg = getattr(self, c).__doc__
             print(f"{c[3:]:15s}{help_msg}")
 
+    def do_reset(self, argv):
+        """ Reset the remote terminal (calls sync, reset, and sets PS1) """
+        self.reset()
+        self.do_sync([])
+
     def run(self, cmd, wait=True) -> bytes:
         """ Run a command in the context of the remote host and return the
         output. This is run synchrounously.
@@ -689,7 +704,7 @@ class PtyHandler:
         if delim:
             command = f" echo _PWNCAT_STARTDELIM_; {cmd}; echo _PWNCAT_ENDDELIM_"
         else:
-            command = cmd
+            command = f" {cmd}"
 
         response = b""
 
@@ -707,8 +722,79 @@ class PtyHandler:
 
         return b"_PWNCAT_ENDDELIM_"
 
+    def subprocess(self, cmd) -> RemoteBinaryPipe:
+        """ Create an asynchronous child on the remote end and return a
+        file-like object which can communicate with it's standard output. The 
+        remote terminal is placed in raw mode with no-echo first, and the
+        command is run on a separate background shell w/ no standard input. The
+        output of the command can be retrieved through the returned file-like
+        object. You **must** either call `close()` of the pipe, or read until
+        eof, or the PTY will not be restored to a normal state.
+
+        If `close()` is called prior to EOF, the remote process will be killed,
+        and any remaining output will be flushed prior to resetting the terminal.
+        """
+
+        if isinstance(cmd, list):
+            cmd = shlex.join(cmd)
+
+        sdelim = "_PWNCAT_STARTDELIM_"
+        edelim = "_PWNCAT_ENDDELIM_"
+
+        # List of ";" separated commands that will be run
+        command = []
+        # Clear the prompt, or it will get displayed in our output due to the
+        # background task
+        command.append("export PS1=")
+        # Needed to disable job control messages in bash
+        command.append("set +m")
+        # This is gross, but it allows us to recieve stderr and stdout, while
+        # ignoring the job control start message.
+        command.append(
+            f"{{ echo {sdelim}; {cmd} && echo {edelim} || echo {edelim} 2>&1 & }} 2>/dev/null"
+        )
+        # Re-enable normal job control in bash
+        command.append("set -m")
+
+        # Join them all into one command
+        command = ";".join(command).encode("utf-8")
+
+        # Enter raw mode w/ no echo on the remote terminal
+        # DANGER
+        self.raw(echo=False)
+
+        self.client.sendall(command + b"\n")
+        self.recvuntil(sdelim)
+        self.recvuntil("\n")
+
+        # Bash sends some bullshit that messes up terminals. Check to see if it
+        # is there, and ignore it if it is
+        try:
+            data = self.client.recv(2, socket.MSG_PEEK | socket.MSG_DONTWAIT)
+        except (BlockingIOError, socket.error):
+            data = b""
+
+        if data == b"\x1b_":
+            self.recvuntil(b"\x1b\\")
+
+        return RemoteBinaryPipe(self, edelim.encode("utf-8"), True)
+
+    def raw(self, echo: bool = False):
+        self.run("stty raw -echo", wait=False)
+        self.has_cr = False
+        self.has_echo = False
+
+    def reset(self):
+        self.run("reset", wait=False)
+        self.has_cr = True
+        self.has_echo = True
+        self.run(f'export PS1="{self.remote_prefix} $SAVED_PS1"')
+
     def recvuntil(self, needle: bytes, flags=0):
         """ Recieve data from the client until the specified string appears """
+
+        if isinstance(needle, str):
+            needle = needle.encode("utf-8")
 
         result = b""
         while not result.endswith(needle):

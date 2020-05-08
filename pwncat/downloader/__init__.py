@@ -7,15 +7,17 @@ from pwncat.downloader.nc import NetcatDownloader
 from pwncat.downloader.curl import CurlDownloader
 from pwncat.downloader.shell import ShellDownloader
 from pwncat.downloader.bashtcp import BashTCPDownloader
+from pwncat.downloader.raw import RawShellDownloader
 
 all_downloaders = [
     NetcatDownloader,
     CurlDownloader,
     ShellDownloader,
     BashTCPDownloader,
+    RawShellDownloader,
 ]
 downloaders = [NetcatDownloader, CurlDownloader]
-fallback = ShellDownloader
+fallback = RawShellDownloader
 
 
 def get_names() -> List[str]:
