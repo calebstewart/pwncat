@@ -13,6 +13,7 @@ from prompt_toolkit.completion import (
 )
 from prompt_toolkit.document import Document
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
+from prompt_toolkit.lexers import PygmentsLexer
 import subprocess
 import logging
 import argparse
@@ -26,6 +27,7 @@ import os
 
 from pwncat import util
 from pwncat import downloader, uploader, privesc
+from pwncat.lexer import LocalCommandLexer
 from colorama import Fore
 
 
@@ -352,6 +354,7 @@ class PtyHandler:
             ],
             completer=CommandCompleter(completer_graph),
             auto_suggest=AutoSuggestFromHistory(),
+            lexer=PygmentsLexer(LocalCommandLexer),
         )
 
     def which(self, name: str, request=True) -> str:
