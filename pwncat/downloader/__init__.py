@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 from typing import Type, List
 
 from pwncat.downloader.base import Downloader, DownloadError

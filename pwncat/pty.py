@@ -13,7 +13,7 @@ import sys
 import os
 
 from pwncat import util
-from pwncat import downloader, uploader
+from pwncat import downloader, uploader, privesc
 from colorama import Fore
 
 
@@ -312,6 +312,37 @@ class PtyHandler:
         """ Exit command mode """
         self.enter_raw(save=False)
 
+    def do_privesc(self, argv):
+        """ Attempt privilege escalation """
+
+        parser = argparse.ArgumentParser(prog="privesc")
+        parser.add_argument(
+            "--method",
+            "-m",
+            choices=privesc.get_names(),
+            default=None,
+            help="set the privesc method (default: auto)",
+        )
+
+        try:
+            args = parser.parse_args(argv)
+        except SystemExit:
+            # The arguments were parsed incorrectly, return.
+            return
+
+        try:
+            # Locate an appropriate privesc class
+            PrivescClass = privesc.find(self, args.method)
+        except privesc.PrivescError as exc:
+            util.error(f"{exc}")
+            return
+
+        privesc_object = PrivescClass(self)
+        succeeded = privesc_object.execute()
+
+        if succeeded:
+            self.do_back([])
+
     def do_download(self, argv):
         """ Download a file from the remote host """
 
@@ -501,7 +532,29 @@ class PtyHandler:
             help_msg = getattr(self, c).__doc__
             print(f"{c[3:]:15s}{help_msg}")
 
-    def run(self, cmd, has_pty=True, wait=True) -> bytes:
+    def run(self, cmd, wait=True) -> bytes:
+        """ Run a command in the context of the remote host and return the
+        output. This is run synchrounously.
+
+            :param cmd: The command to run. Either a string or an argv list.
+            :param has_pty: Whether a pty was spawned
+        """
+
+        response = self.process(cmd, delim=wait)
+
+        if wait:
+
+            response = self.recvuntil(b"_PWNCAT_ENDDELIM_")
+            response = response.split(b"_PWNCAT_ENDDELIM_")[0]
+
+            if self.has_cr:
+                self.recvuntil(b"\r\n")
+            else:
+                self.recvuntil(b"\n")
+
+        return response
+
+    def process(self, cmd, delim=True) -> bytes:
         """ Run a command in the context of the remote host and return the
         output. This is run synchrounously.
 
@@ -512,10 +565,8 @@ class PtyHandler:
         if isinstance(cmd, list):
             cmd = shlex.join(cmd)
 
-        EOL = b"\r" if has_pty else b"\n"
-
-        if wait:
-            command = f" echo _PWNCAT_DELIM_; {cmd}; echo _PWNCAT_DELIM_"
+        if delim:
+            command = f" echo _PWNCAT_STARTDELIM_; {cmd}; echo _PWNCAT_ENDDELIM_"
         else:
             command = cmd
 
@@ -524,31 +575,26 @@ class PtyHandler:
         # Send the command to the remote host
         self.client.send(command.encode("utf-8") + b"\n")
 
-        if wait:
+        if delim:
             if self.has_echo:
-                self.recvuntil(b"_PWNCAT_DELIM_")  # first in command
-                self.recvuntil(b"_PWNCAT_DELIM_")  # second in command
+                self.recvuntil(b"_PWNCAT_ENDDELIM_")  # first in command
                 # Recieve line ending from output
                 self.recvuntil(b"\n")
 
-            self.recvuntil(b"_PWNCAT_DELIM_")  # first in output
+            self.recvuntil(b"_PWNCAT_STARTDELIM_")  # first in output
             self.recvuntil(b"\n")
-            response = self.recvuntil(b"_PWNCAT_DELIM_")
-            response = response.split(b"_PWNCAT_DELIM_")[0]
 
-            if self.has_cr:
-                self.recvuntil(b"\r\n")
-            else:
-                self.recvuntil(b"\n")
-
-        return response
+        return b"_PWNCAT_ENDDELIM_"
 
     def recvuntil(self, needle: bytes, flags=0):
         """ Recieve data from the client until the specified string appears """
 
         result = b""
         while not result.endswith(needle):
-            result += self.client.recv(1, flags)
+            try:
+                result += self.client.recv(1, flags)
+            except socket.timeout:
+                continue  # force waiting
 
         return result
 
