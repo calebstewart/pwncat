@@ -262,6 +262,7 @@ class PtyHandler:
         self.run("unset HISTFILE; export HISTCONTROL=ignorespace")
 
         util.info("setting terminal prompt", overlay=True)
+        self.run("unset PROMPT_COMMAND")
         self.run(
             f'export SAVED_PS1="$PS1"; export PS1="{self.remote_prefix} $SAVED_PS1"'
         )
@@ -307,6 +308,7 @@ class PtyHandler:
         self.has_prompt = True
 
         util.info("setting terminal prompt", overlay=True)
+        self.run("unset PROMPT_COMMAND")
         self.run(
             f'export SAVED_PS1="$PS1"; export PS1="{self.remote_prefix} $SAVED_PS1"'
         )
@@ -771,16 +773,6 @@ class PtyHandler:
         self.client.sendall(command + b"\n")
         self.recvuntil(sdelim)
         self.recvuntil("\n")
-
-        # Bash sends some bullshit that messes up terminals. Check to see if it
-        # is there, and ignore it if it is
-        try:
-            data = self.client.recv(2, socket.MSG_PEEK | socket.MSG_DONTWAIT)
-        except (BlockingIOError, socket.error):
-            data = b""
-
-        if data == b"\x1b_":
-            self.recvuntil(b"\x1b\\")
 
         return RemoteBinaryPipe(self, edelim.encode("utf-8"), True)
 
