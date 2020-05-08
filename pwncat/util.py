@@ -122,7 +122,6 @@ def get_ip_addr() -> str:
     for iface in ifaces:
         if iface.startswith("tun") or iface.startswith("tap"):
             addrs = netifaces.ifaddresses(iface)
-            print(addrs)
             if PROTO not in addrs:
                 continue
             for a in addrs[PROTO]:

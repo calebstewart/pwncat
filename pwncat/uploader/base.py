@@ -82,6 +82,7 @@ class HTTPUploader(Uploader):
 
     @classmethod
     def check(cls, pty: "pwncat.pty.PtyHandler") -> bool:
+        super(HTTPUploader, cls).check(pty)
         """ Make sure we have an lhost """
         if pty.vars.get("lhost", None) is None:
             raise UploadError("no lhost provided")
@@ -115,6 +116,7 @@ class RawUploader(Uploader):
 
     @classmethod
     def check(cls, pty: "pwncat.pty.PtyHandler") -> bool:
+        super(RawUploader, cls).check(pty)
         """ Make sure we have an lhost """
         if pty.vars.get("lhost", None) is None:
             raise UploadError("no lhost provided")

