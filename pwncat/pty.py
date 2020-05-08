@@ -63,9 +63,14 @@ class PtyHandler:
         self.lhost = None
         self.known_binaries = {}
         self.vars = {"lhost": util.get_ip_addr()}
+        self.remote_prefix = "\\[\\033[01;31m\\](remote)\\033[00m\\]"
         self.remote_prompt = "\\[\\033[01;32m\\]\\u@\\h\\[\\033[00m\\]:\\[\\033[01;34m\\]\\w\\[\\033[00m\\]\\$"
         self.prompt = PromptSession(
-            [("", "(local) "), ("#ff0000", "pwncat"), ("", "$ ")]
+            [
+                ("fg:ansiyellow bold", "(local) "),
+                ("fg:ansimagenta bold", "pwncat"),
+                ("", "$ "),
+            ]
         )
         self.binary_aliases = {
             "python": [
@@ -81,9 +86,9 @@ class PtyHandler:
         }
 
         # We should always get a response within 3 seconds...
-        self.client.settimeout(3)
+        self.client.settimeout(1)
 
-        util.info("probing for prompt...", overlay=False)
+        util.info("probing for prompt...", overlay=True)
         start = time.time()
         prompt = b""
         try:
@@ -131,10 +136,10 @@ class PtyHandler:
 
         # Ensure history is disabled
         util.info("disabling remote command history", overlay=True)
-        self.run("unset HISTFILE")
+        self.run("unset HISTFILE; export HISTCONTROL=ignorespace")
 
         util.info("setting terminal prompt", overlay=True)
-        self.run(f'export PS1="(remote) {self.remote_prompt} "')
+        self.run(f'export PS1="{self.remote_prefix} $PS1"')
 
         # Locate interesting binaries
         # The auto-resolving doesn't work correctly until we have a pty
@@ -177,11 +182,11 @@ class PtyHandler:
         self.has_prompt = True
 
         util.info("setting terminal prompt", overlay=True)
-        self.run(f'export PS1="(remote) {self.remote_prompt} "')
+        self.run(f'export PS1="{self.remote_prefix} $PS1"')
 
         # Make sure HISTFILE is unset in this PTY (it resets when a pty is
         # opened)
-        self.run("unset HISTFILE")
+        self.run("unset HISTFILE; export HISTCONTROL=ignorespace")
 
         # Synchronize the terminals
         util.info("synchronizing terminal state", overlay=True)
@@ -462,9 +467,7 @@ class PtyHandler:
         TERM = os.environ.get("TERM", "xterm")
         columns, rows = os.get_terminal_size(0)
 
-        self.run(f"stty rows {rows}")
-        self.run(f"stty columns {columns}")
-        self.run(f'export TERM="{TERM}"')
+        self.run(f"stty rows {rows}; stty columns {columns}; export TERM='{TERM}'")
 
     def do_set(self, argv):
         """ Set or view the currently assigned variables """
@@ -512,7 +515,7 @@ class PtyHandler:
         EOL = b"\r" if has_pty else b"\n"
 
         if wait:
-            command = f"echo _PWNCAT_DELIM_; {cmd}; echo _PWNCAT_DELIM_"
+            command = f" echo _PWNCAT_DELIM_; {cmd}; echo _PWNCAT_DELIM_"
         else:
             command = cmd
 
