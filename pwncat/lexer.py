@@ -2,8 +2,15 @@
 from pygments.lexer import RegexLexer, bygroups, include
 from pygments.token import *
 
+from pygments.style import Style
+from prompt_toolkit.styles.pygments import style_from_pygments_cls
+from pygments.styles import get_style_by_name
+
+PwncatStyle = style_from_pygments_cls(get_style_by_name("monokai"))
+
 
 class LocalCommandLexer(RegexLexer):
+
     tokens = {
         "root": [
             (r"download", Name.Function),
