@@ -55,7 +55,7 @@ class RemotePathCompleter(Completer):
 
     def get_completions(self, document: Document, complete_event: CompleteEvent):
 
-        before = document.get_word_before_cursor()
+        before = document.text_before_cursor.split()[-1]
         path, partial_name = os.path.split(before)
 
         if path == "":
@@ -71,7 +71,34 @@ class RemotePathCompleter(Completer):
         for name in files:
             if name.startswith(partial_name):
                 yield Completion(
-                    name, display=[("#ff0000", "(remote)"), ("", f" {name}")]
+                    name,
+                    start_position=-len(partial_name),
+                    display=[("#ff0000", "(remote)"), ("", f" {name}")],
+                )
+
+
+class LocalPathCompleter(Completer):
+    def __init__(self, pty: "PtyHandler"):
+        self.pty = pty
+
+    def get_completions(self, document: Document, complete_event: CompleteEvent):
+
+        before = document.text_before_cursor.split()[-1]
+        path, partial_name = os.path.split(before)
+
+        if path == "":
+            path = "."
+
+        # Ensure the directory exists
+        if not os.path.isdir(path):
+            return
+
+        for name in os.listdir(path):
+            if name.startswith(partial_name):
+                yield Completion(
+                    name,
+                    start_position=-len(partial_name),
+                    display=[("fg:ansiyellow", "(local)"), ("", f" {name}")],
                 )
 
 
@@ -293,9 +320,7 @@ class PtyHandler:
         whenever a new command or a command argument is changed. """
 
         remote_completer = RemotePathCompleter(self)
-        local_completer = PathCompleter(
-            only_directories=False, get_paths=lambda: [os.getcwd()], min_input_len=1
-        )
+        local_completer = LocalPathCompleter(self)
         download_method_completer = WordCompleter(downloader.get_names())
         upload_method_completer = WordCompleter(uploader.get_names())
 
