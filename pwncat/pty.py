@@ -276,10 +276,15 @@ class PtyHandler:
                     self.enter_raw()
                     continue
 
-                if len(line) > 0 and line[0] == "!":
-                    # Allow running shell commands
-                    subprocess.run(line[1:], shell=True)
-                    continue
+                if len(line) > 0:
+                    if line[0] == "!":
+                        # Allow running shell commands
+                        subprocess.run(line[1:], shell=True)
+                        continue
+                    elif line[0] == "@":
+                        result = self.run(line[1:])
+                        sys.stdout.buffer.write(result)
+                        continue
 
                 argv = shlex.split(line)
 
@@ -351,7 +356,7 @@ class PtyHandler:
         with ProgressBar(
             [("#888888", "downloading with "), ("fg:ansiyellow", f"{download.NAME}")]
         ) as pb:
-            counter = pb(range(os.path.getsize(path)))
+            counter = pb(range(size))
             last_update = time.time()
 
             def on_progress(copied, blocksz):
