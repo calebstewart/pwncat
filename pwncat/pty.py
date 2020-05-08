@@ -1,6 +1,18 @@
 #!/usr/bin/env python3
+from typing import Dict, Optional, Iterable
 from prompt_toolkit import PromptSession, ANSI
 from prompt_toolkit.shortcuts import ProgressBar
+from prompt_toolkit.completion import (
+    Completer,
+    PathCompleter,
+    Completion,
+    CompleteEvent,
+    NestedCompleter,
+    WordCompleter,
+    merge_completers,
+)
+from prompt_toolkit.document import Document
+from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 import subprocess
 import logging
 import argparse
@@ -23,6 +35,89 @@ class State(enum.Enum):
     NORMAL = enum.auto()
     RAW = enum.auto()
     COMMAND = enum.auto()
+
+
+def with_parser(f):
+    def _decorator(self, argv):
+        try:
+            parser = getattr(self, f.__name__.split("do_")[1] + "_parser")
+            args = parser.parse_args(argv)
+        except SystemExit:
+            return
+        return f(self, args)
+
+    return _decorator
+
+
+class RemotePathCompleter(Completer):
+    def __init__(self, pty: "PtyHandler"):
+        self.pty = pty
+
+    def get_completions(self, document: Document, complete_event: CompleteEvent):
+
+        before = document.get_word_before_cursor()
+        path, partial_name = os.path.split(before)
+
+        if path == "":
+            path = "."
+
+        # Ensure the directory exists
+        if self.pty.run(f"test -d {shlex.quote(path)} && echo -n good") != b"good":
+            return
+
+        files = self.pty.run(f"ls -1 -a {shlex.quote(path)}").decode("utf-8").strip()
+        files = files.split()
+
+        for name in files:
+            if name.startswith(partial_name):
+                yield Completion(
+                    name, display=[("#ff0000", "(remote)"), ("", f" {name}")]
+                )
+
+
+class CommandCompleter(Completer):
+    def __init__(self, description):
+        self.description = description
+
+    def get_completions(
+        self, document: Document, complete_event: CompleteEvent
+    ) -> Iterable[Completion]:
+        # Split document.
+        text = document.text_before_cursor.lstrip()
+        stripped_len = len(document.text_before_cursor) - len(text)
+
+        # If there is a space, check for the first term, and use a
+        # subcompleter.
+        if " " in text:
+            first_term = text.split()[0]
+            command = self.description.get(first_term)
+
+            # If we have a sub completer, use this for the completions.
+            if command is not None:
+                options = [k for k in command if k != "positional"]
+                terms = text.split(" ")
+
+                if len(terms) > 2:
+                    prev_term = terms[-2]
+                else:
+                    prev_term = None
+
+                if prev_term in options:
+                    completer = command[prev_term]
+                else:
+                    positionals = command.get("positional", [])
+                    completer = merge_completers(
+                        [WordCompleter(options, ignore_case=False)] + positionals
+                    )
+
+                for c in completer.get_completions(document, complete_event):
+                    yield c
+
+        # No space in the input: behave exactly like `WordCompleter`.
+        else:
+            completer = WordCompleter(list(self.description.keys()), ignore_case=False)
+            for c in completer.get_completions(document, complete_event):
+                yield c
 
 
 class PtyHandler:
@@ -64,9 +159,7 @@ class PtyHandler:
         self.known_binaries = {}
         self.vars = {"lhost": util.get_ip_addr()}
         self.remote_prompt = "\\[\\033[01;32m\\]\\u@\\h\\[\\033[00m\\]:\\[\\033[01;34m\\]\\w\\[\\033[00m\\]\\$"
-        self.prompt = PromptSession(
-            [("", "(local) "), ("#ff0000", "pwncat"), ("", "$ ")]
-        )
+        self.prompt = self.build_prompt_session()
         self.binary_aliases = {
             "python": [
                 "python2",
@@ -79,6 +172,9 @@ class PtyHandler:
             "sh": ["bash", "zsh", "dash"],
             "nc": ["netcat", "ncat"],
         }
+
+        # Setup the argument parsers for local the local prompt
+        self.setup_command_parsers()
 
         # We should always get a response within 3 seconds...
         self.client.settimeout(3)
@@ -190,6 +286,44 @@ class PtyHandler:
         # Force the local TTY to enter raw mode
         self.enter_raw()
 
+    def build_prompt_session(self):
+        """ This is kind of gross because of the nested completer, so I broke
+        it out on it's own. The nested completer must be updated separately
+        whenever a new command or a command argument is changed. """
+
+        remote_completer = RemotePathCompleter(self)
+        local_completer = PathCompleter(
+            only_directories=False, get_paths=lambda: [os.getcwd()], min_input_len=1
+        )
+        download_method_completer = WordCompleter(downloader.get_names())
+        upload_method_completer = WordCompleter(uploader.get_names())
+
+        completer_graph = {
+            "download": {
+                "-m": download_method_completer,
+                "--method": download_method_completer,
+                "-o": local_completer,
+                "--output": local_completer,
+                "positional": [remote_completer],
+            },
+            "upload": {
+                "-m": upload_method_completer,
+                "--method": upload_method_completer,
+                "-o": remote_completer,
+                "--output": remote_completer,
+                "positional": [local_completer],
+            },
+            "back": None,
+            "sync": None,
+            "help": None,
+        }
+
+        return PromptSession(
+            [("", "(local) "), ("#ff0000", "pwncat"), ("", "$ ")],
+            completer=CommandCompleter(completer_graph),
+            auto_suggest=AutoSuggestFromHistory(),
+        )
+
     def which(self, name: str, request=True) -> str:
         """ Call which on the remote host and return the path. The results are
         cached to decrease the number of remote calls. """
@@ -298,34 +432,14 @@ class PtyHandler:
             except KeyboardInterrupt:
                 continue
 
+    @with_parser
     def do_back(self, _):
         """ Exit command mode """
         self.enter_raw(save=False)
 
-    def do_download(self, argv):
+    @with_parser
+    def do_download(self, args):
         """ Download a file from the remote host """
-
-        parser = argparse.ArgumentParser(prog="download")
-        parser.add_argument(
-            "--method",
-            "-m",
-            choices=downloader.get_names(),
-            default=None,
-            help="set the download method (default: auto)",
-        )
-        parser.add_argument(
-            "--output",
-            "-o",
-            default="./{basename}",
-            help="path to the output file (default: basename of input)",
-        )
-        parser.add_argument("path", help="path to the file to download")
-
-        try:
-            args = parser.parse_args(argv)
-        except SystemExit:
-            # The arguments were parsed incorrectly, return.
-            return
 
         try:
             # Locate an appropriate downloader class
@@ -378,30 +492,9 @@ class PtyHandler:
             # https://github.com/prompt-toolkit/python-prompt-toolkit/issues/964
             time.sleep(0.1)
 
-    def do_upload(self, argv):
+    @with_parser
+    def do_upload(self, args):
         """ Upload a file to the remote host """
-
-        parser = argparse.ArgumentParser(prog="upload")
-        parser.add_argument(
-            "--method",
-            "-m",
-            choices=uploader.get_names(),
-            default=None,
-            help="set the download method (default: auto)",
-        )
-        parser.add_argument(
-            "--output",
-            "-o",
-            default="./{basename}",
-            help="path to the output file (default: basename of input)",
-        )
-        parser.add_argument("path", help="path to the file to upload")
-
-        try:
-            args = parser.parse_args(argv)
-        except SystemExit:
-            # The arguments were parsed incorrectly, return.
-            return
 
         if not os.path.isfile(args.path):
             util.error(f"{args.path}: no such file or directory")
@@ -548,3 +641,40 @@ class PtyHandler:
         """ Restore the terminal state """
         util.restore_terminal(self.saved_term_state)
         self.state = State.NORMAL
+
+    def setup_command_parsers(self):
+        """ Setup the argparsers for the different local commands """
+
+        self.upload_parser = argparse.ArgumentParser(prog="upload")
+        self.upload_parser.add_argument(
+            "--method",
+            "-m",
+            choices=uploader.get_names(),
+            default=None,
+            help="set the download method (default: auto)",
+        )
+        self.upload_parser.add_argument(
+            "--output",
+            "-o",
+            default="./{basename}",
+            help="path to the output file (default: basename of input)",
+        )
+        self.upload_parser.add_argument("path", help="path to the file to upload")
+
+        self.download_parser = argparse.ArgumentParser(prog="download")
+        self.download_parser.add_argument(
+            "--method",
+            "-m",
+            choices=downloader.get_names(),
+            default=None,
+            help="set the download method (default: auto)",
+        )
+        self.download_parser.add_argument(
+            "--output",
+            "-o",
+            default="./{basename}",
+            help="path to the output file (default: basename of input)",
+        )
+        self.download_parser.add_argument("path", help="path to the file to download")
+
+        self.back_parser = argparse.ArgumentParser(prog="back")
