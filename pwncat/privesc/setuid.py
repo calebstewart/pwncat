@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from typing import Generator
+from typing import Generator, List
 import shlex
 import sys
 from time import sleep
@@ -7,7 +7,7 @@ import os
 from colorama import Fore, Style
 
 from pwncat.util import info, success, error, progress, warn
-from pwncat.privesc.base import Privesc, PrivescError
+from pwncat.privesc.base import Method, PrivescError, Technique
 
 # https://gtfobins.github.io/#+suid
 known_setuid_privescs = {
@@ -70,10 +70,13 @@ known_setuid_privescs = {
 }
 
 
-class SetuidPrivesc(Privesc):
+class SetuidMethod(Method):
 
-    NAME = "setuid"
+    name = "setuid"
     BINARIES = ["find"]
+
+    def enumerate(self) -> List[Technique]:
+        """ Find all techniques known at this time """
 
     def execute(self):
         """ Look for setuid binaries and attempt to run"""

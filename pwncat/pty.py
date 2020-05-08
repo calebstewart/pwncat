@@ -65,20 +65,18 @@ class RemotePathCompleter(Completer):
         if path == "":
             path = "."
 
-        # Ensure the directory exists
-        if self.pty.run(f"test -d {shlex.quote(path)} && echo -n good") != b"good":
-            return
+        delim = self.pty.process(f"ls -1 -a {shlex.quote(path)}", delim=True)
 
-        files = self.pty.run(f"ls -1 -a {shlex.quote(path)}").decode("utf-8").strip()
-        files = files.split()
-
-        for name in files:
+        name = self.pty.recvuntil(b"\n").strip()
+        while name != delim:
+            name = name.decode("utf-8")
             if name.startswith(partial_name):
                 yield Completion(
                     name,
                     start_position=-len(partial_name),
                     display=[("#ff0000", "(remote)"), ("", f" {name}")],
                 )
+            name = self.pty.recvuntil(b"\n").strip()
 
 
 class LocalPathCompleter(Completer):
@@ -188,6 +186,7 @@ class PtyHandler:
         self.input = b""
         self.lhost = None
         self.known_binaries = {}
+        self.known_users = {}
         self.vars = {"lhost": util.get_ip_addr()}
         self.remote_prefix = "\\[\\033[01;31m\\](remote)\\033[00m\\]"
         self.remote_prompt = "\\[\\033[01;32m\\]\\u@\\h\\[\\033[00m\\]:\\[\\033[01;34m\\]\\w\\[\\033[00m\\]\\$"
@@ -211,7 +210,7 @@ class PtyHandler:
         # We should always get a response within 3 seconds...
         self.client.settimeout(1)
 
-        util.info("probing for prompt...", overlay=True)
+        util.info("probing for prompt...", overlay=False)
         start = time.time()
         prompt = b""
         try:
@@ -223,28 +222,29 @@ class PtyHandler:
         # We assume if we got data before sending data, there is a prompt
         if prompt != b"":
             self.has_prompt = True
-            util.info(f"found a prompt", overlay=True)
+            util.info(f"found a prompt", overlay=False)
         else:
             self.has_prompt = False
-            util.info("no prompt observed", overlay=True)
+            util.info("no prompt observed", overlay=False)
 
         # Send commands without a new line, and see if the characters are echoed
-        util.info("checking for echoing", overlay=True)
-        self.client.send(b"echo")
+        util.info("checking for echoing", overlay=False)
+        test_cmd = b"echo"
+        self.client.send(test_cmd)
         response = b""
 
         try:
-            while len(response) < 7:
-                response += self.client.recv(7 - len(response))
+            while len(response) < len(test_cmd):
+                response += self.client.recv(len(test_cmd) - len(response))
         except socket.timeout:
             pass
 
-        if response == b"echo":
+        if response == test_cmd:
             self.has_echo = True
-            util.info("found input echo", overlay=True)
+            util.info("found input echo", overlay=False)
         else:
             self.has_echo = False
-            util.info(f"no echo observed", overlay=True)
+            util.info(f"no echo observed", overlay=False)
 
         self.client.send(b"\n")
         response = self.client.recv(1)
@@ -314,6 +314,9 @@ class PtyHandler:
         # Make sure HISTFILE is unset in this PTY (it resets when a pty is
         # opened)
         self.run("unset HISTFILE; export HISTCONTROL=ignorespace")
+
+        # Disable automatic margins, which fuck up the prompt
+        self.run("tput rmam")
 
         # Synchronize the terminals
         util.info("synchronizing terminal state", overlay=True)
@@ -715,12 +718,12 @@ class PtyHandler:
 
         if delim:
             if self.has_echo:
-                self.recvuntil(b"_PWNCAT_ENDDELIM_")  # first in command
                 # Recieve line ending from output
-                self.recvuntil(b"\n")
+                self.recvuntil(b"_PWNCAT_STARTDELIM_")
+                self.recvuntil(b"\n", interp=True)
 
-            self.recvuntil(b"_PWNCAT_STARTDELIM_")  # first in output
-            self.recvuntil(b"\n")
+            self.recvuntil(b"_PWNCAT_STARTDELIM_", interp=True)  # first in output
+            self.recvuntil(b"\n", interp=True)
 
         return b"_PWNCAT_ENDDELIM_"
 
@@ -791,8 +794,9 @@ class PtyHandler:
         self.has_cr = True
         self.has_echo = True
         self.run(f'export PS1="{self.remote_prefix} $SAVED_PS1"')
+        self.run(f"tput rmam")
 
-    def recvuntil(self, needle: bytes, flags=0):
+    def recvuntil(self, needle: bytes, flags=0, interp=False):
         """ Recieve data from the client until the specified string appears """
 
         if isinstance(needle, str):
@@ -801,7 +805,15 @@ class PtyHandler:
         result = b""
         while not result.endswith(needle):
             try:
-                result += self.client.recv(1, flags)
+                data = self.client.recv(1, flags)
+                # Bash sends some **WEIRD** shit and wraps it in backspace
+                # characters for some reason. When asked, we interpret the
+                # backspace characters so the response is what we expect.
+                if interp and data == b"\x08":
+                    if len(result) > 0:
+                        result = result[:-1]
+                else:
+                    result += data
             except socket.timeout:
                 continue  # force waiting
 
@@ -848,3 +860,37 @@ class PtyHandler:
         self.download_parser.add_argument("path", help="path to the file to download")
 
         self.back_parser = argparse.ArgumentParser(prog="back")
+
+    def whoami(self):
+        result = self.run("whoami")
+        return result.strip().decode("utf-8")
+
+    @property
+    def users(self):
+        if self.known_users:
+            return self.known_users
+
+        self.known_users = {}
+
+        passwd = self.run("cat /etc/passwd")
+        for line in passwd.split("\n"):
+            line = line.split(":")
+            user_data = {
+                "name": line[0],
+                "password": None,
+                "uid": int(line[2]),
+                "gid": int(line[3]),
+                "description": line[4],
+                "home": line[5],
+                "shell": line[6],
+            }
+            self.known_users[line[0]] = user_data
+
+        return self.known_users
+
+    @property
+    def current_user(self):
+        name = self.whoami()
+        if name in self.users:
+            return self.users[name]
+        return None
