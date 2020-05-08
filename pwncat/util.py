@@ -141,7 +141,7 @@ def get_ip_addr() -> str:
 
 
 LAST_LOG_MESSAGE = ("", False)
-PROG_ANIMATION = ["/-\\"]
+PROG_ANIMATION = "/-\\"
 LAST_PROG_ANIM = -1
 
 
@@ -194,5 +194,5 @@ def success(message, overlay=False):
     log("success", message, overlay)
 
 
-# def progress(message, overlay=False):
-#    log("prog", message, overlay)
+def progress(message, overlay=True):
+    log("prog", message, overlay)
