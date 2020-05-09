@@ -234,8 +234,6 @@ class SudoMethod(Method):
             technique.user, sudo_spec, self.pty.shell
         )
 
-        print(shell_payload)
-
         # Run the commands
         self.pty.run(shell_payload + "\n", wait=False)
 

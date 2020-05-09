@@ -86,14 +86,23 @@ class SetuidMethod(Method):
     def __init__(self, pty: "pwncat.pty.PtyHandler"):
         super(SetuidMethod, self).__init__(pty)
 
-        self.suid_paths = None
+        self.users_searched = []
+        self.suid_paths = {}
 
     def find_suid(self):
+
+        current_user = self.pty.whoami()
+
+        # Only re-run the search if we haven't searched as this user yet
+        if current_user in self.users_searched:
+            return
+
+        # Note that we already searched for binaries as this user
+        self.users_searched.append(current_user)
 
         # Spawn a find command to locate the setuid binaries
         delim = self.pty.process("find / -perm -4000 -print 2>/dev/null")
         files = []
-        self.suid_paths = {}
 
         while True:
             path = self.pty.recvuntil(b"\n").strip()
@@ -112,13 +121,15 @@ class SetuidMethod(Method):
             )
             if user not in self.suid_paths:
                 self.suid_paths[user] = []
-            self.suid_paths[user].append(path)
+            # Only add new binaries
+            if path not in self.suid_paths[user]:
+                self.suid_paths[user].append(path)
 
     def enumerate(self) -> List[Technique]:
         """ Find all techniques known at this time """
 
-        if self.suid_paths is None:
-            self.find_suid()
+        # Update the cache for the current user
+        self.find_suid()
 
         for user, paths in self.suid_paths.items():
             for path in paths:
