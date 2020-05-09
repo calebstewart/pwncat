@@ -210,7 +210,7 @@ class PtyHandler:
         # We should always get a response within 3 seconds...
         self.client.settimeout(1)
 
-        util.info("probing for prompt...", overlay=False)
+        util.info("probing for prompt...", overlay=True)
         start = time.time()
         prompt = b""
         try:
@@ -222,13 +222,13 @@ class PtyHandler:
         # We assume if we got data before sending data, there is a prompt
         if prompt != b"":
             self.has_prompt = True
-            util.info(f"found a prompt", overlay=False)
+            util.info(f"found a prompt", overlay=True)
         else:
             self.has_prompt = False
-            util.info("no prompt observed", overlay=False)
+            util.info("no prompt observed", overlay=True)
 
         # Send commands without a new line, and see if the characters are echoed
-        util.info("checking for echoing", overlay=False)
+        util.info("checking for echoing", overlay=True)
         test_cmd = b"echo"
         self.client.send(test_cmd)
         response = b""
@@ -241,10 +241,10 @@ class PtyHandler:
 
         if response == test_cmd:
             self.has_echo = True
-            util.info("found input echo", overlay=False)
+            util.info("found input echo", overlay=True)
         else:
             self.has_echo = False
-            util.info(f"no echo observed", overlay=False)
+            util.info(f"no echo observed", overlay=True)
 
         self.client.send(b"\n")
         response = self.client.recv(1)
@@ -323,6 +323,8 @@ class PtyHandler:
         # Synchronize the terminals
         util.info("synchronizing terminal state", overlay=True)
         self.do_sync([])
+
+        self.privesc = privesc.Finder(self)
 
         # Force the local TTY to enter raw mode
         self.enter_raw()
@@ -495,11 +497,18 @@ class PtyHandler:
 
         parser = argparse.ArgumentParser(prog="privesc")
         parser.add_argument(
-            "--method",
-            "-m",
-            choices=privesc.get_names(),
+            "--user",
+            "-u",
+            choices=[user for user in self.users],
+            default="root",
+            help="the target user",
+        )
+        parser.add_argument(
+            "--depth",
+            "-d",
+            type=int,
             default=None,
-            help="set the privesc method (default: auto)",
+            help="Maximum depth for the privesc search (default: no maximum)",
         )
 
         try:
@@ -509,17 +518,9 @@ class PtyHandler:
             return
 
         try:
-            # Locate an appropriate privesc class
-            PrivescClass = privesc.find(self, args.method)
+            self.privesc.escalate(args.user, args.depth)
         except privesc.PrivescError as exc:
-            util.error(f"{exc}")
-            return
-
-        privesc_object = PrivescClass(self)
-        succeeded = privesc_object.execute()
-
-        if succeeded:
-            self.do_back([])
+            util.error(f"escalation failed: {exc}")
 
     @with_parser
     def do_download(self, args):
@@ -864,9 +865,12 @@ class PtyHandler:
 
         self.known_users = {}
 
-        passwd = self.run("cat /etc/passwd")
+        passwd = self.run("cat /etc/passwd").decode("utf-8")
         for line in passwd.split("\n"):
-            line = line.split(":")
+            line = line.strip()
+            if line == "":
+                continue
+            line = line.strip().split(":")
             user_data = {
                 "name": line[0],
                 "password": None,

@@ -23,7 +23,7 @@ class Finder:
         for m in [SetuidMethod, SuMethod]:
             try:
                 m.check(self.pty)
-                self.methods.append(m())
+                self.methods.append(m(self.pty))
             except PrivescError:
                 pass
 
@@ -40,7 +40,7 @@ class Finder:
         current_user = self.pty.current_user
         if (
             target_user == current_user["name"]
-            or current_user["id"] == 0
+            or current_user["uid"] == 0
             or current_user["name"] == "root"
         ):
             raise PrivescError(f"you are already {current_user['name']}")
@@ -48,7 +48,7 @@ class Finder:
         if starting_user is None:
             starting_user = current_user
 
-        if len(chain) > depth:
+        if depth is not None and len(chain) > depth:
             raise PrivescError("max depth reached")
 
         # Enumerate escalation options for this user
@@ -60,8 +60,8 @@ class Finder:
         for tech in techniques:
             if tech.user == target_user:
                 try:
-                    tech.method.execute(tech)
-                    chain.append(tech)
+                    exit_command = tech.method.execute(tech)
+                    chain.append((tech, exit_command))
                     return chain
                 except PrivescError:
                     pass
@@ -72,14 +72,15 @@ class Finder:
             if tech.user == target_user:
                 continue
             try:
-                tech.method.execute(tech)
-                chain.append(tech)
+                exit_command = tech.method.execute(tech)
+                chain.append((tech, exit_command))
             except PrivescError:
                 continue
             try:
                 return self.escalate(target_user, depth, chain, starting_user)
             except PrivescError:
-                self.pty.run("exit", wait=False)
+                tech, exit_command = chain[-1]
+                self.pty.run(exit_command, wait=False)
                 chain.pop()
 
         raise PrivescError(f"no route to {target_user} found")
