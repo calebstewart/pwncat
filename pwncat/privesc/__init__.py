@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from typing import Type, List
+from typing import Type, List, Tuple
 
 from pwncat.privesc.base import Method, PrivescError, Technique, SuMethod
 from pwncat.privesc.setuid import SetuidMethod
@@ -30,15 +30,34 @@ class Finder:
             except PrivescError:
                 pass
 
+    def search(self, target_user: str = None) -> List[Technique]:
+        """ Search for privesc techniques for the current user to get to the
+        target user. If target_user is not specified, all techniques for all
+        users will be returned. """
+
+        techniques = []
+        for method in self.methods:
+            techniques.extend(method.enumerate())
+
+        if target_user is not None:
+            techniques = [
+                technique for technique in techniques if technique.user == target_user
+            ]
+
+        return techniques
+
     def escalate(
         self,
         target_user: str = None,
         depth: int = None,
         chain: List[Technique] = [],
         starting_user=None,
-    ):
+    ) -> List[Tuple[Technique, str]]:
         """ Search for a technique chain which will gain access as the given 
         user. """
+
+        if target_user is None:
+            target_user = "root"
 
         current_user = self.pty.current_user
         if (

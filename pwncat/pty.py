@@ -497,6 +497,20 @@ class PtyHandler:
 
         parser = argparse.ArgumentParser(prog="privesc")
         parser.add_argument(
+            "--list",
+            "-l",
+            action="store_true",
+            help="do not perform escalation. list potential escalation methods",
+        )
+        parser.add_argument(
+            "--all",
+            "-a",
+            action="store_const",
+            dest="user",
+            const=None,
+            help="when listing methods, list for all users. when escalating, escalate to root.",
+        )
+        parser.add_argument(
             "--user",
             "-u",
             choices=[user for user in self.users],
@@ -517,10 +531,18 @@ class PtyHandler:
             # The arguments were parsed incorrectly, return.
             return
 
-        try:
-            self.privesc.escalate(args.user, args.depth)
-        except privesc.PrivescError as exc:
-            util.error(f"escalation failed: {exc}")
+        if args.list:
+            techniques = self.privesc.search(args.user)
+            if len(techniques) == 0:
+                util.warn("no techniques found")
+            else:
+                for tech in techniques:
+                    util.info(f"escalation to {tech}")
+        else:
+            try:
+                self.privesc.escalate(args.user, args.depth)
+            except privesc.PrivescError as exc:
+                util.error(f"escalation failed: {exc}")
 
     @with_parser
     def do_download(self, args):
@@ -643,13 +665,27 @@ class PtyHandler:
         """ Set or view the currently assigned variables """
 
         if len(argv) == 0:
+            util.info("local variables:")
             for k, v in self.vars.items():
                 print(f" {k} = {shlex.quote(v)}")
+
+            util.info("user passwords:")
+            for user, data in self.users.items():
+                if data["password"] is not None:
+                    print(
+                        f" {Fore.GREEN}{user}{Fore.RESET} -> {Fore.CYAN}{shlex.quote(data['password'])}{Fore.RESET}"
+                    )
             return
 
         parser = argparse.ArgumentParser(prog="set")
-        parser.add_argument("variable", help="the variable name")
-        parser.add_argument("value", help="the new variable type")
+        parser.add_argument(
+            "--password",
+            "-p",
+            action="store_true",
+            help="set the password for the given user",
+        )
+        parser.add_argument("variable", help="the variable name or user")
+        parser.add_argument("value", help="the new variable/user password value")
 
         try:
             args = parser.parse_args(argv)
@@ -657,7 +693,12 @@ class PtyHandler:
             # The arguments were parsed incorrectly, return.
             return
 
-        self.vars[args.variable] = args.value
+        if args.password is not None and args.variable not in self.users:
+            util.error(f"{args.variable}: no such user")
+        elif args.password is not None:
+            self.users[args.variable]["password"] = args.value
+        else:
+            self.vars[args.variable] = args.value
 
     def do_help(self, argv):
         """ View help for local commands """
