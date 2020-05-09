@@ -63,20 +63,21 @@ class RemoteBinaryPipe(RawIOBase):
             # Check for EOF split across blocks
             for i in range(1, len(self.delim) - 1):
                 # See if a piece of the delimeter is at the end of this block
-                piece = self.delim[:-i]
-                if bytes(b[-len(piece) :]) == piece:
+                piece = self.delim[:i]
+                if bytes(b[-i:]) == piece:
                     try:
                         # Peak the next bytes, to see if this is actually the
                         # delimeter
                         rest = self.pty.client.recv(
-                            i, socket.MSG_PEEK | socket.MSG_DONTWAIT
+                            len(self.delim) - len(piece),
+                            socket.MSG_PEEK | socket.MSG_DONTWAIT,
                         )
                     except (socket.error, BlockingIOError):
                         rest = b""
                     # It is!
                     if (piece + rest) == self.delim:
                         # Receive the delimeter
-                        self.pty.client.recv(i)
+                        self.pty.client.recv(len(self.delim) - len(piece))
                         # Adjust result
                         n -= len(piece)
                         # Set EOF for next read
