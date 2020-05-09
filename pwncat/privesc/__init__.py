@@ -7,7 +7,7 @@ from pwncat.privesc.sudo import SudoMethod
 
 
 # privesc_methods = [SetuidMethod, SuMethod]
-privesc_methods = [SudoMethod, SuMethod]
+privesc_methods = [SudoMethod, SetuidMethod, SuMethod]
 
 
 class Finder:
@@ -37,7 +37,10 @@ class Finder:
 
         techniques = []
         for method in self.methods:
-            techniques.extend(method.enumerate())
+            try:
+                techniques.extend(method.enumerate())
+            except PrivescError:
+                pass
 
         if target_user is not None:
             techniques = [
@@ -76,17 +79,21 @@ class Finder:
         # Enumerate escalation options for this user
         techniques = []
         for method in self.methods:
-            techniques.extend(method.enumerate())
-
-        # Escalate directly to the target
-        for tech in techniques:
-            if tech.user == target_user:
-                try:
-                    exit_command = tech.method.execute(tech)
-                    chain.append((tech, exit_command))
-                    return chain
-                except PrivescError:
-                    pass
+            try:
+                found_techniques = method.enumerate()
+                for tech in found_techniques:
+                    if tech.user == target_user:
+                        try:
+                            exit_command = tech.method.execute(tech)
+                            chain.append((tech, exit_command))
+                            self.pty.reset()
+                            self.pty.do_back([])
+                            return chain
+                        except PrivescError:
+                            pass
+                techniques.extend(found_techniques)
+            except PrivescError:
+                pass
 
         # We can't escalate directly to the target. Instead, try recursively
         # against other users.

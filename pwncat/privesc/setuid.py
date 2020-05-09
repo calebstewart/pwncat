@@ -139,9 +139,6 @@ class SetuidMethod(Method):
         before_shell_level = self.pty.run("echo $SHLVL").strip()
         before_shell_level = int(before_shell_level) if before_shell_level != b"" else 0
 
-        # for each_command in commands:
-        #     self.pty.run(each_command.format(path), wait=False)
-
         # Run the start commands
         self.pty.run(enter + "\n")
         self.pty.recvuntil("\n")

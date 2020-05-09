@@ -17,7 +17,7 @@ class Binary:
         self.data = data
         self.path = path
 
-    def shell(self, shell_path: str) -> str:
+    def shell(self, shell_path: str, sudo_prefix="") -> str:
         """ Build a a payload which will execute the binary and result in a
         shell. `path` should be the path to the shell you would like to run. In
         the case of GTFOBins that _are_ shells, this will likely be ignored, but
@@ -30,11 +30,49 @@ class Binary:
         if isinstance(self.data["shell"], str):
             enter = self.data["shell"]
             exit = "exit"
+            input = ""
         else:
             enter = self.data["shell"]["enter"]
             exit = self.data["shell"].get("exit", "exit")
+            input = self.data["shell"].get("input", "input")
 
-        return enter.format(path=quote(self.path), shell=quote(shell_path)), exit
+        return (
+            enter.format(
+                path=quote(self.path), shell=quote(shell_path), sudo_prefix=sudo_prefix
+            ),
+            input.format(shell=quote(shell_path)),
+            exit,
+        )
+
+    def sudo(self, sudo_prefix: str, command: str, shell_path: str) -> str:
+        """ Build a a payload which will execute the binary and result in a
+        shell. `path` should be the path to the shell you would like to run. In
+        the case of GTFOBins that _are_ shells, this will likely be ignored, but
+        you should always provide it.
+        """
+
+        if "sudo" not in self.data:
+            return None
+
+        if isinstance(self.data["sudo"], str):
+            enter = self.data["sudo"]
+            exit = "exit"
+            input = ""
+        else:
+            enter = self.data["sudo"]["enter"]
+            exit = self.data["sudo"].get("exit", "exit")
+            input = self.data["shell"].get("input", "input")
+
+        return (
+            enter.format(
+                path=quote(self.path),
+                shell=quote(shell_path),
+                command=quote(command),
+                sudo_prefix=sudo_prefix,
+            ),
+            input.format(shell=quote(shell_path)),
+            exit,
+        )
 
     def read_file(self, file_path: str) -> str:
         """ Build a payload which will leak the contents of the specified file.

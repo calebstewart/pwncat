@@ -189,7 +189,7 @@ class PtyHandler:
         self.known_users = {}
         self.vars = {"lhost": util.get_ip_addr()}
         self.remote_prefix = "\\[\\033[01;31m\\](remote)\\033[00m\\]"
-        self.remote_prompt = "\\[\\033[01;32m\\]\\u@\\h\\[\\033[00m\\]:\\[\\033[01;34m\\]\\w\\[\\033[00m\\]\\$"
+        self.remote_prompt = "\\[\\033[01;33m\\]\\u@\\h\\[\\033[00m\\]:\\[\\033[01;36m\\]\\w\\[\\033[00m\\]\\$ "
         self.prompt = self.build_prompt_session()
         self.binary_aliases = {
             "python": [
@@ -263,9 +263,7 @@ class PtyHandler:
 
         util.info("setting terminal prompt", overlay=True)
         self.run("unset PROMPT_COMMAND")
-        self.run(
-            f'export SAVED_PS1="$PS1"; export PS1="{self.remote_prefix} $SAVED_PS1"'
-        )
+        self.run(f'export PS1="{self.remote_prefix} {self.remote_prompt}"')
 
         self.shell = self.run("ps -o command -p $$ | tail -n 1").decode("utf-8").strip()
         self.shell = self.which(self.shell.split(" ")[0])
@@ -313,9 +311,7 @@ class PtyHandler:
 
         util.info("setting terminal prompt", overlay=True)
         self.run("unset PROMPT_COMMAND")
-        self.run(
-            f'export SAVED_PS1="$PS1"; export PS1="{self.remote_prefix} $SAVED_PS1"'
-        )
+        self.run(f'export PS1="{self.remote_prefix} {self.remote_prompt}"')
 
         # Make sure HISTFILE is unset in this PTY (it resets when a pty is
         # opened)
@@ -831,7 +827,7 @@ class PtyHandler:
         self.run("reset", wait=False)
         self.has_cr = True
         self.has_echo = True
-        self.run(f'export PS1="{self.remote_prefix} $SAVED_PS1"')
+        self.run(f"export PS1='{self.remote_prefix} {self.remote_prompt}'")
         self.run(f"tput rmam")
 
     def recvuntil(self, needle: bytes, flags=0, interp=False):

