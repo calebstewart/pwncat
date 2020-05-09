@@ -3,8 +3,11 @@ from typing import Type, List
 
 from pwncat.privesc.base import Method, PrivescError, Technique, SuMethod
 from pwncat.privesc.setuid import SetuidMethod
+from pwncat.privesc.sudo import SudoMethod
 
-methods = [SetuidMethod]
+
+# privesc_methods = [SetuidMethod, SuMethod]
+privesc_methods = [SudoMethod, SuMethod]
 
 
 class Finder:
@@ -20,7 +23,7 @@ class Finder:
         self.pty = pty
 
         self.methods: List[Method] = []
-        for m in [SetuidMethod, SuMethod]:
+        for m in privesc_methods:
             try:
                 m.check(self.pty)
                 self.methods.append(m(self.pty))

@@ -15,6 +15,8 @@ import tty
 import sys
 import os
 
+CTRL_C = b"\x03"
+
 
 def copyfileobj(src, dst, callback, nomv=False):
     """ Copy a file object to another file object with a callback.
