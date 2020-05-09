@@ -262,6 +262,11 @@ class Binary:
         """ Check if this binary has a write_file capability """
         return "write_file" in self.data
 
+    @property
+    def is_safe(self):
+        """ Check if this binary has a write_file capability """
+        return self.data.get("safe", True)
+
     def command(self, command: str) -> str:
         """ Build a payload to execute the specified command """
 
@@ -298,7 +303,10 @@ class Binary:
 
     @classmethod
     def find_capability(
-        cls, which: Callable[[str], str], capability: int = Capability.ALL
+        cls,
+        which: Callable[[str], str],
+        capability: int = Capability.ALL,
+        safe: bool = False,
     ) -> "Binary":
         """ Locate the given gtfobin and return the Binary object. If name is
         not given, it is assumed to be the basename of the path. """
@@ -309,6 +317,8 @@ class Binary:
                 continue
 
             binary = Binary(path, data)
+            if not binary.is_safe == safe:
+                continue
             if not binary.has_read and (capability & Capability.READ):
                 continue
             if not binary.has_write and (capability & Capability.WRITE):
