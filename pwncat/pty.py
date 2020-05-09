@@ -154,8 +154,8 @@ class PtyHandler:
     on the local end """
 
     OPEN_METHODS = {
-        "script": "exec {} -qc /bin/bash /dev/null 2>&1",
-        "python": "exec {} -c \"import pty; pty.spawn('/bin/bash')\" 2>&1",
+        "script": "exec {} -qc {} /dev/null 2>&1",
+        "python": "exec {} -c \"import pty; pty.spawn('{}')\" 2>&1",
     }
 
     INTERESTING_BINARIES = [
@@ -267,6 +267,10 @@ class PtyHandler:
             f'export SAVED_PS1="$PS1"; export PS1="{self.remote_prefix} $SAVED_PS1"'
         )
 
+        self.shell = self.run("ps -o command -p $$ | tail -n 1").decode("utf-8").strip()
+        self.shell = self.which(self.shell.split(" ")[0])
+        util.info(f"running in {Fore.BLUE}{self.shell}{Fore.RESET}")
+
         # Locate interesting binaries
         # The auto-resolving doesn't work correctly until we have a pty
         # so, we manually resolve a list of useful binaries prior to spawning
@@ -288,7 +292,7 @@ class PtyHandler:
         # methods
         for m, cmd in PtyHandler.OPEN_METHODS.items():
             if self.which(m, request=False) is not None:
-                method_cmd = cmd.format(self.which(m, request=False))
+                method_cmd = cmd.format(self.which(m, request=False), self.shell)
                 method = m
                 break
         else:
@@ -381,7 +385,7 @@ class PtyHandler:
             path = self.known_binaries[name]
         elif name not in self.known_binaries and request:
             # It hasn't been looked up before, request it.
-            path = self.run(f"which {shlex.quote(name)}").decode("utf-8")
+            path = self.run(f"which {shlex.quote(name)}").decode("utf-8").strip()
             if path == "":
                 path = None
 
