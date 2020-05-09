@@ -12,6 +12,7 @@ from pwncat.privesc.base import Method, PrivescError, Technique
 
 from pwncat.pysudoers import Sudoers
 from pwncat import gtfobins
+from pwncat.privesc import Capability
 
 
 class SudoMethod(Method):
@@ -108,7 +109,7 @@ class SudoMethod(Method):
 
         return sudoers.rules
 
-    def enumerate(self) -> List[Technique]:
+    def enumerate(self, capability: int = Capability.ALL) -> List[Technique]:
         """ Find all techniques known at this time """
 
         info(f"checking {Fore.YELLOW}sudo -l{Fore.RESET} output", overlay=True)
@@ -194,6 +195,10 @@ class SudoMethod(Method):
                 # No GTFObins possible with this sudo spec
                 continue
 
+            # If this binary cannot sudo, don't bother with it
+            if not (binary.capabilities & Capability.SUDO):
+                continue
+
             if sudo_privesc["run_as_user"] == "ALL":
                 # add a technique for root
                 techniques.append(
@@ -201,6 +206,7 @@ class SudoMethod(Method):
                         "root",
                         self,
                         (binary, sudo_privesc["command"], sudo_privesc["password"]),
+                        binary.capabilities,
                     )
                 )
             else:
@@ -211,6 +217,7 @@ class SudoMethod(Method):
                             u,
                             self,
                             (binary, sudo_privesc["command"], sudo_privesc["password"]),
+                            binary.capabilities,
                         )
                     )
 

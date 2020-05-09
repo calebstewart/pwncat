@@ -524,6 +524,13 @@ class PtyHandler:
             default=None,
             help="Maximum depth for the privesc search (default: no maximum)",
         )
+        parser.add_argument(
+            "--read",
+            "-r",
+            type=str,
+            default=None,
+            help="remote filename to try and read",
+        )
 
         try:
             args = parser.parse_args(argv)
@@ -538,6 +545,18 @@ class PtyHandler:
             else:
                 for tech in techniques:
                     util.info(f"escalation to {tech}")
+        elif args.read:
+            try:
+                read_pipe, chain = self.privesc.read_file(
+                    args.read, args.user, args.depth
+                )
+                sys.stdout.buffer.write(read_pipe.read(4096))
+                read_pipe.close()
+
+                self.privesc.unwrap(chain)
+
+            except privesc.PrivescError as exc:
+                util.error(f"read file failed: {exc}")
         else:
             try:
                 self.privesc.escalate(args.user, args.depth)

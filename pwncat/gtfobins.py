@@ -7,8 +7,18 @@ import shlex
 import json
 import os
 
+from pwncat.privesc import Capability
+
 
 class SudoNotPossible(Exception):
+    """ Running the given binary to get a sudo shell is not possible """
+
+
+class FileReadNotPossible(Exception):
+    """ Running the given binary to get a sudo shell is not possible """
+
+
+class FileWriteNotPossible(Exception):
     """ Running the given binary to get a sudo shell is not possible """
 
 
@@ -21,6 +31,18 @@ class Binary:
         the GTFOBins JSON database """
         self.data = data
         self.path = path
+
+        self.capabilities = 0
+        if self.has_read_file:
+            self.capabilities |= Capability.READ
+        if self.has_shell:
+            self.capabilities |= Capability.SHELL
+        if self.has_write_file:
+            self.capabilities |= Capability.WRITE
+
+        # We need to fix this later...?
+        if self.has_shell:
+            self.capabilities |= Capability.SUDO
 
     def shell(
         self,
@@ -261,7 +283,7 @@ class Binary:
             cls._binaries = json.load(filp)
 
     @classmethod
-    def find(cls, path: str, name: str = None) -> "Binary":
+    def find(cls, path: str = None, name: str = None,) -> "Binary":
         """ Locate the given gtfobin and return the Binary object. If name is
         not given, it is assumed to be the basename of the path. """
 
@@ -273,6 +295,30 @@ class Binary:
                 return Binary(path, binary)
 
         return None
+
+    @classmethod
+    def find_capability(
+        cls, which: Callable[[str], str], capability: int = Capability.ALL
+    ) -> "Binary":
+        """ Locate the given gtfobin and return the Binary object. If name is
+        not given, it is assumed to be the basename of the path. """
+
+        for data in cls._binaries:
+            path = which(data["name"])
+            if path is None:
+                continue
+
+            binary = Binary(path, data)
+            if not binary.has_read and (capability & Capability.READ):
+                continue
+            if not binary.has_write and (capability & Capability.WRITE):
+                continue
+            if not binary.has_sudo and (capability & Capability.SUDO):
+                continue
+            if not binary.has_shell and (capability & Capability.SHELL):
+                continue
+
+            return binary
 
     @classmethod
     def find_sudo(cls, spec: str, get_binary_path: Callable[[str], str]) -> "Binary":

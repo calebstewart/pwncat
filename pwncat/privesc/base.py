@@ -8,6 +8,16 @@ import os
 
 from pwncat import util
 
+from enum import Enum
+
+
+class Capability:
+    READ = 1
+    WRITE = 2
+    SHELL = 4
+    SUDO = 8
+    ALL = READ | WRITE | SHELL | SUDO
+
 
 class PrivescError(Exception):
     """ An error occurred while attempting a privesc technique """
@@ -22,6 +32,8 @@ class Technique:
     # The unique identifier for this method (can be anything, specific to the
     # method)
     ident: Any
+    # The GTFObins capabilities required for this technique to work
+    capabilities: int
 
     def __str__(self):
         return self.method.get_name(self)
@@ -43,7 +55,7 @@ class Method:
     def __init__(self, pty: "pwncat.pty.PtyHandler"):
         self.pty = pty
 
-    def enumerate(self) -> List[Technique]:
+    def enumerate(self, capability: int = Capability.ALL) -> List[Technique]:
         """ Enumerate all possible escalations to the given users """
         raise NotImplementedError("no enumerate method implemented")
 
@@ -64,7 +76,7 @@ class SuMethod(Method):
     name = "su"
     BINARIES = ["su"]
 
-    def enumerate(self) -> List[Technique]:
+    def enumerate(self, capability=Capability.ALL) -> List[Technique]:
 
         result = []
         current_user = self.pty.whoami()

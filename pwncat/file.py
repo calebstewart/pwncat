@@ -42,27 +42,6 @@ class RemoteBinaryPipe(RawIOBase):
         # Cleanup
         self.on_eof()
 
-    # def read(self, size: int = -1):
-    #     if self.eof == -1:
-    #         self.on_eof()
-
-    #     if self.eof:
-    #         return b""
-
-    #     if size == -1:
-    #         data = b""
-    #         while self.delim not in data:
-    #             data += self.pty.client.recv(1024 * 1024)
-    #         data = data.split(self.delim)[0]
-    #         self.eof = -1
-    #     else:
-    #         data = self.pty.client.recv(size)
-    #         if self.delim in data:
-    #             self.eof = -1
-    #             data = data.split(self.delim)[0]
-
-    #     return data
-
     def readinto(self, b: bytearray):
         if self.eof:
             return 0

