@@ -5,13 +5,17 @@ import crypt
 from pwncat.privesc.base import Method, PrivescError, Technique, SuMethod, Capability
 from pwncat.privesc.setuid import SetuidMethod
 from pwncat.privesc.sudo import SudoMethod
+from pwncat.privesc.dirtycow import DirtycowMethod
+from pwncat.privesc.screen import ScreenMethod
 from pwncat import downloader
 from pwncat import gtfobins
 from pwncat import util
 
 
 # privesc_methods = [SetuidMethod, SuMethod]
-privesc_methods = [SuMethod, SudoMethod, SetuidMethod]
+# privesc_methods = [SuMethod, SudoMethod, SetuidMethod, DirtycowMethod, ScreenMethod]
+privesc_methods = [SuMethod, SudoMethod, SetuidMethod, ScreenMethod]
+# privesc_methods = [ScreenMethod]
 
 
 class Finder:
