@@ -24,6 +24,7 @@ import enum
 import shlex
 import sys
 import os
+import re
 
 from pwncat import util
 from pwncat import downloader, uploader, privesc
@@ -790,6 +791,7 @@ class PtyHandler:
         """ Reset the remote terminal (calls sync, reset, and sets PS1) """
         self.reset()
         self.do_sync([])
+        print(self.id())
 
     def run(self, cmd, wait=True, input: bytes = b"") -> bytes:
         """ Run a command in the context of the remote host and return the
@@ -891,6 +893,7 @@ class PtyHandler:
         # Enter raw mode w/ no echo on the remote terminal
         # DANGER
         self.raw(echo=False)
+        self.run("echo")  # restabilize the shell to get output
 
         self.client.sendall(command + b"\n")
         self.recvuntil(sdelim)
@@ -978,6 +981,37 @@ class PtyHandler:
     def whoami(self):
         result = self.run("whoami")
         return result.strip().decode("utf-8")
+
+    @property
+    def id(self):
+
+        id_output = self.run("id")
+
+        pieces = id_output.split(" ").decode("utf-8")
+        props = {}
+        for p in pieces:
+            segments = p.split("=")
+            props[segments[0]] = segments[1]
+
+        id_properties = {}
+        for key, value in props.items():
+            if key == "groups":
+                groups = []
+                for group in value.split(","):
+                    p = group.split("(")
+                    groups.append({"id": int(p[0]), "name": p[1].split(")")[0]})
+                id_properties["groups"] = groups
+            else:
+                p = value.split("(")
+                id_properties[key] = {"id": int(p[0]), "name": p[1].split(")")[0]}
+
+        if "euid" not in id_properties:
+            id_properties["euid"] = id_properties["uid"]
+
+        if "egid" not in id_properties:
+            id_properties["egid"] = id_properties["gid"]
+
+        return id_properties
 
     def reload_users(self):
         """ Clear user cache and reload it """
