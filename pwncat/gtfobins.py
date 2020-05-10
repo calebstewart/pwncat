@@ -10,6 +10,10 @@ import os
 from pwncat.privesc import Capability
 
 
+class MissingBinary(Exception):
+    """ The GTFObin method you attempted depends on a missing binary """
+
+
 class SudoNotPossible(Exception):
     """ Running the given binary to get a sudo shell is not possible """
 
@@ -26,11 +30,12 @@ class Binary:
 
     _binaries: List[Dict[str, Any]] = []
 
-    def __init__(self, path: str, data: Dict[str, Any]):
+    def __init__(self, path: str, data: Dict[str, Any], which):
         """ build a new binary from a dictionary of data. The data is taken from
         the GTFOBins JSON database """
         self.data = data
         self.path = path
+        self.which = which
 
         self.capabilities = 0
         if self.has_read_file:
@@ -43,6 +48,26 @@ class Binary:
         # We need to fix this later...?
         if self.has_shell:
             self.capabilities |= Capability.SUDO
+
+    def resolve_binaries(self, target: str, **args):
+        """ resolve any missing binaries with the self.which method """
+
+        while True:
+            try:
+                target = target.format(**args)
+                break
+            except KeyError as exc:
+                # The keyerror has the name in quotes for some reason
+                key = shlex.split(str(exc))[0]
+                # Find the remote binary that matches
+                value = self.which(key, quote=True)
+                # Whoops! No dependancy
+                if value is None:
+                    raise MissingBinary(key)
+                # Next time, we have it
+                args[key] = value
+
+        return target
 
     def shell(
         self,
@@ -61,7 +86,7 @@ class Binary:
             return None
 
         if isinstance(self.data["shell"], str):
-            script = self.data["shell"].format(shell=shell_path, command="{command}")
+            script = self.data["shell"]
             args = []
             suid_args = []
             exit = "exit"
@@ -70,9 +95,10 @@ class Binary:
             script = self.data["shell"].get("script", "{command}")
             suid_args = self.data["shell"].get("suid", [])
             args = [
-                n.format(shell=shell_path) for n in self.data["shell"].get("need", [])
+                self.resolve_binaries(n, shell=shell_path)
+                for n in self.data["shell"].get("need", [])
             ]
-            exit = self.data["shell"].get("exit", "exit")
+            exit = self.resolve_binaries(self.data["shell"].get("exit", "exit"))
             input = self.data["shell"].get("input", "")
 
         if suid:
@@ -88,7 +114,7 @@ class Binary:
                 command = sudo_prefix + " " + command
 
         return (
-            script.format(command=command, shell=shell_path),
+            self.resolve_binaries(script, command=command, shell=shell_path),
             input.format(shell=shlex.quote(shell_path)),
             exit,
         )
@@ -96,7 +122,11 @@ class Binary:
     @property
     def has_shell(self) -> bool:
         """ Check if this binary has a shell method """
-        return "shell" in self.data
+        try:
+            result = self.shell("test")
+        except MissingBinary:
+            return False
+        return result is not None
 
     def can_sudo(self, command: str, shell_path: str) -> List[str]:
         """ Checks if this command can be leveraged for a shell with sudo. The
@@ -109,7 +139,7 @@ class Binary:
             * Parameters match exactly
         """
 
-        if not self.has_shell:
+        if not "shell" in self.data:
             # We need to be able to run a shell
             raise SudoNotPossible
 
@@ -124,12 +154,16 @@ class Binary:
             has_wildcard = True
 
         if isinstance(self.data["shell"], str):
-            need = [n.format(shell=shell_path) for n in shlex.split(self.data["shell"])]
+            need = [
+                self.resolve_binaries(n, shell=shell_path)
+                for n in shlex.split(self.data["shell"])
+            ]
             restricted = []
         else:
             # Needed and restricted parameters
             need = [
-                n.format(shell=shell_path) for n in self.data["shell"].get("need", [])
+                self.resolve_binaries(n, shell=shell_path)
+                for n in self.data["shell"].get("need", [])
             ]
             restricted = self.data["shell"].get("restricted", [])
 
@@ -220,16 +254,23 @@ class Binary:
         if "read_file" not in self.data:
             return None
 
-        path = quote(self.path)
+        # path = quote(self.path)
+        path = self.path
         if sudo_prefix:
             path = sudo_prefix + " " + path
 
-        return self.data["read_file"].format(path=path, lfile=quote(file_path))
+        return self.resolve_binaries(
+            self.data["read_file"], path=path, lfile=quote(file_path)
+        )
 
     @property
     def has_read_file(self):
         """ Check if this binary has a read_file capability """
-        return "read_file" in self.data
+        try:
+            result = self.read_file("test")
+        except MissingBinary:
+            return False
+        return result is not None
 
     def write_file(self, file_path: str, data: bytes, sudo_prefix: str = None) -> str:
         """ Build a payload to write the specified data into the file """
@@ -237,7 +278,8 @@ class Binary:
         if "write_file" not in self.data:
             return None
 
-        path = quote(self.path)
+        # path = quote(self.path)
+        path = self.path
         if sudo_prefix:
             path = sudo_prefix + " " + path
 
@@ -253,14 +295,21 @@ class Binary:
                 "{self.data['name']}: unknown write_file type: {self.data['write_file']['type']}"
             )
 
-        return self.data["write_file"]["payload"].format(
-            path=path, lfile=quote(file_path), data=quote(data.decode("utf-8")),
+        return self.resolve_binaries(
+            self.data["write_file"]["payload"],
+            path=path,
+            lfile=quote(file_path),
+            data=quote(data.decode("utf-8")),
         )
 
     @property
     def has_write_file(self):
         """ Check if this binary has a write_file capability """
-        return "write_file" in self.data
+        try:
+            result = self.write_file("test", "test")
+        except MissingBinary:
+            return False
+        return result is not None
 
     @property
     def is_safe(self):
@@ -273,14 +322,18 @@ class Binary:
         if "command" not in self.data:
             return None
 
-        return self.data["command"].format(
-            path=quote(self.path), command=quote(command)
+        return self.resolve_binaries(
+            self.data["command"], path=self.path, command=quote(command)
         )
 
     @property
     def has_command(self):
         """ Check if this binary has a command capability """
-        return "command" in self.data
+        try:
+            result = self.command("test")
+        except MissingBinary:
+            return False
+        return result is not None
 
     @classmethod
     def load(cls, gtfo_path: str):
@@ -288,7 +341,7 @@ class Binary:
             cls._binaries = json.load(filp)
 
     @classmethod
-    def find(cls, path: str = None, name: str = None,) -> "Binary":
+    def find(cls, which: Callable, path: str = None, name: str = None) -> "Binary":
         """ Locate the given gtfobin and return the Binary object. If name is
         not given, it is assumed to be the basename of the path. """
 
@@ -297,7 +350,7 @@ class Binary:
 
         for binary in cls._binaries:
             if binary["name"] == name:
-                return Binary(path, binary)
+                return Binary(path, binary, which)
 
         return None
 
@@ -312,11 +365,11 @@ class Binary:
         not given, it is assumed to be the basename of the path. """
 
         for data in cls._binaries:
-            path = which(data["name"])
+            path = which(data["name"], quote=True)
             if path is None:
                 continue
 
-            binary = Binary(path, data)
+            binary = Binary(path, data, which)
             if not binary.is_safe and safe:
                 continue
             if (binary.capabilities & capability) == 0:

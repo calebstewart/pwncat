@@ -16,6 +16,7 @@ from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.lexers import PygmentsLexer
 from functools import wraps
 import subprocess
+import traceback
 import requests
 import tempfile
 import logging
@@ -28,6 +29,7 @@ import shlex
 import sys
 import os
 import re
+import io
 
 from pwncat import util
 from pwncat import downloader, uploader, privesc
@@ -614,7 +616,8 @@ class PtyHandler:
 
                 # Call the method
                 method(argv[1:])
-            except KeyboardInterrupt:
+            except KeyboardInterrupt as exc:
+                traceback.print_exc()
                 continue
 
     @with_parser
@@ -1027,7 +1030,7 @@ class PtyHandler:
 
         return b"_PWNCAT_ENDDELIM_"
 
-    def subprocess(self, cmd) -> RemoteBinaryPipe:
+    def subprocess(self, cmd, mode="rb") -> RemoteBinaryPipe:
         """ Create an asynchronous child on the remote end and return a
         file-like object which can communicate with it's standard output. The 
         remote terminal is placed in raw mode with no-echo first, and the
@@ -1043,6 +1046,10 @@ class PtyHandler:
         if isinstance(cmd, list):
             cmd = shlex.join(cmd)
 
+        for c in mode:
+            if c not in "rwb":
+                raise ValueError("mode must only contain 'r', 'w' and 'b'")
+
         sdelim = "_PWNCAT_STARTDELIM_"
         edelim = "_PWNCAT_ENDDELIM_"
 
@@ -1055,9 +1062,14 @@ class PtyHandler:
         command.append("set +m")
         # This is gross, but it allows us to recieve stderr and stdout, while
         # ignoring the job control start message.
-        command.append(
-            f"{{ echo {sdelim}; {cmd} && echo {edelim} || echo {edelim} 2>&1 & }} 2>/dev/null"
-        )
+        if "w" not in mode:
+            command.append(
+                f"{{ echo {sdelim}; {cmd} && echo {edelim} || echo {edelim} & }} 2>/dev/null"
+            )
+        else:
+            # This is dangerous. We are in raw mode, and if the process never
+            # ends and doesn't provide a way to exit, then we are stuck.
+            command.append(f"echo {sdelim}; {cmd}; echo {edelim}")
         # Re-enable normal job control in bash
         command.append("set -m")
 
@@ -1073,12 +1085,29 @@ class PtyHandler:
         self.recvuntil(sdelim)
         self.recvuntil("\n")
 
-        return RemoteBinaryPipe(self, edelim.encode("utf-8"), True)
+        pipe = RemoteBinaryPipe(self, mode, edelim.encode("utf-8"), True)
+
+        if "b" not in mode:
+            if "w" in mode:
+                pipe = io.BufferedRWPair(pipe, pipe)
+                pipe = io.TextIOWrapper(pipe)
+            else:
+                pipe = io.TextIOWrapper(io.BufferedReader(pipe))
+
+        return pipe
 
     def raw(self, echo: bool = False):
+        self.stty_saved = self.run("stty -g").decode("utf-8").strip()
         self.run("stty raw -echo", wait=False)
         self.has_cr = False
         self.has_echo = False
+
+    def restore_remote(self):
+        self.run(f"stty {self.stty_saved}", wait=False)
+        self.has_cr = True
+        self.has_echo = True
+        self.run(f"export PS1='{self.remote_prefix} {self.remote_prompt}'")
+        self.run(f"tput rmam")
 
     def reset(self):
         self.run("reset", wait=False)
@@ -1202,6 +1231,11 @@ class PtyHandler:
     def whoami(self):
         result = self.run("whoami")
         return result.strip().decode("utf-8")
+
+    def getenv(self, name: str):
+        """ Get the value of the given environment variable on the remote host
+        """
+        return self.run(f"echo -n ${{{name}}}").decode("utf-8")
 
     @property
     def id(self):
