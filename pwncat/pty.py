@@ -14,6 +14,7 @@ from prompt_toolkit.completion import (
 from prompt_toolkit.document import Document
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.lexers import PygmentsLexer
+from functools import wraps
 import subprocess
 import requests
 import tempfile
@@ -45,6 +46,7 @@ class State(enum.Enum):
 
 
 def with_parser(f):
+    @wraps(f)
     def _decorator(self, argv):
         try:
             parser = getattr(self, f.__name__.split("do_")[1] + "_parser")
