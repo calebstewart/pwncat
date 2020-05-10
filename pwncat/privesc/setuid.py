@@ -130,6 +130,9 @@ class SetuidMethod(Method):
         return read_pipe
 
     def write_file(self, filepath: str, data: bytes, technique: Technique):
+        info(
+            f"attempting to write {Fore.BLUE}{filepath}{Fore.RESET} with {Fore.RED}{self.get_name(technique)}{Fore.RESET}"
+        )
 
         binary = technique.ident
         payload = binary.write_file(filepath, data)

@@ -470,7 +470,11 @@ class PtyHandler:
                         self.run(line[1:], wait=False)
                         continue
 
-                argv = shlex.split(line)
+                try:
+                    argv = shlex.split(line)
+                except ValueError as e:
+                    util.error(e.args[0])
+                    continue
 
                 # Empty command
                 if len(argv) == 0:
@@ -781,7 +785,7 @@ class PtyHandler:
         self.reset()
         self.do_sync([])
 
-    def run(self, cmd, wait=True) -> bytes:
+    def run(self, cmd, wait=True, input: bytes = b"") -> bytes:
         """ Run a command in the context of the remote host and return the
         output. This is run synchrounously.
 
@@ -790,6 +794,10 @@ class PtyHandler:
         """
 
         response = self.process(cmd, delim=wait)
+        if callable(input):
+            input()
+        else:
+            self.client.send(input)
 
         if wait:
 
