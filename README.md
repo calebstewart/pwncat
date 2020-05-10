@@ -65,6 +65,31 @@ would like, however that shouldn't be necessary. The default method is to
 automatically select the best available. `pwncat` even gives you a nice progress
 bar while it uploads!
 
+## Installation
+
+To install pwncat into its own python virtual environment:
+
+``` shell
+# get pwncat
+git clone https://github.com/calebstewart/pwncat/
+cd pwncat
+
+# install dependencies
+sudo apt-get install python3-devel
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+.venv/bin/python3 setup.py install
+
+# usage
+# activate the virtual environment
+. .venv/bin/activate
+# pwn
+pwncat
+# whence you finish pwning, exit the virtual environment
+deactivate
+```
+
+
 ## More to come!
 
 I wrote this in the last few days, and there's bound to be bugs or edge-cases.
