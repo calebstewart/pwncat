@@ -37,17 +37,17 @@ class SetuidMethod(Method):
         self.users_searched.append(current_user)
 
         # Spawn a find command to locate the setuid binaries
-        delim = self.pty.process("find / -perm -4000 -print 2>/dev/null")
         files = []
-
-        while True:
-            path = self.pty.recvuntil(b"\n").strip()
+        with self.pty.subprocess(
+            "find / -perm -4000 -print 2>/dev/null", mode="r"
+        ) as stream:
             util.progress("searching for setuid binaries")
+            for path in stream:
+                path = path.strip()
+                util.progress(f"searching for setuid binaries: {path}")
+                files.append(path)
 
-            if delim in path:
-                break
-
-            files.append(path.decode("utf-8"))
+        util.success("searching for setuid binaries: complete", overlay=True)
 
         for path in files:
             user = (
@@ -70,7 +70,7 @@ class SetuidMethod(Method):
         known_techniques = []
         for user, paths in self.suid_paths.items():
             for path in paths:
-                binary = gtfobins.Binary.find(path)
+                binary = gtfobins.Binary.find(self.pty.which, path=path)
                 if binary is not None:
                     if (capability & binary.capabilities) == 0:
                         continue

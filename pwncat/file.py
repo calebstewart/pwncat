@@ -10,13 +10,22 @@ class RemoteBinaryPipe(RawIOBase):
     is closed, it will restore the state of the terminal (w/ `reset`). No further
     reading or writing will be allowed. """
 
-    def __init__(self, pty: "pwncat.pty.PtyHandler", delim: bytes, binary: bool):
+    def __init__(
+        self, pty: "pwncat.pty.PtyHandler", mode: str, delim: bytes, binary: bool
+    ):
         self.pty = pty
         self.delim = delim
         self.eof = 0
         self.next_eof = False
         self.binary = binary
         self.split_eof = b""
+        self.mode = mode
+
+    def readable(self) -> bool:
+        return True
+
+    def writable(self) -> bool:
+        return "w" in self.mode
 
     def on_eof(self):
         if self.eof:
@@ -25,26 +34,30 @@ class RemoteBinaryPipe(RawIOBase):
         # Set eof flag
         self.eof = 1
 
-        if self.binary:
-            # Reset the terminal
-            self.pty.reset()
-            # Send a bare echo, and read all data to ensure we don't clobber the
-            # output of the user's terminal
-            self.pty.run("echo")
+        # Reset the terminal
+        self.pty.restore_remote()
+        # Send a bare echo, and read all data to ensure we don't clobber the
+        # output of the user's terminal
+        self.pty.run("echo")
 
     def close(self):
         if self.eof:
             return
 
-        # Kill the last job. This should be us.
-        self.pty.run("kill -9 %%", wait=False)
+        # Kill the last job. This should be us. We can only run as a job when we
+        # don't request write support, because stdin is taken away from the
+        # subprocess. This is dangerous, because we have no way to kill the new
+        # process if it misbehaves. Use "w" carefully with known good
+        # parameters.
+        if "w" not in self.mode:
+            self.pty.run("kill -9 %%", wait=False)
 
         # Cleanup
         self.on_eof()
 
     def readinto(self, b: bytearray):
         if self.eof:
-            return 0
+            return None
 
         if isinstance(b, memoryview):
             obj = b.obj
@@ -52,7 +65,11 @@ class RemoteBinaryPipe(RawIOBase):
             obj = b
 
         # Receive the data
-        n = self.pty.client.recv_into(b)
+        try:
+            n = self.pty.client.recv_into(b)
+        except BlockingIOError:
+            return 0
+        obj = bytes(b)
 
         # Check for EOF
         if self.delim in obj:
@@ -61,7 +78,7 @@ class RemoteBinaryPipe(RawIOBase):
             return n
         else:
             # Check for EOF split across blocks
-            for i in range(1, len(self.delim) - 1):
+            for i in range(1, len(self.delim)):
                 # See if a piece of the delimeter is at the end of this block
                 piece = self.delim[:i]
                 if bytes(b[-i:]) == piece:
@@ -91,4 +108,6 @@ class RemoteBinaryPipe(RawIOBase):
             pass
 
     def write(self, data: bytes):
+        if self.eof:
+            raise EOFError
         return self.pty.client.send(data)

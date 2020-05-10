@@ -275,15 +275,33 @@ class Finder:
 
         util.progress(f"attempting escalation to {technique}")
 
+        shlvl = self.pty.getenv("SHLVL")
+
         if (technique.capabilities & Capability.SHELL) > 0:
             try:
                 # Attempt our basic, known technique
-                return technique.method.execute(technique)
+                exit_script = technique.method.execute(technique)
+
+                # Reset the terminal to ensure we are stable
+                self.pty.reset()
+
+                # Check that we actually succeeded
+                if self.pty.whoami() == technique.user:
+                    return exit_script
+
+                # Check if we ended up in a sub-shell without escalating
+                if self.pty.getenv("SHLVL") != shlvl:
+                    # Get out of this subshell. We don't need it
+                    self.pty.process(exit_script, delim=False)
+                    self.pty.reset()
+
+                # The privesc didn't work, but didn't throw an exception.
+                # Continue on as if it hadn't worked.
             except PrivescError:
                 pass
 
-        # We can't privilege escalate with this technique, but we may be able
-        # to add a user via file write.
+        # We can't privilege escalate directly to a shell with this technique,
+        # but we may be able to add a user via file write.
         if (technique.capabilities & Capability.WRITE) == 0 or technique.user != "root":
             raise PrivescError("privesc failed")
 

@@ -20,34 +20,19 @@ class RawShellUploader(Uploader):
         """ Yield list of commands to transfer the file """
 
         remote_path = shlex.quote(self.remote_path)
-        file_sz = os.path.getsize(self.local_path) - 1
+        file_sz = os.path.getsize(self.local_path)
+        dd = self.pty.which("dd")
 
-        # Put the remote terminal in raw mode
-        self.pty.raw()
-
-        self.pty.process(
-            f"dd of={remote_path} bs=1 count={file_sz} 2>/dev/null", delim=False
-        )
-
-        pty = self.pty
-
-        class SocketWrapper:
-            def write(self, data):
-                try:
-                    n = pty.client.send(data)
-                except socket.error:
-                    return 0
-                return n
-
-        try:
-            with open(self.local_path, "rb") as filp:
-                util.copyfileobj(filp, SocketWrapper(), self.on_progress)
-        finally:
-            self.on_progress(0, -1)
+        with self.pty.subprocess(
+            f"{dd} of={remote_path} bs=1 count={file_sz} 2>/dev/null", mode="wb"
+        ) as stream:
+            try:
+                with open(self.local_path, "rb") as filp:
+                    util.copyfileobj(filp, stream, self.on_progress)
+            finally:
+                self.on_progress(0, -1)
 
         # Get back to a terminal
-        self.pty.client.send(util.CTRL_C)
-        self.pty.reset()
 
         return False
 
