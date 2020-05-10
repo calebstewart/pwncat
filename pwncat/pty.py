@@ -605,6 +605,10 @@ class PtyHandler:
         else:
             try:
                 self.privesc.escalate(args.user, args.max_depth)
+                util.success("privilege escalation succeeded using:")
+                for i, (technique, _) in enumerate(chain):
+                    arrow = "{Fore.YELLOW}\u2ba1{Fore.RESET} " if i > 0 else ""
+                    print(f"{i*' '}{arrow}{technique}")
             except privesc.PrivescError as exc:
                 util.error(f"escalation failed: {exc}")
 
