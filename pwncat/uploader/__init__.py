@@ -7,6 +7,7 @@ from pwncat.uploader.curl import CurlUploader
 from pwncat.uploader.shell import ShellUploader
 from pwncat.uploader.bashtcp import BashTCPUploader
 from pwncat.uploader.wget import WgetUploader
+from pwncat.uploader.raw import RawShellUploader
 
 all_uploaders = [
     NetcatUploader,
@@ -14,6 +15,7 @@ all_uploaders = [
     ShellUploader,
     BashTCPUploader,
     WgetUploader,
+    RawShellUploader,
 ]
 uploaders = [NetcatUploader, CurlUploader]
 fallback = ShellUploader
@@ -26,6 +28,9 @@ def get_names() -> List[str]:
 
 def find(pty: "pwncat.pty.PtyHandler", hint: str = None) -> Type[Uploader]:
     """ Locate an applicable uploader """
+
+    if hint == "":
+        hint = None
 
     if hint is not None:
         # Try to return the requested uploader

@@ -15,6 +15,8 @@ from prompt_toolkit.document import Document
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.lexers import PygmentsLexer
 import subprocess
+import requests
+import tempfile
 import logging
 import argparse
 import base64
@@ -176,7 +178,7 @@ class PtyHandler:
         "script",
     ]
 
-    def __init__(self, client: socket.SocketType):
+    def __init__(self, client: socket.SocketType, has_pty: bool = False):
         """ Initialize a new Pty Handler. This will handle creating the PTY and
         setting the local terminal to raw. It also maintains the state to open a
         local terminal if requested and exit raw mode. """
@@ -190,8 +192,13 @@ class PtyHandler:
         self.known_users = {}
         self.vars = {"lhost": util.get_ip_addr()}
         self.remote_prefix = "\\[\\033[01;31m\\](remote)\\033[00m\\]"
-        self.remote_prompt = "\\[\\033[01;33m\\]\\u@\\h\\[\\033[00m\\]:\\[\\033[01;36m\\]\\w\\[\\033[00m\\]\\$ "
+        self.remote_prompt = (
+            "\\[\\033[01;33m\\]\\u@\\h\\[\\033[00m\\]:\\["
+            "\\033[01;36m\\]\\w\\[\\033[00m\\]\\$ "
+        )
         self.prompt = self.build_prompt_session()
+        self.has_busybox = False
+        self.busybox_path = None
         self.binary_aliases = {
             "python": [
                 "python2",
@@ -204,6 +211,7 @@ class PtyHandler:
             "sh": ["bash", "zsh", "dash"],
             "nc": ["netcat", "ncat"],
         }
+        self.has_pty = has_pty
 
         # Setup the argument parsers for local the local prompt
         self.setup_command_parsers()
@@ -327,8 +335,113 @@ class PtyHandler:
 
         self.privesc = privesc.Finder(self)
 
+        # Attempt to identify architecture
+        self.arch = self.run("uname -m").decode("utf-8").strip()
+
         # Force the local TTY to enter raw mode
         self.enter_raw()
+
+    def bootstrap_busybox(self, url, method):
+        """ Utilize the architecture we grabbed from `uname -m` to grab a
+        precompiled busybox binary and upload it to the remote machine. This
+        makes uploading/downloading and dependency tracking easier. It also
+        makes file upload/download safer, since we have a known good set of 
+        commands we can run (rather than relying on GTFObins) """
+
+        if self.has_busybox:
+            util.success("busybox is already available!")
+            return
+
+        busybox_remote_path = self.which("busybox")
+
+        if busybox_remote_path is None:
+
+            # We use the stable busybox version at the time of writing. This should
+            # probably be configurable.
+            busybox_url = url.rstrip("/") + "/busybox-{arch}"
+
+            # Attempt to download the busybox binary
+            r = requests.get(busybox_url.format(arch=self.arch), stream=True)
+
+            # No busybox support
+            if r.status_code == 404:
+                util.warn(f"no busybox for architecture: {self.arch}")
+                return
+
+            with ProgressBar(f"downloading busybox for {self.arch}") as pb:
+                counter = pb(int(r.headers["Content-Length"]))
+                with tempfile.NamedTemporaryFile("wb", delete=False) as filp:
+                    last_update = time.time()
+                    busybox_local_path = filp.name
+                    for chunk in r.iter_content(chunk_size=1024 * 1024):
+                        filp.write(chunk)
+                        counter.items_completed += len(chunk)
+                        if (time.time() - last_update) > 0.1:
+                            pb.invalidate()
+                    counter.stopped = True
+                    pb.invalidate()
+                    time.sleep(0.1)
+
+            # Stage a temporary file for busybox
+            busybox_remote_path = (
+                self.run("mktemp -t busyboxXXXXX").decode("utf-8").strip()
+            )
+
+            # Upload busybox using the best known method to the remote server
+            self.do_upload(
+                ["-m", method, "-o", busybox_remote_path, busybox_local_path]
+            )
+
+            # Make busybox executable
+            self.run(f"chmod +x {shlex.quote(busybox_remote_path)}")
+
+            # Remove local busybox copy
+            os.unlink(busybox_local_path)
+
+            util.success(
+                f"uploaded busybox to {Fore.GREEN}{busybox_remote_path}{Fore.RESET}"
+            )
+
+        else:
+            # Busybox was provided on the system!
+            util.success(f"busybox already installed on remote system!")
+
+        # Check what this busybox provides
+        util.progress("enumerating provided applets")
+        pipe = self.subprocess(f"{shlex.quote(busybox_remote_path)} --list")
+        provides = pipe.read().decode("utf-8").strip().split("\n")
+        pipe.close()
+
+        # prune any entries which the system marks as SETUID or SETGID
+        stat = self.which("stat", quote=True)
+
+        if stat is not None:
+            util.progress("enumerating remote binary permissions")
+            which_provides = [f"`which {p}`" for p in provides]
+            permissions = (
+                self.run(f"{stat} -c %A {' '.join(which_provides)}")
+                .decode("utf-8")
+                .strip()
+                .split("\n")
+            )
+            new_provides = []
+            for name, perms in zip(provides, permissions):
+                if "No such" in perms:
+                    # The remote system doesn't have this binary
+                    continue
+                if "s" not in perms.lower():
+                    util.progress(f"keeping {Fore.BLUE}{name}{Fore.RESET} in busybox")
+                    new_provides.append(name)
+                else:
+                    util.progress(f"pruning {Fore.RED}{name}{Fore.RESET} from busybox")
+
+            util.success(f"pruned {len(provides)-len(new_provides)} setuid entries")
+            provides = new_provides
+
+        # Let the class know we now have access to busybox
+        self.busybox_provides = provides
+        self.has_busybox = True
+        self.busybox_path = busybox_remote_path
 
     def build_prompt_session(self):
         """ This is kind of gross because of the nested completer, so I broke
@@ -372,10 +485,17 @@ class PtyHandler:
             style=PwncatStyle,
         )
 
-    def which(self, name: str, request=True) -> str:
+    def which(self, name: str, request=True, quote=False) -> str:
         """ Call which on the remote host and return the path. The results are
         cached to decrease the number of remote calls. """
         path = None
+
+        if self.has_busybox:
+            if name in self.busybox_provides:
+                if quote:
+                    return f"{shlex.quote(self.busybox_path)} {name}"
+                else:
+                    return f"{self.busybox_path} {name}"
 
         if name in self.known_binaries and self.known_binaries[name] is not None:
             # Cached value available
@@ -389,12 +509,15 @@ class PtyHandler:
         if name in self.binary_aliases and path is None:
             # Look for aliases of this command as a last resort
             for alias in self.binary_aliases[name]:
-                path = self.which(alias)
+                path = self.which(alias, quote=False)
                 if path is not None:
                     break
 
         # Cache the value
         self.known_binaries[name] = path
+
+        if quote:
+            path = shlex.quote(path)
 
         return path
 
@@ -491,6 +614,31 @@ class PtyHandler:
                 method(argv[1:])
             except KeyboardInterrupt:
                 continue
+
+    @with_parser
+    def do_busybox(self, args):
+        """ Attempt to upload a busybox binary which we can use as a consistent 
+        interface to local functionality """
+
+        if args.action == "list":
+            if not self.has_busybox:
+                util.error("busybox hasn't been installed yet (hint: run 'busybox'")
+                return
+            util.info("binaries which the remote busybox provides:")
+            for name in self.busybox_provides:
+                print(f" * {name}")
+        elif args.action == "status":
+            if not self.has_busybox:
+                util.error("busybox hasn't been installed yet")
+                return
+            util.info(
+                f"busybox is installed to: {Fore.BLUE}{self.busybox_path}{Fore.RESET}"
+            )
+            util.info(
+                f"busybox provides {Fore.GREEN}{len(self.busybox_provides)}{Fore.RESET} applets"
+            )
+        elif args.action == "install":
+            self.bootstrap_busybox(args.url, args.method)
 
     @with_parser
     def do_back(self, _):
@@ -859,6 +1007,9 @@ class PtyHandler:
             command = f" {cmd}"
 
         response = b""
+        eol = b"\r"
+        if self.has_cr:
+            eol = b"\r"
 
         # Send the command to the remote host
         self.client.send(command.encode("utf-8") + b"\n")
@@ -866,10 +1017,10 @@ class PtyHandler:
         if delim:
             if self.has_echo:
                 # Recieve line ending from output
-                self.recvuntil(b"_PWNCAT_STARTDELIM_")
+                # print(1, self.recvuntil(b"_PWNCAT_STARTDELIM_"))
                 self.recvuntil(b"\n", interp=True)
 
-            self.recvuntil(b"_PWNCAT_STARTDELIM_", interp=True)  # first in output
+            self.recvuntil(b"_PWNCAT_STARTDELIM_", interp=True)
             self.recvuntil(b"\n", interp=True)
 
         return b"_PWNCAT_ENDDELIM_"
@@ -969,7 +1120,7 @@ class PtyHandler:
         self.upload_parser.add_argument(
             "--method",
             "-m",
-            choices=uploader.get_names(),
+            choices=["", *uploader.get_names()],
             default=None,
             help="set the download method (default: auto)",
         )
@@ -998,6 +1149,53 @@ class PtyHandler:
         self.download_parser.add_argument("path", help="path to the file to download")
 
         self.back_parser = argparse.ArgumentParser(prog="back")
+
+        self.busybox_parser = argparse.ArgumentParser(prog="busybox")
+        self.busybox_parser.add_argument(
+            "--method",
+            "-m",
+            choices=uploader.get_names(),
+            default="",
+            help="set the upload method (default: auto)",
+        )
+        self.busybox_parser.add_argument(
+            "--url",
+            "-u",
+            default=(
+                "https://busybox.net/downloads/binaries/"
+                "1.31.0-defconfig-multiarch-musl/"
+            ),
+            help=(
+                "url to download multiarch busybox binaries"
+                "(default: 1.31.0-defconfig-multiarch-musl)"
+            ),
+        )
+        group = self.busybox_parser.add_mutually_exclusive_group(required=True)
+        group.add_argument(
+            "--install",
+            "-i",
+            action="store_const",
+            dest="action",
+            const="install",
+            default="install",
+            help="install busybox support for pwncat",
+        )
+        group.add_argument(
+            "--list",
+            "-l",
+            action="store_const",
+            dest="action",
+            const="list",
+            help="list all provided applets from the remote busybox",
+        )
+        group.add_argument(
+            "--status",
+            "-s",
+            action="store_const",
+            dest="action",
+            const="status",
+            help="show current pwncat busybox status",
+        )
 
     def whoami(self):
         result = self.run("whoami")

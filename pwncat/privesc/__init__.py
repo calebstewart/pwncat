@@ -14,7 +14,7 @@ from pwncat import util
 
 # privesc_methods = [SetuidMethod, SuMethod]
 # privesc_methods = [SuMethod, SudoMethod, SetuidMethod, DirtycowMethod, ScreenMethod]
-privesc_methods = [SuMethod, SudoMethod, SetuidMethod, ScreenMethod]
+privesc_methods = [SuMethod, SudoMethod, ScreenMethod, SetuidMethod]
 # privesc_methods = [ScreenMethod]
 
 
@@ -288,7 +288,8 @@ class Finder:
             raise PrivescError("privesc failed")
 
         # We need su to privesc w/ file write
-        if self.pty.which("su") is None:
+        su_command = self.pty.which("su", quote=True)
+        if su_command is None:
             raise PrivescError("privesc failed")
 
         # Read the current content of /etc/passwd

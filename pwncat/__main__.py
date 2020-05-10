@@ -22,11 +22,18 @@ def main():
     mutex_group.add_argument(
         "--reverse",
         "-r",
-        action="store_true",
+        action="store_const",
+        dest="type",
+        const="reverse",
         help="Listen on the specified port for connections from a remote host",
     )
     mutex_group.add_argument(
-        "--bind", "-b", action="store_true", help="Connect to a remote host"
+        "--bind",
+        "-b",
+        action="store_const",
+        dest="type",
+        const="bind",
+        help="Connect to a remote host",
     )
     parser.add_argument(
         "--host",
@@ -47,13 +54,13 @@ def main():
     parser.add_argument(
         "--method",
         "-m",
-        choices=["none", *PtyHandler.OPEN_METHODS.keys()],
+        choices=[*PtyHandler.OPEN_METHODS.keys()],
         help="Method to create a pty on the remote host (default: script)",
         default="script",
     )
     args = parser.parse_args()
 
-    if args.reverse:
+    if args.type == "reverse":
         # Listen on a socket for connections
         util.info(f"binding to {args.host}:{args.port}", overlay=True)
         server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -68,7 +75,7 @@ def main():
         except KeyboardInterrupt:
             util.warn(f"aborting listener...")
             sys.exit(0)
-    else:
+    elif args.type == "bind":
         util.info(f"connecting to {args.host}:{args.port}", overlay=True)
         client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         client.connect((args.host, args.port))

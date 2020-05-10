@@ -19,15 +19,17 @@ class RawShellDownloader(Downloader):
 
         remote_path = shlex.quote(self.remote_path)
         blocksz = 1024 * 1024
-        binary = self.pty.which("dd")
+        binary = self.pty.which("dd", quote=True)
 
         if binary is None:
-            binary = self.pty.which("cat")
+            binary = self.pty.which("cat", quote=True)
 
         if "dd" in binary:
-            pipe = self.pty.subprocess(f"dd if={remote_path} bs={blocksz} 2>/dev/null")
+            pipe = self.pty.subprocess(
+                f"{binary} if={remote_path} bs={blocksz} 2>/dev/null"
+            )
         else:
-            pipe = self.pty.subprocess(f"cat {remote_path}")
+            pipe = self.pty.subprocess(f"{binary} {remote_path}")
 
         try:
             with open(self.local_path, "wb") as filp:
