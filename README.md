@@ -78,7 +78,7 @@ cd pwncat
 sudo apt-get install python3-devel
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
-python3 setup.py install
+.venv/bin/python3 setup.py install
 
 # usage
 # activate the virtual environment
