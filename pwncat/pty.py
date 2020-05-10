@@ -791,7 +791,6 @@ class PtyHandler:
         """ Reset the remote terminal (calls sync, reset, and sets PS1) """
         self.reset()
         self.do_sync([])
-        print(self.id())
 
     def run(self, cmd, wait=True, input: bytes = b"") -> bytes:
         """ Run a command in the context of the remote host and return the
@@ -985,9 +984,9 @@ class PtyHandler:
     @property
     def id(self):
 
-        id_output = self.run("id")
+        id_output = self.run("id").decode("utf-8")
 
-        pieces = id_output.split(" ").decode("utf-8")
+        pieces = id_output.split(" ")
         props = {}
         for p in pieces:
             segments = p.split("=")

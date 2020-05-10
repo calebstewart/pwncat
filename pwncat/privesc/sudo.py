@@ -138,14 +138,6 @@ class SudoMethod(Method):
                         tag = " ".join(tags_split[1:])
                         command = commands["command"]
 
-                    # success(
-                    #     f"user {Fore.GREEN}{current_user['name']}{Fore.RESET} can run "
-                    #     + f"{Fore.YELLOW}{command}{Fore.RESET} "
-                    #     + f"as user {Fore.BLUE}{run_as_user}{Fore.RESET} "
-                    #     + f"with {Fore.BLUE}{tag}{Fore.RESET}",
-                    #     overlay=True,
-                    # )
-
                 if "NOPASSWD" in tag:
                     sudo_no_password.append(
                         {
@@ -181,9 +173,7 @@ class SudoMethod(Method):
                 # The PtyHandler.which method is used to verify the presence of
                 # different GTFObins on the remote system when an "ALL" spec is
                 # found.
-                # sudo_privesc["command"], binary = gtfobins.Binary.find_sudo(
-                #     sudo_privesc["command"], self.pty.which
-                # )
+
                 binaries = gtfobins.Binary.find_sudo(
                     sudo_privesc["command"], self.pty.which, capability
                 )
