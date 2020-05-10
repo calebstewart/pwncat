@@ -1,7 +1,7 @@
 # pwncat
 
 pwncat is a raw bind and reverse shell handler. It streamlines common red team 
-operations and all staging code from your own attacker machine, not the target.
+operations and all staging code is from your own attacker machine, not the target.
 
 After receiving a connection, **pwncat** will setup some
 common configurations when working with remote shells.
