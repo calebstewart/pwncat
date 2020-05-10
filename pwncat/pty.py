@@ -610,10 +610,32 @@ class PtyHandler:
         else:
             try:
                 chain = self.privesc.escalate(args.user, args.max_depth)
+
+                ident = self.id
+                backdoor = False
+                if ident["euid"]["id"] == 0 and ident["uid"]["id"] != 0:
+                    util.progress(
+                        "EUID != UID. installing backdoor to complete privesc"
+                    )
+                    try:
+                        self.privesc.add_backdoor()
+                        backdoor = True
+                    except privesc.PrivescError as exc:
+                        util.warn(f"backdoor installation failed: {exc}")
+
                 util.success("privilege escalation succeeded using:")
                 for i, (technique, _) in enumerate(chain):
                     arrow = f"{Fore.YELLOW}\u2ba1{Fore.RESET} "
                     print(f"{(i+1)*' '}{arrow}{technique}")
+
+                if backdoor:
+                    print(
+                        (
+                            f"{(len(chain)+1)*' '}{arrow}"
+                            f"{Fore.YELLOW}pwncat{Fore.RESET} backdoor"
+                        )
+                    )
+
                 self.reset()
                 self.do_back([])
             except privesc.PrivescError as exc:
@@ -791,7 +813,6 @@ class PtyHandler:
         """ Reset the remote terminal (calls sync, reset, and sets PS1) """
         self.reset()
         self.do_sync([])
-        print(self.id())
 
     def run(self, cmd, wait=True, input: bytes = b"") -> bytes:
         """ Run a command in the context of the remote host and return the
@@ -985,9 +1006,9 @@ class PtyHandler:
     @property
     def id(self):
 
-        id_output = self.run("id")
+        id_output = self.run("id").decode("utf-8")
 
-        pieces = id_output.split(" ").decode("utf-8")
+        pieces = id_output.split(" ")
         props = {}
         for p in pieces:
             segments = p.split("=")
