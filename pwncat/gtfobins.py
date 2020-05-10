@@ -213,27 +213,33 @@ class Binary:
             exit,
         )
 
-    def read_file(self, file_path: str) -> str:
+    def read_file(self, file_path: str, sudo_prefix: str = None) -> str:
         """ Build a payload which will leak the contents of the specified file.
         """
 
         if "read_file" not in self.data:
             return None
 
-        return self.data["read_file"].format(
-            path=quote(self.path), lfile=quote(file_path)
-        )
+        path = quote(self.path)
+        if sudo_prefix:
+            path = sudo_prefix + " " + path
+
+        return self.data["read_file"].format(path=path, lfile=quote(file_path))
 
     @property
     def has_read_file(self):
         """ Check if this binary has a read_file capability """
         return "read_file" in self.data
 
-    def write_file(self, file_path: str, data: bytes) -> str:
+    def write_file(self, file_path: str, data: bytes, sudo_prefix: str = None) -> str:
         """ Build a payload to write the specified data into the file """
 
         if "write_file" not in self.data:
             return None
+
+        path = quote(self.path)
+        if sudo_prefix:
+            path = sudo_prefix + " " + path
 
         if isinstance(data, str):
             data = data.encode("utf-8")
@@ -248,9 +254,7 @@ class Binary:
             )
 
         return self.data["write_file"]["payload"].format(
-            path=quote(self.path),
-            lfile=quote(file_path),
-            data=quote(data.decode("utf-8")),
+            path=path, lfile=quote(file_path), data=quote(data.decode("utf-8")),
         )
 
     @property
@@ -321,40 +325,50 @@ class Binary:
             return binary
 
     @classmethod
-    def find_sudo(cls, spec: str, get_binary_path: Callable[[str], str]) -> "Binary":
+    def find_sudo(
+        cls, spec: str, get_binary_path: Callable[[str], str], capability: int
+    ) -> "Binary":
         """ Locate a GTFObin binary for the given sudo spec. This will separate 
         out the path of the binary from spec, and use `find` to locate a Binary
         object. If that binary cannot be used with this spec or no binary exists,
         SudoNotPossible is raised. shell_path is used as the default for specs
         which specify "ALL". """
 
+        binaries = []
+
         if spec == "ALL":
             # If the spec specifies any command, we check each known gtfobins
             # binary for one usable w/ this sudo spec. We use recursion here,
             # but never more than a depth of one, so it should be safe.
-            for data in cls._binaries:
-                # Resolve the binary path from the name
-                path = get_binary_path(data["name"])
+            found_caps = 0
 
-                # This binary doens't exist on the system
-                if path is None:
-                    continue
+            while found_caps != capability:
 
-                try:
-                    # Recurse using the path as the new spec (won't recurse
-                    # again since spec is now a full path)
-                    return cls.find_sudo(path, get_binary_path)
-                except SudoNotPossible:
-                    pass
-            raise SudoNotPossible("no available gtfobins for ALL")
+                binary = cls.find_capability(
+                    get_binary_path, (capability & ~found_caps)
+                )
 
-        path = shlex.split(spec)[0]
-        binary = cls.find(path)
+                if binary is None:
+                    # raise SudoNotPossible("no available gtfobins for ALL")
+                    break
 
-        if binary is None:
+                binaries.append(binary)
+                found_caps |= binary.capabilities
+
+        else:
+            path = shlex.split(spec)[0]
+            binary = cls.find(path)
+            if binary is not None:
+                found_caps = binary.capabilities & capability
+                binaries = [binary]
+
+        if len(binaries) == 0 or found_caps == 0:
             raise SudoNotPossible(f"no available gtfobins for {spec}")
 
-        # This will throw an exception if we can't sudo with this binary
-        _ = binary.can_sudo(spec, "")
+        # for
 
-        return spec, binary
+        # This will throw an exception if we can't sudo with this binary
+        # _ = binary.can_sudo(spec, "")
+
+        # return spec, binary
+        return binaries

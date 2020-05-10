@@ -16,7 +16,8 @@ class Capability:
     READ = 1
     WRITE = 2
     SHELL = 4
-    SUDO = 8
+    SUDO = SHELL
+    last = 8
     ALL = READ | WRITE | SHELL | SUDO
 
 
