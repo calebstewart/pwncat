@@ -7,6 +7,7 @@ import socket
 import os
 
 from pwncat import util
+from pwncat.file import RemoteBinaryPipe
 
 from enum import Enum
 
@@ -64,6 +65,15 @@ class Method:
         Raise a PrivescError if there was a problem. """
         raise NotImplementedError("no execute method implemented")
 
+    def read_file(self, filename: str, technique: Technique) -> RemoteBinaryPipe:
+        """ Execute a read_file action with the given technique and return a 
+        remote file pipe which will yield the file contents. """
+        raise NotImplementedError("no read_file implementation")
+
+    def write_file(self, filename: str, data: bytes, technique: Technique):
+        """ Execute a write_file action with the given technique. """
+        raise NotImplementedError("no write_file implementation")
+
     def get_name(self, tech: Technique):
         return f"{Fore.GREEN}{tech.user}{Fore.RESET} via {Fore.RED}{self}{Fore.RED}"
 
@@ -85,9 +95,16 @@ class SuMethod(Method):
             if user == current_user:
                 continue
             if info.get("password") is not None:
-                result.append(Technique(user=user, method=self, ident=info["password"]))
+                result.append(
+                    Technique(
+                        user=user,
+                        method=self,
+                        ident=info["password"],
+                        capabilities=Capability.SHELL,
+                    )
+                )
 
-        return []
+        return result
 
     def execute(self, technique: Technique):
 
@@ -96,25 +113,34 @@ class SuMethod(Method):
 
         # Read the echo
         if self.pty.has_echo:
-            self.pty.client.recvuntil("\n")
+            self.pty.recvuntil("\n")
 
         # Send the password
         self.pty.client.sendall(technique.ident.encode("utf-8") + b"\n")
 
         # Read the echo
         if self.pty.has_echo:
-            self.pty.client.recvuntil("\n")
+            self.pty.recvuntil("\n")
 
         # Read the response (either "Authentication failed" or "good")
-        result = self.pty.client.recvuntil("\n")
-        if b"failure" in result.lower() or "good" not in result.lower():
+        result = self.pty.recvuntil("\n")
+        if b"failure" in result.lower() or b"good" not in result.lower():
             raise PrivescError(f"{technique.user}: invalid password")
 
         self.pty.run(f"su {technique.user}", wait=False)
         self.pty.client.sendall(technique.ident.encode("utf-8") + b"\n")
 
-        if self.pty.whoami() != technique.user:
+        user = self.pty.whoami()
+
+        if (
+            technique.user == self.pty.privesc.backdoor_user["name"] and user != "root"
+        ) or (
+            technique.user != self.pty.privesc.backdoor_user["name"]
+            and user != technique.user
+        ):
             raise PrivescError(f"{technique} failed (still {self.pty.whoami()})")
 
+        return "exit"
+
     def get_name(self, tech: Technique):
-        return f"{Fore.GREEN}{tech.name}{Fore.RESET} via {Fore.RED}known password{Fore.RESET}"
+        return f"{Fore.GREEN}{tech.user}{Fore.RESET} via {Fore.RED}known password{Fore.RESET}"
