@@ -604,11 +604,13 @@ class PtyHandler:
                     util.error(f"file write failed: {exc}")
         else:
             try:
-                self.privesc.escalate(args.user, args.max_depth)
+                chain = self.privesc.escalate(args.user, args.max_depth)
                 util.success("privilege escalation succeeded using:")
                 for i, (technique, _) in enumerate(chain):
-                    arrow = "{Fore.YELLOW}\u2ba1{Fore.RESET} " if i > 0 else ""
-                    print(f"{i*' '}{arrow}{technique}")
+                    arrow = f"{Fore.YELLOW}\u2ba1{Fore.RESET} "
+                    print(f"{(i+1)*' '}{arrow}{technique}")
+                self.reset()
+                self.do_back([])
             except privesc.PrivescError as exc:
                 util.error(f"escalation failed: {exc}")
 

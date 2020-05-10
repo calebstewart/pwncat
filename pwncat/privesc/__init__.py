@@ -6,6 +6,7 @@ from pwncat.privesc.base import Method, PrivescError, Technique, SuMethod, Capab
 from pwncat.privesc.setuid import SetuidMethod
 from pwncat.privesc.sudo import SudoMethod
 from pwncat import gtfobins
+from pwncat import util
 
 
 # privesc_methods = [SetuidMethod, SuMethod]
@@ -217,6 +218,8 @@ class Finder:
 
     def escalate_single(self, technique: Technique) -> str:
 
+        util.progress(f"attempting escalation to {technique}")
+
         if (technique.capabilities & Capability.SHELL) > 0:
             try:
                 # Attempt our basic, known technique
@@ -315,18 +318,18 @@ class Finder:
         techniques = []
         for method in self.methods:
             try:
+                util.progress(f"evaluating {method} method")
                 found_techniques = method.enumerate(
                     capability=Capability.SHELL | Capability.SUDO | Capability.WRITE
                 )
                 for tech in found_techniques:
                     if tech.user == target_user:
                         try:
+                            util.progress(f"evaluating {tech}")
                             exit_command = self.escalate_single(
                                 tech
                             )  # tech.method.execute(tech)
                             chain.append((tech, exit_command))
-                            self.pty.reset()
-                            self.pty.do_back([])
                             return chain
                         except PrivescError:
                             pass
@@ -338,6 +341,8 @@ class Finder:
         # against other users.
         for tech in techniques:
             if tech.user == target_user:
+                continue
+            if self.in_chain(tech.user, chain):
                 continue
             try:
                 exit_command = self.escalate_single(tech)  # tech.method.execute(tech)
@@ -352,6 +357,13 @@ class Finder:
                 chain.pop()
 
         raise PrivescError(f"no route to {target_user} found")
+
+    def in_chain(self, user: str, chain: List[Tuple[Technique, str]]) -> bool:
+        """ Check if the given user is in the chain """
+        for link in chain:
+            if link[0].user == user:
+                return True
+        return False
 
     def unwrap(self, techniques: List[Tuple[Technique, str]]):
         # Work backwards to get back to the original shell

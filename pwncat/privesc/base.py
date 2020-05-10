@@ -133,9 +133,9 @@ class SuMethod(Method):
         user = self.pty.whoami()
 
         if (
-            technique.user == self.pty.privesc.backdoor_user["name"] and user != "root"
+            technique.user == self.pty.privesc.backdoor_user_name and user != "root"
         ) or (
-            technique.user != self.pty.privesc.backdoor_user["name"]
+            technique.user != self.pty.privesc.backdoor_user_name
             and user != technique.user
         ):
             raise PrivescError(f"{technique} failed (still {self.pty.whoami()})")
