@@ -67,6 +67,7 @@ class SetuidMethod(Method):
         # Update the cache for the current user
         self.find_suid()
 
+        known_techniques = []
         for user, paths in self.suid_paths.items():
             for path in paths:
                 binary = gtfobins.Binary.find(path)
@@ -95,6 +96,7 @@ class SetuidMethod(Method):
 
         # Run the start commands
         self.pty.run(enter + "\n", wait=False)
+        # self.pty.process(enter, delim=False)
 
         # Send required input
         self.pty.client.send(input.encode("utf-8"))
