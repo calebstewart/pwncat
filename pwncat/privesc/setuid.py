@@ -112,10 +112,16 @@ class SetuidMethod(Method):
         binary = technique.ident
         read_payload = binary.read_file(filepath)
 
-        # read_pipe = self.pty.subprocess(read_payload)
-        read_pipe = io.BytesIO(self.pty.run(read_payload))
+        read_pipe = self.pty.subprocess(read_payload)
 
         return read_pipe
+
+    def write_file(self, filepath: str, data: bytes, technique: Technique):
+
+        binary = technique.ident
+        payload = binary.write_file(filepath, data)
+
+        self.pty.run(payload)
 
     def get_name(self, tech: Technique):
         return f"{Fore.GREEN}{tech.user}{Fore.RESET} via {Fore.CYAN}{tech.ident.path}{Fore.RESET} ({Fore.RED}setuid{Fore.RESET})"

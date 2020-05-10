@@ -67,11 +67,7 @@ class Binary:
             exit = "exit"
             input = ""
         else:
-            script = (
-                self.data["shell"]
-                .get("script", "{command}")
-                .format(shell=shell_path, command="{command}")
-            )
+            script = self.data["shell"].get("script", "{command}")
             suid_args = self.data["shell"].get("suid", [])
             args = [
                 n.format(shell=shell_path) for n in self.data["shell"].get("need", [])
@@ -92,7 +88,7 @@ class Binary:
                 command = sudo_prefix + " " + command
 
         return (
-            script.format(command=command),
+            script.format(command=command, shell=shell_path),
             input.format(shell=shlex.quote(shell_path)),
             exit,
         )
@@ -317,15 +313,9 @@ class Binary:
                 continue
 
             binary = Binary(path, data)
-            if not binary.is_safe == safe:
+            if not binary.is_safe and safe:
                 continue
-            if not binary.has_read and (capability & Capability.READ):
-                continue
-            if not binary.has_write and (capability & Capability.WRITE):
-                continue
-            if not binary.has_sudo and (capability & Capability.SUDO):
-                continue
-            if not binary.has_shell and (capability & Capability.SHELL):
+            if (binary.capabilities & capability) == 0:
                 continue
 
             return binary

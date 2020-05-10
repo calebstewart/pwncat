@@ -518,8 +518,8 @@ class PtyHandler:
             help="the target user",
         )
         parser.add_argument(
-            "--depth",
-            "-d",
+            "--max-depth",
+            "-m",
             type=int,
             default=None,
             help="Maximum depth for the privesc search (default: no maximum)",
@@ -530,6 +530,27 @@ class PtyHandler:
             type=str,
             default=None,
             help="remote filename to try and read",
+        )
+        parser.add_argument(
+            "--write",
+            "-w",
+            type=str,
+            default=None,
+            help="attempt to write to a remote file as the specified user",
+        )
+        parser.add_argument(
+            "--data",
+            "-d",
+            type=str,
+            default=None,
+            help="the data to write a file. ignored if not write mode",
+        )
+        parser.add_argument(
+            "--text",
+            "-t",
+            action="store_true",
+            default=False,
+            help="whether to use safe readers/writers",
         )
 
         try:
@@ -544,22 +565,46 @@ class PtyHandler:
                 util.warn("no techniques found")
             else:
                 for tech in techniques:
-                    util.info(f"escalation to {tech}")
+                    util.info(f" - {tech}")
         elif args.read:
             try:
                 read_pipe, chain = self.privesc.read_file(
-                    args.read, args.user, args.depth
+                    args.read, args.user, args.max_depth
                 )
+
+                # Read the data from the pipe
                 sys.stdout.buffer.write(read_pipe.read(4096))
                 read_pipe.close()
 
+                # Unwrap in case we had to privesc to get here
                 self.privesc.unwrap(chain)
 
             except privesc.PrivescError as exc:
                 util.error(f"read file failed: {exc}")
+        elif args.write:
+            if args.data is None:
+                util.error("no data specified")
+            else:
+                if args.data.startswith("@"):
+                    with open(args.data[1:], "rb") as f:
+                        data = f.read()
+                else:
+                    data = args.data.encode("utf-8")
+                try:
+                    chain = self.privesc.write_file(
+                        args.write,
+                        data,
+                        safe=not args.text,
+                        target_user=args.user,
+                        depth=args.max_depth,
+                    )
+                    self.privesc.unwrap(chain)
+                    util.success("file written successfully!")
+                except privesc.PrivescError as exc:
+                    util.error(f"file write failed: {exc}")
         else:
             try:
-                self.privesc.escalate(args.user, args.depth)
+                self.privesc.escalate(args.user, args.max_depth)
             except privesc.PrivescError as exc:
                 util.error(f"escalation failed: {exc}")
 
@@ -917,6 +962,11 @@ class PtyHandler:
     def whoami(self):
         result = self.run("whoami")
         return result.strip().decode("utf-8")
+
+    def reload_users(self):
+        """ Clear user cache and reload it """
+        self.known_users = None
+        return self.users
 
     @property
     def users(self):
