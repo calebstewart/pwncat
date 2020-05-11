@@ -65,10 +65,13 @@ class RemoteBinaryPipe(RawIOBase):
             obj = b
 
         # Receive the data
-        try:
-            n = self.pty.client.recv_into(b)
-        except BlockingIOError:
-            return 0
+        while True:
+            try:
+                n = self.pty.client.recv_into(b)
+                break
+            except (BlockingIOError, socket.error):
+                pass
+
         obj = bytes(b)
 
         # Check for EOF

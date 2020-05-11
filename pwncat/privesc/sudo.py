@@ -216,9 +216,6 @@ class SudoMethod(Method):
 
         binary, sudo_spec, password_required = technique.ident
 
-        before_shell_level = self.pty.run("echo $SHLVL").strip()
-        before_shell_level = int(before_shell_level) if before_shell_level != b"" else 0
-
         shell_payload, input, exit = binary.sudo_shell(
             technique.user, sudo_spec, self.pty.shell
         )
@@ -232,23 +229,7 @@ class SudoMethod(Method):
         # Provide stdin if needed
         self.pty.client.send(input.encode("utf-8"))
 
-        # Give it a bit to let the shell start. We considered a sleep here, but
-        # that was not consistent. This will utilizes the logic in `run` for
-        # waiting for the output of the command (`echo`), which waits the
-        # appropriate amount of time.
-        self.pty.run("echo")
-
-        user = self.pty.whoami()
-        if user == technique.user:
-            return exit
-
-        after_shell_level = self.pty.run("echo $SHLVL").strip()
-        after_shell_level = int(after_shell_level) if after_shell_level != b"" else 0
-
-        if after_shell_level > before_shell_level:
-            self.pty.run(exit, wait=False)  # here be dragons
-
-        raise PrivescError("failed to privesc")
+        return exit
 
     def read_file(self, filepath: str, technique: Technique) -> RemoteBinaryPipe:
 

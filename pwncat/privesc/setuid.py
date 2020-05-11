@@ -87,32 +87,13 @@ class SetuidMethod(Method):
         binary = technique.ident
         enter, input, exit = binary.shell(self.pty.shell, suid=True)
 
-        before_shell_level = self.pty.run("echo $SHLVL").strip()
-        before_shell_level = int(before_shell_level) if before_shell_level != b"" else 0
-
         # Run the start commands
-        self.pty.run(enter + "\n", wait=False)
-        # self.pty.process(enter, delim=False)
+        self.pty.process(enter, delim=False)
 
         # Send required input
         self.pty.client.send(input.encode("utf-8"))
 
-        # Wait for result
-        self.pty.run("echo")
-
-        # sleep(0.1)
-        user = self.pty.run("whoami").strip().decode("utf-8")
-        if user == technique.user:
-            return exit
-        else:
-            after_shell_level = self.pty.run("echo $SHLVL").strip()
-            after_shell_level = (
-                int(after_shell_level) if after_shell_level != b"" else 0
-            )
-            if after_shell_level > before_shell_level:
-                self.pty.run(exit, wait=False)  # here be dragons
-
-        raise PrivescError(f"escalation failed for {technique}")
+        return exit  # remember how to close out of this privesc
 
     def read_file(self, filepath: str, technique: Technique) -> RemoteBinaryPipe:
         binary = technique.ident

