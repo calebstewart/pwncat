@@ -8,6 +8,7 @@ import json
 import os
 
 from pwncat.privesc import Capability
+from pwncat import util
 
 
 class MissingBinary(Exception):
@@ -44,6 +45,8 @@ class Binary:
             self.capabilities |= Capability.SHELL
         if self.has_write_file:
             self.capabilities |= Capability.WRITE
+        if self.has_write_stream:
+            self.capabilities |= Capability.WRITE_STREAM
 
         # We need to fix this later...?
         if self.has_shell:
@@ -73,6 +76,43 @@ class Binary:
                 args[key] = value
 
         return target
+
+    def parse_entry(self, entry, sudo_prefix: str = None, suid=False, **args):
+        """ Parse an entry for read_file, write_file, or shell """
+
+        if isinstance(entry, str):
+            entry = shlex.split(entry)
+            payload = entry[0]
+            args = entry[1:]
+            input_data = ""
+            stream_type = "print"
+            exit_command = ""
+            suid_args = []
+        else:
+            payload = entry.get("payload", "{command}")
+            args = entry.get("args", [])
+            input_data = entry.get("input", "")
+            stream_type = entry.get("type", "print")
+            exit_command = entry.get("exit", "")
+            suid_args = entry.get("suid", [])
+
+        command = self.path
+        if sudo_prefix:
+            command = sudo_prefix + " " + command
+
+        args = [self.resolve_binaries(a, **args) for a in args]
+        input_data = self.resolve_binaries(input_data, ctrl_c=util.CTRL_C, **args)
+        exit_command = self.resolve_binaries(exit_command, ctrl_c=util.CTRL_C, **args)
+        suid_args = self.resolve_binaries(suid_args, **args)
+
+        if len(suid_args):
+            command = command + " " + shlex.join(suid_args)
+        if len(args):
+            command = command + " " + shlex.join(args)
+
+        payload = self.resolve_binaries(payload, command=command, **args)
+
+        return payload, input_data, exit_command, stream_type
 
     def shell(
         self,
@@ -276,6 +316,37 @@ class Binary:
         except MissingBinary:
             return False
         return result is not None
+
+    @property
+    def has_write_stream(self):
+        try:
+            result = self.write_stream("test")
+        except MissingBinary:
+            return False
+        return result is not None
+
+    def write_stream(self, file_path, sudo_prefix: str = None) -> str:
+        """ Build a payload which will write stdin to a file. """
+
+        if "write_stream" not in self.data:
+            return None
+
+        path = self.path
+        if sudo_prefix:
+            path = sudo_prefix + " " + path
+
+        if isinstance(self.data["write_stream"], str):
+            command = self.data["write_stream"]
+            input = None
+        else:
+            command = self.data["write_stream"].get("command", "{path}")
+            input = self.data["write_stream"].get("input", None)
+
+        command = self.resolve_binaries(command, path=path)
+        if input is not None:
+            input = self.resolve_binaries(input, path=path)
+
+        return (command, input)
 
     def write_file(self, file_path: str, data: bytes, sudo_prefix: str = None) -> str:
         """ Build a payload to write the specified data into the file """

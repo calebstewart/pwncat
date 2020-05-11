@@ -17,7 +17,8 @@ class Capability:
     WRITE = 2
     SHELL = 4
     SUDO = SHELL
-    last = 8
+    WRITE_STREAM = 8
+    last = 16
     ALL = READ | WRITE | SHELL | SUDO
 
 

@@ -35,6 +35,8 @@ from pwncat import util
 from pwncat import downloader, uploader, privesc
 from pwncat.file import RemoteBinaryPipe
 from pwncat.lexer import LocalCommandLexer, PwncatStyle
+from pwncat import gtfobins
+from pwncat.privesc import Capability
 
 from colorama import Fore
 
@@ -1096,6 +1098,70 @@ class PtyHandler:
                 pipe = io.TextIOWrapper(io.BufferedReader(pipe))
 
         return pipe
+
+    def do_test(self, argv):
+
+        util.info("Attempting to stream data to a remote file...")
+        with self.open("/tmp/stream_test", "wb") as filp:
+            filp.write(b"It fucking worked!")
+
+        util.info("Attempting to stream the data back...")
+        with self.open("/tmp/stream_test", "rb") as filp:
+            print(filp.read())
+
+    def open(self, path: str, mode: str):
+        """ Generically open a remote file for reading or writing. Does not
+        support simultaneously read and write. TextIO is implemented with a 
+        TextIOWrapper. No other remote interaction should occur until this
+        stream is closed. """
+
+        # We can't do simultaneous read and write
+        if "r" in mode and "w" in mode:
+            raise ValueError("only one of 'r' or 'w' may be specified")
+
+        # Allow the temp file wrapper to access the pty
+        pty = self
+
+        if "r" in mode:
+            # Simple case, we have a reader w/ GTFO bins
+            reader = gtfobins.Binary.find_capability(self.which, Capability.READ)
+            if reader is not None:
+                print(reader.read_file(path))
+                pipe = self.subprocess(reader.read_file(path), mode="rb")
+            else:
+                # We need to use the download functionality
+                pipe = tempfile.NamedTemporaryFile("rb")
+                self.do_download(["-o", pipe.name, path])
+        else:
+            # Writing is more complicated.
+            writer = gtfobins.Binary.find_capability(
+                self.which, Capability.WRITE_STREAM
+            )
+            if writer is not None:
+                print(writer.write_stream(path))
+                pipe = self.subprocess(writer.write_stream(path), mode="wb")
+            else:
+                # We need to use the upload functionality. We will create a
+                # named temporary file which upon closing will upload itself to
+                # the remote machine. This isn't perfect, but allows for
+                # seemless interaction.
+                pipe = tempfile.NamedTemporaryFile("wb", delete=False)
+                close_method = pipe.close
+
+                def close_wrapper(pipe_self):
+                    """ This wraps the close method of the returned file object
+                    to ensure that we upload the file after it is closed. """
+                    close_method(pipe_self)
+                    self.do_upload(["-o", path, pipe_self.name])
+
+                pipe.close = close_wrapper
+
+        if "b" in mode:
+            return pipe
+        elif "r" in mode:
+            return io.TextIOWrapper(io.BufferedReader(pipe))
+        elif "w" in mode:
+            return io.TextIOWrapper(io.BufferedWriter(pipe))
 
     def raw(self, echo: bool = False):
         self.stty_saved = self.run("stty -g").decode("utf-8").strip()

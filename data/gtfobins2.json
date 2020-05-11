@@ -1,0 +1,81 @@
+{
+	// Each item is a list of capabilities for this binary
+	"dd": [
+		{
+			// This is a read capability
+			"type": "read",
+			// No other commands need to be executed besides the command
+			// "command" exands to the binary path and any arguments provided
+			// If the data needs to be dealt with earlier, you can use "{data}"
+			// here.
+			"payload": "{command}",
+			// This is used to pass arguments to the application (auto-merged
+			// into "{command}".
+			"args": ["if={lfile}"],
+			// Prepends arguments, if any to the "args" for setuid context.
+			"suid": [],
+			// Input which needs to be passed to the application. All insertions
+			// work here (such as {lfile}, {command}), but also {data} if you are
+			// streaming the data to the remote application.
+			"input": "",
+			// If needed, specify some data that must be sent to exit the remote
+			// application after the read is finished.
+			"exit": "{ctrl_c}",
+			// This specifies how to handle the data. There can be a few
+			// different values here:
+			//     - raw -> the data is unchanged and the controlling terminal
+			//         is set to raw mode for effective reading. This mode
+			//         requires a known data length and the command will fail
+			//         without it.
+			//     - print -> the data is unchanged, but the controlling
+			//         terminal is not changed to raw mode. Only printable 
+			//         data is safe from TTY translation.
+			//     - base64 -> all data is converted from base64. Data sent
+			//         to the remote process should be in  base64 form, and the
+			//         tty is not set to raw mode.
+			//     - hex -> same as base64, but base16 instead.
+			"stream": "raw"
+		},
+		{
+			"type": "write",
+			"stream": "raw",
+			"payload": "{command} of={lfile} oflag=count_bytes count={length}"
+			"input": "{data}",
+		}
+	],
+	// Another example
+	"bash": [
+		{
+			"type": "shell",
+			"stream": "print",
+			"suid": ["-p"],
+			"exit": "exit"
+		},
+		{
+			"type": "read",
+			"stream": "raw",
+			"payload": "{command} -c '{cat} {lfile}'",
+			"suid": ["-p"],
+		}
+	],
+	"cat": [
+		{
+			"type": "read",
+			"stream": "raw",
+			"payload": "{command} {lfile}",
+		},
+		{
+			"type": "write",
+			"stream": "base64",
+			"payload": "{base64} -d | {command} > {lfile}"
+			"args": [],
+		},
+		{
+			"type": "write",
+			"stream": "print",
+			"payload": "{command} > {lfile}",
+			"args": [],
+			"exit": "{ctrl_c}"
+		}
+	]
+}
