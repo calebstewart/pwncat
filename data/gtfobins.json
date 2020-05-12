@@ -109,7 +109,7 @@
 			"stream": "base64",
 			"payload": "{base64} -d | {command} > {lfile}",
 			"args": [],
-			"exit": "ctrl_d"
+			"exit": "{ctrl_d}"
 		},
 		{
 			"type": "write",
