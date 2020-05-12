@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from typing import Dict, Optional, Iterable
+from typing import Dict, Optional, Iterable, IO
 from prompt_toolkit import PromptSession, ANSI
 from prompt_toolkit.shortcuts import ProgressBar
 from prompt_toolkit.completion import (
@@ -35,6 +35,7 @@ from pwncat import util
 from pwncat import downloader, uploader, privesc
 from pwncat.file import RemoteBinaryPipe
 from pwncat.lexer import LocalCommandLexer, PwncatStyle
+from pwncat.gtfobins import GTFOBins, Capability, Stream
 
 from colorama import Fore
 
@@ -195,7 +196,7 @@ class PtyHandler:
         self.known_binaries = {}
         self.known_users = {}
         self.vars = {"lhost": util.get_ip_addr()}
-        self.remote_prefix = "\\[\\033[01;31m\\](remote)\\033[00m\\]"
+        self.remote_prefix = "\\[\\033[01;31m\\](remote)\\[\\033[00m\\]"
         self.remote_prompt = (
             "\\[\\033[01;33m\\]\\u@\\h\\[\\033[00m\\]:\\["
             "\\033[01;36m\\]\\w\\[\\033[00m\\]\\$ "
@@ -216,6 +217,7 @@ class PtyHandler:
             "nc": ["netcat", "ncat"],
         }
         self.has_pty = has_pty
+        self.gtfo: GTFOBins = GTFOBins("data/gtfobins.json", self.which)
 
         # Setup the argument parsers for local the local prompt
         self.setup_command_parsers()
@@ -341,6 +343,9 @@ class PtyHandler:
 
         # Attempt to identify architecture
         self.arch = self.run("uname -m").decode("utf-8").strip()
+
+        # Save our terminal state
+        self.stty_saved = self.run("stty -g").decode("utf-8").strip()
 
         # Force the local TTY to enter raw mode
         self.enter_raw()
@@ -487,6 +492,7 @@ class PtyHandler:
             auto_suggest=AutoSuggestFromHistory(),
             lexer=PygmentsLexer(LocalCommandLexer),
             style=PwncatStyle,
+            complete_while_typing=False,
         )
 
     def which(self, name: str, request=True, quote=False) -> str:
@@ -984,10 +990,7 @@ class PtyHandler:
             if b"_PWNCAT_STARTDELIM_" in response:
                 response = b"\n".join(response.split(b"\n")[1:])
 
-            if self.has_cr:
-                self.recvuntil(b"\r\n")
-            else:
-                self.recvuntil(b"\n")
+            self.recvuntil(b"\n")
 
         if callable(input):
             input()
@@ -1031,7 +1034,9 @@ class PtyHandler:
 
         return b"_PWNCAT_ENDDELIM_"
 
-    def subprocess(self, cmd, mode="rb") -> RemoteBinaryPipe:
+    def subprocess(
+        self, cmd, mode="rb", data: bytes = None, exit_cmd: str = None, no_job=False
+    ) -> RemoteBinaryPipe:
         """ Create an asynchronous child on the remote end and return a
         file-like object which can communicate with it's standard output. The 
         remote terminal is placed in raw mode with no-echo first, and the
@@ -1063,7 +1068,7 @@ class PtyHandler:
         command.append("set +m")
         # This is gross, but it allows us to recieve stderr and stdout, while
         # ignoring the job control start message.
-        if "w" not in mode:
+        if "w" not in mode and not no_job:
             command.append(
                 f"{{ echo {sdelim}; {cmd} && echo {edelim} || echo {edelim} & }} 2>/dev/null"
             )
@@ -1079,23 +1084,144 @@ class PtyHandler:
 
         # Enter raw mode w/ no echo on the remote terminal
         # DANGER
-        self.raw(echo=False)
-        self.run("echo")  # restabilize the shell to get output
+        if "b" in mode:
+            self.raw(echo=False)
+            self.run("echo")  # restabilize the shell to get output
 
         self.client.sendall(command + b"\n")
         self.recvuntil(sdelim)
         self.recvuntil("\n")
 
-        pipe = RemoteBinaryPipe(self, mode, edelim.encode("utf-8"), True)
+        # Send the data if requested
+        if callable(data):
+            data()
+        elif data is not None:
+            self.client.sendall(data)
 
-        if "b" not in mode:
-            if "w" in mode:
-                pipe = io.BufferedRWPair(pipe, pipe)
-                pipe = io.TextIOWrapper(pipe)
-            else:
-                pipe = io.TextIOWrapper(io.BufferedReader(pipe))
+        pipe = RemoteBinaryPipe(self, mode, edelim.encode("utf-8"), True, exit_cmd)
+
+        # if "b" not in mode:
+        #     if "w" in mode:
+        #         pipe = io.BufferedRWPair(pipe, pipe)
+        #         pipe = io.TextIOWrapper(pipe)
+        #     else:
+        #         pipe = io.TextIOWrapper(io.BufferedReader(pipe))
 
         return pipe
+
+    def do_test(self, argv):
+
+        util.info("Attempting to stream data to a remote file...")
+        with self.open("/tmp/stream_test", "w") as filp:
+            filp.write("It fucking worked!")
+
+        util.info("Attempting to stream the data back...")
+        with self.open("/tmp/stream_test", "r") as filp:
+            print(filp.read())
+
+    def open_read(self, path: str, mode: str):
+        """ Open a remote file for reading """
+
+        method = None
+        binary_path = None
+        stream = Stream.ANY
+
+        # If we want binary transfer, we can't use Stream.PRINT
+        if "b" in mode:
+            stream = stream & ~Stream.PRINT
+
+        try:
+            # Find a reader from GTFObins
+            method = next(self.gtfo.iter_methods(caps=Capability.READ, stream=stream))
+        except StopIteration:
+            raise RuntimeError("no available gtfobins readers!")
+
+        # Build the payload
+        payload, input_data, exit_cmd = method.build(lfile=path, suid=True)
+
+        sub_mode = "r"
+        no_job = True
+        if method.stream is Stream.RAW:
+            sub_mode += "b"
+
+        # Run the payload on the remote host.
+        pipe = self.subprocess(
+            payload,
+            sub_mode,
+            no_job=no_job,
+            data=input_data.encode("utf-8"),
+            exit_cmd=exit_cmd.encode("utf-8"),
+        )
+
+        # Wrap the pipe in the decoder for this method (possible base64)
+        pipe = method.wrap_stream(pipe)
+
+        # Return the appropriate text or binary mode pipe
+        if "b" not in mode:
+            pipe = io.TextIOWrapper(io.BufferedReader(pipe))
+
+        return pipe
+
+    def open_write(self, path: str, mode: str, length=None) -> IO:
+        """ Open a remote file for writing """
+
+        method = None
+        stream = Stream.ANY
+
+        # If we want binary transfer, we can't use Stream.PRINT
+        if "b" in mode:
+            stream = stream & ~Stream.PRINT
+
+        # We can't do raw streams without a known length
+        if length is None:
+            stream = stream & ~Stream.RAW
+
+        try:
+            # Find a reader from GTFObins
+            method = next(self.gtfo.iter_methods(caps=Capability.WRITE, stream=stream))
+        except StopIteration:
+            raise RuntimeError("no available gtfobins readers!")
+
+        # Build the payload
+        payload, input_data, exit_cmd = method.build(
+            lfile=path, length=length, suid=True
+        )
+
+        sub_mode = "w"
+        if method.stream is Stream.RAW:
+            sub_mode += "b"
+
+        # Run the payload on the remote host.
+        pipe = self.subprocess(
+            payload,
+            sub_mode,
+            data=input_data.encode("utf-8"),
+            exit_cmd=exit_cmd.encode("utf-8"),
+        )
+
+        # Wrap the pipe in the decoder for this method (possible base64)
+        pipe = method.wrap_stream(pipe)
+
+        # Return the appropriate text or binary mode pipe
+        if "b" not in mode:
+            pipe = io.TextIOWrapper(io.BufferedWriter(pipe))
+
+        return pipe
+
+    def open(self, path: str, mode: str, length=None):
+        """ Generically open a remote file for reading or writing. Does not
+        support simultaneously read and write. TextIO is implemented with a 
+        TextIOWrapper. No other remote interaction should occur until this
+        stream is closed. """
+
+        # We can't do simultaneous read and write
+        if "r" in mode and "w" in mode:
+            raise ValueError("only one of 'r' or 'w' may be specified")
+
+        if "r" in mode:
+            return self.open_read(path, mode)
+        else:
+            return self.open_write(path, mode, length)
 
     def raw(self, echo: bool = False):
         self.stty_saved = self.run("stty -g").decode("utf-8").strip()
@@ -1105,10 +1231,11 @@ class PtyHandler:
 
     def restore_remote(self):
         self.run(f"stty {self.stty_saved}", wait=False)
+        self.flush_output()
         self.has_cr = True
         self.has_echo = True
+        self.run("echo")
         self.run(f"export PS1='{self.remote_prefix} {self.remote_prompt}'")
-        self.run(f"tput rmam")
 
     def flush_output(self):
         while True:

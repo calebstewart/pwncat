@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from io import RawIOBase
 import socket
+import time
 
 
 class RemoteBinaryPipe(RawIOBase):
@@ -11,7 +12,12 @@ class RemoteBinaryPipe(RawIOBase):
     reading or writing will be allowed. """
 
     def __init__(
-        self, pty: "pwncat.pty.PtyHandler", mode: str, delim: bytes, binary: bool
+        self,
+        pty: "pwncat.pty.PtyHandler",
+        mode: str,
+        delim: bytes,
+        binary: bool,
+        exit_cmd: bytes,
     ):
         self.pty = pty
         self.delim = delim
@@ -20,6 +26,8 @@ class RemoteBinaryPipe(RawIOBase):
         self.binary = binary
         self.split_eof = b""
         self.mode = mode
+        self.exit_cmd = exit_cmd
+        self.opened = time.time()
 
     def readable(self) -> bool:
         return True
@@ -34,11 +42,15 @@ class RemoteBinaryPipe(RawIOBase):
         # Set eof flag
         self.eof = 1
 
+        # Send exit command if it was provided
+        if self.exit_cmd and len(self.exit_cmd):
+            self.pty.client.send(self.exit_cmd)
+
         # Reset the terminal
         self.pty.restore_remote()
+        # self.pty.reset()
         # Send a bare echo, and read all data to ensure we don't clobber the
         # output of the user's terminal
-        self.pty.run("echo")
 
     def close(self):
         if self.eof:

