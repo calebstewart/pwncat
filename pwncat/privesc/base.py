@@ -8,18 +8,9 @@ import os
 
 from pwncat import util
 from pwncat.file import RemoteBinaryPipe
+from pwncat.gtfobins import Capability
 
 from enum import Enum
-
-
-class Capability:
-    READ = 1
-    WRITE = 2
-    SHELL = 4
-    SUDO = SHELL
-    WRITE_STREAM = 8
-    last = 16
-    ALL = READ | WRITE | SHELL | SUDO
 
 
 class PrivescError(Exception):
@@ -36,7 +27,7 @@ class Technique:
     # method)
     ident: Any
     # The GTFObins capabilities required for this technique to work
-    capabilities: int
+    capabilities: Capability
 
     def __str__(self):
         return self.method.get_name(self)

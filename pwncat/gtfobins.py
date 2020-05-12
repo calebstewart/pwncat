@@ -1,56 +1,439 @@
 #!/usr/bin/env python3
-from typing import List, Dict, Any, Callable
-from shlex import quote
-import binascii
-import base64
+from typing import Dict, Callable, Any, List, Generator, BinaryIO, IO, Tuple
+from enum import Enum, Flag, auto
+from base64io import Base64IO
+import commentjson as json
 import shlex
-import json
 import os
-
-from pwncat.privesc import Capability
-from pwncat import util
+import io
 
 
-class MissingBinary(Exception):
-    """ The GTFObin method you attempted depends on a missing binary """
+class ControlCodes:
+    CTRL_C = "\x03"
+    CTRL_Z = "\x1a"
+    CTRL_D = "\x04"
+    ESCAPE = "\x1B"
 
 
 class SudoNotPossible(Exception):
-    """ Running the given binary to get a sudo shell is not possible """
+    """ The given sudo command spec is not compatible with the method attempted. """
 
 
-class FileReadNotPossible(Exception):
-    """ Running the given binary to get a sudo shell is not possible """
+class MissingBinary(Exception):
+    """ A method required an external binary that didn't exist """
 
 
-class FileWriteNotPossible(Exception):
-    """ Running the given binary to get a sudo shell is not possible """
+class BinaryNotFound(Exception):
+    """ The binary asked for either doesn't provided the required functionality
+    or isn't present on the remote system """
+
+
+class Capability(Flag):
+    """ The capabilities of a given GTFOBin Binary. A binary may have multiple
+    implementations of each capability, but these flags indicate a list of all
+    capabilities which a given binary supports. """
+
+    READ = auto()
+    WRITE = auto()
+    SHELL = auto()
+
+    ALL = READ | SHELL | WRITE
+    NONE = 0
+
+
+class Stream(Flag):
+    """ What time of streaming data is required for a specific method.
+
+        * RAW - The terminal is placed in raw mode and raw binary data transfer
+            is supported.
+        * PRINT - The terminal is left in normal mode and raw transfer is 
+            supported but will only be successful for printable data.
+        * HEX - The terminal is left in normal mode, but raw data is supported
+            by transferring data in HEX encoding.
+        * BASE64 - Same as HEX, but data is transferred in base64.
+    """
+
+    RAW = auto()
+    PRINT = auto()
+    HEX = auto()
+    BASE64 = auto()
+    ANY = RAW | PRINT | HEX | BASE64
+    NONE = 0
+
+
+class Method:
+    def __init__(self, binary: "Binary", cap: Capability, data: Dict[str, Any]):
+        """ Create a new method associated with the given binary. """
+
+        try:
+            self.stream = Stream._member_map_[data.get("stream", "PRINT").upper()]
+        except KeyError:
+            raise ValueError(f"invalid stream specifier: {data['stream']}")
+
+        self.binary = binary
+        self.payload = data.get("payload", "{command}")
+        self.args = data.get("args", None)
+        self.suid = data.get("suid", None)
+        self.input = data.get("input", "")
+        self.exit = data.get("exit", "")
+        self.restricted = data.get("restricted", [])
+        self.cap = cap
+
+        if self.args is None:
+            argv = shlex.split(self.payload)
+            self.payload = argv[0]
+            self.args = argv[1:]
+
+    def sudo_args(self, binary_path: str, spec: str) -> bool:
+        """ Check if this method is compatible with the given sudo command spec.
+        It will evaluate whether there are wildcards, or if the given parameters
+        satisfy the parameters needed for this method. The method returns the list
+        of arguments that need to be added to the sudo spec in order for it to 
+        run this method. 
+
+        If this method is incompatible with the given sudo spec, SudoNotPossible
+        is raised. If this spec is compatible, a list of arguments which need to
+        be appended to the spec is returned.
+        """
+
+        if spec == "ALL":
+            # We can run anything, so just return all arguments
+            return binary_path, self.args
+
+        # Split the sudo command specification
+        args = shlex.split(spec.rstrip("*"))
+
+        # There was a " *" which is not a wildcard
+        if shlex.split(spec)[-1] == "*":
+            has_wildcard = False
+            args.append("*")
+            command = spec
+        elif spec[-1] == "*":
+            has_wildcard = True
+            command = spec.rstrip("*")
+
+        # The sudo command is just "/path/to/binary", we are allowed to add any
+        # parameters we want.
+        if len(args) == 1 and spec[-1] != " ":
+            return args[0], self.args
+
+        # Check for disallowed arguments
+        for arg in args:
+            if arg in self.restricted:
+                raise SudoNotPossible
+
+        # Check if we already have the parameters we need
+        needed = {k: False for k in self.args}
+        for arg in args:
+            if arg in needed:
+                needed[arg] = True
+
+        # Check if we have any missing needed parameters, and no wildcard
+        # was given
+        if any([not v for _, v in needed.items()]) and not has_wildcard:
+            raise SudoNotPossible
+
+        # Either we have all the arguments we need, or we have a wildcard
+        return command, [k for k, v in needed.items() if not v]
+
+    def build_payload(
+        self,
+        binary_path: str,
+        spec: str = None,
+        user: str = None,
+        suid: bool = False,
+        **kwargs,
+    ) -> str:
+        """ Generate a read payload """
+
+        # Make sure both sudo_spec and sudo_user are provided if sudo_spec is
+        assert spec is None or (spec is not None and user is not None)
+
+        # Make sure we can use this spec, and get remainig arguments
+        if spec is not None:
+            command, args = self.sudo_args(binary_path, spec)
+            args = self.binary.gtfo.resolve_binaries(
+                " ".join(args),
+                ctrl_c=ControlCodes.CTRL_C,
+                ctrl_z=ControlCodes.CTRL_Z,
+                escape=ControlCodes.ESCAPE,
+                ctrl_d=ControlCodes.CTRL_D,
+                **kwargs,
+            )
+            command = f"sudo -u {user} " + command + " " + args
+        else:
+            if suid and self.suid:
+                args = self.suid
+            else:
+                args = []
+            args += self.args if self.args else []
+            command = " ".join([binary_path, *args])
+            # Resolve variables in the command/args
+            command = self.binary.gtfo.resolve_binaries(
+                command,
+                ctrl_c=ControlCodes.CTRL_C,
+                ctrl_z=ControlCodes.CTRL_Z,
+                escape=ControlCodes.ESCAPE,
+                ctrl_d=ControlCodes.CTRL_D,
+                **kwargs,
+            )
+
+        # Generate the main payload
+        payload = self.binary.gtfo.resolve_binaries(
+            self.payload,
+            command=command,
+            ctrl_c=ControlCodes.CTRL_C,
+            ctrl_z=ControlCodes.CTRL_Z,
+            escape=ControlCodes.ESCAPE,
+            ctrl_d=ControlCodes.CTRL_D,
+            **kwargs,
+        )
+
+        return payload
+
+
+class MethodWrapper:
+    def __init__(self, method: Method, binary_path: str):
+        """ Create a Method Wrapper which references a specific binary path. 
+        and method arguments. """
+        self.binary_path = binary_path
+        self.method = method
+
+    def wrap_stream(self, pipe: BinaryIO) -> IO:
+        """ Wrap the given BinaryIO pipe with the appropriate stream wrapper
+        for this method. For "RAW" or "PRINT" streams, this is a null wrapper.
+        For BASE64 and HEX streams, this will automatically decode the data as
+        it is streamed. This method will also wrap in TextIOWrapper if "b" is
+        not specified in `mode`. """
+
+        if self.stream is Stream.RAW:
+            return pipe
+        elif self.stream is not Stream.BASE64:
+            raise RuntimeError(
+                "we haven't implemented streaming of encodings besides base64"
+            )
+
+        wrapped = Base64IO(pipe)
+        original_close = wrapped.close
+        original_write = wrapped.write
+
+        def close_wrapper():
+            """ This is a dirty hack because Base64IO doesn't close the underlying
+            stream when it closes. We want to assume this, so we wrap the function
+            with one that will close the underlying stream. We need to close
+            the Base64IO stream first, since data may be waiting to get decoded
+            and sent. """
+            original_close()
+            pipe.close()
+
+        def write_wrapper(data: bytes):
+            """ This is another nasty hack. The underlying Base64IO object 
+            erroneously returns the number of base64 bytes written, not the number
+            if source bytes written. This causes other Python IO classes to raise
+            an exception. We know our underlying socket will block on sending
+            data, so all data will be sent. Again, this is gross, but it makes
+            the python stdlib happy. """
+            original_write(data)
+            return len(data)
+
+        wrapped.close = close_wrapper
+        wrapped.write = write_wrapper
+
+        return wrapped
+
+    def build(self, **kwargs) -> Tuple[str, str, str]:
+        return self.payload(**kwargs), self.input(**kwargs), self.exit(**kwargs)
+
+    def payload(self, **kwargs) -> str:
+        return self.method.build_payload(self.binary_path, **kwargs)
+
+    def exit(self, **kwargs) -> str:
+        return self.method.binary.gtfo.resolve_binaries(
+            self.method.exit,
+            ctrl_c=ControlCodes.CTRL_C,
+            ctrl_z=ControlCodes.CTRL_Z,
+            escape=ControlCodes.ESCAPE,
+            ctrl_d=ControlCodes.CTRL_D,
+            **kwargs,
+        )
+
+    def input(self, **kwargs) -> str:
+        return self.method.binary.gtfo.resolve_binaries(
+            self.method.input,
+            ctrl_c=ControlCodes.CTRL_C,
+            ctrl_z=ControlCodes.CTRL_Z,
+            escape=ControlCodes.ESCAPE,
+            ctrl_d=ControlCodes.CTRL_D,
+            **kwargs,
+        )
+
+    @property
+    def stream(self) -> Stream:
+        """ Access this methods stream type """
+        return self.method.stream
+
+    @property
+    def cap(self) -> Capability:
+        """ Access this methods capabilities """
+        return self.method.cap
 
 
 class Binary:
+    """ Encapsulates a GTFOBin and it's methods for all capabilities """
 
-    _binaries: List[Dict[str, Any]] = []
+    def __init__(self, gtfo: "GTFOBins", name: str, methods: List[Dict[str, Any]]):
+        """ Create a GTFOBin from the given list of capabilities """
 
-    def __init__(self, path: str, data: Dict[str, Any], which):
-        """ build a new binary from a dictionary of data. The data is taken from
-        the GTFOBins JSON database """
-        self.data = data
-        self.path = path
+        # Initialize to no capabilities
+        self.gtfo = gtfo
+        self.caps = Capability.NONE
+        self.methods: List[Method] = []
+
+        for method_data in methods:
+            try:
+                method_cap = Capability._member_map_[
+                    method_data.get("type", "WRONG").upper()
+                ]
+            except KeyError:
+                raise RuntimeError(f"invalid method type for {name}")
+
+            method = Method(self, method_cap, method_data)
+            self.methods.append(method)
+            self.caps |= method_cap
+
+    def iter_methods(
+        self, binary_path: str, caps: Capability, stream: Stream, spec: str = None
+    ):
+        """ Iterate over methods in this binary matching the capability and stream
+        masks """
+
+        # Only yield results with overlapping capabilities
+        if not (self.caps & caps):
+            return
+
+        for method in self.methods:
+            # Ensure this method implements a requested capability
+            if method.cap not in caps:
+                continue
+            # If we specified stream, make sure it matches
+            if stream is not None and method.stream not in stream:
+                continue
+            # Ensure this method is capable of sudo with this spec
+            try:
+                if spec is not None:
+                    method.sudo_args(binary_path, spec)
+            except SudoNotPossible:
+                continue
+
+            try:
+                yield MethodWrapper(method, binary_path)
+            except (SudoNotPossible, MissingBinary):
+                continue
+
+
+class GTFOBins:
+    def __init__(self, gtfobins: str, which: Callable[[str], str]):
+        """ Create a new GTFOBins object. This will load the JSON gtfobins data
+        file specified in the `gtfobins` parameter. The `which` method is
+        remembered to lookup existing binaries on the target system for later. """
+
         self.which = which
+        self.binaries: Dict[str, Binary] = {}
 
-        self.capabilities = 0
-        if self.has_read_file:
-            self.capabilities |= Capability.READ
-        if self.has_shell:
-            self.capabilities |= Capability.SHELL
-        if self.has_write_file:
-            self.capabilities |= Capability.WRITE
-        if self.has_write_stream:
-            self.capabilities |= Capability.WRITE_STREAM
+        with open(gtfobins, "r") as filp:
+            binary_data = json.load(filp)
 
-        # We need to fix this later...?
-        if self.has_shell:
-            self.capabilities |= Capability.SUDO
+        if not isinstance(binary_data, dict):
+            raise ValueError("invalid gtfobins.json format (expecting dict)")
+
+        self.parse_binary_data(binary_data)
+
+    def parse_binary_data(self, binary_data: Dict[str, List[Dict[str, Any]]]):
+        """ Parse the given GTFObins binary information into the associated
+        in-memory binary objects """
+
+        for name, data in binary_data.items():
+            binary = Binary(self, name, data)
+            self.binaries[name] = binary
+
+    def iter_sudo(
+        self,
+        spec: str,
+        caps: Capability = Capability.ALL,
+        stream: Stream = None,
+        **kwargs,
+    ):
+        """ Iterate over methods which are sudo-capable w/ the given sudo spec.
+        This will restrict the search to those binaries which match the given sudo
+        command spec. """
+
+        if spec != "ALL":
+            # This is the harder case. We have a specific specification for the
+            # command wecan run.
+
+            # If there are arguments, remove them and grab the first item, which
+            # will be the path or binary name
+            binary_path = shlex.split(spec.rstrip("*"))[0]
+
+            for method in self.iter_binary(
+                binary_path, caps, stream, spec=spec, **kwargs
+            ):
+                yield method
+        else:
+            # We can run any w/ this spec. This becomes the same as calling
+            # iter_methods. "sudo_args" in "method" will notice this as well
+            # and succeed for any command.
+            yield from self.iter_methods(caps, stream, spec=spec, **kwargs)
+
+    def find_binary(self, binary_path: str, caps: Capability = Capability.ALL):
+        """ Locate a binary by name. Only return a binary if the capabilities
+        overlap. Raise an BinaryNotFound exception if the capabilities don't
+        match or the given binary doesn't exist on the remote system. """
+
+        binary_name = os.path.basename(binary_path)
+        if binary_name not in self.binaries:
+            raise BinaryNotFound
+
+        if not (self.binaries[binary_name].caps & caps):
+            raise BinaryNotFound
+
+        return self.binaries[binary_name]
+
+    def iter_binary(
+        self,
+        binary_path: str,
+        caps: Capability = Capability.ALL,
+        stream: Stream = None,
+        spec: str = None,
+    ) -> Generator[MethodWrapper, None, None]:
+        """ Iterate over methods for the given remote binary path. A binary will
+        be located by taking the basename of the given path, and the cross-
+        referencing with the given capabilities and stream types. """
+
+        binary_name = os.path.basename(binary_path)
+        if binary_name not in self.binaries:
+            return
+
+        yield from self.binaries[binary_name].iter_methods(
+            binary_path, caps, stream, spec
+        )
+
+    def iter_methods(
+        self,
+        caps: Capability = Capability.ALL,
+        stream: Stream = None,
+        spec: str = None,
+    ) -> Generator[MethodWrapper, None, None]:
+        """ Iterate over methods which provide the given capabilities """
+
+        for name, binary in self.binaries.items():
+            path = self.which(name)
+
+            # Only yield results applicable to the target system
+            if path is None:
+                continue
+
+            yield from binary.iter_methods(path, caps, stream, spec)
 
     def resolve_binaries(self, target: str, **args):
         """ resolve any missing binaries with the self.which method """
@@ -76,428 +459,3 @@ class Binary:
                 args[key] = value
 
         return target
-
-    def parse_entry(self, entry, sudo_prefix: str = None, suid=False, **args):
-        """ Parse an entry for read_file, write_file, or shell """
-
-        if isinstance(entry, str):
-            entry = shlex.split(entry)
-            payload = entry[0]
-            args = entry[1:]
-            input_data = ""
-            stream_type = "print"
-            exit_command = ""
-            suid_args = []
-        else:
-            payload = entry.get("payload", "{command}")
-            args = entry.get("args", [])
-            input_data = entry.get("input", "")
-            stream_type = entry.get("type", "print")
-            exit_command = entry.get("exit", "")
-            suid_args = entry.get("suid", [])
-
-        command = self.path
-        if sudo_prefix:
-            command = sudo_prefix + " " + command
-
-        args = [self.resolve_binaries(a, **args) for a in args]
-        input_data = self.resolve_binaries(input_data, ctrl_c=util.CTRL_C, **args)
-        exit_command = self.resolve_binaries(exit_command, ctrl_c=util.CTRL_C, **args)
-        suid_args = self.resolve_binaries(suid_args, **args)
-
-        if len(suid_args):
-            command = command + " " + shlex.join(suid_args)
-        if len(args):
-            command = command + " " + shlex.join(args)
-
-        payload = self.resolve_binaries(payload, command=command, **args)
-
-        return payload, input_data, exit_command, stream_type
-
-    def shell(
-        self,
-        shell_path: str,
-        sudo_prefix: str = None,
-        command: str = None,
-        suid: bool = False,
-    ) -> str:
-        """ Build a a payload which will execute the binary and result in a
-        shell. `path` should be the path to the shell you would like to run. In
-        the case of GTFOBins that _are_ shells, this will likely be ignored, but
-        you should always provide it.
-        """
-
-        if "shell" not in self.data:
-            return None
-
-        if isinstance(self.data["shell"], str):
-            script = self.data["shell"]
-            args = []
-            suid_args = []
-            exit = "exit"
-            input = ""
-        else:
-            script = self.data["shell"].get("script", "{command}")
-            suid_args = self.data["shell"].get("suid", [])
-            args = [
-                self.resolve_binaries(n, shell=shell_path)
-                for n in self.data["shell"].get("need", [])
-            ]
-            exit = self.resolve_binaries(self.data["shell"].get("exit", "exit"))
-            input = self.data["shell"].get("input", "")
-
-        if suid:
-            suid_args.extend(args)
-            args = suid_args
-
-        if script == "":
-            script = "{command}"
-
-        if command is None:
-            command = shlex.join([self.path] + args)
-            if sudo_prefix is not None:
-                command = sudo_prefix + " " + command
-
-        return (
-            self.resolve_binaries(script, command=command, shell=shell_path),
-            input.format(shell=shlex.quote(shell_path)),
-            exit,
-        )
-
-    @property
-    def has_shell(self) -> bool:
-        """ Check if this binary has a shell method """
-        try:
-            result = self.shell("test")
-        except MissingBinary:
-            return False
-        return result is not None
-
-    def can_sudo(self, command: str, shell_path: str) -> List[str]:
-        """ Checks if this command can be leveraged for a shell with sudo. The
-        GTFObin specification must include information on the sudo context. It
-        will check either:
-            
-            * There are no parameters in the sudo specification, it succeeds.
-            * There are parameters, but ends in a start, we succeed (doesn't
-              guarantee successful shell, but is more likely)
-            * Parameters match exactly
-        """
-
-        if not "shell" in self.data:
-            # We need to be able to run a shell
-            raise SudoNotPossible
-
-        # Split the sudo command specification
-        args = shlex.split(command.rstrip("*"))
-
-        # There was a " *" which is not a wildcard
-        if shlex.split(command)[-1] == "*":
-            has_wildcard = False
-            args.append("*")
-        elif command[-1] == "*":
-            has_wildcard = True
-
-        if isinstance(self.data["shell"], str):
-            need = [
-                self.resolve_binaries(n, shell=shell_path)
-                for n in shlex.split(self.data["shell"])
-            ]
-            restricted = []
-        else:
-            # Needed and restricted parameters
-            need = [
-                self.resolve_binaries(n, shell=shell_path)
-                for n in self.data["shell"].get("need", [])
-            ]
-            restricted = self.data["shell"].get("restricted", [])
-
-        # The sudo command is just "/path/to/binary", we are allowed to add any
-        # parameters we want.
-        if len(args) == 1 and command[-1] != " ":
-            return need
-
-        # Check for disallowed arguments
-        for arg in args:
-            if arg in restricted:
-                raise SudoNotPossible
-
-        # Check if we already have the parameters we need
-        needed = {k: False for k in need}
-        for arg in args:
-            if arg in needed:
-                needed[arg] = True
-
-        # Check if we have any missing needed parameters, and no wildcard
-        # was given
-        if any([not v for _, v in needed.items()]) and not has_wildcard:
-            raise SudoNotPossible
-
-        # Either we have all the arguments we need, or we have a wildcard
-        return [k for k, v in needed.items() if not v]
-
-    def sudo_shell(self, user: str, spec: str, shell_path: str) -> str:
-        """ Generate a payload to get a shell with sudo for this binary. This
-        can be complicated, since the sudo specification may include wildcards 
-        or other parameters we don't want. We leverage the information in the 
-        GTFObins JSON data to determine if it is possible (see `can_sudo`) and
-        then build a payload that should run under the given sudo specification.
-        """
-
-        # If we can't this will raise an exception up to the caller
-        needed_args = self.can_sudo(spec, shell_path)
-
-        prefix = f"sudo -u {user}"
-
-        if spec.endswith("*") and not spec.endswith(" *"):
-            spec = spec.rstrip("*")
-
-        # There's more arguments we need, and we're allowed to pass them
-        if needed_args:
-            command = spec + " " + " ".join(needed_args)
-        else:
-            command = spec
-
-        command = prefix + " " + command
-
-        return self.shell(shell_path, command=command)
-
-    def sudo(self, sudo_prefix: str, command: str, shell_path: str) -> str:
-        """ Build a a payload which will execute the binary and result in a
-        shell. `path` should be the path to the shell you would like to run. In
-        the case of GTFOBins that _are_ shells, this will likely be ignored, but
-        you should always provide it.
-        """
-
-        if "sudo" not in self.data:
-            return None
-
-        if isinstance(self.data["sudo"], str):
-            enter = self.data["sudo"]
-            exit = "exit"
-            input = ""
-        else:
-            enter = self.data["sudo"]["enter"]
-            exit = self.data["sudo"].get("exit", "exit")
-            input = self.data["shell"].get("input", "input")
-
-        return (
-            enter.format(
-                path=quote(self.path),
-                shell=quote(shell_path),
-                command=quote(command),
-                sudo_prefix=sudo_prefix,
-            ),
-            input.format(shell=quote(shell_path)),
-            exit,
-        )
-
-    def read_file(self, file_path: str, sudo_prefix: str = None) -> str:
-        """ Build a payload which will leak the contents of the specified file.
-        """
-
-        if "read_file" not in self.data:
-            return None
-
-        # path = quote(self.path)
-        path = self.path
-        if sudo_prefix:
-            path = sudo_prefix + " " + path
-
-        return self.resolve_binaries(
-            self.data["read_file"], path=path, lfile=quote(file_path)
-        )
-
-    @property
-    def has_read_file(self):
-        """ Check if this binary has a read_file capability """
-        try:
-            result = self.read_file("test")
-        except MissingBinary:
-            return False
-        return result is not None
-
-    @property
-    def has_write_stream(self):
-        try:
-            result = self.write_stream("test")
-        except MissingBinary:
-            return False
-        return result is not None
-
-    def write_stream(self, file_path, sudo_prefix: str = None) -> str:
-        """ Build a payload which will write stdin to a file. """
-
-        if "write_stream" not in self.data:
-            return None
-
-        path = self.path
-        if sudo_prefix:
-            path = sudo_prefix + " " + path
-
-        if isinstance(self.data["write_stream"], str):
-            command = self.data["write_stream"]
-            input = None
-        else:
-            command = self.data["write_stream"].get("command", "{path}")
-            input = self.data["write_stream"].get("input", None)
-
-        command = self.resolve_binaries(command, path=path)
-        if input is not None:
-            input = self.resolve_binaries(input, path=path)
-
-        return (command, input)
-
-    def write_file(self, file_path: str, data: bytes, sudo_prefix: str = None) -> str:
-        """ Build a payload to write the specified data into the file """
-
-        if "write_file" not in self.data:
-            return None
-
-        # path = quote(self.path)
-        path = self.path
-        if sudo_prefix:
-            path = sudo_prefix + " " + path
-
-        if isinstance(data, str):
-            data = data.encode("utf-8")
-
-        if self.data["write_file"]["type"] == "base64":
-            data = base64.b64encode(data)
-        elif self.data["write_file"]["type"] == "hex":
-            data = binascii.hexlify(data)
-        elif self.data["write_file"]["type"] != "raw":
-            raise RuntimeError(
-                "{self.data['name']}: unknown write_file type: {self.data['write_file']['type']}"
-            )
-
-        return self.resolve_binaries(
-            self.data["write_file"]["payload"],
-            path=path,
-            lfile=quote(file_path),
-            data=quote(data.decode("utf-8")),
-        )
-
-    @property
-    def has_write_file(self):
-        """ Check if this binary has a write_file capability """
-        try:
-            result = self.write_file("test", "test")
-        except MissingBinary:
-            return False
-        return result is not None
-
-    @property
-    def is_safe(self):
-        """ Check if this binary has a write_file capability """
-        return self.data.get("safe", True)
-
-    def command(self, command: str) -> str:
-        """ Build a payload to execute the specified command """
-
-        if "command" not in self.data:
-            return None
-
-        return self.resolve_binaries(
-            self.data["command"], path=self.path, command=quote(command)
-        )
-
-    @property
-    def has_command(self):
-        """ Check if this binary has a command capability """
-        try:
-            result = self.command("test")
-        except MissingBinary:
-            return False
-        return result is not None
-
-    @classmethod
-    def load(cls, gtfo_path: str):
-        with open(gtfo_path) as filp:
-            cls._binaries = json.load(filp)
-
-    @classmethod
-    def find(cls, which: Callable, path: str = None, name: str = None) -> "Binary":
-        """ Locate the given gtfobin and return the Binary object. If name is
-        not given, it is assumed to be the basename of the path. """
-
-        if name is None:
-            name = os.path.basename(path)
-
-        for binary in cls._binaries:
-            if binary["name"] == name:
-                return Binary(path, binary, which)
-
-        return None
-
-    @classmethod
-    def find_capability(
-        cls,
-        which: Callable[[str], str],
-        capability: int = Capability.ALL,
-        safe: bool = False,
-    ) -> "Binary":
-        """ Locate the given gtfobin and return the Binary object. If name is
-        not given, it is assumed to be the basename of the path. """
-
-        for data in cls._binaries:
-            path = which(data["name"], quote=True)
-            if path is None:
-                continue
-
-            binary = Binary(path, data, which)
-            if not binary.is_safe and safe:
-                continue
-            if (binary.capabilities & capability) == 0:
-                continue
-
-            return binary
-
-    @classmethod
-    def find_sudo(
-        cls, spec: str, get_binary_path: Callable[[str], str], capability: int
-    ) -> "Binary":
-        """ Locate a GTFObin binary for the given sudo spec. This will separate 
-        out the path of the binary from spec, and use `find` to locate a Binary
-        object. If that binary cannot be used with this spec or no binary exists,
-        SudoNotPossible is raised. shell_path is used as the default for specs
-        which specify "ALL". """
-
-        binaries = []
-
-        if spec == "ALL":
-            # If the spec specifies any command, we check each known gtfobins
-            # binary for one usable w/ this sudo spec. We use recursion here,
-            # but never more than a depth of one, so it should be safe.
-            found_caps = 0
-
-            while found_caps != capability:
-
-                binary = cls.find_capability(
-                    get_binary_path, (capability & ~found_caps)
-                )
-
-                if binary is None:
-                    # raise SudoNotPossible("no available gtfobins for ALL")
-                    break
-
-                binaries.append(binary)
-                found_caps |= binary.capabilities
-
-        else:
-            path = shlex.split(spec)[0]
-            binary = cls.find(path)
-            if binary is not None:
-                found_caps = binary.capabilities & capability
-                binaries = [binary]
-
-        if len(binaries) == 0 or found_caps == 0:
-            raise SudoNotPossible(f"no available gtfobins for {spec}")
-
-        # for
-
-        # This will throw an exception if we can't sudo with this binary
-        # _ = binary.can_sudo(spec, "")
-
-        # return spec, binary
-        return binaries

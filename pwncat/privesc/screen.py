@@ -18,7 +18,7 @@ from pwncat.file import RemoteBinaryPipe
 
 from pwncat.pysudoers import Sudoers
 from pwncat import gtfobins
-from pwncat.privesc import Capability
+from pwncat.gtfobins import Capability
 from pwncat import util
 
 
