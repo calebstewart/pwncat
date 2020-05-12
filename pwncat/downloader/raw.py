@@ -14,8 +14,7 @@ class RawShellDownloader(Downloader):
     BINARIES = [("dd", "cat")]
     BLOCKSZ = 8192
 
-    def command(self) -> Generator[str, None, None]:
-        """ Yield list of commands to transfer the file """
+    def command(self):
 
         remote_path = shlex.quote(self.remote_path)
         blocksz = 1024 * 1024

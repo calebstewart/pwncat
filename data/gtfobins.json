@@ -39,7 +39,15 @@
 		{
 			"type": "write",
 			"stream": "raw",
-			"payload": "{command} of={lfile} iflag=count_bytes count={length}"
+			"payload": "{command} 2>/dev/null",
+			"args": ["of={lfile}", "iflag=count_bytes,fullblock", "count={length}"]
+		},
+		{
+			"type": "write",
+			"stream": "print",
+			"payload": "{command} 2>/dev/null",
+			"args": ["of={lfile}"],
+			"exit": "{ctrl_d}"
 		}
 	],
 	// Another example

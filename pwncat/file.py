@@ -27,7 +27,7 @@ class RemoteBinaryPipe(RawIOBase):
         self.split_eof = b""
         self.mode = mode
         self.exit_cmd = exit_cmd
-        self.opened = time.time()
+        self.count = 0
 
     def readable(self) -> bool:
         return True
@@ -124,5 +124,12 @@ class RemoteBinaryPipe(RawIOBase):
 
     def write(self, data: bytes):
         if self.eof:
-            raise EOFError
-        return self.pty.client.send(data)
+            return None
+        try:
+            n = self.pty.client.send(data)
+        except (socket.timeout, BlockingIOError):
+            n = 0
+        if n == 0:
+            return None
+        self.count += n
+        return n

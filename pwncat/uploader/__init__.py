@@ -4,21 +4,17 @@ from typing import Type, List
 from pwncat.uploader.base import Uploader, UploadError
 from pwncat.uploader.nc import NetcatUploader
 from pwncat.uploader.curl import CurlUploader
-from pwncat.uploader.shell import ShellUploader
 from pwncat.uploader.bashtcp import BashTCPUploader
 from pwncat.uploader.wget import WgetUploader
-from pwncat.uploader.raw import RawShellUploader
+from pwncat.uploader.gtfo import GtfoBinsUploader
 
 all_uploaders = [
+    GtfoBinsUploader,
     NetcatUploader,
     CurlUploader,
-    ShellUploader,
     BashTCPUploader,
     WgetUploader,
-    RawShellUploader,
 ]
-uploaders = [NetcatUploader, CurlUploader]
-fallback = ShellUploader
 
 
 def get_names() -> List[str]:
@@ -42,15 +38,11 @@ def find(pty: "pwncat.pty.PtyHandler", hint: str = None) -> Type[Uploader]:
 
         raise UploadError(f"{hint}: no such uploader")
 
-    for d in uploaders:
+    for d in all_uploaders:
         try:
             d.check(pty)
             return d
         except UploadError:
             continue
 
-    try:
-        fallback.check(pty)
-        return fallback
-    except:
-        raise UploadError("no acceptable uploaders found")
+    raise UploadError("no acceptable uploaders found")

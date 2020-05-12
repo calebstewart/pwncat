@@ -233,8 +233,8 @@ class MethodWrapper:
             an exception. We know our underlying socket will block on sending
             data, so all data will be sent. Again, this is gross, but it makes
             the python stdlib happy. """
-            original_write(data)
-            return len(data)
+            n = original_write(data)
+            return min(len(data), (n * 3) // 4)
 
         wrapped.close = close_wrapper
         wrapped.write = write_wrapper

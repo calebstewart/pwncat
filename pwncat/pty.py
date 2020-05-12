@@ -1100,6 +1100,11 @@ class PtyHandler:
 
         pipe = RemoteBinaryPipe(self, mode, edelim.encode("utf-8"), True, exit_cmd)
 
+        if "w" in mode:
+            pipe = io.BufferedRWPair(pipe, pipe)
+        else:
+            pipe = io.BufferedReader(pipe)
+
         # if "b" not in mode:
         #     if "w" in mode:
         #         pipe = io.BufferedRWPair(pipe, pipe)

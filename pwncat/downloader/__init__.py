@@ -5,19 +5,15 @@ from typing import Type, List
 from pwncat.downloader.base import Downloader, DownloadError
 from pwncat.downloader.nc import NetcatDownloader
 from pwncat.downloader.curl import CurlDownloader
-from pwncat.downloader.shell import ShellDownloader
 from pwncat.downloader.bashtcp import BashTCPDownloader
-from pwncat.downloader.raw import RawShellDownloader
+from pwncat.downloader.gtfo import GtfoBinsDownloader
 
 all_downloaders = [
+    GtfoBinsDownloader,
     NetcatDownloader,
     CurlDownloader,
-    ShellDownloader,
     BashTCPDownloader,
-    RawShellDownloader,
 ]
-downloaders = [NetcatDownloader, CurlDownloader]
-fallback = RawShellDownloader
 
 
 def get_names() -> List[str]:
@@ -38,15 +34,11 @@ def find(pty: "pwncat.pty.PtyHandler", hint: str = None) -> Type[Downloader]:
 
         raise DownloadError(f"{hint}: no such downloader")
 
-    for d in downloaders:
+    for d in all_downloaders:
         try:
             d.check(pty)
             return d
         except DownloadError:
             continue
 
-    try:
-        fallback.check(pty)
-        return fallback
-    except:
-        raise DownloadError("no acceptable downloaders found")
+    raise DownloadError("no acceptable downloaders found")

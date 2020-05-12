@@ -20,6 +20,9 @@ interact in a similar fashion to `ssh`.
 `TERM` environment variable) with your local settings to ensure the shell
 behaves correctly.
 
+To showcase a little bit of the cool functionality, I have recorded a short
+[asciinema cast](https://asciinema.org/a/YFF84YCJfp9tQHhTuGkA2PJ4T).
+
 ## Install
 
 To install **pwncat** into its own python virtual environment:
