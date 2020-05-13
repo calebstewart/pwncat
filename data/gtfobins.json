@@ -63,14 +63,13 @@
 			"stream": "print",
 			"payload": "{command}",
 			"args": ["-c", "'{cat} {lfile}'"],
-			"suid": ["-p"],
-			"exit": "{ctrl_d}"
+			"suid": ["-p"]
 		},
 		{
 			"type": "write",
 			"stream": "base64",
 			"payload": "{command}",
-			"args": ["-c", "{base64} -d > {lfile}"],
+			"args": ["-c", "'{base64} -d > {lfile}'"],
 			"suid": ["-p"],
 			"exit": "{ctrl_d}{ctrl_d}"
 		}

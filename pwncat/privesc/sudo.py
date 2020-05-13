@@ -8,6 +8,7 @@ from colorama import Fore, Style
 import socket
 from io import StringIO, BytesIO
 import functools
+import time
 
 from pwncat.util import CTRL_C
 from pwncat.privesc.base import Method, PrivescError, Technique
@@ -27,9 +28,14 @@ class SudoMethod(Method):
 
     def send_password(self, current_user):
 
-        output = self.pty.client.recv(6, socket.MSG_PEEK).lower()
+        # peak the output
+        output = self.pty.peek_output(some=False).lower()
 
-        if output == b"[sudo]" or output == b"passwo":
+        if (
+            b"[sudo]" in output
+            or b"password for " in output
+            or output.endswith(b"password: ")
+        ):
             if current_user["password"] is None:
                 self.pty.client.send(CTRL_C)  # break out of password prompt
                 raise PrivescError(
@@ -38,25 +44,24 @@ class SudoMethod(Method):
         else:
             return  # it did not ask for a password, continue as usual
 
+        # Flush any waiting output
+        self.pty.flush_output()
+
         # Reset the timeout to allow for sudo to pause
         old_timeout = self.pty.client.gettimeout()
         self.pty.client.settimeout(5)
         self.pty.client.send(current_user["password"].encode("utf-8") + b"\n")
 
-        # Flush the rest of the password prompt
-        self.pty.recvuntil("\n")
-
-        # Check the output once more
-        output = self.pty.client.recv(6, socket.MSG_PEEK).lower()
+        output = self.pty.peek_output(some=True)
 
         # Reset the timeout to the originl value
         self.pty.client.settimeout(old_timeout)
 
         if (
-            output == b"[sudo]"
-            or output == b"passwo"
-            or output == b"sorry,"
-            or output == b"sudo: "
+            b"[sudo]" in output
+            or b"password for " in output
+            or b"sorry, " in output
+            or b"sudo: " in output
         ):
             self.pty.client.send(CTRL_C)  # break out of password prompt
 
@@ -186,6 +191,8 @@ class SudoMethod(Method):
                         )
                     )
 
+        self.pty.flush_output()
+
         return techniques
 
     def execute(self, technique: Technique):
@@ -215,43 +222,53 @@ class SudoMethod(Method):
 
     def read_file(self, filepath: str, technique: Technique) -> RemoteBinaryPipe:
 
-        method, sudo_spec = technique.ident
+        method, sudo_spec, need_password = technique.ident
 
         # Read the payload
         payload, input_data, exit_command = method.build(
             lfile=filepath, spec=sudo_spec, user=technique.user
         )
 
+        mode = "r"
+        if method.stream is Stream.RAW:
+            mode += "b"
+
         # Send the command and open a pipe
         pipe = self.pty.subprocess(
             payload,
-            "rb",
+            mode,
             data=functools.partial(self.send_password, self.pty.current_user),
+            exit_cmd=exit_command.encode("utf-8"),
         )
 
         # Send the input data required to initiate the transfer
         if len(input_data) > 0:
             self.pty.client.send(input_data.encode("utf-8"))
 
-        return method.wrap_stream(pipe, "rb")
+        return method.wrap_stream(pipe)
 
     def write_file(self, filepath: str, data: bytes, technique: Technique):
 
-        method, sudo_spec = technique.ident
+        method, sudo_spec, need_password = technique.ident
 
         # Build the payload
         payload, input_data, exit_command = method.build(
-            lfile=filepath, spec=sudo_spec, user=technique.user
+            lfile=filepath, spec=sudo_spec, user=technique.user, length=len(data)
         )
+
+        mode = "w"
+        if method.stream is Stream.RAW:
+            mode += "b"
 
         # Send the command and open a pipe
         pipe = self.pty.subprocess(
             payload,
-            "wb",
+            mode,
             data=functools.partial(self.send_password, self.pty.current_user),
+            exit_cmd=exit_command.encode("utf-8"),
         )
 
-        with method.wrap_stream(pipe, "wb", exit_command) as pipe:
+        with method.wrap_stream(pipe) as pipe:
 
             # Send the input data required to initiate the transfer
             if len(input_data) > 0:
@@ -263,7 +280,6 @@ class SudoMethod(Method):
         """ Get the name of the given technique for display """
         return (
             (
-                f"{Fore.GREEN}{tech.user}{Fore.RESET} via "
                 f"{Fore.CYAN}{tech.ident[0].binary_path}{Fore.RESET} "
                 f"({Fore.RED}sudo{Fore.RESET}"
             )

@@ -30,7 +30,15 @@ class Technique:
     capabilities: Capability
 
     def __str__(self):
-        return self.method.get_name(self)
+        cap_names = {
+            "READ": "file read",
+            "WRITE": "file write",
+            "SHELL": "shell",
+        }
+        return (
+            f"{Fore.MAGENTA}{cap_names.get(self.capabilities.name, 'unknown')}{Fore.RESET} "
+            f"as {Fore.GREEN}{self.user}{Fore.RESET} via {self.method.get_name(self)}"
+        )
 
 
 class Method:
@@ -68,10 +76,10 @@ class Method:
         raise NotImplementedError("no write_file implementation")
 
     def get_name(self, tech: Technique):
-        return f"{Fore.GREEN}{tech.user}{Fore.RESET} via {Fore.RED}{self}{Fore.RED}"
+        return str(self)
 
     def __str__(self):
-        return self.name
+        return f"{Fore.RED}{self.name}{Fore.RESET}"
 
 
 class SuMethod(Method):
@@ -102,27 +110,26 @@ class SuMethod(Method):
     def execute(self, technique: Technique):
 
         # Send the su command, and check if it succeeds
-        self.pty.run(f'su {technique.user} -c "echo good"', wait=False)
-        self.pty.flush_output()
-
-        # Send the password
-        self.pty.client.sendall(technique.ident.encode("utf-8") + b"\n")
-
-        # Read the echo
-        if self.pty.has_echo:
-            self.pty.recvuntil("\n")
+        self.pty.run(
+            f'su {technique.user} -c "echo good"',
+            input=technique.ident.encode("utf-8") + b"\n",
+            wait=False,
+        )
 
         # Read the response (either "Authentication failed" or "good")
+        if self.pty.has_echo:
+            result = self.pty.recvuntil("\n")
         result = self.pty.recvuntil("\n")
+        result = self.pty.recvuntil("\n")
+
         if b"failure" in result.lower() or b"good" not in result.lower():
             raise PrivescError(f"{technique.user}: invalid password")
 
-        self.pty.run(f"su {technique.user}", wait=False)
+        self.pty.process(f"su {technique.user}", delim=False)
         self.pty.flush_output()
-
         self.pty.client.sendall(technique.ident.encode("utf-8") + b"\n")
 
         return "exit"
 
     def get_name(self, tech: Technique):
-        return f"{Fore.GREEN}{tech.user}{Fore.RESET} via {Fore.RED}known password{Fore.RESET}"
+        return f"{Fore.RED}known password{Fore.RESET}"

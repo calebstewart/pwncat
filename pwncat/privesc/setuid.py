@@ -71,30 +71,20 @@ class SetuidMethod(Method):
         known_techniques = []
         for user, paths in self.suid_paths.items():
             for path in paths:
-
                 try:
                     binary = self.pty.gtfo.find_binary(path, caps)
                 except BinaryNotFound:
                     continue
 
-                known_techniques.append(
-                    Technique(user, self, (path, binary), binary.caps)
-                )
+                for method in binary.iter_methods(path, caps, Stream.ANY):
+                    known_techniques.append(Technique(user, self, method, method.cap))
 
         return known_techniques
 
     def execute(self, technique: Technique):
         """ Run the specified technique """
 
-        path: str = None
-        binary: Binary = None
-        path, binary = technique.ident
-
-        try:
-            method = next(binary.iter_methods(path, Capability.SHELL, Stream.ANY))
-        except StopIteration:
-            # This shouldn't happen, but it could.
-            raise PrivescError("no shell methods available")
+        method = technique.ident
 
         # Build the payload
         payload, input_data, exit_cmd = method.build(shell=self.pty.shell, suid=True)
@@ -109,15 +99,7 @@ class SetuidMethod(Method):
 
     def read_file(self, filepath: str, technique: Technique) -> BinaryIO:
 
-        path: str
-        binary: Binary
-        path, binary = technique.ident
-
-        try:
-            method = next(binary.iter_methods(path, Capability.READ))
-        except StopIteration:
-            # This means we had no avaiable file read methods
-            raise PrivescError("no read file methods available")
+        method = technique.ident
 
         payload, input_data, exit_cmd = method.build(lfile=filepath, suid=True)
 
@@ -131,19 +113,7 @@ class SetuidMethod(Method):
 
     def write_file(self, filepath: str, data: bytes, technique: Technique):
 
-        # Extract our path and binary
-        path: str
-        binary: Binary
-        path, binary = technique.ident
-
-        try:
-            # Lookup the first write method from the queue
-            method = next(
-                binary.iter_methods(path, Capability.WRITE, stream=Stream.ANY)
-            )
-        except StopIteration:
-            # This means we had no avaiable file read methods
-            raise PrivescError("no read file methods available")
+        method = technique.ident
 
         payload, input_data, exit_cmd = method.build(
             lfile=filepath, length=len(data), suid=True
@@ -157,4 +127,4 @@ class SetuidMethod(Method):
             pipe.write(data)
 
     def get_name(self, tech: Technique):
-        return f"{Fore.GREEN}{tech.user}{Fore.RESET} via {Fore.CYAN}{tech.ident[0]}{Fore.RESET} ({Fore.RED}setuid{Fore.RESET})"
+        return f"{Fore.CYAN}{tech.ident.binary_path}{Fore.RESET} ({Fore.RED}setuid{Fore.RESET})"

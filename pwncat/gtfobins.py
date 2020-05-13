@@ -206,11 +206,11 @@ class MethodWrapper:
         it is streamed. This method will also wrap in TextIOWrapper if "b" is
         not specified in `mode`. """
 
-        if self.stream is Stream.RAW:
+        if self.stream is Stream.RAW or self.stream is Stream.PRINT:
             return pipe
         elif self.stream is not Stream.BASE64:
             raise RuntimeError(
-                "we haven't implemented streaming of encodings besides base64"
+                f"{self.stream.name}: we haven't implemented streaming of encodings besides base64"
             )
 
         wrapped = Base64IO(pipe)
