@@ -55,14 +55,20 @@
 		{
 			"type": "write",
 			"stream": "print",
-			"payload": "TF=$({mktemp}); {cat} - > $TF; {command}; rm -f $TF",
+			// This is weird because under the case where we are running w/ sudo,
+			// we need to ask for the password first. The first "{command}" will
+			// ask for the sudo password, then fail to copy. The second "{command}"
+			// will not ask for the sudo password, and then the copy will succeed.
+			// Without sudo, the first command will simply fail, and the second
+			// will succeed. This is the same for the other `cp` payload below.
+			"payload": "TF=none; {command}; TF=$({mktemp}); {chmod} ugo+r $TF; {cat} > $TF; {command}; rm -f $TF",
 			"args": ["$TF", "{lfile}"],
 			"exit": "{ctrl_d}"
 		},
 		{
 			"type": "write",
 			"stream": "base64",
-			"payload": "TF=$({mktemp}); {base64} -d > $TF; {command}; rm -f $TF",
+			"payload": "TF=none; {command}; TF=$({mktemp}); {chmod} ugo+r $TF; {base64} -d > $TF; {command}; rm -f $TF",
 			"args": ["$TF", "{lfile}"],
 			"exit": "{ctrl_d}"
 		}

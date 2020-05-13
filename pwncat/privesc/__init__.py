@@ -22,7 +22,7 @@ from pwncat import util
 # privesc_methods = [SetuidMethod, SuMethod]
 # privesc_methods = [SuMethod, SudoMethod, SetuidMethod, DirtycowMethod, ScreenMethod]
 # privesc_methods = [SuMethod, SudoMethod, ScreenMethod, SetuidMethod]
-privesc_methods = [SuMethod, SudoMethod, SetuidMethod]
+privesc_methods = [SuMethod, SudoMethod]
 
 
 class Finder:
@@ -160,7 +160,7 @@ class Finder:
                 for tech in found_techniques:
                     if (
                         tech.user == target_user
-                        and Capability.READ in tech.capabilities
+                        and Capability.WRITE in tech.capabilities
                     ):
                         try:
                             tech.method.write_file(filename, data, tech)
@@ -512,9 +512,9 @@ class Finder:
                 )
                 util.warn(f"however, we do have a writer.")
                 response = confirm(
-                    "would you like to clobber their authorized keys?", suffix="(y/N)"
+                    "would you like to clobber their authorized keys? ", suffix="(y/N) "
                 )
-                if response.lower() != "y":
+                if not response:
                     raise PrivescError("user aborted key clobbering")
 
         # If we don't already know a private key, then we need a writer
