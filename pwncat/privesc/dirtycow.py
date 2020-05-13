@@ -90,7 +90,9 @@ class DirtycowMethod(Method):
             raise PrivescError("backdoor user not created")
 
         # Become the new user!
-        self.pty.process(f"su {self.pty.privesc.backdoor_user_name}", delim=False)
+        self.pty.run(f"su {self.pty.privesc.backdoor_user_name}", wait=False)
+        self.pty.recvuntil(": ")
+
         self.pty.client.send(self.pty.privesc.backdoor_password.encode("utf-8") + b"\n")
 
         return "exit"

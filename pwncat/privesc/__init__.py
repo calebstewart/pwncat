@@ -21,8 +21,8 @@ from pwncat import util
 
 # privesc_methods = [SetuidMethod, SuMethod]
 # privesc_methods = [SuMethod, SudoMethod, SetuidMethod, DirtycowMethod, ScreenMethod]
-privesc_methods = [SuMethod, SudoMethod, ScreenMethod, SetuidMethod]
-# privesc_methods = [SuMethod, SudoMethod]
+# privesc_methods = [SuMethod, SudoMethod, SetuidMethod]
+privesc_methods = [SuMethod, SetuidMethod]
 
 
 class Finder:
@@ -302,8 +302,11 @@ class Finder:
 
                     # Check if we ended up in a sub-shell without escalating
                     if self.pty.getenv("SHLVL") != shlvl:
+
                         # Get out of this subshell. We don't need it
-                        self.pty.process(exit_script, delim=False)
+                        # self.pty.process(exit_script, delim=False)
+                        self.pty.run(exit_script, wait=False)
+                        self.pty.recvuntil("\n")
 
                         # Clean up whatever mess was left over
                         self.pty.flush_output()

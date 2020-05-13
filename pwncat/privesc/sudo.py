@@ -212,7 +212,8 @@ class SudoMethod(Method):
         )
 
         # Run the commands
-        self.pty.process(payload, delim=True)
+        # self.pty.process(payload, delim=True)
+        self.pty.run(payload, wait=True)
 
         # This will check if the password is needed, and attempt to send it or
         # fail, and return

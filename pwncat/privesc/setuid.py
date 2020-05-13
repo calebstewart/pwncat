@@ -93,7 +93,8 @@ class SetuidMethod(Method):
         payload, input_data, exit_cmd = method.build(shell=self.pty.shell, suid=True)
 
         # Run the start commands
-        self.pty.process(payload, delim=False)
+        # self.pty.process(payload, delim=False)
+        self.pty.run(payload, wait=False)
 
         # Send required input
         self.pty.client.send(input_data.encode("utf-8"))
