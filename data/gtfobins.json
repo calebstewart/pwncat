@@ -102,20 +102,6 @@
 			"type": "read",
 			"stream": "raw",
 			"payload": "{command} {lfile}"
-		},
-		{
-			"type": "write",
-			"stream": "base64",
-			"payload": "{base64} -d | {command} > {lfile}",
-			"args": [],
-			"exit": "{ctrl_d}"
-		},
-		{
-			"type": "write",
-			"stream": "print",
-			"payload": "{command} > {lfile}",
-			"args": [],
-			"exit": "{ctrl_d}"
 		}
 	],
 	"apt": [

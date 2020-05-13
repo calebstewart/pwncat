@@ -103,11 +103,21 @@ class SetuidMethod(Method):
 
         payload, input_data, exit_cmd = method.build(lfile=filepath, suid=True)
 
+        mode = "r"
+        if method.stream is Stream.RAW:
+            mode += "b"
+
         # Send the read payload
-        pipe = self.pty.subprocess(payload, "rb", data=input_data.encode("utf-8"))
+        pipe = self.pty.subprocess(
+            payload,
+            mode,
+            data=input_data.encode("utf-8"),
+            exit_cmd=exit_cmd.encode("utf-8"),
+            no_job=True,
+        )
 
         # Wrap the stream in case this is an encoded read
-        pipe = method.wrap_stream(pipe, "rb", exit_cmd)
+        pipe = method.wrap_stream(pipe)
 
         return pipe
 
@@ -119,11 +129,21 @@ class SetuidMethod(Method):
             lfile=filepath, length=len(data), suid=True
         )
 
+        mode = "w"
+        if method.stream is Stream.RAW:
+            mode += "b"
+
         # Send the read payload
-        pipe = self.pty.subprocess(payload, "wb", data=input_data.encode("utf-8"))
+        pipe = self.pty.subprocess(
+            payload,
+            mode,
+            data=input_data.encode("utf-8"),
+            exit_cmd=exit_cmd.encode("utf-8"),
+            no_job=True,
+        )
 
         # Wrap the stream in case this is an encoded write
-        with method.wrap_stream(pipe, "wb", exit_cmd) as pipe:
+        with method.wrap_stream(pipe) as pipe:
             pipe.write(data)
 
     def get_name(self, tech: Technique):
