@@ -79,12 +79,15 @@ class SudoMethod(Method):
 
         # Process the prompt but it will not wait for the end of the output
         # delim = self.pty.process("sudo -l", delim=True)
-        delim = self.pty.process("sudo -p 'Password: ' -l", delim=True)
+        sdelim, edelim = [
+            x.encode("utf-8")
+            for x in self.pty.process("sudo -p 'Password: ' -l", delim=True)
+        ]
 
         self.send_password(current_user)
 
         # Get the sudo -l output
-        output = self.pty.recvuntil(delim).split(delim)[0].strip()
+        output = self.pty.recvuntil(edelim).split(edelim)[0].strip()
         sudo_output_lines = output.split(b"\n")
 
         # Determine the starting line of the valuable sudo input

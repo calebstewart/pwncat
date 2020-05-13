@@ -95,7 +95,7 @@ class SuMethod(Method):
         for user, info in self.pty.users.items():
             if user == current_user:
                 continue
-            if info.get("password") is not None:
+            if info.get("password") is not None or current_user == "root":
                 result.append(
                     Technique(
                         user=user,
@@ -109,29 +109,34 @@ class SuMethod(Method):
 
     def execute(self, technique: Technique):
 
+        current_user = self.pty.current_user
+
         password = technique.ident.encode("utf-8")
 
-        # Send the su command, and check if it succeeds
-        self.pty.run(
-            f'su {technique.user} -c "echo good"', wait=False,
-        )
+        if current_user["name"] != "root":
+            # Send the su command, and check if it succeeds
+            self.pty.run(
+                f'su {technique.user} -c "echo good"', wait=False,
+            )
 
-        self.pty.recvuntil(": ")
-        self.pty.client.send(password + b"\n")
+            self.pty.recvuntil(": ")
+            self.pty.client.send(password + b"\n")
 
-        # Read the response (either "Authentication failed" or "good")
-        result = self.pty.recvuntil("\n")
-        # Probably, the password wasn't echoed. But check all variations.
-        if password in result or result == b"\r\n" or result == b"\n":
+            # Read the response (either "Authentication failed" or "good")
             result = self.pty.recvuntil("\n")
+            # Probably, the password wasn't echoed. But check all variations.
+            if password in result or result == b"\r\n" or result == b"\n":
+                result = self.pty.recvuntil("\n")
 
-        if b"failure" in result.lower() or b"good" not in result.lower():
-            raise PrivescError(f"{technique.user}: invalid password")
+            if b"failure" in result.lower() or b"good" not in result.lower():
+                raise PrivescError(f"{technique.user}: invalid password")
 
         self.pty.process(f"su {technique.user}", delim=False)
-        self.pty.recvuntil(": ")
-        self.pty.client.sendall(technique.ident.encode("utf-8") + b"\n")
-        self.pty.flush_output()
+
+        if current_user["name"] != "root":
+            self.pty.recvuntil(": ")
+            self.pty.client.sendall(technique.ident.encode("utf-8") + b"\n")
+            self.pty.flush_output()
 
         return "exit"
 
