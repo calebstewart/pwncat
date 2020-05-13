@@ -11,6 +11,7 @@
 			"payload": "{command} 2>/dev/null",
 			// This is used to pass arguments to the application (auto-merged
 			// into "{command}".
+			// IF YOUR COMMAND TAKES ARGUMENTS, YOU MUST SUPPLY THEM HERE.
 			"args": ["if={lfile}"],
 			// Prepends arguments, if any to the "args" for setuid context.
 			"suid": [],
