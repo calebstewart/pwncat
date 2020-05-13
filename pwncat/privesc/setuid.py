@@ -44,7 +44,10 @@ class SetuidMethod(Method):
             for path in stream:
                 path = path.strip().decode("utf-8")
                 util.progress(
-                    f"searching for setuid binaries: {os.path.basename(path)}"
+                    (
+                        f"searching for setuid binaries as {Fore.GREEN}{current_user}{Fore.RESET}: "
+                        f"{Fore.CYAN}{os.path.basename(path)}{Fore.RESET}"
+                    )
                 )
                 files.append(path)
 

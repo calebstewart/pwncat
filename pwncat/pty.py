@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from typing import Dict, Optional, Iterable, IO
+from typing import Dict, Optional, Iterable, IO, Callable
 from prompt_toolkit import PromptSession, ANSI
 from prompt_toolkit.shortcuts import ProgressBar
 from prompt_toolkit.completion import (
@@ -219,6 +219,7 @@ class PtyHandler:
         }
         self.has_pty = has_pty
         self.gtfo: GTFOBins = GTFOBins("data/gtfobins.json", self.which)
+        self.default_privkey = "./data/pwncat"
 
         # Setup the argument parsers for local the local prompt
         self.setup_command_parsers()
@@ -878,6 +879,39 @@ class PtyHandler:
             except privesc.PrivescError as exc:
                 util.error(f"escalation failed: {exc}")
 
+    def with_progress(
+        self, title: str, target: Callable[[Callable], None], length: int = None
+    ):
+        """ A shortcut to displaying a progress bar for various things. It will
+        start a prompt_toolkit progress bar with the given title and a counter 
+        with the given length. Then, it will call `target` with an `on_progress`
+        parameter. This parameter should be called for all progress updates. See
+        the `do_upload` and `do_download` for examples w/ copyfileobj """
+
+        with ProgressBar(title) as pb:
+            counter = pb(range(length))
+            last_update = time.time()
+
+            def on_progress(copied, blocksz):
+                """ Update the progress bar """
+                if blocksz == -1:
+                    counter.stopped = True
+                    counter.done = True
+                    pb.invalidate()
+                    return
+
+                counter.items_completed += blocksz
+                if counter.items_completed >= counter.total:
+                    counter.done = True
+                    counter.stopped = True
+                if (time.time() - last_update) > 0.1:
+                    pb.invalidate()
+
+            target(on_progress)
+
+            # https://github.com/prompt-toolkit/python-prompt-toolkit/issues/964
+            time.sleep(0.1)
+
     @with_parser
     def do_download(self, args):
         """ Download a file from the remote host """
@@ -1059,20 +1093,22 @@ class PtyHandler:
             :param has_pty: Whether a pty was spawned
         """
 
-        response = self.process(cmd, delim=wait)
+        sdelim, edelim = self.process(cmd, delim=wait)
 
         if wait:
 
-            response = self.recvuntil(b"_PWNCAT_ENDDELIM_")
-            response = response.split(b"_PWNCAT_ENDDELIM_")[0]
-            if b"_PWNCAT_STARTDELIM_" in response:
+            response = self.recvuntil(edelim)
+            response = response.split(edelim.encode("utf-8"))[0]
+            if sdelim.encode("utf-8") in response:
                 response = b"\n".join(response.split(b"\n")[1:])
 
             self.flush_output()
+        else:
+            response = edelim.encode("utf-8")
 
         if callable(input):
             input()
-        else:
+        elif input:
             self.client.send(input)
 
         return response
@@ -1088,8 +1124,11 @@ class PtyHandler:
         if isinstance(cmd, list):
             cmd = shlex.join(cmd)
 
+        sdelim = util.random_string(10)
+        edelim = util.random_string(10)
+
         if delim:
-            command = f" echo _PWNCAT_STARTDELIM_; {cmd}; echo _PWNCAT_ENDDELIM_"
+            command = f" echo; echo {sdelim}; {cmd}; echo {edelim}"
         else:
             command = f" {cmd}"
 
@@ -1098,24 +1137,24 @@ class PtyHandler:
         if self.has_cr:
             eol = b"\r"
 
-        self.flush_output()
-
         # Send the command to the remote host
         self.client.send(command.encode("utf-8") + b"\n")
 
         if delim:
-            if self.has_echo:
-                # Recieve line ending from output
-                # print(1, self.recvuntil(b"_PWNCAT_STARTDELIM_"))
-                self.recvuntil(b"\n", interp=True)
+            # Receive until we get our starting delimeter on a line by itself
+            while not self.recvuntil("\n").startswith(sdelim.encode("utf-8")):
+                pass
 
-            self.recvuntil(b"_PWNCAT_STARTDELIM_", interp=True)
-            self.recvuntil(b"\n", interp=True)
-
-        return b"_PWNCAT_ENDDELIM_"
+        return sdelim, edelim
 
     def subprocess(
-        self, cmd, mode="rb", data: bytes = None, exit_cmd: str = None, no_job=False
+        self,
+        cmd,
+        mode="rb",
+        data: bytes = None,
+        exit_cmd: str = None,
+        no_job=False,
+        name: str = None,
     ) -> RemoteBinaryPipe:
         """ Create an asynchronous child on the remote end and return a
         file-like object which can communicate with it's standard output. The 
@@ -1136,26 +1175,26 @@ class PtyHandler:
             if c not in "rwb":
                 raise ValueError("mode must only contain 'r', 'w' and 'b'")
 
-        sdelim = "_PWNCAT_STARTDELIM_"
-        edelim = "_PWNCAT_ENDDELIM_"
+        sdelim = util.random_string(10)  # "_PWNCAT_STARTDELIM_"
+        edelim = util.random_string(10)  # "_PWNCAT_ENDDELIM_"
 
         # List of ";" separated commands that will be run
         command = []
         # Clear the prompt, or it will get displayed in our output due to the
         # background task
-        command.append("export PS1=")
+        command.append(" export PS1=")
         # Needed to disable job control messages in bash
         command.append("set +m")
         # This is gross, but it allows us to recieve stderr and stdout, while
         # ignoring the job control start message.
         if "w" not in mode and not no_job:
             command.append(
-                f"{{ echo {sdelim}; {cmd} && echo {edelim} || echo {edelim} & }} 2>/dev/null"
+                f"{{ echo; echo {sdelim}; {cmd} && echo {edelim} || echo {edelim} & }} 2>/dev/null"
             )
         else:
             # This is dangerous. We are in raw mode, and if the process never
             # ends and doesn't provide a way to exit, then we are stuck.
-            command.append(f"echo {sdelim}; {cmd}; echo {edelim}")
+            command.append(f"echo; echo {sdelim}; {cmd}; echo {edelim}")
         # Re-enable normal job control in bash
         command.append("set -m")
 
@@ -1167,21 +1206,10 @@ class PtyHandler:
         if "b" in mode:
             self.raw(echo=False)
 
-        self.client.send(b"echo\n")
-
-        # We NEED this sleep... otherwise it does not process the command echo properly
-        time.sleep(0.1)
-        self.flush_output(some=True)
-
         self.client.sendall(command + b"\n")
 
-        response = self.recvuntil(sdelim)
-
-        # If we see part of our command on the response, there is an echo. Read again.
-        if b"export PS1=" in response:
-            self.recvuntil(sdelim)
-
-        self.recvuntil("\n")
+        while not self.recvuntil("\n").startswith(sdelim.encode("utf-8")):
+            continue
 
         # Send the data if requested
         if callable(data):
@@ -1190,9 +1218,12 @@ class PtyHandler:
             self.client.sendall(data)
 
         pipe = RemoteBinaryPipe(self, mode, edelim.encode("utf-8"), True, exit_cmd)
+        pipe.name = name
 
         if "w" in mode:
-            pipe = io.BufferedRWPair(pipe, pipe)
+            wrapped = io.BufferedRWPair(pipe, pipe)
+            wrapped.name = pipe.name
+            pipe = wrapped
         else:
             pipe = io.BufferedReader(pipe)
 
@@ -1240,6 +1271,7 @@ class PtyHandler:
             no_job=no_job,
             data=input_data.encode("utf-8"),
             exit_cmd=exit_cmd.encode("utf-8"),
+            name=path,
         )
 
         # Wrap the pipe in the decoder for this method (possible base64)
@@ -1286,6 +1318,7 @@ class PtyHandler:
             sub_mode,
             data=input_data.encode("utf-8"),
             exit_cmd=exit_cmd.encode("utf-8"),
+            name=path,
         )
 
         # Wrap the pipe in the decoder for this method (possible base64)
@@ -1308,9 +1341,28 @@ class PtyHandler:
             raise ValueError("only one of 'r' or 'w' may be specified")
 
         if "r" in mode:
-            return self.open_read(path, mode)
+            pipe = self.open_read(path, mode)
         else:
-            return self.open_write(path, mode, length)
+            pipe = self.open_write(path, mode, length)
+
+        return pipe
+
+    def tempfile(self, mode: str, length: int = None):
+        """ Create a temporary file on the remote system and return an open file
+        handle to it. This uses `mktemp` on the remote system to create the file
+        and then opens it with `PtyHandler.open`. """
+
+        # Reading a new temporary file doesn't make sense
+        if "w" not in mode:
+            raise ValueError("expected write mode for temporary files")
+
+        mktemp = self.which("mktemp")
+        if mktemp is None:
+            path = "/tmp/tmp" + util.random_string(8)
+        else:
+            path = self.run(mktemp).strip().decode("utf-8")
+
+        return self.open(path, mode, length=length)
 
     def raw(self, echo: bool = False):
         self.stty_saved = self.run("stty -g").decode("utf-8").strip()
@@ -1393,7 +1445,7 @@ class PtyHandler:
                         result = result[:-1]
                 else:
                     result += data
-            except socket.timeout:
+            except (socket.timeout, BlockingIOError):
                 continue  # force waiting
 
         return result

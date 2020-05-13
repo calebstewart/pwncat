@@ -109,25 +109,29 @@ class SuMethod(Method):
 
     def execute(self, technique: Technique):
 
+        password = technique.ident.encode("utf-8")
+
         # Send the su command, and check if it succeeds
         self.pty.run(
-            f'su {technique.user} -c "echo good"',
-            input=technique.ident.encode("utf-8") + b"\n",
-            wait=False,
+            f'su {technique.user} -c "echo good"', wait=False,
         )
 
+        self.pty.recvuntil(": ")
+        self.pty.client.send(password + b"\n")
+
         # Read the response (either "Authentication failed" or "good")
-        if self.pty.has_echo:
+        result = self.pty.recvuntil("\n")
+        # Probably, the password wasn't echoed. But check all variations.
+        if password in result or result == b"\r\n" or result == b"\n":
             result = self.pty.recvuntil("\n")
-        result = self.pty.recvuntil("\n")
-        result = self.pty.recvuntil("\n")
 
         if b"failure" in result.lower() or b"good" not in result.lower():
             raise PrivescError(f"{technique.user}: invalid password")
 
         self.pty.process(f"su {technique.user}", delim=False)
-        self.pty.flush_output()
+        self.pty.recvuntil(": ")
         self.pty.client.sendall(technique.ident.encode("utf-8") + b"\n")
+        self.pty.flush_output()
 
         return "exit"
 

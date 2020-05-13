@@ -7,6 +7,8 @@ from colorama import Fore, Style
 from io import TextIOWrapper
 import netifaces
 import socket
+import string
+import random
 import threading
 import logging
 import termios
@@ -16,6 +18,8 @@ import sys
 import os
 
 CTRL_C = b"\x03"
+
+ALPHANUMERIC = string.ascii_letters + string.digits
 
 
 def copyfileobj(src, dst, callback, nomv=False):
@@ -49,6 +53,11 @@ def copyfileobj(src, dst, callback, nomv=False):
                     dst.write(mv)
                 copied += n
                 callback(copied, n)
+
+
+def random_string(length: int = 8):
+    """ Create a random alphanumeric string """
+    return "".join(random.choice(ALPHANUMERIC) for _ in range(length))
 
 
 def enter_raw_mode():

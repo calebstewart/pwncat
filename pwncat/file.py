@@ -28,6 +28,7 @@ class RemoteBinaryPipe(RawIOBase):
         self.mode = mode
         self.exit_cmd = exit_cmd
         self.count = 0
+        self.name = None
 
     def readable(self) -> bool:
         return True

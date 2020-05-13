@@ -238,6 +238,8 @@ class MethodWrapper:
 
         wrapped.close = close_wrapper
         wrapped.write = write_wrapper
+        # We want this, but it may cause issues
+        wrapped.name = pipe.name
 
         return wrapped
 
