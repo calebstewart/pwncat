@@ -38,7 +38,7 @@ class SetuidMethod(Method):
         # Spawn a find command to locate the setuid binaries
         files = []
         with self.pty.subprocess(
-            "find / -perm -4000 -print 2>/dev/null", mode="r"
+            "find / -perm -4000 -print 2>/dev/null", mode="r", no_job=True
         ) as stream:
             util.progress("searching for setuid binaries")
             for path in stream:

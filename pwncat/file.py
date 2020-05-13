@@ -84,10 +84,12 @@ class RemoteBinaryPipe(RawIOBase):
             except (BlockingIOError, socket.error):
                 pass
 
-        obj = bytes(b)
+        # obj = bytes(b)
+        obj = bytes(b[:n])
 
         # Check for EOF
         if self.delim in obj:
+
             self.on_eof()
             n = obj.find(self.delim)
             return n
@@ -96,7 +98,8 @@ class RemoteBinaryPipe(RawIOBase):
             for i in range(1, len(self.delim)):
                 # See if a piece of the delimeter is at the end of this block
                 piece = self.delim[:i]
-                if bytes(b[-i:]) == piece:
+                # if bytes(b[-i:]) == piece:
+                if obj[-i:] == piece:
                     try:
                         # Peak the next bytes, to see if this is actually the
                         # delimeter
@@ -113,6 +116,7 @@ class RemoteBinaryPipe(RawIOBase):
                         # Adjust result
                         n -= len(piece)
                         # Set EOF for next read
+
                         self.on_eof()
 
         return n

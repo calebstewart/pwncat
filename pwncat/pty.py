@@ -1166,12 +1166,19 @@ class PtyHandler:
         # DANGER
         if "b" in mode:
             self.raw(echo=False)
-            self.run("echo")  # restabilize the shell to get output
 
-        self.flush_output()
+        self.client.send(b"echo\n")
+        time.sleep(0.1)
+        self.flush_output(some=True)
 
         self.client.sendall(command + b"\n")
-        self.recvuntil(sdelim)
+
+        response = self.recvuntil(sdelim)
+
+        # If we see part of our command on the response, there is an echo. Read again.
+        if b"export PS1=" in response:
+            self.recvuntil(sdelim)
+
         self.recvuntil("\n")
 
         # Send the data if requested
@@ -1186,13 +1193,6 @@ class PtyHandler:
             pipe = io.BufferedRWPair(pipe, pipe)
         else:
             pipe = io.BufferedReader(pipe)
-
-        # if "b" not in mode:
-        #     if "w" in mode:
-        #         pipe = io.BufferedRWPair(pipe, pipe)
-        #         pipe = io.TextIOWrapper(pipe)
-        #     else:
-        #         pipe = io.TextIOWrapper(io.BufferedReader(pipe))
 
         return pipe
 
@@ -1312,7 +1312,8 @@ class PtyHandler:
 
     def raw(self, echo: bool = False):
         self.stty_saved = self.run("stty -g").decode("utf-8").strip()
-        self.run("stty raw -echo", wait=False)
+        # self.run("stty raw -echo", wait=False)
+        self.process("stty raw -echo", delim=False)
         self.has_cr = False
         self.has_echo = False
 
@@ -1324,17 +1325,21 @@ class PtyHandler:
         self.run("echo")
         self.run(f"export PS1='{self.remote_prefix} {self.remote_prompt}'")
 
-    def flush_output(self):
+    def flush_output(self, some=False):
+        output = b""
         old_timeout = self.client.gettimeout()
         self.client.settimeout(0)
 
         while True:
             try:
-                output = self.client.recv(4096)
-                if len(output) == 0:
-                    break
+                new = self.client.recv(4096)
+                if len(new) == 0:
+                    if len(output) > 0 or some == False:
+                        break
+                output += new
             except (socket.timeout, BlockingIOError):
-                break
+                if len(output) > 0 or some == False:
+                    break
 
         self.client.settimeout(old_timeout)
 
