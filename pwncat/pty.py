@@ -1168,6 +1168,8 @@ class PtyHandler:
             self.raw(echo=False)
 
         self.client.send(b"echo\n")
+
+        # We NEED this sleep... otherwise it does not process the command echo properly
         time.sleep(0.1)
         self.flush_output(some=True)
 
