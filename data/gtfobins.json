@@ -51,6 +51,22 @@
 			"exit": "{ctrl_d}"
 		}
 	],
+	"cp": [
+		{
+			"type": "write",
+			"stream": "print",
+			"payload": "TF=$({mktemp}); {cat} - > $TF; {command}; rm -f $TF",
+			"args": ["$TF", "{lfile}"],
+			"exit": "{ctrl_d}"
+		},
+		{
+			"type": "write",
+			"stream": "base64",
+			"payload": "TF=$({mktemp}); {base64} -d > $TF; {command}; rm -f $TF",
+			"args": ["$TF", "{lfile}"],
+			"exit": "{ctrl_d}"
+		}
+	],
 	// Another example
 	"bash": [
 		{
