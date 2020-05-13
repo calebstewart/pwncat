@@ -5,3 +5,4 @@ netifaces==0.10.9
 pygments==2.6.1
 base64io
 commentjson
+requests
