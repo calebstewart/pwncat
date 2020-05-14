@@ -45,7 +45,9 @@ class CommandParser:
             if module_name == "base":
                 continue
             self.commands.append(
-                loader.find_module(module_name).load_module(module_name).Command(pty)
+                loader.find_module(module_name)
+                .load_module(module_name)
+                .Command(pty, self)
             )
 
         completer = CommandCompleter(pty, self.commands)
@@ -139,6 +141,7 @@ class CommandLexer(RegexLexer):
                     else:
                         # Don't enter param state
                         mode.append((r"\s+" + re.escape(arg), descr[1]))
+            mode.append((r"\s+(\-\-help|\-h)", Name.Label))
             mode.append((r"\"", String, "string"))
             mode.append((r".", Text))
             cls.tokens[command.PROG] = mode
@@ -155,8 +158,6 @@ class CommandLexer(RegexLexer):
             (r"\\.", String.Escape),
             ('"', String, "#pop"),
         ]
-
-        pprint(cls.tokens)
 
         return cls
 
@@ -246,7 +247,9 @@ class CommandCompleter(Completer):
                     for name in name_list:
                         self.layers[command.PROG][2][name] = completer
                         option_names.append(name)
-            self.layers[command.PROG][0] = WordCompleter(option_names)
+            self.layers[command.PROG][0] = WordCompleter(
+                option_names + ["--help", "-h"]
+            )
 
         self.completer = WordCompleter(list(self.layers))
 

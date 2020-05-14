@@ -427,7 +427,7 @@ class PtyHandler:
         self.flush_output()
         self.reset()
 
-    def bootstrap_busybox(self, url, method):
+    def bootstrap_busybox(self, url):
         """ Utilize the architecture we grabbed from `uname -m` to grab a
         precompiled busybox binary and upload it to the remote machine. This
         makes uploading/downloading and dependency tracking easier. It also
@@ -454,35 +454,32 @@ class PtyHandler:
                 util.warn(f"no busybox for architecture: {self.arch}")
                 return
 
-            with ProgressBar(f"downloading busybox for {self.arch}") as pb:
-                counter = pb(int(r.headers["Content-Length"]))
-                with tempfile.NamedTemporaryFile("wb", delete=False) as filp:
-                    last_update = time.time()
-                    busybox_local_path = filp.name
-                    for chunk in r.iter_content(chunk_size=1024 * 1024):
-                        filp.write(chunk)
-                        counter.items_completed += len(chunk)
-                        if (time.time() - last_update) > 0.1:
-                            pb.invalidate()
-                    counter.stopped = True
-                    pb.invalidate()
-                    time.sleep(0.1)
+            # Grab the content length if provided
+            length = r.headers.get("Content-Length", None)
+            if length is not None:
+                length = int(length)
 
             # Stage a temporary file for busybox
             busybox_remote_path = (
                 self.run("mktemp -t busyboxXXXXX").decode("utf-8").strip()
             )
 
-            # Upload busybox using the best known method to the remote server
-            self.do_upload(
-                ["-m", method, "-o", busybox_remote_path, busybox_local_path]
-            )
+            # Open the remote file for writing
+            with self.open(busybox_remote_path, "wb", length=length) as filp:
+
+                # Local function for transferring the content
+                def transfer(on_progress):
+                    for chunk in r.iter_content(chunk_size=1024 * 1024):
+                        filp.write(chunk)
+                        on_progress(len(chunk))
+
+                # Run the transfer with a progress bar
+                util.with_progress(
+                    f"uploading busybox for {self.arch}", transfer, length,
+                )
 
             # Make busybox executable
             self.run(f"chmod +x {shlex.quote(busybox_remote_path)}")
-
-            # Remove local busybox copy
-            os.unlink(busybox_local_path)
 
             util.success(
                 f"uploaded busybox to {Fore.GREEN}{busybox_remote_path}{Fore.RESET}"
@@ -504,22 +501,25 @@ class PtyHandler:
         if stat is not None:
             util.progress("enumerating remote binary permissions")
             which_provides = [f"`which {p}`" for p in provides]
-            permissions = (
-                self.run(f"{stat} -c %A {' '.join(which_provides)}")
-                .decode("utf-8")
-                .strip()
-                .split("\n")
-            )
             new_provides = []
-            for name, perms in zip(provides, permissions):
-                if "No such" in perms:
-                    # The remote system doesn't have this binary
-                    continue
-                if "s" not in perms.lower():
-                    util.progress(f"keeping {Fore.BLUE}{name}{Fore.RESET} in busybox")
-                    new_provides.append(name)
-                else:
-                    util.progress(f"pruning {Fore.RED}{name}{Fore.RESET} from busybox")
+
+            with self.subprocess(
+                f"{stat} -c %A {' '.join(which_provides)}", "r"
+            ) as pipe:
+                for name, perms in zip(provides, pipe):
+                    perms = perms.decode("utf-8").strip().lower()
+                    if "no such" in perms:
+                        # The remote system doesn't have this binary
+                        continue
+                    if "s" not in perms:
+                        util.progress(
+                            f"keeping {Fore.BLUE}{name}{Fore.RESET} in busybox"
+                        )
+                        new_provides.append(name)
+                    else:
+                        util.progress(
+                            f"pruning {Fore.RED}{name}{Fore.RESET} from busybox"
+                        )
 
             util.success(f"pruned {len(provides)-len(new_provides)} setuid entries")
             provides = new_provides
@@ -590,7 +590,7 @@ class PtyHandler:
         elif name not in self.known_binaries and request:
             # It hasn't been looked up before, request it.
             path = self.run(f"which {shlex.quote(name)}").decode("utf-8").strip()
-            if path == "":
+            if path == "" or "which: no" in path:
                 path = None
 
         if name in self.binary_aliases and path is None:
@@ -1100,12 +1100,55 @@ class PtyHandler:
         with self.open("/tmp/stream_test", "r") as filp:
             print(filp.read())
 
+    def get_file_size(self, path: str):
+        """ Get the size of a remote file """
+
+        stat = self.which("stat")
+        if stat is None:
+            return None
+
+        test = self.which("test")
+        if test is None:
+            test = self.which("[")
+
+        if test is not None:
+            result = self.run(
+                f"{test} -e {shlex.quote(path)} && echo exists;"
+                f"{test} -r {shlex.quote(path)} && echo readable"
+            )
+            if b"exists" not in result:
+                raise FileNotFoundError(f"No such file or directory: '{path}'")
+            if b"readable" not in result:
+                raise PermissionError(f"Permission denied: '{path}'")
+
+        size = self.run(f"{stat} -c %s {shlex.quote(path)}").decode("utf-8").strip()
+        try:
+            size = int(size)
+        except ValueError:
+            return None
+
+        return size
+
     def open_read(self, path: str, mode: str):
         """ Open a remote file for reading """
 
         method = None
         binary_path = None
         stream = Stream.ANY
+
+        test = self.which("test")
+        if test is None:
+            test = self.which("[")
+
+        if test is not None:
+            result = self.run(
+                f"{test} -e {shlex.quote(path)} && echo exists;"
+                f"{test} -r {shlex.quote(path)} && echo readable"
+            )
+            if b"exists" not in result:
+                raise FileNotFoundError(f"No such file or directory: '{path}'")
+            if b"readable" not in result:
+                raise PermissionError(f"Permission denied: '{path}'")
 
         # If we want binary transfer, we can't use Stream.PRINT
         if "b" in mode:
@@ -1149,6 +1192,32 @@ class PtyHandler:
 
         method = None
         stream = Stream.ANY
+
+        test = self.which("test")
+        if test is None:
+            test = self.which("[")
+
+        # Try to save ourselves...
+        if test is not None:
+            result = self.run(
+                f"{test} -e {shlex.quote(path)} && echo exists;"
+                f"{test} -d {shlex.quote(path)} && echo directory;"
+                f"{test} -w {shlex.quote(path)} && echo writable"
+            )
+            if b"directory" in result:
+                raise IsADirectoryError(f"Is a directory: '{path}'")
+            if b"exists" in result and not b"writable" in result:
+                raise PermissionError(f"Permission denied: '{path}'")
+            if b"exists" not in result:
+                parent = os.path.dirname(path)
+                result = self.run(
+                    f"{test} -d {shlex.quote(parent)} && echo exists;"
+                    f"{test} -w {shlex.quote(parent)} && echo writable"
+                )
+                if b"exists" not in result:
+                    raise FileNotFoundError(f"No such file or directory: '{path}'")
+                if b"writable" not in result:
+                    raise PermissionError(f"Permission denied: '{path}'")
 
         # If we want binary transfer, we can't use Stream.PRINT
         if "b" in mode:

@@ -1,42 +1,17 @@
 #!/usr/bin/env python3
 from typing import List, Callable
-from pwncat.commands.base import CommandDefinition, Complete, parameter
+from pwncat.commands.base import (
+    CommandDefinition,
+    Complete,
+    parameter,
+    StoreConstOnce,
+    StoreForAction,
+)
 from pwncat import util, privesc
 from colorama import Fore
 import argparse
 import shutil
 import sys
-
-
-class StoreConstOnce(argparse.Action):
-    """ Only allow the user to store a value in the destination once. This prevents
-    users from selection multiple actions in the privesc parser. """
-
-    def __call__(self, parser, namespace, values, option_string=None):
-        if hasattr(self, "__" + self.dest + "_seen"):
-            raise argparse.ArgumentError(self, "only one action may be specified")
-        setattr(self, "__" + self.dest + "_seen", True)
-        setattr(namespace, self.dest, self.const)
-
-
-def StoreForAction(action: List[str]) -> Callable:
-    """ Generates a custom argparse Action subclass which verifies that the current
-    selected "action" option is one of the provided actions in this function. If
-    not, an error is raised. """
-
-    class StoreFor(argparse.Action):
-        """ Store the value if the currently selected action matches the list of
-        actions passed to this function. """
-
-        def __call__(self, parser, namespace, values, option_string=None):
-            if getattr(namespace, "action", None) not in action:
-                raise argparse.ArgumentError(
-                    self, f"{option_string}: only valid for {action}",
-                )
-
-            setattr(namespace, self.dest, values)
-
-    return StoreFor
 
 
 class Command(CommandDefinition):
