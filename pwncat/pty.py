@@ -36,6 +36,7 @@ from pwncat import downloader, uploader, privesc
 from pwncat.file import RemoteBinaryPipe
 from pwncat.lexer import LocalCommandLexer, PwncatStyle
 from pwncat.gtfobins import GTFOBins, Capability, Stream
+from pwncat.commands import CommandParser
 
 from colorama import Fore
 
@@ -365,6 +366,8 @@ class PtyHandler:
         # Save our terminal state
         self.stty_saved = self.run("stty -g").decode("utf-8").strip()
 
+        self.command_parser = CommandParser(self)
+
         # Force the local TTY to enter raw mode
         self.enter_raw()
 
@@ -645,6 +648,9 @@ class PtyHandler:
 
         self.state = State.RAW
 
+        # Tell the command parser to stop
+        self.command_parser.running = False
+
         # Save the state if requested
         if save:
             self.saved_term_state = old_term_state
@@ -659,6 +665,10 @@ class PtyHandler:
 
         # Hopefully this fixes weird cursor position issues
         sys.stdout.write("\n")
+
+        self.command_parser.run()
+
+        return
 
         # Process commands
         while self.state is State.COMMAND:
@@ -729,155 +739,6 @@ class PtyHandler:
             )
         elif args.action == "install":
             self.bootstrap_busybox(args.url, args.method)
-
-    @with_parser
-    def do_back(self, _):
-        """ Exit command mode """
-        self.enter_raw(save=False)
-
-    def do_privesc(self, argv):
-        """ Attempt privilege escalation """
-
-        parser = argparse.ArgumentParser(prog="privesc")
-        parser.add_argument(
-            "--list",
-            "-l",
-            action="store_true",
-            help="do not perform escalation. list potential escalation methods",
-        )
-        parser.add_argument(
-            "--all",
-            "-a",
-            action="store_const",
-            dest="user",
-            const=None,
-            help="when listing methods, list for all users. when escalating, escalate to root.",
-        )
-        parser.add_argument(
-            "--user",
-            "-u",
-            choices=[user for user in self.users],
-            default="root",
-            help="the target user",
-        )
-        parser.add_argument(
-            "--max-depth",
-            "-m",
-            type=int,
-            default=None,
-            help="Maximum depth for the privesc search (default: no maximum)",
-        )
-        parser.add_argument(
-            "--read",
-            "-r",
-            type=str,
-            default=None,
-            help="remote filename to try and read",
-        )
-        parser.add_argument(
-            "--write",
-            "-w",
-            type=str,
-            default=None,
-            help="attempt to write to a remote file as the specified user",
-        )
-        parser.add_argument(
-            "--data",
-            "-d",
-            type=str,
-            default=None,
-            help="the data to write a file. ignored if not write mode",
-        )
-        parser.add_argument(
-            "--text",
-            "-t",
-            action="store_true",
-            default=False,
-            help="whether to use safe readers/writers",
-        )
-
-        try:
-            args = parser.parse_args(argv)
-        except SystemExit:
-            # The arguments were parsed incorrectly, return.
-            return
-
-        if args.list:
-            techniques = self.privesc.search(args.user)
-            if len(techniques) == 0:
-                util.warn("no techniques found")
-            else:
-                for tech in techniques:
-                    util.info(f" - {tech}")
-        elif args.read:
-            try:
-                read_pipe, chain = self.privesc.read_file(
-                    args.read, args.user, args.max_depth
-                )
-
-                # Read the data from the pipe
-                sys.stdout.buffer.write(read_pipe.read(4096))
-                read_pipe.close()
-
-                # Unwrap in case we had to privesc to get here
-                self.privesc.unwrap(chain)
-
-            except privesc.PrivescError as exc:
-                util.error(f"read file failed: {exc}")
-        elif args.write:
-            if args.data is None:
-                util.error("no data specified")
-            else:
-                if args.data.startswith("@"):
-                    with open(args.data[1:], "rb") as f:
-                        data = f.read()
-                else:
-                    data = args.data.encode("utf-8")
-                try:
-                    chain = self.privesc.write_file(
-                        args.write,
-                        data,
-                        safe=not args.text,
-                        target_user=args.user,
-                        depth=args.max_depth,
-                    )
-                    self.privesc.unwrap(chain)
-                    util.success("file written successfully!")
-                except privesc.PrivescError as exc:
-                    util.error(f"file write failed: {exc}")
-        else:
-            try:
-                chain = self.privesc.escalate(args.user, args.max_depth)
-
-                ident = self.id
-                backdoor = False
-                if ident["euid"]["id"] == 0 and ident["uid"]["id"] != 0:
-                    util.progress(
-                        "EUID != UID. installing backdoor to complete privesc"
-                    )
-                    try:
-                        self.privesc.add_backdoor()
-                        backdoor = True
-                    except privesc.PrivescError as exc:
-                        util.warn(f"backdoor installation failed: {exc}")
-
-                util.success("privilege escalation succeeded using:")
-                for i, (technique, _) in enumerate(chain):
-                    arrow = f"{Fore.YELLOW}\u2ba1{Fore.RESET} "
-                    print(f"{(i+1)*' '}{arrow}{technique}")
-
-                if backdoor:
-                    print(
-                        (
-                            f"{(len(chain)+1)*' '}{arrow}"
-                            f"{Fore.YELLOW}pwncat{Fore.RESET} backdoor"
-                        )
-                    )
-
-                self.reset()
-                self.do_back([])
-            except privesc.PrivescError as exc:
-                util.error(f"escalation failed: {exc}")
 
     def with_progress(
         self, title: str, target: Callable[[Callable], None], length: int = None

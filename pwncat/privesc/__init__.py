@@ -22,7 +22,7 @@ from pwncat import util
 # privesc_methods = [SetuidMethod, SuMethod]
 # privesc_methods = [SuMethod, SudoMethod, SetuidMethod, DirtycowMethod, ScreenMethod]
 # privesc_methods = [SuMethod, SudoMethod, ScreenMethod, SetuidMethod]
-privesc_methods = [SuMethod, SudoMethod]
+privesc_methods = [SuMethod, SetuidMethod]
 
 
 class Finder:
