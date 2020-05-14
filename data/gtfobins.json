@@ -345,5 +345,34 @@
 			"args": ["+s", "{dd};", "{dd}", "of={lfile}"],
 			"exit": "{ctrl_d}"
 		}
-	]
+	],
+//-------------------------------------------------------------------
+	"chroot": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["/", "{shell}", "-p"],
+			"exit": "exit\n"
+		}
+	],
+//-------------------------------------------------------------------
+	"cobc": [
+		{
+			"type": "shell",
+			"payload": "TF=none; {command} 2>/dev/null; TF=$({mktemp}); echo 'CALL \"SYSTEM\" USING \"exec {shell} -p\".' > $TF; {command} 2>&1; rm -f $TF",
+			"args": ["-xFj", "--frelax-syntax-checks", "$TF"],
+			"exit": "exit\n"
+		}
+
+		// Could we do some file_read and file_write with this too..?
+	],
+//-------------------------------------------------------------------
+	// "cpan": [
+	// 	{
+	// 		"type": "shell",
+	// 		"payload": "{command}",
+	// 		"input" : "! exec {shell} -p\n",
+	// 		"exit": "exit\n"
+	// 	}
+	// ]
 }

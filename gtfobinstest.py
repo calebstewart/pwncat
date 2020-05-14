@@ -17,7 +17,7 @@ def which(path: str, quote=False):
 gtfo = GTFOBins("data/gtfobins.json", which)
 
 
-binary_to_test = "chmod"
+binary_to_test = "cpan"
 capabilities_to_test = Capability.SHELL
 our_shell = "/bin/bash"
 
@@ -31,7 +31,7 @@ methods = binary.iter_methods(
 for method in methods:
     # print(method)
     print(method.build(shell=our_shell)[0])
-    # print(method.build(lfile="/etc/shadow", suid=True)[0])
+    # print(method.build(lfile="/etc/shadow")[0])
     # print(method.build(lfile="/tmp/test", data="hello")[0])
 
 # all_binaries = list(gtfo.iter_methods(Capability.SHELL))
