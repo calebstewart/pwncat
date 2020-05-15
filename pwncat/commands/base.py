@@ -26,7 +26,7 @@ class StoreConstOnce(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
         if hasattr(self, "__" + self.dest + "_seen"):
             raise argparse.ArgumentError(self, "only one action may be specified")
-        setattr(self, "__" + self.dest + "_seen", True)
+        setattr(namespace, "__" + self.dest + "_seen", True)
         setattr(namespace, self.dest, self.const)
 
 
