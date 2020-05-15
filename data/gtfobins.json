@@ -204,8 +204,9 @@
 			"stream": "print",
 			"args": [
 				"-v", "LFILE={lfile}",
-				"'BEGIN {{ printf \"\" > LFILE; while ((getline) > 0){{ print >> LFILE }}'"
-			]
+				"'BEGIN {{ printf \"\" > LFILE; while ((getline) > 0){{ print >> LFILE }} }}'"
+			],
+			"exit": "{ctrl_d}"
 		}
 	],
 //-------------------------------------------------------------------
@@ -230,7 +231,7 @@
 			"stream": "print",
 			"args": [
 				"-v", "LFILE={lfile}",
-				"'BEGIN {{ printf \"\" > LFILE; while (getline > 0){{ print >> LFILE; }}}}'"
+				"'BEGIN {{ printf \"\" > LFILE; while (getline > 0){{ print >> LFILE; }} }}'"
 			],
 			"exit": "{ctrl_d}"
 		}
