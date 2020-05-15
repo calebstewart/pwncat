@@ -18,6 +18,7 @@ from prompt_toolkit.lexers import PygmentsLexer
 from prompt_toolkit.document import Document
 from pygments.styles import get_style_by_name
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
+from prompt_toolkit.history import InMemoryHistory
 from typing import Dict, Any, List, Iterable
 from enum import Enum, auto
 import argparse
@@ -29,6 +30,7 @@ import re
 from pprint import pprint
 
 from pwncat.commands.base import CommandDefinition, Complete
+from pwncat.util import State
 from pwncat import util
 
 
@@ -50,6 +52,7 @@ class CommandParser:
                 .Command(pty, self)
             )
 
+        history = InMemoryHistory()
         completer = CommandCompleter(pty, self.commands)
         lexer = PygmentsLexer(CommandLexer.build(self.commands))
         style = style_from_pygments_cls(get_style_by_name("monokai"))
@@ -66,9 +69,34 @@ class CommandParser:
             style=style,
             auto_suggest=auto_suggest,
             complete_while_typing=False,
+            history=history,
+        )
+        self.toolbar = PromptSession(
+            [
+                ("fg:ansiyellow bold", "(local) "),
+                ("fg:ansimagenta bold", "pwncat"),
+                ("", "$ "),
+            ],
+            completer=completer,
+            lexer=lexer,
+            style=style,
+            auto_suggest=auto_suggest,
+            complete_while_typing=False,
+            prompt_in_toolbar=True,
+            history=history,
         )
 
         self.pty = pty
+
+    def run_single(self):
+
+        try:
+            line = self.toolbar.prompt().strip()
+        except (EOFError, OSError, KeyboardInterrupt):
+            pass
+        else:
+            if line != "":
+                self.dispatch_line(line)
 
     def run(self):
 
@@ -79,7 +107,7 @@ class CommandParser:
                 try:
                     line = self.prompt.prompt().strip()
                 except (EOFError, OSError):
-                    self.pty.enter_raw()
+                    self.pty.state = State.RAW
                     self.running = False
                     continue
 
@@ -165,7 +193,7 @@ class CommandLexer(RegexLexer):
 class RemotePathCompleter(Completer):
     """ Complete remote file names/paths """
 
-    def __init__(self, pty: "PtyHandler"):
+    def __init__(self, pty: "pwncat.pty.PtyHandler"):
         self.pty = pty
 
     def get_completions(self, document: Document, complete_event: CompleteEvent):

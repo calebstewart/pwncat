@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from pwncat.commands.base import CommandDefinition, Complete, parameter
+from pwncat import util
 
 
 class Command(CommandDefinition):
@@ -9,4 +10,4 @@ class Command(CommandDefinition):
     ARGS = {}
 
     def run(self, args):
-        self.pty.enter_raw()
+        self.pty.state = util.State.RAW

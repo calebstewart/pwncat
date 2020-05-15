@@ -8,6 +8,7 @@ from pwncat.commands.base import (
     StoreForAction,
 )
 from pwncat import util, privesc
+from pwncat.util import State
 from colorama import Fore
 import argparse
 import shutil
@@ -174,6 +175,6 @@ class Command(CommandDefinition):
                     )
 
                 self.pty.reset()
-                self.pty.do_back([])
+                self.pty.state = State.RAW
             except privesc.PrivescError as exc:
                 util.error(f"escalation failed: {exc}")

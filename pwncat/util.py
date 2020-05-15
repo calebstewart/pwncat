@@ -6,6 +6,7 @@ from prompt_toolkit.shortcuts import ProgressBar
 from functools import partial
 from colorama import Fore, Style
 from io import TextIOWrapper
+from enum import Enum, auto
 import netifaces
 import socket
 import string
@@ -22,6 +23,15 @@ import os
 CTRL_C = b"\x03"
 
 ALPHANUMERIC = string.ascii_letters + string.digits
+
+
+class State(Enum):
+    """ The current PtyHandler state """
+
+    NORMAL = auto()
+    RAW = auto()
+    COMMAND = auto()
+    SINGLE = auto()
 
 
 def human_readable_size(size, decimal_places=2):
@@ -131,9 +141,6 @@ def enter_raw_mode():
         returns: the old state of the terminal
     """
 
-    info("setting terminal to raw mode and disabling echo", overlay=True)
-    success("pwncat is ready 🐈\n", overlay=True)
-
     # Ensure we don't have any weird buffering issues
     sys.stdout.flush()
 
@@ -176,7 +183,6 @@ def restore_terminal(state):
     # tty.setcbreak(sys.stdin)
     fcntl.fcntl(sys.stdin, fcntl.F_SETFL, state[1])
     sys.stdout.write("\n")
-    info("local terminal restored")
 
 
 def get_ip_addr() -> str:

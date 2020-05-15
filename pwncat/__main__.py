@@ -106,11 +106,12 @@ def main():
                     sys.stdout.buffer.write(data)
                     sys.stdout.flush()
     except ConnectionResetError:
-        handler.restore()
+        handler.restore_local_term()
         util.warn("connection reset by remote host")
     finally:
         # Restore the shell
-        handler.restore()
+        handler.restore_local_term()
+        util.success("local terminal restored")
 
 
 if __name__ == "__main__":
