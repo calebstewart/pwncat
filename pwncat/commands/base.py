@@ -95,6 +95,7 @@ class CommandDefinition:
     PROG = "unimplemented"
     ARGS = {}
     DEFAULTS = {}
+    LOCAL = False
 
     # An example definition of arguments
     # PROG = "command"

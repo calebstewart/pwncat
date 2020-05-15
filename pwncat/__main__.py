@@ -56,6 +56,7 @@ def main():
         help="Method to create a pty on the remote host (default: script)",
         default="script",
     )
+    parser.add_argument("--config", "-c", help="Configuration script", default=None)
     args = parser.parse_args()
 
     if args.type == "reverse":
@@ -82,7 +83,7 @@ def main():
     util.info(f"connection to {address[0]}:{address[1]} established", overlay=True)
 
     # Create a PTY handler to proctor communications with the remote PTY
-    handler = PtyHandler(client)
+    handler = PtyHandler(client, args.config)
 
     # Setup the selector to wait for data asynchronously from both streams
     selector = selectors.DefaultSelector()

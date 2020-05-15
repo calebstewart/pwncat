@@ -38,6 +38,7 @@ from pwncat.file import RemoteBinaryPipe
 from pwncat.lexer import LocalCommandLexer, PwncatStyle
 from pwncat.gtfobins import GTFOBins, Capability, Stream
 from pwncat.commands import CommandParser
+from pwncat.config import Config
 
 from colorama import Fore
 
@@ -179,11 +180,12 @@ class PtyHandler:
         "script",
     ]
 
-    def __init__(self, client: socket.SocketType, has_pty: bool = False):
+    def __init__(self, client: socket.SocketType, config_path: str):
         """ Initialize a new Pty Handler. This will handle creating the PTY and
         setting the local terminal to raw. It also maintains the state to open a
         local terminal if requested and exit raw mode. """
 
+        self.config = Config(self)
         self.client = client
         self._state = State.COMMAND
         self.saved_term_state = None
@@ -212,9 +214,14 @@ class PtyHandler:
             "sh": ["bash", "zsh", "dash"],
             "nc": ["netcat", "ncat"],
         }
-        self.has_pty = has_pty
         self.gtfo: GTFOBins = GTFOBins("data/gtfobins.json", self.which)
         self.default_privkey = "./data/pwncat"
+        self.command_parser = CommandParser(self)
+
+        # Run the configuration script
+        with open(config_path, "r") as filp:
+            config_script = filp.read()
+        self.command_parser.eval(config_script, config_path)
 
         # We should always get a response within 3 seconds...
         self.client.settimeout(1)
@@ -348,7 +355,8 @@ class PtyHandler:
         # Save our terminal state
         self.stty_saved = self.run("stty -g").decode("utf-8").strip()
 
-        self.command_parser = CommandParser(self)
+        # The session is fully setup now
+        self.command_parser.loaded = True
 
         # Synchronize the terminals
         self.command_parser.dispatch_line("sync")

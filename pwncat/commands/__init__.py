@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from typing import TextIO
 from prompt_toolkit import PromptSession, ANSI
 from prompt_toolkit.shortcuts import ProgressBar
 from prompt_toolkit.completion import (
@@ -32,6 +33,63 @@ from pprint import pprint
 from pwncat.commands.base import CommandDefinition, Complete
 from pwncat.util import State
 from pwncat import util
+
+
+def resolve_blocks(source: str):
+    """ This is a dumb lexer that turns strings of text with code blocks (squigly
+    braces) into a single long string separated by semicolons. All code blocks are
+    converted to strings recursively with correct escaping levels. The resulting
+    string can be sent to break_commands to iterate over the commands. """
+
+    result = []
+    in_brace = False
+    inside_quotes = False
+    i = 0
+    lineno = 1
+
+    while i < len(source):
+        if not inside_quotes:
+            if source[i] == '"':
+                inside_quotes = True
+                result.append("\\" * int(in_brace) + '"')
+            elif source[i] == "{" and not in_brace:
+                result.append('"')
+                in_brace = True
+            elif source[i] == "}":
+                if not in_brace:
+                    raise ValueError(f"line {lineno}: mismatched closing brace")
+                in_brace = False
+                result.append('"')
+            elif source[i] == "\\":
+                result.append("\\" * (int(in_brace)))
+            elif source[i] == "\n" and in_brace:
+                result.append("\\n")
+            elif source[i] == "#":
+                # Comment
+                while i < len(source) and source[i] != "\n":
+                    i += 1
+            else:
+                result.append(source[i])
+        else:
+            if source[i] == '"':
+                inside_quotes = False
+                result.append("\\" * int(in_brace) + '"')
+            elif source[i] == "\\":
+                result.append("\\" * (in_brace + 1))
+            elif source[i] == "\n":
+                raise ValueError(f"line {lineno}: newlines cannot appear in strings")
+            else:
+                result.append(source[i])
+        if source[i] == "\n":
+            lineno += 1
+        i += 1
+
+    if in_brace:
+        raise ValueError(f"mismatched braces")
+    if inside_quotes:
+        raise ValueError("missing ending quote")
+
+    return "".join(result).split("\n")
 
 
 class CommandParser:
@@ -87,6 +145,33 @@ class CommandParser:
         )
 
         self.pty = pty
+        self.loading_complete = False
+
+    @property
+    def loaded(self):
+        return self.loading_complete
+
+    @loaded.setter
+    def loaded(self, value: bool):
+        assert value == True
+        self.loading_complete = True
+        self.eval(self.pty.config["on_load"], "on_load")
+
+    def eval(self, source: str, name: str = "<script>"):
+        """ Evaluate the given source file. This will execute the given string
+        as a script of commands. Syntax is the same except that commands may
+        be separated by semicolons, comments are accepted as following a "#" and
+        multiline strings are supported with '"{' and '}"' as delimeters. """
+
+        in_multiline_string = False
+        lineno = 1
+
+        for command in resolve_blocks(source):
+            try:
+                self.dispatch_line(command)
+            except Exception as exc:
+                util.error(f"{name}: command: {str(exc)}")
+                break
 
     def run_single(self):
 
@@ -121,6 +206,11 @@ class CommandParser:
     def dispatch_line(self, line: str):
         """ Parse the given line of command input and dispatch a command """
 
+        # Account for blank or whitespace only lines
+        line = line.strip()
+        if line == "":
+            return
+
         try:
             # Spit the line with shell rules
             argv = shlex.split(line)
@@ -136,9 +226,17 @@ class CommandParser:
             util.error(f"{argv[0]}: unknown command")
             return
 
+        if not self.loading_complete and not command.LOCAL:
+            util.error(
+                f"{argv[0]}: non-local commands cannot run until after session setup."
+            )
+            return
+
+        args = [a.encode("utf-8").decode("unicode_escape") for a in argv[1:]]
+
         try:
             # Parse the arguments
-            args = command.parser.parse_args(argv[1:])
+            args = command.parser.parse_args(args)
 
             # Run the command
             command.run(args)

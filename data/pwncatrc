@@ -1,0 +1,52 @@
+# Set your remote hosts file
+set lhost 127.0.0.1
+# Set your command prefix
+set prefix c-k
+# Set the default private key to use for privilege escalation
+set privkey "~/.pwncat/id_rsa" 
+# Set the pwncat backdoor user and password
+set backdoor_user "pwncat"
+set backdoor_pass "pwncat"
+
+# This will fail because we haven't finished loading
+busybox -i
+
+set on_load {
+	# This will succeed because `on_load` runs after the session is established.
+	busybox -i
+}
+
+# This would run at start after a successful connection
+# privesc -l
+
+# map takes a key followed by an action. The key is assumed to be followed after
+# the prefix, which is set with the "set" command above.
+
+# # pass the a second "C-k" through to the remote host
+# map C-k "pass"
+# 
+# # enter local command mode via a different shortcut (vice C-d)
+# map c "set state command"
+# 
+# # synchronize remote and local terminals
+# map s "sync"
+# 
+# # open a quick local command entry prompt
+# map : "set state single"
+# 
+# # send C-d directly to the remote host if prefixed. By default, C-d toggles back
+# # and forth between local and remote prompts. This allows you to send C-d to the
+# # remote host while at the remote prompt
+# map C-d "pass"
+# 
+# # Specify a shortcut to a local shell command
+# shortcut ! "local"
+# 
+# # Specify a shortuct to a remote shell command
+# shortcut @ "run"
+# 
+# # Alias the upload command with "up"
+# alias up "upload"
+# 
+# # Alias the download command with "down"
+# alias down "download"
