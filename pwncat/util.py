@@ -2,9 +2,11 @@
 from typing import Tuple, BinaryIO, Callable
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import TCPServer, BaseRequestHandler
+from prompt_toolkit.shortcuts import ProgressBar
 from functools import partial
 from colorama import Fore, Style
 from io import TextIOWrapper
+from enum import Enum, auto
 import netifaces
 import socket
 import string
@@ -13,6 +15,7 @@ import threading
 import logging
 import termios
 import fcntl
+import time
 import tty
 import sys
 import os
@@ -20,6 +23,46 @@ import os
 CTRL_C = b"\x03"
 
 ALPHANUMERIC = string.ascii_letters + string.digits
+
+
+class State(Enum):
+    """ The current PtyHandler state """
+
+    NORMAL = auto()
+    RAW = auto()
+    COMMAND = auto()
+    SINGLE = auto()
+
+
+def human_readable_size(size, decimal_places=2):
+    for unit in ["B", "KiB", "MiB", "GiB", "TiB"]:
+        if size < 1024.0:
+            break
+        size /= 1024.0
+    return f"{size:.{decimal_places}f}{unit}"
+
+
+def human_readable_delta(seconds):
+    """ This produces a human-readable time-delta output suitable for output to
+    the terminal. It assumes that "seconds" is less than 1 day. I.e. it will only
+    display at most, hours minutes and seconds. """
+
+    if seconds < 60:
+        return f"{seconds:.2f} seconds"
+
+    output = []
+    output.append(f"{int(seconds%60)} seconds")
+
+    minutes = seconds // 60
+    output.append(f"{minutes % 60} minutes")
+
+    if minutes < 60:
+        return f"{output[1]} and {output[0]}"
+
+    hours = minutes // 60
+    output.append(f"{hours} hours")
+
+    return f"{output[2]}, {output[1]} and {output[0]}"
 
 
 def copyfileobj(src, dst, callback, nomv=False):
@@ -39,7 +82,7 @@ def copyfileobj(src, dst, callback, nomv=False):
         for chunk in iter(lambda: src.read(length), b""):
             dst.write(chunk)
             copied += len(chunk)
-            callback(copied, len(chunk))
+            callback(len(chunk))
     else:
         with memoryview(bytearray(length)) as mv:
             while True:
@@ -52,7 +95,39 @@ def copyfileobj(src, dst, callback, nomv=False):
                 else:
                     dst.write(mv)
                 copied += n
-                callback(copied, n)
+                callback(n)
+
+
+def with_progress(title: str, target: Callable[[Callable], None], length: int = None):
+    """ A shortcut to displaying a progress bar for various things. It will
+    start a prompt_toolkit progress bar with the given title and a counter 
+    with the given length. Then, it will call `target` with an `on_progress`
+    parameter. This parameter should be called for all progress updates. See
+    the `do_upload` and `do_download` for examples w/ copyfileobj """
+
+    with ProgressBar(title) as pb:
+        counter = pb(range(length))
+        last_update = time.time()
+
+        def on_progress(blocksz):
+            """ Update the progress bar """
+            if blocksz == -1:
+                counter.stopped = True
+                counter.done = True
+                pb.invalidate()
+                return
+
+            counter.items_completed += blocksz
+            if counter.items_completed >= counter.total:
+                counter.done = True
+                counter.stopped = True
+            if (time.time() - last_update) > 0.1:
+                pb.invalidate()
+
+        target(on_progress)
+
+        # https://github.com/prompt-toolkit/python-prompt-toolkit/issues/964
+        time.sleep(0.1)
 
 
 def random_string(length: int = 8):
@@ -65,9 +140,6 @@ def enter_raw_mode():
 
         returns: the old state of the terminal
     """
-
-    info("setting terminal to raw mode and disabling echo", overlay=True)
-    success("pwncat is ready 🐈\n", overlay=True)
 
     # Ensure we don't have any weird buffering issues
     sys.stdout.flush()
@@ -111,7 +183,6 @@ def restore_terminal(state):
     # tty.setcbreak(sys.stdin)
     fcntl.fcntl(sys.stdin, fcntl.F_SETFL, state[1])
     sys.stdout.write("\n")
-    info("local terminal restored")
 
 
 def get_ip_addr() -> str:
