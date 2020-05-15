@@ -1,5 +1,5 @@
 colorama==0.4.3
-prompt-toolkit==3.0.5
+git+https://github.com/calebstewart/python-prompt-toolkit
 wcwidth==0.1.9
 netifaces==0.10.9
 pygments==2.6.1
