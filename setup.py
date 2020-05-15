@@ -7,12 +7,19 @@ import shutil, os, stat
 import binascii
 
 dependencies = [
-    "prompt-toolkit",
-    "wcwidth",
-    "colorama"
+    "colorama==0.4.3",
+    "wcwidth==0.1.9",
+    "netifaces==0.10.9",
+    "pygments==2.6.1",
+    "base64io",
+    "commentjson",
+    "requests",
+    "prompt-toolkit"
 ]
 
-dependency_links = []
+dependency_links = [
+    "https://github.com/calebstewart/python-prompt-toolkit/tarball/master#egg=prompt-toolkit"
+]
 
 # Setup
 setup(
