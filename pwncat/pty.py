@@ -38,7 +38,7 @@ from pwncat.file import RemoteBinaryPipe
 from pwncat.lexer import LocalCommandLexer, PwncatStyle
 from pwncat.gtfobins import GTFOBins, Capability, Stream
 from pwncat.commands import CommandParser
-from pwncat.config import Config
+from pwncat.config import Config, KeyType
 
 from colorama import Fore
 
@@ -216,6 +216,7 @@ class PtyHandler:
         }
         self.gtfo: GTFOBins = GTFOBins("data/gtfobins.json", self.which)
         self.default_privkey = "./data/pwncat"
+        self.has_prefix = False
         self.command_parser = CommandParser(self)
 
         # Run the configuration script
@@ -549,29 +550,41 @@ class PtyHandler:
         r""" Process a new byte of input from stdin. This is to catch "\r~C" and open
         a local prompt """
 
-        if self.input == b"":
-            # Enter commmand mode after C-d
-            if data == b"\x04":
-                # Clear line
-                self.client.send(b"\x15")
-                # Enter command mode
-                self.state = State.COMMAND
-            # C-k is the prefix character
-            elif data == b"\x0b":
-                self.input = data
+        if self.has_prefix:
+            if data == self.config["prefix"].value:
+                self.client.send(data)
             else:
-                self.client.send(data)
+                try:
+                    binding = self.config.binding(data)
+
+                    # Pass is a special case that can be used at the beginning of a
+                    # command.
+                    if binding.strip().startswith("pass"):
+                        self.client.send(data)
+                        binding = binding.lstrip("pass")
+
+                    self.restore_local_term()
+                    sys.stdout.write("\n")
+
+                    # Evaluate the script
+                    self.command_parser.eval(binding, "<binding>")
+
+                    self.flush_output()
+                    self.client.send(b"\n")
+                    self.saved_term_state = util.enter_raw_mode()
+
+                except KeyError:
+                    pass
+            self.has_prefix = False
+        elif data == self.config["prefix"].value:
+            self.has_prefix = True
+        elif data == KeyType("c-d").value:
+            # Don't allow exiting the remote prompt with C-d
+            # you should have a keybinding for "<prefix> C-d" to actually send
+            # C-d.
+            self.state = State.COMMAND
         else:
-            # "C-k c" to enter command mode
-            if data == b"c":
-                self.client.send(b"\x15")
-                self.state = State.SINGLE
-            elif data == b":":
-                self.state = State.SINGLE
-            # "C-k C-k" or "C-k C-d" sends the second byte
-            elif data == b"\x0b" or data == b"\x04":
-                self.client.send(data)
-            self.input = b""
+            self.client.send(data)
 
     def recv(self) -> bytes:
         """ Recieve data from the client """

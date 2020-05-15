@@ -9,12 +9,26 @@ set backdoor_user "pwncat"
 set backdoor_pass "pwncat"
 
 # This will fail because we haven't finished loading
-busybox -i
 
 set on_load {
 	# This will succeed because `on_load` runs after the session is established.
-	busybox -i
 }
+
+# Examples of command bindings
+bind s "sync"
+bind c "set state command"
+bind b {
+	busybox --install
+	busybox --status
+}
+bind p {
+	privesc --list
+}
+
+# Create shortcut aliases for commands
+alias up upload
+alias down download
+alias down
 
 # This would run at start after a successful connection
 # privesc -l

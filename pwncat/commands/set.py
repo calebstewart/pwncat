@@ -8,7 +8,7 @@ class Command(CommandDefinition):
     """ Set variable runtime variable parameters for pwncat """
 
     def get_config_variables(self):
-        return list(self.pty.config.values)
+        return ["state"] + list(self.pty.config.values)
 
     PROG = "set"
     ARGS = {
@@ -26,7 +26,16 @@ class Command(CommandDefinition):
     LOCAL = True
 
     def run(self, args):
-        if args.variable is not None and args.value is not None:
+        if (
+            args.variable is not None
+            and args.variable == "state"
+            and args.value is not None
+        ):
+            try:
+                self.pty.state = util.State._member_map_[args.value.upper()]
+            except KeyError:
+                util.error(f"{args.value}: invalid state")
+        elif args.variable is not None and args.value is not None:
             try:
                 self.pty.config[args.variable] = args.value
             except ValueError as exc:

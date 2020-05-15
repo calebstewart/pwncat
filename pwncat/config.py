@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
-from prompt_toolkit.input.ansi_escape_sequences import REVERSE_ANSI_SEQUENCES
+from prompt_toolkit.input.ansi_escape_sequences import (
+    REVERSE_ANSI_SEQUENCES,
+    ANSI_SEQUENCES,
+)
 from prompt_toolkit.keys import ALL_KEYS, Keys
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Union
 import commentjson as json
 import ipaddress
 import re
@@ -50,8 +53,11 @@ class Config:
 
         # Basic key-value store w/ typing
         self.values: Dict[str, Dict[str, Any]] = {
-            "lhost": {"value": None, "type": ipaddress.ip_address},
-            "prefix": {"value": "C-k", "type": KeyType},
+            "lhost": {
+                "value": ipaddress.ip_address("127.0.0.1"),
+                "type": ipaddress.ip_address,
+            },
+            "prefix": {"value": KeyType("c-k"), "type": KeyType},
             "privkey": {"value": "data/pwncat", "type": local_file_type},
             "backdoor_user": {"value": "pwncat", "type": str},
             "backdoor_pass": {"value": "pwncat", "type": str},
@@ -60,7 +66,25 @@ class Config:
 
         # Map ascii escape sequences or printable bytes to lists of commands to
         # run.
-        self.bindings: Dict[bytes, str] = {}
+        self.bindings: Dict[KeyType, str] = {
+            KeyType("c-d"): "pass",
+            KeyType("s"): "sync",
+            KeyType("c"): "set state command",
+        }
+
+    def binding(self, name_or_value: Union[str, bytes]) -> str:
+        """ Get a key binding by it's key name or key value. """
+
+        if isinstance(name_or_value, bytes):
+            binding = [
+                b for key, b in self.bindings.items() if key.value == name_or_value
+            ]
+            if not binding:
+                raise KeyError("no such key binding")
+            return binding[0]
+
+        key = KeyType(name_or_value)
+        return self.bindings[key]
 
     def __getitem__(self, name: str) -> Any:
         """ Get a configuration item """

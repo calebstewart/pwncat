@@ -21,6 +21,7 @@ from pygments.styles import get_style_by_name
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.history import InMemoryHistory
 from typing import Dict, Any, List, Iterable
+from colorama import Fore
 from enum import Enum, auto
 import argparse
 import pkgutil
@@ -146,6 +147,7 @@ class CommandParser:
 
         self.pty = pty
         self.loading_complete = False
+        self.aliases: Dict[str, CommandDefinition] = {}
 
     @property
     def loaded(self):
@@ -170,7 +172,9 @@ class CommandParser:
             try:
                 self.dispatch_line(command)
             except Exception as exc:
-                util.error(f"{name}: command: {str(exc)}")
+                util.error(
+                    f"{Fore.CYAN}{name}{Fore.RESET}: {Fore.YELLOW}{command}{Fore.RESET}: {str(exc)}"
+                )
                 break
 
     def run_single(self):
@@ -223,8 +227,11 @@ class CommandParser:
             if command.PROG == argv[0]:
                 break
         else:
-            util.error(f"{argv[0]}: unknown command")
-            return
+            if argv[0] in self.aliases:
+                command = self.aliases[argv[0]]
+            else:
+                util.error(f"{argv[0]}: unknown command")
+                return
 
         if not self.loading_complete and not command.LOCAL:
             util.error(
