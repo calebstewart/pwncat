@@ -25,19 +25,21 @@ To showcase a little bit of the cool functionality, I have recorded a short
 
 ## Install
 
+### Dependencies
+
+The python3 development files are required for building python dependencies. All of the dependencies are managed through `pip`. 
+
 To install **pwncat** into its own python virtual environment:
 
 ``` bash
 git clone https://github.com/calebstewart/pwncat/ # get pwncat
 
 cd pwncat
-sudo apt-get install python3-devel # install dependencies
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
-.venv/bin/python3 setup.py install
-
-. .venv/bin/activate # activate the virtual environment
-```
+$ sudo apt-get install python3-devel # install dependencies
+$ python3 -m venv .venv
+$ . .venv/bin/activate
+$ pip install -r requirements.txt
+$ python setup.py install
 
 ## Usage
 
