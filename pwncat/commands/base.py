@@ -138,10 +138,13 @@ class CommandDefinition:
                 method = descr[3]["choices"]
 
                 class wrapper:
-                    def __iter__(wself):
-                        yield from method(self)
+                    def __init__(wself, method):
+                        wself.method = method
 
-                descr[3]["choices"] = wrapper()
+                    def __iter__(wself):
+                        yield from wself.method(self)
+
+                descr[3]["choices"] = wrapper(method)
 
             # Patch "type" so we can see "self"
             if (

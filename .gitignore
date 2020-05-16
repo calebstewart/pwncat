@@ -6,3 +6,4 @@ build/
 dist/
 .byebug_history
 testbed
+.idea/

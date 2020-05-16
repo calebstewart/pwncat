@@ -6,7 +6,7 @@ from prompt_toolkit.shortcuts import ProgressBar
 from functools import partial
 from colorama import Fore, Style
 from io import TextIOWrapper
-from enum import Enum, auto
+from enum import Enum, Flag, auto
 import netifaces
 import socket
 import string
@@ -32,6 +32,20 @@ class State(Enum):
     RAW = auto()
     COMMAND = auto()
     SINGLE = auto()
+
+
+class Access(Flag):
+    """ Check if you are able to read/write/execute a file """
+
+    NONE = 0
+    EXISTS = auto()
+    READ = auto()
+    WRITE = auto()
+    EXECUTE = auto()
+    SUID = auto()
+    SGID = auto()
+    REGULAR = auto()
+    DIRECTORY = auto()
 
 
 def human_readable_size(size, decimal_places=2):
@@ -227,6 +241,15 @@ PROG_ANIMATION = "/-\\"
 LAST_PROG_ANIM = -1
 
 
+def erase_progress():
+    """ Erase the last progress line. Useful for progress messages for long-running
+    tasks, which don't need (or want) to be logged to the terminal """
+    global LAST_LOG_MESSAGE
+
+    sys.stdout.write(f"\r{len(LAST_LOG_MESSAGE[0])*' '}\r")
+    LAST_LOG_MESSAGE = (LAST_LOG_MESSAGE[0], False)
+
+
 def log(level, message, overlay=False):
     global LAST_LOG_MESSAGE
     global LAST_PROG_ANIM
@@ -239,7 +262,7 @@ def log(level, message, overlay=False):
         "prog": f"[{Fore.CYAN}+{Fore.RESET}]",
     }
 
-    if overlay:
+    if overlay or (LAST_LOG_MESSAGE[1] and (level == "success" or level == "error")):
         sys.stdout.write(f"\r{len(LAST_LOG_MESSAGE[0])*' '}\r")
     elif LAST_LOG_MESSAGE[1]:
         sys.stdout.write("\n")

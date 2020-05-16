@@ -821,6 +821,53 @@ class PtyHandler:
 
         return size
 
+    def access(self, path: str) -> util.Access:
+
+        access: util.Access = util.Access.NONE
+
+        # Find test
+        test = self.which("test")
+        if test is None:
+            test = self.which("[")
+
+        # Quote the path
+        parent = shlex.quote(os.path.dirname(path))
+        path = shlex.quote(path)
+
+        if test is not None:
+            result = self.run(
+                f"{test} -x {path} && echo execute;"
+                f"{test} -w {path} && echo write;"
+                f"{test} -r {path} && echo read;"
+                f"{test} -e {path} && echo exists;"
+                f"{test} -g {path} && echo sgid;"
+                f"{test} -u {path} && echo suid;"
+                f"{test} -d {path} && echo directory;"
+                f"{test} -f {path} && echo regular;"
+                f"{test} -d {parent} && echo parent_dir;"
+                f"{test} -w {parent} && echo parent_write"
+            )
+            if b"execute" in result:
+                access |= util.Access.EXECUTE
+            if b"exists" in result:
+                access |= util.Access.EXISTS
+            if b"write" in result or (
+                b"parent_write" in result and not b"exists" in result
+            ):
+                access |= util.Access.WRITE
+            if b"read" in result:
+                access |= util.Access.READ
+            if b"suid" in result:
+                access |= util.Access.SUID
+            if b"sgid" in result:
+                access |= util.Access.SGID
+            if b"directory" in result:
+                access |= util.Access.DIRECTORY
+            elif b"file" in result:
+                access |= util.Access.REGULAR
+
+        return access
+
     def open_read(self, path: str, mode: str):
         """ Open a remote file for reading """
 
