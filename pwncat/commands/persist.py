@@ -142,8 +142,8 @@ class Command(CommandDefinition):
 
         # Lookup the method
         try:
-            method = pwncat.victim.persist.find(args.method)
-        except KeyError:
+            method = next(pwncat.victim.persist.find(args.method))
+        except StopIteration:
             self.parser.error(f"{args.method}: no such persistence method")
             return
 

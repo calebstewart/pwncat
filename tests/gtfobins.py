@@ -59,7 +59,9 @@ group.add_argument(
 
 parser.add_argument("--path", "-p", help="The local file name to read or write")
 parser.add_argument("--length", "-l", type=int, help="The length the data to write")
-parser.add_argument("--shell", "-s", help="The local shell to start")
+parser.add_argument(
+    "--shell", "-s", help="The local shell to start", default="/bin/bash"
+)
 parser.add_argument("--data", "-d", help="The local data to write to the remote file")
 parser.add_argument(
     "--capability",
@@ -105,7 +107,7 @@ def local_which(path: str, quote: bool = True):
     return result
 
 
-gtfo = GTFOBins("data/gtfobins.json", local_which)
+gtfo = GTFOBins("../data/gtfobins.json", local_which)
 
 if args.find:
     if not args.spec:
@@ -137,6 +139,6 @@ for method in methods:
         user=args.user,
         spec=args.spec,
     )
-    print(f" Payload: {repr(payload)}")
+    print(f" Payload: {payload}")
     print(f" Input: {repr(input_data)}")
     print(f" Exit Command: {repr(exit_cmd)}")

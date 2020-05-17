@@ -135,8 +135,11 @@ class Command(CommandDefinition):
                 self.parser.error("missing required argument: --data")
 
             # Read in the data file
-            with open(args.data, "rb") as f:
-                data = f.read()
+            try:
+                with open(args.data, "rb") as f:
+                    data = f.read()
+            except PermissionError:
+                self.parser.error(f"no local permission to read: {args.data}")
 
             try:
                 # Attempt to write the data to the remote file

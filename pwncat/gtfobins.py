@@ -10,6 +10,7 @@ import io
 
 class ControlCodes:
     CTRL_C = "\x03"
+    CTRL_X = "\x18"
     CTRL_Z = "\x1a"
     CTRL_D = "\x04"
     ESCAPE = "\x1B"
@@ -156,6 +157,7 @@ class Method:
                 " ".join(args),
                 ctrl_c=ControlCodes.CTRL_C,
                 ctrl_z=ControlCodes.CTRL_Z,
+                ctrl_x=ControlCodes.CTRL_X,
                 escape=ControlCodes.ESCAPE,
                 ctrl_d=ControlCodes.CTRL_D,
                 **kwargs,
@@ -173,6 +175,7 @@ class Method:
                 command,
                 ctrl_c=ControlCodes.CTRL_C,
                 ctrl_z=ControlCodes.CTRL_Z,
+                ctrl_x=ControlCodes.CTRL_X,
                 escape=ControlCodes.ESCAPE,
                 ctrl_d=ControlCodes.CTRL_D,
                 **kwargs,
@@ -183,6 +186,7 @@ class Method:
             self.payload,
             command=command,
             ctrl_c=ControlCodes.CTRL_C,
+            ctrl_x=ControlCodes.CTRL_X,
             ctrl_z=ControlCodes.CTRL_Z,
             escape=ControlCodes.ESCAPE,
             ctrl_d=ControlCodes.CTRL_D,
@@ -254,6 +258,7 @@ class MethodWrapper:
             self.method.exit,
             ctrl_c=ControlCodes.CTRL_C,
             ctrl_z=ControlCodes.CTRL_Z,
+            ctrl_x=ControlCodes.CTRL_X,
             escape=ControlCodes.ESCAPE,
             ctrl_d=ControlCodes.CTRL_D,
             **kwargs,
@@ -264,6 +269,7 @@ class MethodWrapper:
             self.method.input,
             ctrl_c=ControlCodes.CTRL_C,
             ctrl_z=ControlCodes.CTRL_Z,
+            ctrl_x=ControlCodes.CTRL_X,
             escape=ControlCodes.ESCAPE,
             ctrl_d=ControlCodes.CTRL_D,
             **kwargs,

