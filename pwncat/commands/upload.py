@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import pwncat
 from pwncat.commands.base import (
     CommandDefinition,
     Complete,
@@ -34,7 +35,7 @@ class Command(CommandDefinition):
             length = os.path.getsize(args.source)
             started = time.time()
             with open(args.source, "rb") as source:
-                with self.pty.open(
+                with pwncat.victim.open(
                     args.destination, "wb", length=length
                 ) as destination:
                     util.with_progress(

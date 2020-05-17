@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 from prompt_toolkit.input.ansi_escape_sequences import REVERSE_ANSI_SEQUENCES
 from prompt_toolkit.keys import ALL_KEYS, Keys
+
+import pwncat
 from pwncat.commands.base import CommandDefinition, Complete, parameter
 from pwncat.config import KeyType
 from pwncat import util
@@ -28,12 +30,12 @@ class Command(CommandDefinition):
     def run(self, args):
         if args.key is None:
             util.info("currently assigned key-bindings:")
-            for key, binding in self.pty.config.bindings.items():
+            for key, binding in pwncat.victim.config.bindings.items():
                 print(
                     f" {Fore.CYAN}{key}{Fore.RESET} = {Fore.YELLOW}{repr(binding)}{Fore.RESET}"
                 )
         elif args.key is not None and args.script is None:
-            if args.key in self.pty.config.bindings:
-                del self.pty.config.bindings[args.key]
+            if args.key in pwncat.victim.config.bindings:
+                del pwncat.victim.config.bindings[args.key]
         else:
-            self.pty.config.bindings[args.key] = args.script
+            pwncat.victim.config.bindings[args.key] = args.script

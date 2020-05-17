@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 from colorama import Fore
+
+import pwncat
 from pwncat.commands.base import (
     CommandDefinition,
     Complete,
@@ -58,21 +60,21 @@ class Command(CommandDefinition):
     def run(self, args):
 
         if args.action == "list":
-            if not self.pty.has_busybox:
+            if not pwncat.victim.has_busybox:
                 util.error("busybox hasn't been installed yet (hint: run 'busybox'")
                 return
             util.info("binaries which the remote busybox provides:")
-            for name in self.pty.busybox_provides:
+            for name in pwncat.victim.busybox_provides:
                 print(f" * {name}")
         elif args.action == "status":
-            if not self.pty.has_busybox:
+            if not pwncat.victim.has_busybox:
                 util.error("busybox hasn't been installed yet")
                 return
             util.info(
-                f"busybox is installed to: {Fore.BLUE}{self.pty.busybox_path}{Fore.RESET}"
+                f"busybox is installed to: {Fore.BLUE}{pwncat.victim.busybox_path}{Fore.RESET}"
             )
             util.info(
-                f"busybox provides {Fore.GREEN}{len(self.pty.busybox_provides)}{Fore.RESET} applets"
+                f"busybox provides {Fore.GREEN}{len(pwncat.victim.busybox_provides)}{Fore.RESET} applets"
             )
         elif args.action == "install":
-            self.pty.bootstrap_busybox(args.url)
+            pwncat.victim.bootstrap_busybox(args.url)

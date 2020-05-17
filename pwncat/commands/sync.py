@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import pwncat
 from pwncat.commands.base import CommandDefinition, Complete, parameter
 from pwncat import util
 import os
@@ -26,7 +27,7 @@ class Command(CommandDefinition):
         columns, rows = os.get_terminal_size(0)
 
         # Update the state
-        self.pty.run(
+        pwncat.victim.run(
             f"stty rows {rows};" f"stty columns {columns};" f"export TERM='{TERM}'"
         )
 

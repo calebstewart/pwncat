@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-import selectors
 import argparse
 import logging
+import selectors
 import socket
 import sys
 
-from pwncat.pty import PtyHandler
-from pwncat import gtfobins
+import pwncat
+from pwncat.remote import Victim
 from pwncat import util
 
 
@@ -52,12 +52,21 @@ def main():
     parser.add_argument(
         "--method",
         "-m",
-        choices=[*PtyHandler.OPEN_METHODS.keys()],
+        choices=[*Victim.OPEN_METHODS.keys()],
         help="Method to create a pty on the remote host (default: script)",
         default="script",
     )
     parser.add_argument("--config", "-c", help="Configuration script", default=None)
     args = parser.parse_args()
+
+    # Build the victim object
+    pwncat.victim = Victim(args.config)
+
+    # Run the configuration script
+    if args.config:
+        with open(args.config, "r") as filp:
+            config_script = filp.read()
+        pwncat.victim.command_parser.eval(config_script, args.config)
 
     if args.type == "reverse":
         # Listen on a socket for connections
@@ -76,14 +85,18 @@ def main():
             sys.exit(0)
     elif args.type == "bind":
         util.info(f"connecting to {args.host}:{args.port}", overlay=True)
-        client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client.connect((args.host, args.port))
+        # client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        # client.connect((args.host, args.port))
+        client = socket.create_connection((args.host, args.port))
         address = (args.host, args.port)
+    else:
+        parser.error("must specify a valid connection type!")
+        sys.exit(1)
 
     util.info(f"connection to {address[0]}:{address[1]} established", overlay=True)
 
-    # Create a PTY handler to proctor communications with the remote PTY
-    handler = PtyHandler(client, args.config)
+    # Connect and initialize the remote victim
+    pwncat.victim.connect(client)
 
     # Setup the selector to wait for data asynchronously from both streams
     selector = selectors.DefaultSelector()
@@ -98,20 +111,20 @@ def main():
             for k, _ in selector.select():
                 if k.fileobj is sys.stdin:
                     data = sys.stdin.buffer.read(8)
-                    handler.process_input(data)
+                    pwncat.victim.process_input(data)
                 else:
-                    data = handler.recv()
+                    data = pwncat.victim.recv()
                     if data is None or len(data) == 0:
                         done = True
                         break
                     sys.stdout.buffer.write(data)
                     sys.stdout.flush()
     except ConnectionResetError:
-        handler.restore_local_term()
+        pwncat.victim.restore_local_term()
         util.warn("connection reset by remote host")
     finally:
         # Restore the shell
-        handler.restore_local_term()
+        pwncat.victim.restore_local_term()
         util.success("local terminal restored")
 
 

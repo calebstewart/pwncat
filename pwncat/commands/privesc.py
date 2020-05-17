@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 from typing import List, Callable
+
+import pwncat
 from pwncat.commands.base import (
     CommandDefinition,
     Complete,
@@ -28,7 +30,7 @@ class Command(CommandDefinition):
     def get_user_choices(self):
         """ Get a list of all users on the remote machine. This is used for
         parameter checking and tab completion of the "users" parameter below. """
-        return list(self.pty.users)
+        return list(pwncat.victim.users)
 
     PROG = "privesc"
     ARGS = {
@@ -101,7 +103,7 @@ class Command(CommandDefinition):
     def run(self, args):
 
         if args.action == "list":
-            techniques = self.pty.privesc.search(args.user)
+            techniques = pwncat.victim.privesc.search(args.user)
             if len(techniques) == 0:
                 util.warn("no techniques found")
             else:
@@ -111,7 +113,7 @@ class Command(CommandDefinition):
             if not args.path:
                 self.parser.error("missing required argument: --path")
             try:
-                read_pipe, chain = self.pty.privesc.read_file(
+                read_pipe, chain = pwncat.victim.privesc.read_file(
                     args.path, args.user, args.max_depth
                 )
                 util.success("file successfully opened!")
@@ -121,7 +123,7 @@ class Command(CommandDefinition):
                 read_pipe.close()
 
                 # Unwrap in case we had to privesc to get here
-                self.pty.privesc.unwrap(chain)
+                pwncat.victim.privesc.unwrap(chain)
 
             except privesc.PrivescError as exc:
                 util.error(f"read file failed: {exc}")
@@ -138,25 +140,25 @@ class Command(CommandDefinition):
 
             try:
                 # Attempt to write the data to the remote file
-                chain = self.pty.privesc.write_file(
+                chain = pwncat.victim.privesc.write_file(
                     args.path, data, target_user=args.user, depth=args.max_depth,
                 )
-                self.pty.privesc.unwrap(chain)
+                pwncat.victim.privesc.unwrap(chain)
                 util.success("file written successfully!")
             except privesc.PrivescError as exc:
                 util.error(f"file write failed: {exc}")
         elif args.action == "escalate":
             try:
-                chain = self.pty.privesc.escalate(args.user, args.max_depth)
+                chain = pwncat.victim.privesc.escalate(args.user, args.max_depth)
 
-                ident = self.pty.id
+                ident = pwncat.victim.id
                 backdoor = False
                 if ident["euid"]["id"] == 0 and ident["uid"]["id"] != 0:
                     util.progress(
                         "EUID != UID. installing backdoor to complete privesc"
                     )
                     try:
-                        self.pty.privesc.add_backdoor()
+                        pwncat.victim.privesc.add_backdoor()
                         backdoor = True
                     except privesc.PrivescError as exc:
                         util.warn(f"backdoor installation failed: {exc}")
@@ -174,7 +176,7 @@ class Command(CommandDefinition):
                         )
                     )
 
-                self.pty.reset()
-                self.pty.state = State.RAW
+                pwncat.victim.reset()
+                pwncat.victim.state = State.RAW
             except privesc.PrivescError as exc:
                 util.error(f"escalation failed: {exc}")

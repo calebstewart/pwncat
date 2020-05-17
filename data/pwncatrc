@@ -9,7 +9,8 @@ set backdoor_user "pwncat"
 set backdoor_pass "pwncat"
 
 set on_load {
-	privesc -l
+	# Run a command upon a stable connection
+	# privesc -l
 }
 
 # Examples of command bindings

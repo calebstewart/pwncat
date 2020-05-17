@@ -44,7 +44,7 @@ class Downloader:
 
     def serve(self, on_progress: Callable):
         """ Start any servers on the local end which are needed to download the
-            content. """
+            original_content. """
         return
 
     def shutdown(self):

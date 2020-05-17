@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import pwncat
 from pwncat.commands.base import CommandDefinition, Complete, parameter
 from colorama import Fore
 
@@ -9,7 +10,7 @@ class Command(CommandDefinition):
     alias if it exists. """
 
     def get_command_names(self):
-        return [c.PROG for c in self.cmdparser.commands]
+        return [c.PROG for c in pwncat.victim.command_parser.commands]
 
     PROG = "alias"
     ARGS = {
@@ -26,15 +27,15 @@ class Command(CommandDefinition):
 
     def run(self, args):
         if args.alias is None:
-            for name, command in self.cmdparser.aliases.items():
+            for name, command in pwncat.victim.command_parser.aliases.items():
                 print(
                     f" {Fore.CYAN}{name}{Fore.RESET} \u2192 "
                     f"{Fore.YELLOW}{command.PROG}{Fore.RESET}"
                 )
         elif args.command is not None:
             # This is safe because of "choices" in the argparser
-            self.cmdparser.aliases[args.alias] = [
-                c for c in self.cmdparser.commands if c.PROG == args.command
+            pwncat.victim.command_parser.aliases[args.alias] = [
+                c for c in pwncat.victim.command_parser.commands if c.PROG == args.command
             ][0]
         else:
-            del self.cmdparser.aliases[args.alias]
+            del pwncat.victim.command_parser.aliases[args.alias]

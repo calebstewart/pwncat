@@ -88,7 +88,7 @@ class Method:
         """ Check if this method is compatible with the given sudo command spec.
         It will evaluate whether there are wildcards, or if the given parameters
         satisfy the parameters needed for this method. The method returns the list
-        of arguments that need to be added to the sudo spec in order for it to 
+        of arguments that need to be added_lines to the sudo spec in order for it to
         run this method. 
 
         If this method is incompatible with the given sudo spec, SudoNotPossible

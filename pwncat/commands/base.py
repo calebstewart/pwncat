@@ -7,6 +7,8 @@ import argparse
 import shlex
 import os
 
+import pwncat
+
 
 class Complete(Enum):
     # Complete from the choices array in kwargs
@@ -57,9 +59,9 @@ def RemoteFileType(file_exist=True, directory_exist=False):
         by the running user (e.g. not helpful for privesc methods). """
 
         # Attempt to find the "test" command
-        test = command.pty.which("test")
+        test = pwncat.victim.which("test")
         if test is None:
-            test = command.pty.which("[")
+            test = pwncat.victim.which("[")
 
         # No test command, this is a nicety, not a necessity.
         if test is None:
@@ -67,12 +69,12 @@ def RemoteFileType(file_exist=True, directory_exist=False):
 
         # Check if the file exists
         if file_exist:
-            result = command.pty.run(f"{test} -f {shlex.quote(name)} && echo exists")
+            result = pwncat.victim.run(f"{test} -f {shlex.quote(name)} && echo exists")
             if b"exists" not in result:
                 raise argparse.ArgumentTypeError(f"{name}: no such file or directory")
         elif directory_exist:
             dirpath = os.path.dirname(name)
-            result = command.pty.run(f"{test} -d {shlex.quote(dirpath)} && echo exists")
+            result = pwncat.victim.run(f"{test} -d {shlex.quote(dirpath)} && echo exists")
             if b"exists" not in result:
                 raise argparse.ArgumentTypeError(
                     f"{dirpath}: no such file or directory"
@@ -110,12 +112,9 @@ class CommandDefinition:
     #     ),
     # }
 
-    def __init__(self, pty: "pwncat.pty.PtyHandler", cmdparser: "CommandParser"):
+    def __init__(self):
         """ Initialize a new command instance. Parse the local arguments array
         into an argparse object. """
-
-        self.pty = pty
-        self.cmdparser = cmdparser
 
         # Create the parser object
         self.parser = argparse.ArgumentParser(prog=self.PROG, description=self.__doc__)

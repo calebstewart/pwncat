@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from typing import TextIO
+from typing import TextIO, Type
 from prompt_toolkit import PromptSession, ANSI
 from prompt_toolkit.shortcuts import ProgressBar
 from prompt_toolkit.completion import (
@@ -31,6 +31,7 @@ import re
 
 from pprint import pprint
 
+import pwncat
 from pwncat.commands.base import CommandDefinition, Complete
 from pwncat.util import State
 from pwncat import util
@@ -97,7 +98,7 @@ class CommandParser:
     """ Handles dynamically loading command classes, parsing input, and
     dispatching commands. """
 
-    def __init__(self, pty: "pwncat.pty.PtyHandler"):
+    def __init__(self):
         """ We need to dynamically load commands from pwncat.commands """
 
         self.commands: List["CommandDefinition"] = []
@@ -106,13 +107,11 @@ class CommandParser:
             if module_name == "base":
                 continue
             self.commands.append(
-                loader.find_module(module_name)
-                .load_module(module_name)
-                .Command(pty, self)
+                loader.find_module(module_name).load_module(module_name).Command()
             )
 
         history = InMemoryHistory()
-        completer = CommandCompleter(pty, self.commands)
+        completer = CommandCompleter(self.commands)
         lexer = PygmentsLexer(CommandLexer.build(self.commands))
         style = style_from_pygments_cls(get_style_by_name("monokai"))
         auto_suggest = AutoSuggestFromHistory()
@@ -145,7 +144,6 @@ class CommandParser:
             history=history,
         )
 
-        self.pty = pty
         self.loading_complete = False
         self.aliases: Dict[str, CommandDefinition] = {}
 
@@ -157,7 +155,7 @@ class CommandParser:
     def loaded(self, value: bool):
         assert value == True
         self.loading_complete = True
-        self.eval(self.pty.config["on_load"], "on_load")
+        self.eval(pwncat.victim.config["on_load"], "on_load")
 
     def eval(self, source: str, name: str = "<script>"):
         """ Evaluate the given source file. This will execute the given string
@@ -196,7 +194,7 @@ class CommandParser:
                 try:
                     line = self.prompt.prompt().strip()
                 except (EOFError, OSError):
-                    self.pty.state = State.RAW
+                    pwncat.victim.state = State.RAW
                     self.running = False
                     continue
 
@@ -257,7 +255,7 @@ class CommandLexer(RegexLexer):
     tokens = {}
 
     @classmethod
-    def build(cls, commands: List["CommandDefinition"]) -> "CommandLexer":
+    def build(cls, commands: List["CommandDefinition"]) -> Type["CommandLexer"]:
         """ Build the RegexLexer token list from the command definitions """
 
         root = []
@@ -298,9 +296,6 @@ class CommandLexer(RegexLexer):
 class RemotePathCompleter(Completer):
     """ Complete remote file names/paths """
 
-    def __init__(self, pty: "pwncat.pty.PtyHandler"):
-        self.pty = pty
-
     def get_completions(self, document: Document, complete_event: CompleteEvent):
 
         before = document.text_before_cursor.split()[-1]
@@ -309,7 +304,9 @@ class RemotePathCompleter(Completer):
         if path == "":
             path = "."
 
-        pipe = self.pty.subprocess(f"ls -1 -a {shlex.quote(path)}", "r")
+        pipe = pwncat.victim.subprocess(
+            f"ls -1 -a --color=never {shlex.quote(path)}", "r"
+        )
 
         for name in pipe:
             name = name.decode("utf-8").strip()
@@ -323,9 +320,6 @@ class RemotePathCompleter(Completer):
 
 class LocalPathCompleter(Completer):
     """ Complete local file names/paths """
-
-    def __init__(self, pty: "PtyHandler"):
-        self.pty = pty
 
     def get_completions(self, document: Document, complete_event: CompleteEvent):
 
@@ -351,19 +345,16 @@ class LocalPathCompleter(Completer):
 class CommandCompleter(Completer):
     """ Complete commands from a given list of commands """
 
-    def __init__(
-        self, pty: "pwncat.pty.PtyHandler", commands: List["CommandDefinition"]
-    ):
+    def __init__(self, commands: List["CommandDefinition"]):
         """ Construct a new command completer """
 
         self.layers = {}
-        local_file_completer = LocalPathCompleter(pty)
-        remote_file_completer = RemotePathCompleter(pty)
+        local_file_completer = LocalPathCompleter()
+        remote_file_completer = RemotePathCompleter()
 
         for command in commands:
             self.layers[command.PROG] = [None, [], {}]
             option_names = []
-            positional_completers = []
             for name_list, descr in command.ARGS.items():
                 name_list = name_list.split(",")
                 if descr[0] == Complete.CHOICES:
