@@ -17,6 +17,12 @@ set on_load {
 bind s "sync"
 bind c "set state command"
 
-# Create shortcut aliases for commands
+# Create aliases for commands
 alias up upload
 alias down download
+
+# Shortcuts allow single-character prefix which indicate the entire command
+# string be passed as the arguments to a specific command. For example:
+# "!ls" run "local ls" given the below directives
+shortcut ! local
+shortcut @ run

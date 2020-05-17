@@ -146,6 +146,7 @@ class CommandParser:
 
         self.loading_complete = False
         self.aliases: Dict[str, CommandDefinition] = {}
+        self.shortcuts: Dict[str, CommandDefinition] = {}
 
     @property
     def loaded(self):
@@ -220,24 +221,31 @@ class CommandParser:
             util.error(e.args[0])
             return
 
-        # Search for a matching command
-        for command in self.commands:
-            if command.PROG == argv[0]:
-                break
+        if argv[0][0] in self.shortcuts:
+            command = self.shortcuts[argv[0][0]]
+            argv[0] = argv[0][1:]
+            args = argv
         else:
-            if argv[0] in self.aliases:
-                command = self.aliases[argv[0]]
+            # Search for a matching command
+            for command in self.commands:
+                if command.PROG == argv[0]:
+                    break
             else:
-                util.error(f"{argv[0]}: unknown command")
+                if argv[0] in self.aliases:
+                    command = self.aliases[argv[0]]
+                else:
+                    util.error(f"{argv[0]}: unknown command")
+                    return
+
+            if not self.loading_complete and not command.LOCAL:
+                util.error(
+                    f"{argv[0]}: non-local commands cannot run until after session setup."
+                )
                 return
 
-        if not self.loading_complete and not command.LOCAL:
-            util.error(
-                f"{argv[0]}: non-local commands cannot run until after session setup."
-            )
-            return
+            args = argv[1:]
 
-        args = [a.encode("utf-8").decode("unicode_escape") for a in argv[1:]]
+        args = [a.encode("utf-8").decode("unicode_escape") for a in args]
 
         try:
             # Parse the arguments
