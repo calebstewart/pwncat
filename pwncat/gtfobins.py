@@ -72,17 +72,12 @@ class Method:
 
         self.binary = binary
         self.payload = data.get("payload", "{command}")
-        self.args = data.get("args", None)
+        self.args = data.get("args", [])
         self.suid = data.get("suid", None)
         self.input = data.get("input", "")
         self.exit = data.get("exit", "")
         self.restricted = data.get("restricted", [])
         self.cap = cap
-
-        if self.args is None:
-            argv = shlex.split(self.payload)
-            self.payload = argv[0]
-            self.args = argv[1:]
 
     def sudo_args(self, binary_path: str, spec: str) -> bool:
         """ Check if this method is compatible with the given sudo command spec.
