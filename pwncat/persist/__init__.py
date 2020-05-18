@@ -1,11 +1,18 @@
 #!/usr/bin/env python3
+import functools
 import pkgutil
 from typing import Optional, Dict, Iterator
 from colorama import Fore
 
+import pwncat
+
 
 class PersistenceError(Exception):
     """ Indicates a problem in adding/removing a persistence method """
+
+
+def persistence_tamper_removal(name: str, user: Optional[str] = None):
+    pwncat.victim.persist.remove(name, user, from_tamper=True)
 
 
 class Persistence:
@@ -20,10 +27,40 @@ class Persistence:
     def install(self, name: str, user: Optional[str] = None):
         """ Add persistence as the specified user. If the specified persistence
         method is system method, the "user" argument is ignored. """
-        method = self.find(name)
+        try:
+            method = next(self.find(name))
+        except StopIteration:
+            raise PersistenceError(f"{name}: no such persistence method")
         if not method.system and user is None:
-            raise PersistenceError("non-system methods require a user argument")
+            raise PersistenceError(
+                f"{method.format(user)}: non-system methods require a user argument"
+            )
+        if method.installed(user):
+            raise PersistenceError(f"{method.format(user)}: already installed")
         method.install(user)
+        self.register(name, user)
+
+    def register(self, name: str, user: Optional[str] = None):
+        """ Register a persistence method as pre-installed. This is useful for some privilege escalation
+        which automatically adds things equivalent to persistent, but without the
+        persistence module itself (e.g. backdooring /etc/passwd or SSH keys). """
+
+        method = next(self.find(name))
+
+        persist = pwncat.db.Persistence(method=name, user=user)
+        pwncat.victim.host.persistence.append(persist)
+
+        # Also register a tamper to track in both places
+        pwncat.victim.tamper.custom(
+            f"Persistence: {method.format(user)}",
+            functools.partial(persistence_tamper_removal, name=name, user=user),
+        )
+
+    @property
+    def installed(self) -> Iterator["PersistenceMethod"]:
+        """ Retrieve a list of installed persistence methods """
+        for persist in pwncat.victim.host.persistence:
+            yield persist.user, self.methods[persist.method]
 
     def find(
         self,
@@ -52,16 +89,38 @@ class Persistence:
             # All checks passed. Yield the method.
             yield method
 
-    def remove(self, name: str, user: Optional[str] = None):
+    def remove(self, name: str, user: Optional[str] = None, from_tamper: bool = False):
         """ Remove the specified persistence method from the remote victim
         if the given persistence method is a system method, the "user"
         argument is ignored. """
-        method = self.find(name)
+        try:
+            method = next(self.find(name))
+        except StopIteration:
+            raise PersistenceError(f"{name}: no such persistence method")
         if not method.system and user is None:
-            raise PersistenceError("non-system methods require a user argument")
+            raise PersistenceError(
+                f"{method.format(user)}: non-system methods require a user argument"
+            )
         if not method.installed(user):
-            raise PersistenceError("not installed")
+            raise PersistenceError(f"{method.format(user)}: not installed")
         method.remove(user)
+
+        # Grab this from the database
+        persist = (
+            pwncat.victim.session.query(pwncat.db.Persistence)
+            .filter_by(host_id=pwncat.victim.host.id, method=name, user=user)
+            .first()
+        )
+        if persist is not None:
+            pwncat.victim.session.delete(persist)
+            pwncat.victim.session.commit()
+
+        # Remove the tamper as well
+        if not from_tamper:
+            for tamper in pwncat.victim.tamper:
+                if str(tamper) == f"Persistence: {method.format(user)}":
+                    pwncat.victim.tamper.remove(tamper)
+                    break
 
     def __iter__(self) -> Iterator["PersistenceMethod"]:
         yield from self.methods.values()
@@ -98,7 +157,14 @@ class PersistenceMethod:
         raise NotImplementedError
 
     def installed(self, user: Optional[str] = None) -> bool:
-        raise NotImplementedError
+        if (
+            pwncat.victim.session.query(pwncat.db.Persistence)
+            .filter_by(method=self.name, user=user)
+            .first()
+            is not None
+        ):
+            return True
+        return False
 
     def escalate(self, user: Optional[str] = None) -> bool:
         """ If this is a local method, this should escalate to the given user if

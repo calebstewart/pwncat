@@ -62,6 +62,7 @@ class Config:
             "backdoor_user": {"value": "pwncat", "type": str},
             "backdoor_pass": {"value": "pwncat", "type": str},
             "on_load": {"value": "", "type": str},
+            "db": {"value": "sqlite:///:memory:", "type": str},
         }
 
         # Map ascii escape sequences or printable bytes to lists of commands to

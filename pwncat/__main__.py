@@ -5,6 +5,8 @@ import selectors
 import socket
 import sys
 
+from sqlalchemy.exc import InvalidRequestError
+
 import pwncat
 from pwncat.remote import Victim
 from pwncat import util
@@ -125,6 +127,11 @@ def main():
     finally:
         # Restore the shell
         pwncat.victim.restore_local_term()
+        try:
+            # Make sure everything was committed
+            pwncat.victim.session.commit()
+        except InvalidRequestError:
+            pass
         util.success("local terminal restored")
 
 

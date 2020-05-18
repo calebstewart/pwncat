@@ -7,6 +7,7 @@ set privkey "data/pwncat"
 # Set the pwncat backdoor user and password
 set backdoor_user "pwncat"
 set backdoor_pass "pwncat"
+set db "sqlite:///data/pwncat.sqlite"
 
 set on_load {
 	# Run a command upon a stable connection

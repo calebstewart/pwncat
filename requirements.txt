@@ -6,3 +6,4 @@ pygments==2.6.1
 base64io
 commentjson
 requests
+sqlalchemy

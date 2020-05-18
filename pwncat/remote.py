@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import hashlib
 import io
 import os
 import shlex
@@ -9,7 +10,10 @@ from typing import Dict, Optional, IO, Any, List, Tuple
 
 import requests
 from colorama import Fore
+from sqlalchemy.engine import Engine, create_engine
+from sqlalchemy.orm import Session, sessionmaker
 
+import pwncat.db
 from pwncat import privesc
 from pwncat import persist
 from pwncat import util
@@ -91,14 +95,67 @@ class Victim:
         self.shell: str = "unknown"
         self.privesc: privesc.Finder = None
         self.persist: persist.Persistence = persist.Persistence()
+        self.engine: Engine = None
+        self.session: Session = None
+        self.host: pwncat.db.Host = None
 
     def connect(self, client: socket.SocketType):
+
+        self.engine = create_engine(self.config["db"], echo=False)
+        pwncat.db.Base.metadata.create_all(self.engine)
+
+        if self.session is None:
+            self.session_maker = sessionmaker(bind=self.engine)
+            self.session = self.session_maker()
 
         # Initialize the socket connection
         self.client = client
 
         # We should always get a response within 3 seconds...
         self.client.settimeout(1)
+
+        # Attempt to grab the remote hostname and mac address
+        hostname_path = self.run("which hostname").strip().decode("utf-8")
+        if hostname_path.startswith("/"):
+            hostname = self.run("hostname -f")
+        else:
+            util.warn("hostname command not found; using peer address")
+            hostname = client.getpeername().encode("utf-8")
+        mac = None
+
+        # Use ifconfig if available or ip link show.
+        ifconfig = self.run("which ifconfig").strip().decode("utf-8")
+        if ifconfig.startswith("/"):
+            ifconfig_a = self.run(f"{ifconfig} -a").strip().decode("utf-8").lower()
+            for line in ifconfig_a.split("\n"):
+                if "hwaddr" in line and "00:00:00:00:00:00" not in line:
+                    mac = line.split("hwaddr ")[1].split("\n")[0].strip()
+                    break
+        if mac is None:
+            ip = self.run("which ip").strip().decode("utf-8")
+            if ip.startswith("/"):
+                ip_link_show = self.run("ip link show").strip().decode("utf-8").lower()
+                for line in ip_link_show.split("\n"):
+                    if "link/ether" in line and "00:00:00:00:00:00" not in line:
+                        mac = line.split("link/ether ")[1].split(" ")[0]
+                        break
+
+        if mac is None:
+            util.warn("no mac address detected; host id only based on hostname!")
+
+        # Calculate the remote host's hash entry for lookup/storage in the database
+        host_hash = hashlib.md5(hostname + str(mac).encode("utf-8")).hexdigest()
+
+        # Lookup the remote host in our database. If it's not there, create an entry
+        self.host = self.session.query(pwncat.db.Host).filter_by(hash=host_hash).first()
+        if self.host is None:
+            self.host = pwncat.db.Host(hash=host_hash)
+            self.session.add(self.host)
+            self.session.commit()
+
+        # We initialize this here, because it needs the database to initialize
+        # the history objects
+        self.command_parser.setup_prompt()
 
         # Attempt to identify architecture
         self.arch = self.run("uname -m").decode("utf-8").strip()
@@ -959,42 +1016,86 @@ class Victim:
 
     def reload_users(self):
         """ Clear user cache and reload it """
-        self.known_users = None
+
+        # Clear the user cache
+        with self.open("/etc/passwd", "r") as filp:
+            for line in filp:
+                line = line.strip()
+                if line == "" or line[0] == "#":
+                    continue
+                line = line.strip().split(":")
+                user = (
+                    self.session.query(pwncat.db.User)
+                    .filter_by(host_id=self.host.id, id=int(line[2]))
+                    .first()
+                )
+                if user is None:
+                    user = pwncat.db.User(id=int(line[2]))
+                user.name = line[0]
+                user.id = int(line[2])
+                user.gid = int(line[3])
+                user.fullname = line[4]
+                user.homedir = line[5]
+                user.shell = line[6]
+                if user not in self.host.users:
+                    self.host.users.append(user)
+
+        with self.open("/etc/group", "r") as filp:
+            for line in filp:
+                line = line.strip()
+                if line == "" or line.startswith("#"):
+                    continue
+
+                line = line.split(":")
+                group = (
+                    self.session.query(pwncat.db.Group)
+                    .filter_by(host_id=self.host.id, id=int(line[2]))
+                    .first()
+                )
+                if group is None:
+                    group = pwncat.db.Group(name=line[0], id=int(line[2]))
+
+                group.name = line[0]
+                group.id = int(line[2])
+
+                for username in line[3].split(","):
+                    user = (
+                        self.session.query(pwncat.db.User)
+                        .filter_by(host_id=self.host.id, name=username)
+                        .first()
+                    )
+                    if user is not None and user not in group.members:
+                        group.members.append(user)
+
+                if group not in self.host.groups:
+                    self.host.groups.append(group)
+
         return self.users
 
     @property
-    def users(self):
+    def users(self) -> Dict[str, pwncat.db.User]:
 
         if self.client is None:
             return {}
 
-        if self.known_users:
-            return self.known_users
+        if len(self.host.users) == 0:
+            self.reload_users()
 
-        self.known_users = {}
+        known_users = {}
 
-        passwd = self.run("cat /etc/passwd").decode("utf-8")
-        for line in passwd.split("\n"):
-            line = line.strip()
-            if line == "" or line[0] == "#":
-                continue
-            line = line.strip().split(":")
+        for user in self.host.users:
+            known_users[user.name] = user
 
-            user_data = {
-                "name": line[0],
-                "password": None,
-                "uid": int(line[2]),
-                "gid": int(line[3]),
-                "description": line[4],
-                "home": line[5],
-                "shell": line[6],
-            }
-            self.known_users[line[0]] = user_data
+        return known_users
 
-        return self.known_users
+    def find_user_by_id(self, uid: int):
+        for user in self.users:
+            if user.id == uid:
+                return user
+        raise KeyError
 
     @property
-    def current_user(self):
+    def current_user(self) -> Optional[pwncat.db.User]:
         name = self.whoami()
         if name in self.users:
             return self.users[name]

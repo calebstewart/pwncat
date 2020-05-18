@@ -19,7 +19,7 @@ from prompt_toolkit.lexers import PygmentsLexer
 from prompt_toolkit.document import Document
 from pygments.styles import get_style_by_name
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
-from prompt_toolkit.history import InMemoryHistory
+from prompt_toolkit.history import InMemoryHistory, History
 from typing import Dict, Any, List, Iterable
 from colorama import Fore
 from enum import Enum, auto
@@ -32,6 +32,7 @@ import re
 from pprint import pprint
 
 import pwncat
+import pwncat.db
 from pwncat.commands.base import CommandDefinition, Complete
 from pwncat.util import State
 from pwncat import util
@@ -94,6 +95,24 @@ def resolve_blocks(source: str):
     return "".join(result).split("\n")
 
 
+class DatabaseHistory(History):
+    """ Yield history from the host entry in the database """
+
+    def load_history_strings(self) -> Iterable[str]:
+        """ Load the history from the database """
+        for history in (
+            pwncat.victim.session.query(pwncat.db.History)
+            .order_by(pwncat.db.History.id.desc())
+            .all()
+        ):
+            yield history.command
+
+    def store_string(self, string: str) -> None:
+        """ Store a command in the database """
+        history = pwncat.db.History(host_id=pwncat.victim.host.id, command=string)
+        pwncat.victim.session.add(history)
+
+
 class CommandParser:
     """ Handles dynamically loading command classes, parsing input, and
     dispatching commands. """
@@ -110,7 +129,17 @@ class CommandParser:
                 loader.find_module(module_name).load_module(module_name).Command()
             )
 
-        history = InMemoryHistory()
+        self.prompt: PromptSession = None
+        self.toolbar: PromptSession = None
+        self.loading_complete = False
+        self.aliases: Dict[str, CommandDefinition] = {}
+        self.shortcuts: Dict[str, CommandDefinition] = {}
+
+    def setup_prompt(self):
+        """ This needs to happen after __init__ when the database is fully
+        initialized. """
+
+        history = DatabaseHistory()
         completer = CommandCompleter(self.commands)
         lexer = PygmentsLexer(CommandLexer.build(self.commands))
         style = style_from_pygments_cls(get_style_by_name("monokai"))
@@ -143,10 +172,6 @@ class CommandParser:
             prompt_in_toolbar=True,
             history=history,
         )
-
-        self.loading_complete = False
-        self.aliases: Dict[str, CommandDefinition] = {}
-        self.shortcuts: Dict[str, CommandDefinition] = {}
 
     @property
     def loaded(self):

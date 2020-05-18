@@ -14,7 +14,8 @@ dependencies = [
     "base64io",
     "commentjson",
     "requests",
-    "prompt-toolkit"
+    "prompt-toolkit",
+    "sqlalchemy"
 ]
 
 dependency_links = [

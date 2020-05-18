@@ -95,12 +95,12 @@ class SuMethod(Method):
         for user, info in self.pty.users.items():
             if user == current_user:
                 continue
-            if info.get("password") is not None or current_user == "root":
+            if info.password is not None or current_user == "root":
                 result.append(
                     Technique(
                         user=user,
                         method=self,
-                        ident=info["password"],
+                        ident=info.password,
                         capabilities=Capability.SHELL,
                     )
                 )
@@ -113,7 +113,7 @@ class SuMethod(Method):
 
         password = technique.ident.encode("utf-8")
 
-        if current_user["name"] != "root":
+        if current_user.name != "root":
             # Send the su command, and check if it succeeds
             self.pty.run(
                 f'su {technique.user} -c "echo good"', wait=False,
@@ -133,7 +133,7 @@ class SuMethod(Method):
 
         self.pty.process(f"su {technique.user}", delim=False)
 
-        if current_user["name"] != "root":
+        if current_user.name != "root":
             self.pty.recvuntil(": ")
             self.pty.client.sendall(technique.ident.encode("utf-8") + b"\n")
             self.pty.flush_output()
