@@ -23,6 +23,9 @@ behaves correctly.
 To showcase a little bit of the cool functionality, I have recorded a short
 [asciinema cast](https://asciinema.org/a/YFF84YCJfp9tQHhTuGkA2PJ4T).
 
+pwncat documentation is being built out on [Read the Docs]. Head there for
+the latest usage and development documentation!
+
 ## Install
 
 ### Dependencies
@@ -191,3 +194,5 @@ more features will be added.
 * Aggression methods (spam randomness to terminals, flush firewall, etc.)
 * Meme methods (terminal-parrot, cowsay, wall, etc.)
 * Network methods (port forward, internet access through host, etc.)
+
+[Read the Docs]: https://pwncat.readthedocs.io/en/latest
