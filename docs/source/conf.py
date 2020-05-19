@@ -20,7 +20,7 @@
 project = "pwncat"
 copyright = "2020, Caleb Stewart"
 author = "Caleb Stewart"
-
+master_doc = "index"
 
 # -- General configuration ---------------------------------------------------
 
