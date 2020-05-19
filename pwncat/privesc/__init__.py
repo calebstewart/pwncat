@@ -540,10 +540,10 @@ class Finder:
             writer = writers[0]
 
             # Write our private key to a random location
-            with open(pwncat.victim.default_privkey, "r") as src:
+            with open(pwncat.victim.config["privkey"], "r") as src:
                 privkey = src.read()
 
-            with open(pwncat.victim.default_privkey + ".pub", "r") as src:
+            with open(pwncat.victim.config["privkey"] + ".pub", "r") as src:
                 pubkey = src.read().strip()
 
             # Add our public key to the authkeys

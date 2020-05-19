@@ -12,5 +12,7 @@ class Binary(Base):
     id = Column(Integer, primary_key=True)
     host_id = Column(Integer, ForeignKey("host.id"))
     host = relationship("Host", back_populates="binaries")
+    # Name of the binary (parameter to which)
+    name = Column(String)
     # The path to the binary on the remote host
     path = Column(String)

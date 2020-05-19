@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from colorama import Fore
+from sqlalchemy import func
 
 import pwncat
 from pwncat.commands.base import (
@@ -64,17 +65,33 @@ class Command(CommandDefinition):
                 util.error("busybox hasn't been installed yet (hint: run 'busybox'")
                 return
             util.info("binaries which the remote busybox provides:")
-            for name in pwncat.victim.busybox_provides:
-                print(f" * {name}")
+
+            # Find all binaries which are provided by busybox
+            provides = pwncat.victim.session.query(pwncat.db.Binary).filter(
+                pwncat.db.Binary.path.contains(pwncat.victim.host.busybox),
+                pwncat.db.Binary.host_id == pwncat.victim.host.id,
+            )
+
+            for binary in provides:
+                print(f" * {binary.name}")
         elif args.action == "status":
-            if not pwncat.victim.has_busybox:
+            if pwncat.victim.host.busybox is None:
                 util.error("busybox hasn't been installed yet")
                 return
             util.info(
-                f"busybox is installed to: {Fore.BLUE}{pwncat.victim.busybox_path}{Fore.RESET}"
+                f"busybox is installed to: {Fore.BLUE}{pwncat.victim.host.busybox}{Fore.RESET}"
             )
-            util.info(
-                f"busybox provides {Fore.GREEN}{len(pwncat.victim.busybox_provides)}{Fore.RESET} applets"
+
+            # Find all binaries which are provided from busybox
+            nprovides = (
+                pwncat.victim.session.query(pwncat.db.Binary)
+                .filter(
+                    pwncat.db.Binary.path.contains(pwncat.victim.host.busybox),
+                    pwncat.db.Binary.host_id == pwncat.victim.host.id,
+                )
+                .with_entities(func.count())
+                .scalar()
             )
+            util.info(f"busybox provides {Fore.GREEN}{nprovides}{Fore.RESET} applets")
         elif args.action == "install":
             pwncat.victim.bootstrap_busybox(args.url)

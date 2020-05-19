@@ -5,6 +5,7 @@ from typing import Optional, Dict, Iterator
 from colorama import Fore
 
 import pwncat
+from pwncat.tamper import RevertFailed
 
 
 class PersistenceError(Exception):
@@ -12,7 +13,10 @@ class PersistenceError(Exception):
 
 
 def persistence_tamper_removal(name: str, user: Optional[str] = None):
-    pwncat.victim.persist.remove(name, user, from_tamper=True)
+    try:
+        pwncat.victim.persist.remove(name, user, from_tamper=True)
+    except PersistenceError as exc:
+        raise RevertFailed(str(exc))
 
 
 class Persistence:

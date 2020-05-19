@@ -8,7 +8,7 @@ from pwncat.util import Access
 
 
 class Method(PersistenceMethod):
-    """ Add SSH public-key persistenc to the current user """
+    """ Add SSH public-key persistence to the current user """
 
     # This is a user-based persistence module, not a system-wide persistence
     # module.

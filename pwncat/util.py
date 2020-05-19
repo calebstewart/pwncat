@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from typing import Tuple, BinaryIO, Callable
+from typing import Tuple, BinaryIO, Callable, List
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import TCPServer, BaseRequestHandler
 from prompt_toolkit.shortcuts import ProgressBar
@@ -46,6 +46,18 @@ class Access(Flag):
     SGID = auto()
     REGULAR = auto()
     DIRECTORY = auto()
+    # These identify if the parent directory exists and is
+    # writable. This is useful to test whether we can create
+    # the file if it doesn't exist
+    PARENT_EXIST = auto()
+    PARENT_WRITE = auto()
+
+
+class Init(Enum):
+
+    SYSTEMD = auto()
+    UPSTART = auto()
+    SYSV = auto()
 
 
 def human_readable_size(size, decimal_places=2):
@@ -77,6 +89,27 @@ def human_readable_delta(seconds):
     output.append(f"{hours} hours")
 
     return f"{output[2]}, {output[1]} and {output[0]}"
+
+
+def join(argv: List[str]):
+    """ Join the string much line shlex.join, except assume that each token
+    is expecting double quotes. This allows variable references within the
+    tokens. """
+
+    return " ".join([quote(x) for x in argv])
+
+
+def quote(token: str):
+    """ Quote the token much like shlex.quote, except don't use single quotes
+    this will escape any double quotes in the string and wrap it in double
+    quotes. If there are no spaces, it returns the stirng unchanged. """
+    for c in token:
+        if c in string.whitespace:
+            break
+    else:
+        return token
+
+    return '"' + token.replace('"', '\\"') + '"'
 
 
 def copyfileobj(src, dst, callback, nomv=False):
@@ -246,7 +279,11 @@ def erase_progress():
     tasks, which don't need (or want) to be logged to the terminal """
     global LAST_LOG_MESSAGE
 
-    sys.stdout.write(f"\r{len(LAST_LOG_MESSAGE[0])*' '}\r")
+    sys.stdout.write(
+        len(LAST_LOG_MESSAGE[0]) * "\b"
+        + len(LAST_LOG_MESSAGE[0]) * " "
+        + len(LAST_LOG_MESSAGE[0]) * "\b"
+    )
     LAST_LOG_MESSAGE = (LAST_LOG_MESSAGE[0], False)
 
 
@@ -263,7 +300,7 @@ def log(level, message, overlay=False):
     }
 
     if overlay or (LAST_LOG_MESSAGE[1] and (level == "success" or level == "error")):
-        sys.stdout.write(f"\r{len(LAST_LOG_MESSAGE[0])*' '}\r")
+        erase_progress()
     elif LAST_LOG_MESSAGE[1]:
         sys.stdout.write("\n")
 
