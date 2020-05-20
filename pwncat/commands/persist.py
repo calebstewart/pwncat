@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
+import textwrap
 from typing import Dict, Type, Tuple, Iterator
 
+from colorama import Fore, Style
+
 import pwncat
+from pwncat import util
 from pwncat.commands.base import CommandDefinition, Complete, parameter, StoreConstOnce
 from pwncat.persist import PersistenceMethod, PersistenceError
-from pwncat.util import Access
-from colorama import Fore
-from pwncat import util
-import crypt
-import os
 
 
 class Command(CommandDefinition):
@@ -117,8 +116,16 @@ class Command(CommandDefinition):
                 )
             return
         elif args.action == "list":
-            for method in pwncat.victim.persist:
-                print(f" - {method.format()}")
+            if args.method:
+                try:
+                    method = next(pwncat.victim.persist.find(args.method))
+                    print(f"\033[4m{method.format()}{Style.RESET_ALL}")
+                    print(textwrap.indent(textwrap.dedent(method.__doc__), "  "))
+                except StopIteration:
+                    util.error(f"{args.method}: no such persistence method")
+            else:
+                for method in pwncat.victim.persist:
+                    print(f" - {method.format()}")
             return
         elif args.action == "clean":
             util.progress("cleaning persistence methods: ")

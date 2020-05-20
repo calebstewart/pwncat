@@ -554,14 +554,15 @@ class Finder:
                 authkeys_path, ("\n".join(authkeys) + "\n").encode("utf-8"), writer
             )
 
-            if len(readers) > 0:
-                # We read the content in, so we know what we added
-                pwncat.victim.tamper.modified_file(
-                    authkeys_path, added_lines=[pubkey + "\n"]
-                )
-            else:
-                # We couldn't read their authkeys, but log that we clobbered it. The user asked us to.  :shrug:
+            if len(readers) == 0:
+                # We couldn't read their authkeys, but log that we clobbered it.
+                # The user asked us to. At least create an un-removable tamper
+                # noting that we clobbered this file.
                 pwncat.victim.tamper.modified_file(authkeys_path)
+
+            # We now have a persistence method for this user no matter where
+            # we are coming from. We need to track this.
+            pwncat.victim.persist.register("authorized_keys", writer.user)
 
             used_technique = writer
 

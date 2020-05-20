@@ -467,6 +467,8 @@ class Victim:
             if path == "" or "which: no" in path:
                 path = None
             else:
+                if path.startswith("bash: ") or len(path.split("\n")) > 1:
+                    path = path.split("\n")[-1].strip()
                 binary = pwncat.db.Binary(name=name, path=path)
                 self.host.binaries.append(binary)
 
@@ -595,7 +597,7 @@ class Victim:
         # Resolve the path
         binary_path = self.which(argv[0])
         if binary_path is None:
-            raise FileNotFoundError
+            raise FileNotFoundError(f"{binary_path}: No such file or directory")
 
         # Replace the name with the path
         argv[0] = binary_path
@@ -967,7 +969,7 @@ class Victim:
 
         return pipe
 
-    def tempfile(self, mode: str, length: int = None):
+    def tempfile(self, mode: str, length: int = None, suffix: str = ""):
         """ Create a temporary file on the remote system and return an open file
         handle to it. This uses `mktemp` on the remote system to create the file
         and then opens it with `PtyHandler.open`. """
@@ -976,11 +978,11 @@ class Victim:
         if "w" not in mode:
             raise ValueError("expected write mode for temporary files")
 
-        mktemp = self.which("mktemp")
-        if mktemp is None:
-            path = "/tmp/tmp" + util.random_string(8)
-        else:
-            path = self.run(mktemp).strip().decode("utf-8")
+        try:
+            path = self.env(["mktemp", f"--suffix={suffix}"])
+            path = path.strip().decode("utf-8")
+        except FileNotFoundError:
+            path = "/tmp/tmp" + util.random_string(8) + suffix
 
         return self.open(path, mode, length=length)
 
@@ -1024,6 +1026,39 @@ class Victim:
         return pwncat.remote.service_map[self.host.init].create(
             name, description, target, runas, enable, user
         )
+
+    def su(self, user: str, password: str = None):
+        """ Use the "su" command to switch users. If password is none, no password is sent. """
+
+        current_user = self.current_user
+
+        if password is None and current_user.id != 0:
+            raise PermissionError("no password provided and whoami != root!")
+
+        if current_user.id != 0:
+            # Verify the validity of the password
+            self.env(["su", user, "-c", "echo good"], wait=False)
+            self.recvuntil(b": ")
+            self.client.send(password.encode("utf-8") + b"\n")
+
+            result = self.recvuntil(b"\n")
+            if (
+                password.encode("utf-8") in result
+                or result == b"\r\n"
+                or result == b"\n"
+            ):
+                result = self.recvuntil(b"\n")
+
+            if b"failure" in result.lower() or b"good" not in result.lower():
+                raise PermissionError(f"{user}: invalid password")
+
+        # Switch users
+        self.env(["su", user], wait=False)
+
+        if current_user.id != 0:
+            self.recvuntil(b": ")
+            self.client.sendall(password.encode("utf-8") + b"\n")
+            self.flush_output()
 
     def raw(self, echo: bool = False):
         self.stty_saved = self.run("stty -g").decode("utf-8").strip()
@@ -1086,6 +1121,7 @@ class Victim:
         self.has_cr = True
         self.has_echo = True
         self.run("unset PROMPT_COMMAND")
+        self.run("unalias -a")
         self.run(f"export PS1='{self.remote_prefix} {self.remote_prompt}'")
         self.run(f"tput rmam")
 
