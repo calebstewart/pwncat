@@ -143,8 +143,11 @@ features.
 
     installation.rst
     configuration.rst
+    upload.rst
+    download.rst
     tamper.rst
     privesc.rst
+    persist.rst
 
 Indices and tables
 ==================

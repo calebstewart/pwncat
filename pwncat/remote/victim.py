@@ -1030,12 +1030,12 @@ class Victim:
     def su(self, user: str, password: str = None):
         """ Use the "su" command to switch users. If password is none, no password is sent. """
 
-        current_user = self.current_user
+        current_user = self.id
 
-        if password is None and current_user.id != 0:
+        if password is None and current_user["uid"]["id"] != 0:
             raise PermissionError("no password provided and whoami != root!")
 
-        if current_user.id != 0:
+        if current_user["uid"]["id"] != 0:
             # Verify the validity of the password
             self.env(["su", user, "-c", "echo good"], wait=False)
             self.recvuntil(b": ")
@@ -1055,7 +1055,7 @@ class Victim:
         # Switch users
         self.env(["su", user], wait=False)
 
-        if current_user.id != 0:
+        if current_user["uid"]["id"] != 0:
             self.recvuntil(b": ")
             self.client.sendall(password.encode("utf-8") + b"\n")
             self.flush_output()

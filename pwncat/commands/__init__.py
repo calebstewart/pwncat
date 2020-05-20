@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import traceback
 from typing import TextIO, Type
 from prompt_toolkit import PromptSession, ANSI
 from prompt_toolkit.shortcuts import ProgressBar
@@ -228,7 +229,8 @@ class CommandParser:
                     continue
 
                 self.dispatch_line(line)
-            except KeyboardInterrupt:
+            except KeyboardInterrupt as exc:
+                traceback.print_exc()
                 continue
 
     def dispatch_line(self, line: str):

@@ -66,6 +66,11 @@ class Persistence:
         for persist in pwncat.victim.host.persistence:
             yield persist.user, self.methods[persist.method]
 
+    @property
+    def available(self) -> Iterator[str]:
+        """ Yield all the known methods """
+        yield from self.methods.values()
+
     def find(
         self,
         name: Optional[str] = None,
@@ -105,6 +110,8 @@ class Persistence:
             raise PersistenceError(
                 f"{method.format(user)}: non-system methods require a user argument"
             )
+        if method.system and user is not None:
+            user = None
         if not method.installed(user):
             raise PersistenceError(f"{method.format(user)}: not installed")
         method.remove(user)

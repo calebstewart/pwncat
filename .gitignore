@@ -8,3 +8,4 @@ dist/
 testbed
 .idea/
 data/*.sqlite
+testing/
