@@ -11,4 +11,5 @@ prompt commands or more complicated privilege escalation or persistence methods.
     :caption: Contents
 
     commandparser.rst
+    privesc.rst
     victim.rst

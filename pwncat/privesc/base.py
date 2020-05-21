@@ -19,15 +19,30 @@ class PrivescError(Exception):
 
 @dataclass
 class Technique:
+    """
+    An individual technique which was found to be possible by a privilege escalation
+    method.
+    
+    :param user: the user this technique provides access as
+    :param method: the method this technique is associated with
+    :param ident: method-specific identifier
+    :param capabilities: a GTFObins capability this technique provides
+    """
+
     # The user that this technique will move to
     user: str
+    """ The user this technique provides access as """
     # The method that will be used
     method: "Method"
+    """ The method which this technique is associated with """
     # The unique identifier for this method (can be anything, specific to the
     # method)
     ident: Any
+    """ Method specific identifier. This can be anything the method needs
+    to identify this specific technique. It can also be unused. """
     # The GTFObins capabilities required for this technique to work
     capabilities: Capability
+    """ The GTFOBins capabilities this technique provides. """
 
     def __str__(self):
         cap_names = {
@@ -42,10 +57,25 @@ class Technique:
 
 
 class Method:
+    """
+    Generic privilege escalation method. You must implement at a minimum the enumerate
+    method. Also, for any capabilities which you are capable of generating techniques for,
+    you must implement the corresponding methods:
+    
+    * ``Capability.SHELL`` - ``execute``
+    * ``Capability.READ`` - ``read_file``
+    * ``Capability.WRITE`` - ``write_file``
+    
+    Further, you can also implement the ``check`` class method to verify applicability of
+    this method to the remote victim and the ``get_name`` method to generate a printable
+    representation of a given technique for this method (as seen in ``privesc`` output).
+    """
 
     # Binaries which are needed on the remote host for this privesc
     name = "unknown"
+    """ Name of this method """
     BINARIES = []
+    """ List of binaries to verify presence in the default ``check`` method """
 
     @classmethod
     def check(cls, pty: "pwncat.pty.PtyHandler") -> bool:
@@ -58,24 +88,63 @@ class Method:
         self.pty = pty
 
     def enumerate(self, capability: int = Capability.ALL) -> List[Technique]:
-        """ Enumerate all possible escalations to the given users """
+        """
+        Enumerate all possible techniques known and possible on the remote host for
+        this method. This should only enumerate techniques with overlapping capabilities
+        as specified by the ``capability`` parameter.
+        
+        :param capability: the requested capabilities to enumerate
+        :return: A list of potentially working techniques
+        """
         raise NotImplementedError("no enumerate method implemented")
 
-    def execute(self, technique: Technique):
-        """ Execute the given technique to move laterally to the given user. 
-        Raise a PrivescError if there was a problem. """
+    def execute(self, technique: Technique) -> bytes:
+        """
+        Execute the given technique to gain a shell. This is only called for techniques
+        providing the Capability.SHELL capability. If there is a problem with escalation,
+        the shell should be returned to normal and a ``PrivescError`` should be raised.
+        
+        :param technique: the technique to execute
+        :return: a bytes object which will exit the new shell
+        """
         raise NotImplementedError("no execute method implemented")
 
     def read_file(self, filename: str, technique: Technique) -> RemoteBinaryPipe:
-        """ Execute a read_file action with the given technique and return a 
-        remote file pipe which will yield the file contents. """
+        """
+        Open the given file for reading and return a file-like object, as the user
+        specified in the technique. This is only called for techniques providing the
+        Capability.READ capability. If an error occurs, a ``PrivescError`` should be
+        raised with a description of the problem.
+        
+        :param filename: path to the remote file
+        :param technique: the technique to utilize
+        :return: Binary file-like object representing the remote file
+        """
         raise NotImplementedError("no read_file implementation")
 
     def write_file(self, filename: str, data: bytes, technique: Technique):
-        """ Execute a write_file action with the given technique. """
+        """
+        Write the data to the given filename on the remote host as the user
+        specified in the technique. This is only called for techniques providing the
+        Capability.WRITE capability. If an error occurs, ``PrivescError`` should
+        be raised with a description of the problem.
+        
+        This will overwrite the remote file if it exists!
+        
+        :param filename: the remote file name to write
+        :param data: the data to write
+        :param technique: the technique to user
+        """
         raise NotImplementedError("no write_file implementation")
 
-    def get_name(self, tech: Technique):
+    def get_name(self, tech: Technique) -> str:
+        """
+        Generate a human-readable and formatted name for this method/technique
+        combination.
+        
+        :param tech: a technique applicable to this object
+        :return: a formatted string
+        """
         return str(self)
 
     def __str__(self):

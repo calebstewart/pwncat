@@ -16,6 +16,18 @@ class ServiceState(Enum):
 
 
 class RemoteService:
+    """
+    Abstract service interface. Interfaces for specific init systems are implemented as
+    a subclass of the RemoteService class. The class methods defined here should be
+    redefined to access and enumerate the underlying init system.
+    
+    :param name: the service name
+    :param user: whether this service is a user specific service
+    :param running: whether this service is currently running
+    :param description: a long description for this service
+    
+    """
+
     def __init__(self, name: str, running: bool, description: str, user: bool = False):
         self.name: str = name
         self.user: bool = user
@@ -24,6 +36,13 @@ class RemoteService:
 
     @classmethod
     def enumerate(cls, user: bool = False) -> Iterator["RemoteService"]:
+        """
+        Enumerate installed services on the remote host. This is overloaded for a
+        specific init system.
+        
+        :param user: whether to enumerate user specific services
+        :return: An iterator for remote service objects
+        """
         raise NotImplementedError
 
     def start(self):
@@ -39,13 +58,14 @@ class RemoteService:
         raise NotImplementedError
 
     @property
-    def stopped(self):
+    def stopped(self) -> bool:
         """ Check if the service is stopped """
         return not self.running
 
     @property
-    def enabled(self):
-        """ Check if the service is enabled at boot """
+    def enabled(self) -> bool:
+        """ Check if the service is enabled at boot. The setter will attempt to
+        enable or disable this service for auto-start. """
         raise NotImplementedError
 
 
