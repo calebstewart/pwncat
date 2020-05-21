@@ -94,9 +94,84 @@ which required a length argument. This is important because transfer of raw bina
 the output length to be known. If the length is not passed, the data will be automatically encoded (for
 example, with base64) before uploading, and decoded automatically on the receiving end.
 
+Working with remote services
+----------------------------
+
+``pwncat`` will attempt to figure out what type of init system is being used on the target host and provide
+an abstracted interface to system services. The abstractions are available under the ``pwncat/remote/service.py`` file.
+Currently, ``pwncat`` only supports SystemD, but the interface is abstracted to support other init systems
+such as SysVInit or Upstart if the interface is implemented.
+
+The ``pwncat.remote.service.service_map`` maps names of init systems to their abstract ``RemoteService``
+class implementation. This is how ``pwncat`` selects the appropriate remote service backend.
+
+Regardless of the underlying init system, ``pwncat`` provides methods for querying known services, enabling
+auto-start, starting, stopping and creation of remote services.
+
+To query a list of remote services, you can use the ``pwncat.victim.services`` property. This is an iterator
+yielding each abstracted service object. Each object contains a name, description, and state as well as
+methods for starting, stopping, enabling or disabling the service. This functionality obviously depends
+on you having the correct permission to manage the services, however retrieve the state and list of
+services should work regardless of your permission level.
+
+.. code-block:: python
+
+    from pwncat import victim
+
+    for service in victim.services:
+        print(f"{service.name} is {'running' if service.running else 'stopped'}")
+
+To find a specific service by name, there is a ``find_service`` method which returns an individual
+remote service object. If the service is not found, a ValueError is raised.
+
+.. code-block:: python
+
+    from pwncat import victim
+
+    sshd = victim.find_service("sshd")
+
+
+The interface for creating services is provided through the ``create_service`` method, which allows
+you to specify a target binary name which serves as the entrypoint for your service as well as a name
+description, and enabled state. A ``PermissionError`` is raised if you do not have permission to create
+the specified service. This method also returns a wrapped ``RemoteService`` object for the newly
+created service.
+
+.. code-block:: python
+
+    from pwncat import victim
+
+    pwncat = victim.create_service(name="pwncat",
+                                   description="a malicious service",
+                                   target="/usr/bin/pwncat_service",
+                                   runas="root",
+                                   enable=True,
+                                   user=False)
+    pwncat.start()
+
+Starting, stopping or enabling a service is as easy as calling a method or setting a property:
+
+.. code-block:: python
+
+    from pwncat import victim
+
+    try:
+        sshd = victim.find_service("sshd")
+        sshd.enabled = False
+        sshd.stop()
+    except PermissionError:
+        print("you don't have permission to modify sshd :(")
+    except ValueError:
+        print("sshd doesn't exist!")
 
 The Victim Object
 -----------------
 
 .. autoclass:: pwncat.remote.victim.Victim
+    :members:
+
+Remote Service Object
+---------------------
+
+.. autoclass:: pwncat.remote.service.RemoteService
     :members:
