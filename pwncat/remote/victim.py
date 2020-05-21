@@ -6,7 +6,7 @@ import shlex
 import socket
 import sys
 import time
-from typing import Dict, Optional, IO, Any, List, Tuple, Iterator
+from typing import Dict, Optional, IO, Any, List, Tuple, Iterator, Union
 
 import requests
 from colorama import Fore
@@ -36,8 +36,34 @@ def remove_busybox_tamper():
 
 
 class Victim:
-    """ Handles creating the pty on the remote end and locally processing input
-    on the local end """
+    """ Abstracts interaction with the remote victim host.
+    
+    :param config: the machine configuration object
+    :type config: pwncat.config.Config
+    :param state: the current interpreter state
+    :type state: pwncat.util.State
+    :param saved_term_state: the saved local terminal settings when in raw mode
+    :param remote_prompt: the prompt (set in PS1) for the remote shell
+    :type remote_propmt: str
+    :param binary_aliases: aliases for various binaries that ``self.which`` will look for
+    :type binary_aliases: Dict[str, List]
+    :param gtfo: the gtfobins module for selecting and generating gtfobins payloads
+    :type gtfo: GTFOBins
+    :param command_parser: the local command parser module
+    :type command_parser: CommandParser
+    :param tamper: the tamper module handling remote tamper registration
+    :type tamper: TamperManager
+    :param privesc: the privilege escalation module
+    :type privesc: privesc.Finder
+    :param persist: the persistence module
+    :type persist: persist.Persistence
+    :param engine: the SQLAlchemy database engine
+    :type engine: Engine
+    :param session: the global SQLAlchemy session
+    :type session: Session
+    :param host: the pwncat.db.Host object
+    :type host: pwncat.db.Host
+    """
 
     OPEN_METHODS = {
         "script-util-linux": "exec {} -qc {} /dev/null 2>&1",
@@ -79,11 +105,6 @@ class Victim:
             "\\[\\033[01;33m\\]\\u@\\h\\[\\033[00m\\]:\\["
             "\\033[01;36m\\]\\w\\[\\033[00m\\]\\$ "
         )
-        # Whether busybox is installed
-        self.has_busybox = False
-        self.busybox_path: Optional[str] = None
-        # What local binaries this busybox can replace
-        self.busybox_provides: List[str] = []
         # Aliases for equivalent commands
         self.binary_aliases = {
             "python": [
@@ -121,6 +142,16 @@ class Victim:
         self.host: pwncat.db.Host = None
 
     def connect(self, client: socket.SocketType):
+        """
+        Set up the remote client. This socket is assumed to be connected to some form
+        of a shell. The remote host will be interrogated to figure out the remote shell
+        type, system type, etc. It will then cross-reference the database to identify
+        if we have seen this host before, and load relevant data for this host.
+        
+        :param client: the client socket connection
+        :type client: socket.SocketType
+        :return: None
+        """
 
         # Create the database engine, and then create the schema
         # if needed.
@@ -260,12 +291,19 @@ class Victim:
         # Force the local TTY to enter raw mode
         self.state = State.RAW
 
-    def bootstrap_busybox(self, url):
-        """ Utilize the architecture we grabbed from `uname -m` to grab a
+    def bootstrap_busybox(self, url: str):
+        """ Utilize the architecture we grabbed from `uname -m` to download a
         precompiled busybox binary and upload it to the remote machine. This
         makes uploading/downloading and dependency tracking easier. It also
         makes file upload/download safer, since we have a known good set of 
-        commands we can run (rather than relying on GTFObins) """
+        commands we can run (rather than relying on GTFObins)
+        
+        After installation, busybox version of all non-SUID binaries will be
+        returned from ``victim.which`` vice local versions.
+        
+        :param url: a base url for compiled versions of busybox
+        :param type: str
+        """
 
         if self.host.busybox is not None:
             util.success("busybox is already available!")
@@ -387,8 +425,11 @@ class Victim:
         self.session.commit()
 
     def probe_host_details(self):
-        """ Probe the remote host to identify a variety of information. This only
-        happens if we have never connected to this host before. """
+        """
+        Probe the remote host for details such as the installed init system, distribution
+        architecture, etc. This information is stored in the database and only retrieved
+        for new systems or if the database was removed.
+        """
 
         util.progress("identifying init system")
         with open("/proc/1/comm", "r") as filp:
@@ -426,7 +467,10 @@ class Victim:
             self.host.distro = "unknown"
 
     def remove_busybox(self):
-        """ Remove the busybox installation """
+        """
+        Uninstall busybox. This should not be called directly, because it does
+        not remove the associated tamper objects that were registered previously.
+        """
 
         for binary in self.host.binaries:
             if self.host.busybox in binary.path:
@@ -445,8 +489,18 @@ class Victim:
             self.host.busybox_uploaded = False
 
     def which(self, name: str, quote=False) -> Optional[str]:
-        """ Call which on the remote host and return the path. The results are
-        cached to decrease the number of remote calls. """
+        """
+        Resolve the given binary name using the remote shells path. This will
+        cache entries for the remote host to speed up pwncat. Further, if busybox
+        is installed, it will return busybox version of binaries without asking
+        the remote host.
+        
+        :param name: the name of the remote binary (e.g. "touch").
+        :type name: str
+        :param quote: whether to quote the returned string with shlex.
+        :type quote: bool
+        :return: The full path to the requested binary or None if it was not found.
+        """
 
         if self.has_busybox:
             if name in self.busybox_provides:
@@ -485,8 +539,13 @@ class Victim:
         return path
 
     def process_input(self, data: bytes):
-        r""" Process a new byte of input from stdin. This is to catch "\r~C" and open
-        a local prompt """
+        r"""
+        Process local input from ``stdin``. This is used internally to handle keyboard
+        shortcuts and pass data to the remote host when in raw mode.
+        
+        :param data: the newly entered data
+        :type data: bytes
+        """
 
         if self.has_prefix:
             if data == self.config["prefix"].value:
@@ -525,11 +584,24 @@ class Victim:
             self.client.send(data)
 
     def recv(self) -> bytes:
-        """ Recieve data from the client """
         return self.client.recv(4096)
 
     @property
     def state(self) -> State:
+        """
+        The current state of ``pwncat``. Changing this property has side-effects
+        beyond just modifying a variable. Switching to RAW mode will close the local
+        terminal automatically and enter RAW/no-echo mode in the local terminal.
+        
+        Setting command mode will not return until command mode is exited, and enters
+        the CommandProcessor input loop.
+        
+        Setting SINGLE mode is like COMMAND mode except it will return after one local
+        command is entered and executed.
+        
+        
+        :return: pwncat.util.State
+        """
         return self._state
 
     @state.setter
@@ -573,7 +645,9 @@ class Victim:
             return
 
     def restore_local_term(self):
-        """ Save the local terminal state """
+        """
+        Restore the local terminal to a normal state (e.g. from raw/no-echo mode).
+        """
         util.restore_terminal(self.saved_term_state)
 
     def env(
@@ -584,10 +658,26 @@ class Victim:
         input: bytes = b"",
         **kwargs,
     ) -> bytes:
-        """ Run the given command with the given environment variables set.
-        This behaves similar to the `env` command on linux. However, there
-        is not a functionality to clear the environment prior to running
-        at this time.
+        """
+        Execute a binary on the remote system. This function acts similar to the
+        ``env`` command-line program. The only difference is that there is no way
+        to clear the current environment. This will also resolve argv[0] to ensure
+        it exists on the remote system.
+        
+        If the specified binary does not exist on the remote host, a FileNotFoundError
+        is raised.
+        
+        :param argv: the argument list. argv[0] is the command to run.
+        :type argv: List[str]
+        :param envp: a dictionary of environment variables to set
+        :type envp: Dict[str,str]
+        :param wait: whether to wait for the command to exit
+        :type wait: bool
+        :param input: input to send to the command prior to waiting
+        :type input: bytes
+        :param kwargs: all other keyword arguments are assumed to be environment variables
+        :type kwargs: Dict[str, str]
+        :return: if ``wait`` is true, returns the command output as bytes. Otherwise, returns None.
         """
 
         # No environment!
@@ -616,13 +706,17 @@ class Victim:
         return self.run(command, wait=wait, input=input)
 
     def run(self, cmd, wait: bool = True, input: bytes = b"") -> bytes:
-        """ Run a command in the context of the remote host and return the
-        output. This is run synchrounously.
+        """
+        Run a command on the remote host and return the output. This function
+        is similar to `env` but takes a string as the input instead of a list
+        of arguments. It also does not check that the process exists.
 
-            :param input: The input to automatically pass to the new process
-            :param wait: Whether to wait for process completion
-            :param cmd: The command to run. Either a string or an argv list.
-            :param has_pty: Whether a pty was spawned
+        :param input: the input to automatically pass to the new process
+        :type input: bytes
+        :param wait: whether to wait for process completion
+        :type wait: bool
+        :param cmd: the command to run
+        :type cmd: str
         """
 
         sdelim, edelim = self.process(cmd, delim=wait)
@@ -646,11 +740,19 @@ class Victim:
         return response
 
     def process(self, cmd, delim=True) -> Tuple[str, str]:
-        """ Run a command in the context of the remote host and return the
-        output. This is run synchrounously.
-
-            :param cmd: The command to run. Either a string or an argv list.
-            :param has_pty: Whether a pty was spawned
+        """
+        Start a process on the remote host. This is the underlying logic
+        for ``run`` and ``env``. If ``delim`` is true (default), then
+        the command is wrapped in random delimeters, which mark the start
+        and end of command output. This method will wait for the starting
+        delimeter before returning. The output of the command can then be
+        retrieved from the ``victim.client`` socket.
+        
+        :param cmd: the command to run on the remote host
+        :type cmd: str
+        :param delim: whether to wrap the output in delimeters
+        :type delim: bool
+        :return: a Tuple of (start_delim, end_delim)
         """
 
         if isinstance(cmd, list):
@@ -682,17 +784,30 @@ class Victim:
         exit_cmd: str = None,
         no_job=False,
         name: str = None,
-    ) -> RemoteBinaryPipe:
-        """ Create an asynchronous child on the remote end and return a
-        file-like object which can communicate with it's standard output. The 
-        remote terminal is placed in raw mode with no-echo first, and the
-        command is run on a separate background shell w/ no standard input. The
-        output of the command can be retrieved through the returned file-like
-        object. You **must** either call `close()` of the pipe, or read until
-        eof, or the PTY will not be restored to a normal state.
-
-        If `close()` is called prior to EOF, the remote process will be killed,
-        and any remaining output will be flushed prior to resetting the terminal.
+    ) -> Union[io.BufferedRWPair, io.BufferedReader]:
+        """
+        Start a process on the remote host and return a file-like object
+        which can be used as stdio for the remote process. Until the returned
+        file-like object is closed, no other interaction with the remote host
+        can occur (this will result in a deadlock). It is recommended to wrap
+        uses of this object in a ``with`` statement:
+        
+        .. code-block:: python
+        
+            with pwncat.victim.subprocess("find / -name interesting", "r") as stdout:
+                for file_path in stdout:
+                    print("Interesting file:", file_path.strip().decode("utf-8"))
+        
+        
+        :param cmd: the command to execute
+        :param mode: a mode string like with the standard "open" function
+        :param data: data to send to the remote process prior to waiting for output
+        :param exit_cmd: a string of bytes to send to the remote process to exit early
+            this is needed in case you close the file prior to receiving the ending
+            delimeter.
+        :param no_job: whether to run as a sub-job in the shell (only used for "r" mode)
+        :param name: the name assigned to the output file object
+        :return: Union[BufferedRWPair, BufferedReader]
         """
 
         if isinstance(cmd, list):
@@ -757,7 +872,15 @@ class Victim:
         return pipe
 
     def get_file_size(self, path: str):
-        """ Get the size of a remote file """
+        """
+        Retrieve the size of a remote file. This method raises a FileNotFoundError
+        if the remote file does not exist. It may also raise PermissionError if
+        the remote file is not readable.
+        
+        :param path: path to the remote file
+        :type path: str
+        :return: int
+        """
 
         stat = self.which("stat")
         if stat is None:
@@ -786,6 +909,17 @@ class Victim:
         return size
 
     def access(self, path: str) -> util.Access:
+        """
+        Test your access to a file on the remote system. This method utilizes
+        the remote ``test`` command to interrogate the given path and it's parent
+        directory. If the ``test`` and ``[`` commands are not available, Access.NONE
+        is returned.
+        
+        
+        :param path: the remote file path
+        :type path: str
+        :return: pwncat.util.Access flags
+        """
 
         access: util.Access = util.Access.NONE
 
@@ -836,8 +970,20 @@ class Victim:
 
         return access
 
-    def open_read(self, path: str, mode: str):
-        """ Open a remote file for reading """
+    def open_read(
+        self, path: str, mode: str
+    ) -> Union[io.BufferedReader, io.TextIOWrapper]:
+        """
+        This method implements the underlying read logic for the ``open`` method.
+        It shouldn't be called directly. It may raise a FileNotFoundError or
+        PermissionError depending on access to the requested file.
+        
+        :param path: the path to the remote file
+        :type path: str
+        :param mode: the open mode for the remote file (supports "b" and text modes)
+        :type mode: str
+        :return: Union[io.BufferedReader, io.TextIOWrapper]
+        """
 
         method = None
         binary_path = None
@@ -894,8 +1040,20 @@ class Victim:
 
         return pipe
 
-    def open_write(self, path: str, mode: str, length=None) -> IO:
-        """ Open a remote file for writing """
+    def open_write(
+        self, path: str, mode: str, length=None
+    ) -> Union[io.BufferedWriter, io.TextIOWrapper]:
+        """
+        This method implements the underlying read logic for the ``open`` method.
+        It shouldn't be called directly. It may raise a FileNotFoundError or
+        PermissionError depending on access to the requested file.
+
+        :param path: the path to the remote file
+        :type path: str
+        :param mode: the open mode for the remote file (supports "b" and text modes)
+        :type mode: str
+        :return: Union[io.BufferedWriter, io.TextIOWrapper]
+        """
 
         method = None
         stream = Stream.ANY
@@ -952,11 +1110,28 @@ class Victim:
 
         return pipe
 
-    def open(self, path: str, mode: str, length=None):
-        """ Generically open a remote file for reading or writing. Does not
-        support simultaneously read and write. TextIO is implemented with a 
-        TextIOWrapper. No other remote interaction should occur until this
-        stream is closed. """
+    def open(
+        self, path: str, mode: str, length=None
+    ) -> Union[io.BufferedReader, io.BufferedWriter, io.TextIOWrapper]:
+        """
+        Mimic the built-in ``open`` function on the remote host. The returned
+        file-like object can be used as either a file reader or file writer (but
+        not both) for a remote file. The implementation for reading and writing
+        files is selected using the GTFOBins module and the ``victim.which``
+        method. No other interaction with the remote host is allowed while a file
+        or process stream is open. This will cause a dead-lock. This method
+        may raise a FileNotFoundError or PermissionDenied in case of access issues
+        with the remote file.
+        
+        :param path: remote file path
+        :type path: str
+        :param mode: the open mode; this cannot contain both read and write!
+        :type mode: str
+        :param length: if known, the length of the data you will write. this is used
+            to open up extra GTFOBins options. It is not required.
+        :type length: int
+        :return: Union[io.BufferedReader, io.BufferedWriter, io.TextIOWrapper]
+        """
 
         # We can't do simultaneous read and write
         if "r" in mode and "w" in mode:
@@ -969,10 +1144,22 @@ class Victim:
 
         return pipe
 
-    def tempfile(self, mode: str, length: int = None, suffix: str = ""):
-        """ Create a temporary file on the remote system and return an open file
-        handle to it. This uses `mktemp` on the remote system to create the file
-        and then opens it with `PtyHandler.open`. """
+    def tempfile(
+        self, mode: str, length: int = None, suffix: str = ""
+    ) -> Union[io.BufferedWriter, io.TextIOWrapper]:
+        """
+        Create a remote temporary file and open it in the specified mode.
+        The mode must contain "w", as opening a new file for reading makes
+        not sense. If "b" is not included, the file will be opened in text mode.
+        
+        :param mode: the mode string as with ``victim.open``
+        :type mode: str
+        :param length: length of the expected data (as with ``open``)
+        :type length: int, optional
+        :param suffix: suffix of the temporary file name
+        :type suffix: str, optional
+        :return: Union[io.BufferedWriter, io.TextIOWrapper]
+        """
 
         # Reading a new temporary file doesn't make sense
         if "w" not in mode:
@@ -988,7 +1175,16 @@ class Victim:
 
     @property
     def services(self) -> Iterator[RemoteService]:
-        """ Retrieve a list of installed services and their state """
+        """
+        Yield a list of installed services on the remote system. The returned service
+        objects allow the option to start, stop, or enable the service, if appropriate
+        permissions are available. This assumes the init system of the remote host is
+        known and an abstract RemoteService layer is implemented for the init system.
+        Currently, only ``systemd`` is understood by pwncat, but facilities to implement
+        more abstracted init systems is built-in.
+        
+        :return: Iterator[RemoteService]
+        """
 
         # Ensure we know how to handle this init system
         if self.host.init not in pwncat.remote.service_map:
@@ -997,9 +1193,18 @@ class Victim:
         # Yield the services which are enumerated from this specific init system
         yield from pwncat.remote.service_map[self.host.init].enumerate()
 
-    def find_service(self, name: str, user: bool = False):
-        """ Lookup a service by name """
-
+    def find_service(self, name: str, user: bool = False) -> RemoteService:
+        """
+        Locate a remote service by name. This uses the same interface as the ``services``
+        property, meaning a supported ``init`` system must be used on the remote host.
+        If the service is not found, a ValueError is raised.
+        
+        :param name: the name of the remote service
+        :type name: str
+        :param user: whether to lookup user services (e.g. ``systemctl --user``)
+        :type user: bool
+        :return: RemoteService
+        """
         # Ensure we know how to handle this init system
         if self.host.init not in pwncat.remote.service_map:
             raise ValueError("unknown service manager")
@@ -1016,7 +1221,27 @@ class Victim:
         enable: bool,
         user: bool = False,
     ) -> RemoteService:
-        """ Create a service on the remote host """
+        """
+        Create a service on the remote host which will execute the specified binary.
+        The remote ``init`` system must be understood, as with the ``services`` property.
+        A ValueError is raised if the init system is not understood by ``pwncat``.
+        A PermissionError may be raised if insufficient permissions are found to create
+        the service.
+        
+        :param name: the name of the remote service
+        :type name: str
+        :param description: the description for the remote service
+        :type description: str
+        :param target: the remote binary to start as a service
+        :type target: str
+        :param runas: the remote user to run the service as
+        :type runas: str
+        :param enable: whether to enable the service at boot
+        :type enable: bool
+        :param user: whether this service should be a user service
+        :type user: bool
+        :return: RemoteService
+        """
 
         # Ensure we know how to handle this init system
         if self.host.init not in pwncat.remote.service_map:
@@ -1028,7 +1253,16 @@ class Victim:
         )
 
     def su(self, user: str, password: str = None):
-        """ Use the "su" command to switch users. If password is none, no password is sent. """
+        """
+        Attempt to switch users to the specified user. If you are currently UID=0,
+        the password is ignored. Otherwise, the password will first be checked
+        and then utilized to switch the active user of your shell.
+        
+        Raises PermissionError if the password is incorrect or the ``su`` fails.
+        
+        :param user: the user to switch to
+        :param password: the password for the specified user or None if currently UID=0
+        """
 
         current_user = self.id
 
@@ -1061,6 +1295,11 @@ class Victim:
             self.flush_output()
 
     def raw(self, echo: bool = False):
+        """
+        Place the remote terminal in raw mode. This is used internally to facilitate
+        binary file transfers. It should not be called normally, as it removes the
+        ability to send control sequences.
+        """
         self.stty_saved = self.run("stty -g").decode("utf-8").strip()
         # self.run("stty raw -echo", wait=False)
         self.process("stty raw -echo", delim=False)
@@ -1068,6 +1307,10 @@ class Victim:
         self.has_echo = False
 
     def restore_remote(self):
+        """
+        Restore the remote prompt after calling ``victim.raw``. This restores the saved
+        stty state which was saved upon calling ``victim.raw``.
+        """
         self.run(f"stty {self.stty_saved}", wait=False)
         self.flush_output()
         self.has_cr = True
@@ -1076,6 +1319,12 @@ class Victim:
         self.run(f"export PS1='{self.remote_prefix} {self.remote_prompt}'")
 
     def flush_output(self, some=False):
+        """
+        Flush any data in the socket buffer.
+        
+        :param some: if true, wait for at least one byte of data before flushing.
+        :type some: bool
+        """
         output = b""
         old_timeout = self.client.gettimeout()
         self.client.settimeout(0)
@@ -1094,8 +1343,14 @@ class Victim:
         self.client.settimeout(old_timeout)
 
     def peek_output(self, some=False):
-        """ Retrieve the currently waiting data in the buffer. Stops on first 
-        timeout """
+        """
+        Retrieve the currently pending data in the socket buffer without
+        removing the data from the buffer.
+        
+        :param some: if true, wait for at least one byte of data to be received
+        :type some: bool
+        :return: bytes
+        """
         output = b""
         old_blocking = self.client.getblocking()
         old_timeout = self.client.gettimeout()
@@ -1117,6 +1372,11 @@ class Victim:
         return output
 
     def reset(self):
+        """
+        Reset the remote terminal using the ``reset`` command. This also restores
+        your prompt, and sets up the environment correctly for ``pwncat``.
+        
+        """
         self.run("reset", wait=False)
         self.has_cr = True
         self.has_echo = True
@@ -1126,7 +1386,17 @@ class Victim:
         self.run(f"tput rmam")
 
     def recvuntil(self, needle: bytes, flags=0, interp=False):
-        """ Recieve data from the client until the specified string appears """
+        """
+        Receive data from the socket until the specified string of bytes is
+        found. There is no timeout features, so you should be 100% sure these
+        bytes will end up in the output of the remote process at some point.
+        
+        :param needle: the bytes to search for
+        :type needle: bytes
+        :param flags: flags to pass to the underlying ``recv`` call
+        :type flags: int
+        :return: bytes
+        """
 
         if isinstance(needle, str):
             needle = needle.encode("utf-8")
@@ -1149,16 +1419,43 @@ class Victim:
         return result
 
     def whoami(self):
+        """
+        Use the ``whoami`` command to retrieve the current user name.
+        
+        :return: str, the current user name
+        """
         result = self.run("whoami")
         return result.strip().decode("utf-8")
 
     def getenv(self, name: str):
-        """ Get the value of the given environment variable on the remote host
+        """
+        Utilize ``echo`` to get the current value of the given environment variable.
+        
+        :param name: environment variable name
+        :type name: str
+        :return: str
         """
         return self.run(f"echo -n ${{{name}}}").decode("utf-8")
 
     @property
-    def id(self):
+    def id(self) -> Dict[str, Any]:
+        """
+        Retrieves a dictionary representing the result of the ``id`` command.
+        The resulting dictionary looks like:
+       
+        .. code-block:: python
+        
+            {
+                "uid": { "name": "username", "id": 1000 },
+                "gid": { "name": "username", "id": 1000 },
+                "euid": { "name": "username", "id": 1000 },
+                "egid": { "name": "username", "id": 1000 },
+                "groups": [ {"name": "wheel", "id": 10} ],
+                "context": "SELinux context"
+            }
+        
+        :return: Dict[str,Any]
+        """
 
         id_output = self.run("id").decode("utf-8")
 
@@ -1194,7 +1491,11 @@ class Victim:
         return id_properties
 
     def reload_users(self):
-        """ Clear user cache and reload it """
+        """
+        Reload user and group information from /etc/passwd and /etc/group and
+        update the local database.
+        
+        """
 
         # Clear the user cache
         with self.open("/etc/passwd", "r") as filp:
@@ -1253,6 +1554,12 @@ class Victim:
 
     @property
     def users(self) -> Dict[str, pwncat.db.User]:
+        """
+        Return a list of users from the local user database cache.
+        If the users have not been requested yet, this willc all ``victim.reload_users``.
+        
+        :return: Dict[str, pwncat.db.User]
+        """
 
         if self.client is None:
             return {}
@@ -1268,6 +1575,14 @@ class Victim:
         return known_users
 
     def find_user_by_id(self, uid: int):
+        """
+        Locate a user in the database with the specified user ID.
+        
+        :param uid: the user id to look up
+        :type uid: int
+        :returns: str
+        """
+
         for user in self.users:
             if user.id == uid:
                 return user
@@ -1275,6 +1590,13 @@ class Victim:
 
     @property
     def current_user(self) -> Optional[pwncat.db.User]:
+        """
+        Retrieve the database User object for the current user. This will
+        call ``victim.whoami()`` to retrieve the current user and cross-reference
+        with the local user database.
+        
+        :return: pwncat.db.User
+        """
         name = self.whoami()
         if name in self.users:
             return self.users[name]

@@ -148,6 +148,7 @@ features.
     tamper.rst
     privesc.rst
     persist.rst
+    api/index.rst
 
 Indices and tables
 ==================
