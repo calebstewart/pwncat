@@ -67,3 +67,23 @@ the CommandParser tab-completes your command at the local prompt.
 The second parameter is the Pygments token which this option should be highlighted with. Normally,
 you can leave this as default, but you may change it if you like. The remaining arguments are passed
 directly to ``argparse.ArgumentParser.add_argument``.
+
+Command Helpers
+---------------
+
+.. autoclass:: pwncat.commands.base.Complete
+    :members:
+
+.. autofunction:: pwncat.commands.base.parameter
+
+.. autoclass:: pwncat.commands.base.StoreConstOnce
+
+.. autofunction:: pwncat.commands.base.StoreForAction
+
+.. autofunction:: pwncat.commands.base.RemoteFileType
+
+CommandDefinition Object
+------------------------
+
+.. autoclass:: pwncat.commands.base.CommandDefinition
+    :members:

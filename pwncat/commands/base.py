@@ -11,14 +11,23 @@ import pwncat
 
 
 class Complete(Enum):
+    """
+    Command argument completion options
+    
+    """
+
     # Complete from the choices array in kwargs
     CHOICES = auto()
+    """ Complete argument from the list of choices specified in ``parameter`` """
     # Complete from a local file
     LOCAL_FILE = auto()
+    """ Complete argument as a local file path """
     # Complete from a remote file
     REMOTE_FILE = auto()
+    """ Complete argument as a remote file path """
     # This argument has no parameter
     NONE = auto()
+    """ Do not provide argument completions """
 
 
 class StoreConstOnce(argparse.Action):
@@ -74,7 +83,9 @@ def RemoteFileType(file_exist=True, directory_exist=False):
                 raise argparse.ArgumentTypeError(f"{name}: no such file or directory")
         elif directory_exist:
             dirpath = os.path.dirname(name)
-            result = pwncat.victim.run(f"{test} -d {shlex.quote(dirpath)} && echo exists")
+            result = pwncat.victim.run(
+                f"{test} -d {shlex.quote(dirpath)} && echo exists"
+            )
             if b"exists" not in result:
                 raise argparse.ArgumentTypeError(
                     f"{dirpath}: no such file or directory"
@@ -87,17 +98,35 @@ def RemoteFileType(file_exist=True, directory_exist=False):
 
 
 def parameter(complete, token=Name.Label, *args, **kwargs):
-    """ Build a parameter tuple from argparse arguments """
+    """
+    Generate a parameter definition from completer options, token definition,
+    and argparse add_argument options.
+
+    :param complete: the completion type
+    :type complete: Complete
+    :param token: the Pygments token to highlight this argument with
+    :type token: Pygments Token
+    :param args: positional arguments for ``add_argument``
+    :param kwargs: keyword arguments for ``add_argument``
+    :return: Parameter definition
+    """
     return (complete, token, args, kwargs)
 
 
 class CommandDefinition:
-    """ Default help/description goes here """
+    """
+    Generic structure for a local command. The docstring for your command class becomes
+    the long-form help for your command.
+    """
 
     PROG = "unimplemented"
+    """ The name of your new command """
     ARGS = {}
+    """ A dictionary of parameter definitions created with the ``parameter`` function. """
     DEFAULTS = {}
+    """ A dictionary of default values (passed directly to ``ArgumentParser.set_defaults``) """
     LOCAL = False
+    """ Whether this command is purely local or requires an connected remote host """
 
     # An example definition of arguments
     # PROG = "command"
@@ -122,12 +151,22 @@ class CommandDefinition:
         self.build_parser(self.parser, self.ARGS)
 
     def run(self, args):
-        """ Perform whatever your command is. `args` has already been parsed with
-        your argparse definitions. """
+        """
+        This is the "main" for your new command. This should perform the action
+        represented by your command.
+        
+        :param args: the argparse Namespace containing your parsed arguments
+        """
         raise NotImplementedError
 
     def build_parser(self, parser: argparse.ArgumentParser, args: Dict[str, Any]):
-        """ Fill the given parser with arguments based on the dict """
+        """
+        Parse the ARGS and DEFAULTS dictionaries to build an argparse ArgumentParser
+        for this command. You should not need to overload this.
+        
+        :param parser: the parser object to add arguments to
+        :param args: the ARGS dictionary
+        """
 
         for arg, descr in args.items():
             names = arg.split(",")
