@@ -47,7 +47,7 @@ you can use the "--password/-p" parameter:
 
 .. code-block:: bash
 
-    set -p bob "b0b5_P@ss0rd"
+    set -p bob "b0b5_P@ssw0rd"
 
 Key Bindings
 ------------

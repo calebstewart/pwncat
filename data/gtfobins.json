@@ -822,7 +822,7 @@
 			"stream": "raw",
 			"payload": "{command} 2>/dev/null",
 			"args": ["-idf", "--batch-interpreter=python-fu-eval", "-b", "'import sys; sys.stdout.write(open(\"{lfile}\",\"rb\").read());gimp.exit()'"]
-		},
+		}
 
 		// This 'write' technique seems to fail because it cannot capture stdin, being a "subprocess".
 		// Since it can get a shell, this is not really an issue.

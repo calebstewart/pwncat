@@ -5,7 +5,7 @@ Installation
     :maxdepth: -1
 
 The only system dependency for ``pwncat`` is ``python3`` and ``pip``. For ``pip`` to install all Python dependencies,
-you will likely need your distributions Python Development package (``python3-dev`` for debian-based distributions).
+you will likely need your distributions Python Development package (``python3-dev`` for Debian-based distributions).
 Once you have a working ``pip`` installation, you can install ``pwncat`` with the provided setup script:
 
 .. code-block:: bash
