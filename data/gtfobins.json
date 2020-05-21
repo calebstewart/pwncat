@@ -839,6 +839,25 @@
 		// 	"args": ["-idf", "--batch-interpreter=python-fu-eval", "-b", "'exec(\"\"\"import sys,base64\\nwith open(\"{lfile}\",\"wb\") as f:\\n\\tfor chunk in iter(lambda: sys.stdin.read(4), b\"\"):\\n\\t\\tf.write(base64.b64decode(chunk))\"\"\")\\ngimp.exit()'"]
 		// }
 	],
+//-------------------------------------------------------------------
+	"git": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["help", "config"],
+			"input": "!{shell}\n",
+			"exit": "exit\nq\n"
+		}
+	],
+//-------------------------------------------------------------------
+	"grep": [
+		{
+			"type": "read",
+			"stream":"print",
+			"payload": "{command}",
+			"args": ["''", "{lfile}"]
+		}
+	],
 
 
 
