@@ -12,4 +12,5 @@ prompt commands or more complicated privilege escalation or persistence methods.
 
     commandparser.rst
     privesc.rst
+    persist.rst
     victim.rst
