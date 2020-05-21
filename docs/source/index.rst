@@ -13,7 +13,7 @@ available on the target system. It will then attempt to start a pseudoterminal
 on the remote host and provide you with raw terminal access.
 
 pwncat doesn't stop there, though. On top of raw terminal access, pwncat can
-programatically interact with the remote host alongside your terminal access.
+programmatically interact with the remote host alongside your terminal access.
 pwncat provides you with a local shell interface which can utilize your
 connection for enumeration, file upload/download, automatic persistence
 installation and even automated privilege escalation.
@@ -39,7 +39,7 @@ reverse shells. It normally goes something like this:
     # You now have a full terminal that doesn't exit on C-c
     remote$
 
-This works well. However, the added steps to get a reverse shell are laberous
+This works well. However, the added steps to get a reverse shell are laborious
 after a while. Also, the danger of losing your remote shell by accidentally
 pressing "C-c" prior to gaining raw access is high. This was the original
 inspiration of this project.
