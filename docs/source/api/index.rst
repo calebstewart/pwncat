@@ -14,3 +14,4 @@ prompt commands or more complicated privilege escalation or persistence methods.
     privesc.rst
     persist.rst
     victim.rst
+    gtfobins.rst
