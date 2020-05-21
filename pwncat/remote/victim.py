@@ -502,7 +502,7 @@ class Victim:
         :return: The full path to the requested binary or None if it was not found.
         """
 
-        if self.has_busybox:
+        if self.host.busybox is not None:
             if name in self.busybox_provides:
                 if quote:
                     return f"{shlex.quote(str(self.busybox_path))} {name}"

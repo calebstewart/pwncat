@@ -800,6 +800,15 @@
 			"args": ["open", "-e", "'{cat} {lfile}'", "rdoc"]
 		}
 	],
+//-------------------------------------------------------------------
+	"genisoimage": [
+		{
+			"type": "read",
+			"stream" : "print",
+			"payload": "{command} -q -o - {lfile} | {tail} -c +49152",
+			"args": []
+		}
+	],
 
 
 
