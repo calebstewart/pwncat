@@ -24,7 +24,7 @@ processes output. If ``delim`` is false, this is equivalent to sending the comma
 directly with ``pwncat.victim.client.send("ls\n".encode("utf-8"))``. However, setting ``delim`` to
 True (the default value) instructs the method to prepend and append delimeters. ``process`` will
 also wait for the starting delimeter to be sent before returning. This means that with ``delim``
-on, reading data from ``pwncat.victim.client`` after calling process with be the output of the process
+on, reading data from ``pwncat.victim.client`` after calling ``process`` will be the output of the process
 up until the end delimeter.
 
 The next process creation method is ``run``. This method utilizes ``process``, but automatically waits
@@ -83,7 +83,7 @@ interface, uploading a local file to a remote file can be accomplished with Pyth
     import os
     import shutil
 
-    with open("loca-file", "rb") as src:
+    with open("local-file", "rb") as src:
         with pwncat.victim.open("/tmp/remote-file", "wb",
                 length=os.path.getsize("local-file")) as dst:
             shutil.copyfileobj(src, dst)
@@ -111,7 +111,7 @@ auto-start, starting, stopping and creation of remote services.
 To query a list of remote services, you can use the ``pwncat.victim.services`` property. This is an iterator
 yielding each abstracted service object. Each object contains a name, description, and state as well as
 methods for starting, stopping, enabling or disabling the service. This functionality obviously depends
-on you having the correct permission to manage the services, however retrieve the state and list of
+on you having the correct permission to manage the services, however retrieving the state and list of
 services should work regardless of your permission level.
 
 .. code-block:: python
@@ -122,7 +122,7 @@ services should work regardless of your permission level.
         print(f"{service.name} is {'running' if service.running else 'stopped'}")
 
 To find a specific service by name, there is a ``find_service`` method which returns an individual
-remote service object. If the service is not found, a ValueError is raised.
+remote service object. If the service is not found, a ``ValueError`` is raised.
 
 .. code-block:: python
 

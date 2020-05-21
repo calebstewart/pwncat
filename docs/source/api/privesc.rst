@@ -9,7 +9,7 @@ the ``pwncat/privesc`` directory.
 Methods vs Techniques
 ---------------------
 
-Privelege escalation methods may implement multiple techniques. Techniques represent a single action
+Privilege escalation methods may implement multiple techniques. Techniques represent a single action
 which a specific privilege escalation method can perform. Each technique is identified by it's method,
 the user which the action can be performed as, a Capability and some method specific data.
 
