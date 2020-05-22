@@ -1,5 +1,6 @@
 colorama==0.4.3
 git+https://github.com/calebstewart/python-prompt-toolkit
+git+https://github.com/calebstewart/paramiko
 wcwidth==0.1.9
 netifaces==0.10.9
 pygments==2.6.1
@@ -7,5 +8,3 @@ base64io
 commentjson
 requests
 sqlalchemy
-sphinx
-sphinx_rtd_theme
