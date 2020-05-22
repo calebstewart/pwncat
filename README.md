@@ -109,3 +109,32 @@ more features will be added.
 * Network methods (port forward, internet access through host, etc.)
 
 [documentation]: https://pwncat.readthedocs.io/en/latest
+
+## Known Issues
+
+Because `pwncat` is trying to abstractly interact with any shell with minimal remote system 
+dependencies, there are some edge cases we have found. Where we find them, we do
+everything we can to account for them and hide them from the user. However, some have
+slipped through the cracks and been observed in the wild. When this happens, `pwncat`
+will do whatever it can to preserve your terminal, but you may be greeted with some 
+peculiar output or command failures. 
+
+### Dash Support
+
+The Debian shell `dash` aims to be a very minimalistic shell. It's focus is not on user
+interface, but on running scripts quickly and correctly. As a result, some of the features
+we expect from an interactive shell simply don't work in `dash`. `pwncat` tries not to
+depend on a specific shell environment, so if you start your reverse or bind shell with
+`/bin/sh` or `/bin/dash`, then you may get a weird prompt. `dash` does not obey the
+terminal escape sequences which `pwncat` adds, so you may get a very long terminal like this:
+
+```shell script
+\[\033[01;31m\](remote)\[\033[00m\] \[\033[01;33m\]\u@\h\[\033[00m\]:\[\033[01;36m\]\w\[\033[00m\]$
+```
+
+We are currently trying to figure out an acceptible way of handling with. `dash` (and other
+minimalist shells) are capable of handling terminal escape sequences for color, but inserting
+things like user and host name automatically are unsupported.
+
+While this is inconvenient, it does not affect the behaviour of `pwncat`. All `pwncat`
+features will continue to function properly.
