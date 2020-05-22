@@ -23,165 +23,79 @@ behaves correctly.
 To showcase a little bit of the cool functionality, I have recorded a short
 [asciinema cast](https://asciinema.org/a/YFF84YCJfp9tQHhTuGkA2PJ4T).
 
-pwncat documentation is being built out on [Read the Docs]. Head there for
+pwncat [documentation] is being built out on Read the Docs. Head there for
 the latest usage and development documentation!
 
 ## Install
 
-### Dependencies
+`pwncat` only depends on a working Python development environment. In order
+to install some of the packages required with `pip`, you will likely need
+your distribution's "Python Development" package. On Debian based systems,
+this is `python-dev`. For Arch, the development files are shipped with the
+main Python repository. For Enterprise Linux, the package is named 
+`python-devel`.
 
-The python3 development files are required for building python dependencies. All of the dependencies are managed through `pip`. 
+`pwncat` is configured as a standard python package with `distutils`. You
+can install `pwncat` directly from GitHub with:
 
-To install **pwncat** into its own python virtual environment:
-
-``` bash
-git clone https://github.com/calebstewart/pwncat/ # get pwncat
-
-cd pwncat
-$ sudo apt-get install python3-devel # install dependencies
-$ python3 -m venv .venv
-$ . .venv/bin/activate
-$ pip install -r requirements.txt
-$ python setup.py install
-
-## Usage
-
-```bash
-# start a reverse shell listener on port 9999
-python -m pwncat -r -p 9999
+```shell script
+pip install git+https://github.com/calebstewart/pwncat.git
 ```
 
-```bash
-# access a bind shell on a given host and port
-python -m pwncat -b -H 127.0.0.1 -p 9999
+Or, you can install after cloning the repository with:
+
+```shell script
+python setup.py install
 ```
+
+`pwncat` depends on a custom fork of both `prompt_toolkit` and `paramiko`. 
+The forks of these repositories simply added some small features which
+weren't accessible in published releases. Pull requests have been submitted
+upstream, but until they are (hopefully) merged, `pwncat` will continue to
+explicitly reference these forks. As a result, it is recommended to run
+`pwncat` from within a virtual environment in order to not pollute your
+system environment with the custom packages. To setup a virtual environment
+and install `pwncat`, you can use:
+
+```shell script
+python3 -m venv pwncat-env
+source pwncat-env/bin/activate
+python setup.py install
+```
+
+If you would like to develop custom privilege escalation or persistence
+modules, we recommend you use the `develop` target vice the `install` target
+for `setup.py`. This allows changes to the local repository to immediately
+be observed with your installed package.
 
 ## Features and Functionality
 
-**pwncat** allows you to local command interpreter at any time by getting to a blank
-line and pressing the sequence `~C` (that's ``Shift+` `` then `Shift+c`). This new
-prompt provides some basic interaction between your local host and the remote
-host.
+`pwncat` provides two main features. At it's core, it's goal is to automatically
+setup a remote PseudoTerminal (pty) which allows interaction with the remote 
+host much like a full SSH session. When operating in a pty, you can use common
+features of your remote shell such as history, line editing, and graphical
+terminal applications.
 
-When at this prompt, you can return to your shell at any time with `C-d` or the
-"back" command. To get a list of available commands, you can use `help`. At the
-time of writing the following commands are supported:
+The other half of `pwncat` is a framework which utilizes your remote shell to
+perform automated enumeration, persistence and privilege escalation tasks. The
+local `pwncat` prompt provides a number of useful features for standard
+penetration tests including:
 
-```
-(local) pwncat$ help                                                  
-back            Exit command mode 
-download        Download a file from the remote host 
-help            View help for local commands 
-privesc         Attempt privilege escalation 
-reset           Reset the remote terminal (calls sync, reset, and sets PS1) 
-set             Set or view the currently assigned variables 
-sync            Synchronize the remote PTY with the local terminal settings 
-upload          Upload a file to the remote host
-```
+* File upload and download
+* Automated privilege escalation enumeration
+* Automated privielge escalation execution
+* Automated persistence installation/removal
+* Automated tracking of modified/created files
+    * `pwncat` also offers the ability to revert these remote "tampers" automatically
 
-### Transfering Files
+The underlying framework for interacting with the remote host aims to abstract
+away the underlying shell and connection method as much as possible, allowing
+commands and plugins to interact seamlessly with the remote host.
 
-Within the local prompt, you have the capability to `upload` and 
-`download` files to and from the target. **pwncat** will attempt to
-determine a `lhost` IP address to refer to your attacker machine, but if you
-need to change this, you can modify the variable like so:
-
-```bash
-# change local host IP address if you need to
-(local) pwncat$ set lhost "8.8.8.8"
-```
-
-The logic to transfer files is defined in `pwncat/uploaders` and 
-`pwncat/downloaders` respectively. **pwncat** will smartly determine a usable
-method to transfer files, but you can choose a specific one with the 
-`--method` option.
-
-```bash
-usage: upload [-h] [--method {nc,curl,shell,bashtcp,wget}] [--output OUTPUT] path
-
-positional arguments:
-  path                  path to the file to upload
-
-optional arguments:
-  -h, --help            show this help message and exit
-  --method, -m {nc,curl,shell,bashtcp,wget}
-                        set the download method (default: auto)
-  --output OUTPUT, -o OUTPUT
-                        path to the output file (default: basename of input)
-```
-
-```bash
-usage: download [-h] [--method {nc,curl,shell,bashtcp,raw}] [--output OUTPUT] path
-
-positional arguments:
-  path                  path to the file to download
-
-optional arguments:
-  -h, --help            show this help message and exit
-  --method, -m  {nc,curl,shell,bashtcp,raw}
-                        set the download method (default: auto)
-  --output OUTPUT, -o OUTPUT
-                        path to the output file (default: basename of input)
-```
-
-The methods that **pwncat** can transfer files with are as follows:
-
-```
-Both:
-	nc 				netcat socket with random port -- requires port to be accessible
-	curl 			HTTP request with port 80 -- requires curl on the target
-	shell 			send echo and base64 -- no requirements, but can be slow
-	bashtcp 		reuse the current socket -- no requirements
-Upload specific:
-	wget 			HTTP request with port 80 -- requires wget on the target
-
-Download specific:
-	raw 			read file contents and save to attacker -- no requirements
-```
-
-### Privilege Escalation
-
-**pwncat** can attempt to perform privilege escalation with known techniques.
-It will look for binaries on the target system that have known GTFOBins 
-capabilities, and perform different methods to try and reach new users and
-ultimately root.
-
-```bash
-usage: privesc [-h] [--list] [--all]
-               [--user {root,caleb,john,sean,etc}]
-               [--max-depth MAX_DEPTH] [--read READ] [--write WRITE] [--data DATA] [--text]
-
-optional arguments:
-  -h, --help            show this help message and exit
-  --list, -l            do not perform escalation. list potential escalation methods
-  --all, -a             when listing methods, list for all users. when escalating, escalate to
-                        root.
-  --user {root,caleb,john,sean,etc}
-                        the target user
-  --max-depth MAX_DEPTH, -m MAX_DEPTH
-                        Maximum depth for the privesc search (default: no maximum)
-  --read READ, -r READ  remote filename to try and read
-  --write WRITE, -w WRITE
-                        attempt to write to a remote file as the specified user
-  --data DATA, -d DATA  the data to write a file. ignored if not write mode
-  --text, -t            whether to use safe readers/writers
-```
-
-**pwncat** will try and run all known privilege escalation techniques.
-The current methods that are supported by `privesc` are:
-
-```
-sudo 				Run available sudo commands with GTFOBins techniques
-setuid 				Run available setuid binaries with GTFOBins techniques
-screen 				Abuse screen-4.5.0 (CVE-2017-5618)
-dirtycow 			Run DirtyCow exploit (CVE-2016-5195)
-```
-
-### BusyBox
-
-If the target system does not have many useful "live-off-the-land" binaries,
-**pwncat** can upload an appropriate copy of `busybox` in order to access more
-commands. 
+You can learn more about interacting with `pwncat` and about the underlying framework
+in the [documentation]. If you have an idea for a
+new privilege escalation method or persistence method, please take a look at the
+API documentation specifically. Pull requests are welcome!
 
 ## Planned Features
 
@@ -189,10 +103,9 @@ commands.
 more features will be added.
 
 * More privilege escalation methods (sudo -u#-1 CVE, LXD containers, etc.)
-* More transfer file methods (FTP, SMB, DNS, ICMP, etc. )
 * Persistence methods (bind shell, cronjobs, SSH access, PAM abuse, etc.)
 * Aggression methods (spam randomness to terminals, flush firewall, etc.)
 * Meme methods (terminal-parrot, cowsay, wall, etc.)
 * Network methods (port forward, internet access through host, etc.)
 
-[Read the Docs]: https://pwncat.readthedocs.io/en/latest
+[documentation]: https://pwncat.readthedocs.io/en/latest

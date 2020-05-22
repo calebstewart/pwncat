@@ -47,12 +47,11 @@ def main():
     # if no connection was established in the configuration,
     # drop to the pwncat prompt. Don't allow raw access until
     # a connection is made.
-    try:
-        while not pwncat.victim.connected:
-            util.warn("no connection established, entering command mode")
-            pwncat.victim.state = util.State.COMMAND
-    except (KeyboardInterrupt, EOFError, SystemExit):
-        util.error("pwncat closed before a connection was opened :(")
+    if not pwncat.victim.connected:
+        util.warn("no connection established, entering command mode")
+        pwncat.victim.state = util.State.COMMAND
+    if not pwncat.victim.connected:
+        util.error("no connection established. exiting.")
         exit(0)
 
     # Setup the selector to wait for data asynchronously from both streams

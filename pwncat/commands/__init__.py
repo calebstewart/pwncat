@@ -222,21 +222,23 @@ class CommandParser:
 
         while self.running:
             try:
-                try:
-                    line = self.prompt.prompt().strip()
-                except (EOFError, OSError) as exc:
-                    if pwncat.victim and pwncat.victim.client:
-                        pwncat.victim.state = State.RAW
-                    else:
-                        raise
-                    self.running = False
-                    continue
+                line = self.prompt.prompt().strip()
 
                 if line == "":
                     continue
 
                 self.dispatch_line(line)
-            except KeyboardInterrupt as exc:
+            # We used to catch only KeyboardException, but this prevents a
+            # badly written command from completely killing our remote
+            # connection.
+            except EOFError:
+                # We don't have a connection yet, just exit
+                if pwncat.victim is None or pwncat.victim.client is None:
+                    break
+                # We have a connection! Go back to raw mode
+                pwncat.victim.state = State.RAW
+                self.running = False
+            except Exception as exc:
                 traceback.print_exc()
                 continue
 

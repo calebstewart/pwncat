@@ -17,7 +17,7 @@ class Group(Base):
     __tablename__ = "groups"
 
     id = Column(Integer, primary_key=True)
-    host_id = Column(Integer, ForeignKey("host.id"))
+    host_id = Column(Integer, ForeignKey("host.id"), primary_key=True)
     host = relationship("Host", back_populates="groups")
     name = Column(String)
     members = relationship(
@@ -30,8 +30,8 @@ class User(Base):
     __tablename__ = "users"
 
     # The users UID
-    id = Column(Integer)
-    host_id = Column(Integer, ForeignKey("host.id"))
+    id = Column(Integer, primary_key=True)
+    host_id = Column(Integer, ForeignKey("host.id"), primary_key=True)
     host = relationship("Host", back_populates="users")
     # The users GID
     gid = Column(Integer, ForeignKey("groups.id"))

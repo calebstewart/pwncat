@@ -1576,7 +1576,7 @@ class Victim:
                     .first()
                 )
                 if user is None:
-                    user = pwncat.db.User(id=int(line[2]))
+                    user = pwncat.db.User(host_id=self.host.id, id=int(line[2]))
                 user.name = line[0]
                 user.id = int(line[2])
                 user.gid = int(line[3])
