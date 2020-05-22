@@ -224,12 +224,13 @@ def enter_raw_mode():
     return old, orig_fl
 
 
-def restore_terminal(state):
+def restore_terminal(state, new_line=True):
     """ restore the stdio state from the result of "enter_raw_mode" """
     termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, state[0])
     # tty.setcbreak(sys.stdin)
     fcntl.fcntl(sys.stdin, fcntl.F_SETFL, state[1])
-    sys.stdout.write("\n")
+    if new_line:
+        sys.stdout.write("\n")
 
 
 def get_ip_addr() -> str:

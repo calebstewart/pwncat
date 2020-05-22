@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import functools
 import pkgutil
+import socket
 from typing import Optional, Dict, Iterator, Tuple
 from colorama import Fore
 
@@ -57,6 +58,8 @@ class Persistence:
             )
         if method.installed(user):
             raise PersistenceError(f"{method.format(user)}: already installed")
+        if method.system and user is not None:
+            user = None
         method.install(user)
         self.register(name, user)
 
@@ -229,6 +232,22 @@ class PersistenceMethod:
         call. As such, you should handle failures correctly. This method returns
         whether we successfully escalated. """
         raise NotImplementedError
+
+    def reconnect(self, user: Optional[str] = None) -> socket.SocketType:
+        """
+        Reconnect to the remote victim using this persistence method. In this case,
+        the ``pwncat.victim`` object is partially initialized. The database is
+        loaded, and the ``pwncat.victim.host`` object is accessible, however no
+        connection to the remote victim has been established. This function should
+        utilize the installed persistence to initiate a remote connection to the
+        target. If the connection fails, a PersistenceError is raised. If the
+        connection succeeds, you should return an open socket-like object which is
+        used to communicate with the remote shell.
+        
+        :param user: the user to connect as (ignored for system methods)
+        :return: socket-like object connected to the remote shell's stdio
+        """
+        raise PersistenceError("remote initiation not possible")
 
     def format(self, user: Optional[str] = None):
         """ Format the name and user into a printable display name """

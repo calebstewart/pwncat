@@ -14,6 +14,9 @@ class Host(Base):
     id = Column(Integer, primary_key=True)
     # A unique hash identifying this host
     hash = Column(String)
+    # The IP address we observed on the last connection
+    # to this host
+    ip = Column(String)
     # The remote architecture (uname -m)
     arch = Column(String)
     # The remote init system being used

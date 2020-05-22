@@ -7,6 +7,12 @@ import pwncat
 
 
 class Command(CommandDefinition):
+    """
+    Display remote system information including host ID, IP address,
+    architecture, kernel version, distribution and init system. This
+    command also provides the capability to view installed services
+    if the init system is supported by ``pwncat``.
+    """
 
     PROG = "sysinfo"
     ARGS = {

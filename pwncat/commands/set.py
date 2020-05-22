@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 from colorama import Fore
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 import pwncat
 from pwncat.commands.base import CommandDefinition, Complete, parameter
@@ -62,6 +64,20 @@ class Command(CommandDefinition):
             elif args.variable is not None and args.value is not None:
                 try:
                     pwncat.victim.config[args.variable] = args.value
+                    if args.variable == "db":
+                        # We handle this specially to ensure the database is available
+                        # as soon as this config is set
+                        pwncat.victim.engine = create_engine(
+                            pwncat.victim.config["db"], echo=False
+                        )
+                        pwncat.db.Base.metadata.create_all(pwncat.victim.engine)
+
+                        # Create the session_maker and default session
+                        if pwncat.victim.session is None:
+                            pwncat.victim.session_maker = sessionmaker(
+                                bind=pwncat.victim.engine
+                            )
+                            pwncat.victim.session = pwncat.victim.session_maker()
                 except ValueError as exc:
                     util.error(str(exc))
             elif args.variable is not None:

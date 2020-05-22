@@ -140,7 +140,11 @@ class CommandParser:
         """ This needs to happen after __init__ when the database is fully
         initialized. """
 
-        history = DatabaseHistory()
+        if pwncat.victim is not None and pwncat.victim.host is not None:
+            history = DatabaseHistory()
+        else:
+            history = InMemoryHistory()
+
         completer = CommandCompleter(self.commands)
         lexer = PygmentsLexer(CommandLexer.build(self.commands))
         style = style_from_pygments_cls(get_style_by_name("monokai"))
@@ -220,8 +224,11 @@ class CommandParser:
             try:
                 try:
                     line = self.prompt.prompt().strip()
-                except (EOFError, OSError):
-                    pwncat.victim.state = State.RAW
+                except (EOFError, OSError) as exc:
+                    if pwncat.victim and pwncat.victim.client:
+                        pwncat.victim.state = State.RAW
+                    else:
+                        raise
                     self.running = False
                     continue
 
