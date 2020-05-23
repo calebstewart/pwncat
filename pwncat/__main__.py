@@ -17,41 +17,19 @@ def main():
     # Default log-level is "INFO"
     logging.getLogger().setLevel(logging.INFO)
 
-    parser = argparse.ArgumentParser(
-        prog="pwncat",
-        description="""
-    A "living of the land"-based C2 platform.
-    
-    Aside from the "--config" argument, all other arguments are treated as a pwncat
-    command which is parsed after parsing the configuration script.
-    """,
-    )
-    parser.add_argument(
-        "--config", "-c", help="A configuration script to execute after loading"
-    )
-    args, rest = parser.parse_known_args()
-
     # Build the victim object
-    pwncat.victim = Victim(args.config)
+    pwncat.victim = Victim()
 
-    # Run the configuration script
-    if args.config:
-        with open(args.config, "r") as filp:
-            config_script = filp.read()
-        pwncat.victim.command_parser.eval(config_script, args.config)
+    # Arguments to `pwncat` are considered arguments to `connect`
+    # We use the `prog_name` argument to make the help for "connect"
+    # display "pwncat" in the usage. This is just a visual fix, and
+    # isn't used anywhere else.
+    pwncat.victim.command_parser.dispatch_line(
+        shlex.join(["connect"] + sys.argv[1:]), prog_name="pwncat"
+    )
 
-    # Run any remaining command line arguments as one command
-    if rest:
-        pwncat.victim.command_parser.dispatch_line(shlex.join(rest))
-
-    # if no connection was established in the configuration,
-    # drop to the pwncat prompt. Don't allow raw access until
-    # a connection is made.
+    # Only continue if we successfully connected
     if not pwncat.victim.connected:
-        util.warn("no connection established, entering command mode")
-        pwncat.victim.state = util.State.COMMAND
-    if not pwncat.victim.connected:
-        util.error("no connection established. exiting.")
         exit(0)
 
     # Setup the selector to wait for data asynchronously from both streams
@@ -63,6 +41,10 @@ def main():
     done = False
 
     try:
+        # This loop is only used to funnel data between the local
+        # and remote hosts when in raw mode. During the `pwncat`
+        # prompt, the main loop is handled by the CommandParser
+        # class `run` method.
         while not done:
             for k, _ in selector.select():
                 if k.fileobj is sys.stdin:

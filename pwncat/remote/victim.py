@@ -88,7 +88,7 @@ class Victim:
         "script",
     ]
 
-    def __init__(self, config_path: str):
+    def __init__(self):
         """ Initialize a new Pty Handler. This will handle creating the PTY and
         setting the local terminal to raw. It also maintains the state to open a
         local terminal if requested and exit raw mode. """
@@ -143,7 +143,9 @@ class Victim:
         # The host object as seen by the database
         self.host: pwncat.db.Host = None
 
-    def reconnect(self, hostid: str):
+    def reconnect(
+        self, hostid: str, requested_method: str = None, requested_user: str = None
+    ):
         """
         Reconnect to the host identified by the provided host hash. The host hash can be
         retrieved from the ``sysinfo`` command of a running ``pwncat`` session or from
@@ -152,6 +154,11 @@ class Victim:
         information probed from the last time ``pwncat`` connected to it.
         
         :param hostid: the unique host hash generated from the last pwncat session
+        :param requested_method: the persistence method to utilize for reconnection, if not specified,
+            all methods will be tried in order until one works.
+        :param requested_user: the user to connect as. if any specified, all users will be tried in
+            order until one works. if no method is specified, only methods for this user
+            will be tried.
         """
 
         # Create the database engine, and then create the schema
@@ -169,6 +176,13 @@ class Victim:
             raise persist.PersistenceError("{hostid}: invalid host hash")
 
         for username, method in self.persist.installed:
+            if requested_method and requested_method != method.name:
+                continue
+            if requested_user and (
+                (requested_user != "root" and method.system)
+                or (requested_user != username)
+            ):
+                continue
             try:
                 util.progress(
                     f"attempting host reconnection via {method.format(username)}"
@@ -485,7 +499,7 @@ class Victim:
         """
 
         util.progress("identifying init system")
-        with open("/proc/1/comm", "r") as filp:
+        with self.open("/proc/1/comm", "r") as filp:
             init = filp.read()
 
         if "systemd" in init:
