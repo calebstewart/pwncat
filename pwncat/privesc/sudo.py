@@ -2,7 +2,7 @@
 from typing import Generator, List, BinaryIO
 import shlex
 import sys
-from time import sleep
+import time
 import os
 from colorama import Fore, Style
 import socket
@@ -254,6 +254,8 @@ class SudoMethod(Method):
         method, sudo_spec, need_password = technique.ident
 
         # Build the payload
+        # The data size is WRONG for encoded payloads!!!
+        # ... but I guess this not applicable for `raw` streams..?
         payload, input_data, exit_command = method.build(
             lfile=filepath, spec=sudo_spec, user=technique.user, length=len(data)
         )
@@ -270,12 +272,11 @@ class SudoMethod(Method):
             exit_cmd=exit_command.encode("utf-8"),
         )
 
+        # Send the input data required to initiate the transfer
+        if len(input_data) > 0:
+            pipe.write(input_data.encode("utf-8"))
+
         with method.wrap_stream(pipe) as pipe:
-
-            # Send the input data required to initiate the transfer
-            if len(input_data) > 0:
-                pipe.write(input_data.encode("utf-8"))
-
             pipe.write(data)
 
     def get_name(self, tech: Technique):

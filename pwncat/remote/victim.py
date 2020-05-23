@@ -1398,6 +1398,8 @@ class Victim:
         output = b""
         old_timeout = self.client.gettimeout()
         self.client.settimeout(0)
+        # self.client.send(b"echo\n")
+        # some = True
 
         while True:
             try:

@@ -54,6 +54,7 @@ class RemoteBinaryPipe(RawIOBase):
         # output of the user's terminal
 
     def close(self):
+
         if self.eof:
             return
 
@@ -133,13 +134,16 @@ class RemoteBinaryPipe(RawIOBase):
             pass
 
     def write(self, data: bytes):
+
         if self.eof:
             return None
         try:
             n = self.pty.client.send(data)
         except (socket.timeout, BlockingIOError):
             n = 0
+
         if n == 0:
             return None
         self.count += n
+
         return n

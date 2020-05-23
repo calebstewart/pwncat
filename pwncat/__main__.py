@@ -6,6 +6,8 @@ import shlex
 import sys
 
 from sqlalchemy.exc import InvalidRequestError
+import warnings
+from sqlalchemy import exc as sa_exc
 
 import pwncat
 from pwncat import util
@@ -74,5 +76,11 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+
+    # Ignore SQL Alchemy warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=sa_exc.SAWarning)
+
+        main()
+
     sys.exit(0)

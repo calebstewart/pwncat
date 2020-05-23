@@ -265,7 +265,7 @@ class MethodWrapper:
         return self.method.build_payload(self.binary_path, **kwargs)
 
     def exit(self, **kwargs) -> str:
-        return self.method.binary.gtfo.resolve_binaries(
+        original = self.method.binary.gtfo.resolve_binaries(
             self.method.exit,
             ctrl_c=ControlCodes.CTRL_C,
             ctrl_z=ControlCodes.CTRL_Z,
@@ -274,6 +274,11 @@ class MethodWrapper:
             ctrl_d=ControlCodes.CTRL_D,
             **kwargs,
         )
+
+        if original == "" and Capability.SHELL in self.cap:
+            original = "exit\n"
+
+        return original
 
     def input(self, **kwargs) -> str:
         return self.method.binary.gtfo.resolve_binaries(
