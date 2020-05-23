@@ -6,6 +6,12 @@ import socket
 import sys
 
 from sqlalchemy.exc import InvalidRequestError
+import warnings
+from sqlalchemy import exc as sa_exc
+
+# Ignore SQL Alchemy warnings
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore", category=sa_exc.SAWarning)
 
 import pwncat
 from pwncat.remote import Victim

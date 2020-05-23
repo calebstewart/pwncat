@@ -3,7 +3,7 @@ from typing import Type, List, Tuple, Optional
 from prompt_toolkit.shortcuts import confirm
 from colorama import Fore
 import crypt
-from time import sleep
+import time
 import socket
 from pprint import pprint
 import re
@@ -278,9 +278,10 @@ class Finder:
                 try:
                     # Attempt our basic, known technique
                     exit_script = technique.method.execute(technique)
-                    pwncat.victim.flush_output()
+                    pwncat.victim.flush_output(some=True)
 
                     # Reset the terminal to ensure we are stable
+                    time.sleep(0.1)
                     pwncat.victim.reset()
 
                     # Check that we actually succeeded
