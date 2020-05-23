@@ -27,3 +27,4 @@ alias down download
 # "!ls" run "local ls" given the below directives
 shortcut ! local
 shortcut @ run
+

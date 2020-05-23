@@ -102,7 +102,7 @@ class Command(CommandDefinition):
             action=StoreForAction(["ssh"]),
         ),
     }
-    DEFAULTS = {"action": "connect"}
+    DEFAULTS = {"action": "none"}
     LOCAL = True
 
     def run(self, args):
@@ -118,6 +118,11 @@ class Command(CommandDefinition):
                     pwncat.victim.command_parser.eval(filp.read(), args.config)
             except OSError as exc:
                 self.parser.error(str(exc))
+
+        if args.action == "none":
+            if pwncat.victim.client is None:
+                self.parser.print_help()
+            return
 
         try:
             if args.action == "listen":
@@ -241,7 +246,7 @@ class Command(CommandDefinition):
                 try:
                     pwncat.victim.reconnect(host_hash, args.method, args.user)
                 except PersistenceError as exc:
-                    util.error(f"{host_hash}: connection failed: {exc}")
+                    util.error(f"{args.host}: connection failed")
                     return
             elif args.action == "list":
                 if pwncat.victim.session is not None:
