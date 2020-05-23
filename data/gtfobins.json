@@ -264,7 +264,7 @@
 		{
 			"type": "shell",
 			"payload": "{command}",
-			"args": ["STDIN", "EXEC:{shell}"],
+			"args": ["STDIN", "EXEC:{shell},nofork,pty"],
 			"exit": "exit\n"
 		},
 		{
