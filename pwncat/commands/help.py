@@ -10,6 +10,7 @@ class Command(CommandDefinition):
 
     PROG = "help"
     ARGS = {"topic": parameter(Complete.NONE, nargs="?")}
+    LOCAL = True
 
     def run(self, args):
         if args.topic:

@@ -242,7 +242,7 @@ class CommandParser:
                 traceback.print_exc()
                 continue
 
-    def dispatch_line(self, line: str):
+    def dispatch_line(self, line: str, prog_name: str = None):
         """ Parse the given line of command input and dispatch a command """
 
         # Account for blank or whitespace only lines
@@ -284,11 +284,20 @@ class CommandParser:
         args = [a.encode("utf-8").decode("unicode_escape") for a in args]
 
         try:
+            if prog_name:
+                temp_name = command.parser.prog
+                command.parser.prog = prog_name
+                prog_name = temp_name
+
             # Parse the arguments
             args = command.parser.parse_args(args)
 
             # Run the command
             command.run(args)
+
+            if prog_name:
+                command.parser.prog = prog_name
+
         except SystemExit:
             # The arguments were icncorrect
             return
