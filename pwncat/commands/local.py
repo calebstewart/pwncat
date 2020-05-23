@@ -6,14 +6,11 @@ from pwncat.commands.base import parameter
 
 
 class Command(CommandDefinition):
+    """ Run a local shell command on your attacking machine """
 
     PROG = "local"
-    ARGS = {
-        "argv": parameter(
-            Complete.NONE, nargs="+", help="the local shell command to run"
-        )
-    }
+    ARGS = None
     LOCAL = True
 
     def run(self, args):
-        subprocess.run(args.argv, shell=True)
+        subprocess.run(args, shell=True)

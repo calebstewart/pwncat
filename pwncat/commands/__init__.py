@@ -261,7 +261,9 @@ class CommandParser:
             command = self.shortcuts[argv[0][0]]
             argv[0] = argv[0][1:]
             args = argv
+            line = line[1:]
         else:
+            line = f"{argv[0]} ".join(line.split(f"{argv[0]} ")[1:])
             # Search for a matching command
             for command in self.commands:
                 if command.PROG == argv[0]:
@@ -290,7 +292,10 @@ class CommandParser:
                 prog_name = temp_name
 
             # Parse the arguments
-            args = command.parser.parse_args(args)
+            if command.parser:
+                args = command.parser.parse_args(args)
+            else:
+                args = line
 
             # Run the command
             command.run(args)
@@ -315,17 +320,18 @@ class CommandLexer(RegexLexer):
         for command in commands:
             root.append(("^" + re.escape(command.PROG), Name.Function, command.PROG))
             mode = []
-            for args, descr in command.ARGS.items():
-                for arg in args.split(","):
-                    if not arg.startswith("-"):
-                        continue
-                    if descr[0] != Complete.NONE:
-                        # Enter param state
-                        mode.append((r"\s+" + re.escape(arg), descr[1], "param"))
-                    else:
-                        # Don't enter param state
-                        mode.append((r"\s+" + re.escape(arg), descr[1]))
-            mode.append((r"\s+(\-\-help|\-h)", Name.Label))
+            if command.ARGS is not None:
+                for args, descr in command.ARGS.items():
+                    for arg in args.split(","):
+                        if not arg.startswith("-"):
+                            continue
+                        if descr[0] != Complete.NONE:
+                            # Enter param state
+                            mode.append((r"\s+" + re.escape(arg), descr[1], "param"))
+                        else:
+                            # Don't enter param state
+                            mode.append((r"\s+" + re.escape(arg), descr[1]))
+                mode.append((r"\s+(\-\-help|\-h)", Name.Label))
             mode.append((r"\"", String, "string"))
             mode.append((r".", Text))
             cls.tokens[command.PROG] = mode
@@ -408,25 +414,26 @@ class CommandCompleter(Completer):
         for command in commands:
             self.layers[command.PROG] = [None, [], {}]
             option_names = []
-            for name_list, descr in command.ARGS.items():
-                name_list = name_list.split(",")
-                if descr[0] == Complete.CHOICES:
-                    completer = WordCompleter(descr[3]["choices"])
-                elif descr[0] == Complete.LOCAL_FILE:
-                    completer = local_file_completer
-                elif descr[0] == Complete.REMOTE_FILE:
-                    completer = remote_file_completer
-                elif descr[0] == Complete.NONE:
-                    completer = None
-                if len(name_list) == 1 and not name_list[0].startswith("-"):
-                    self.layers[command.PROG][1].append(completer)
-                else:
-                    for name in name_list:
-                        self.layers[command.PROG][2][name] = completer
-                        option_names.append(name)
-            self.layers[command.PROG][0] = WordCompleter(
-                option_names + ["--help", "-h"]
-            )
+            if command.ARGS is not None:
+                for name_list, descr in command.ARGS.items():
+                    name_list = name_list.split(",")
+                    if descr[0] == Complete.CHOICES:
+                        completer = WordCompleter(descr[3]["choices"])
+                    elif descr[0] == Complete.LOCAL_FILE:
+                        completer = local_file_completer
+                    elif descr[0] == Complete.REMOTE_FILE:
+                        completer = remote_file_completer
+                    elif descr[0] == Complete.NONE:
+                        completer = None
+                    if len(name_list) == 1 and not name_list[0].startswith("-"):
+                        self.layers[command.PROG][1].append(completer)
+                    else:
+                        for name in name_list:
+                            self.layers[command.PROG][2][name] = completer
+                            option_names.append(name)
+                self.layers[command.PROG][0] = WordCompleter(
+                    option_names + ["--help", "-h"]
+                )
 
         self.completer = WordCompleter(list(self.layers))
 
