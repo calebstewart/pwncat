@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import textwrap
+
 import pwncat
 from pwncat.commands import CommandParser
 from pwncat.commands.base import CommandDefinition, Complete, parameter
@@ -16,7 +18,10 @@ class Command(CommandDefinition):
         if args.topic:
             for command in pwncat.victim.command_parser.commands:
                 if command.PROG == args.topic:
-                    command.parser.print_help()
+                    if command.parser is not None:
+                        command.parser.print_help()
+                    else:
+                        print(textwrap.dedent(command.__doc__).strip())
                     break
         else:
             util.info("the following commands are available:")

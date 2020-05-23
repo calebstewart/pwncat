@@ -122,7 +122,10 @@ class CommandDefinition:
     PROG = "unimplemented"
     """ The name of your new command """
     ARGS = {}
-    """ A dictionary of parameter definitions created with the ``parameter`` function. """
+    """ A dictionary of parameter definitions created with the ``parameter`` function.
+    If this is None, your command will receive the raw argument string and no processing
+    will be done except removing the leading command name.
+    """
     DEFAULTS = {}
     """ A dictionary of default values (passed directly to ``ArgumentParser.set_defaults``) """
     LOCAL = False
@@ -146,9 +149,13 @@ class CommandDefinition:
         into an argparse object. """
 
         # Create the parser object
-        self.parser = argparse.ArgumentParser(prog=self.PROG, description=self.__doc__)
-
-        self.build_parser(self.parser, self.ARGS)
+        if self.ARGS is not None:
+            self.parser = argparse.ArgumentParser(
+                prog=self.PROG, description=self.__doc__
+            )
+            self.build_parser(self.parser, self.ARGS)
+        else:
+            self.parser = None
 
     def run(self, args):
         """
