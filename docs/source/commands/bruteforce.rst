@@ -1,5 +1,5 @@
 Bruteforce
-----------
+==========
 
 The ``bruteforce`` command is used to bruteforce authentication of a user locally. It will use the ``su`` command to
 iteratively try every password for a given user. This is very slow, but does technically work. If no wordlist is
