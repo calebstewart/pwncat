@@ -1599,7 +1599,9 @@ class Victim:
                     .first()
                 )
                 if group is None:
-                    group = pwncat.db.Group(name=line[0], id=int(line[2]))
+                    group = pwncat.db.Group(
+                        name=line[0], id=int(line[2]), host_id=self.host.id
+                    )
 
                 group.name = line[0]
                 group.id = int(line[2])
