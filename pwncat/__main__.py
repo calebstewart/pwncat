@@ -9,10 +9,6 @@ from sqlalchemy.exc import InvalidRequestError
 import warnings
 from sqlalchemy import exc as sa_exc
 
-# Ignore SQL Alchemy warnings
-with warnings.catch_warnings():
-    warnings.simplefilter("ignore", category=sa_exc.SAWarning)
-
 import pwncat
 from pwncat import util
 from pwncat.remote import Victim
@@ -80,5 +76,11 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+
+    # Ignore SQL Alchemy warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=sa_exc.SAWarning)
+
+        main()
+
     sys.exit(0)

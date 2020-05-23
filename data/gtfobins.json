@@ -879,19 +879,19 @@
 		{
 			"type": "shell",
 			"payload": "{command}",
-			"args": ["-c", "':!{shell}'", "-c", "'quit'"],
+			"args": ["-c", "':!exec {shell} -p'", "-c", "':q'"],
 			// Include an extra newline to be sure to exit vim itself.
-			"exit": "exit\n\n" 
+			"exit": "exit\n\n"
 		},
 		{
 			"type": "shell",
 			"payload": "{command}",
-			"args": ["-c", "':py import os; os.execl(\"{shell}\", \"{shell}\", \"-c\", \"reset; exec {shell}\")'", "-c", "'quit'"]
+			"args": ["-c", "':py3 import os; os.execl(\"{shell}\", \"{shell}\", \"-p\", \"-c\", \"reset; exec {shell} -p\")'", "-c", "'quit'"]
 		},
 		{
 			"type": "shell",
 			"payload": "{command}",
-			"args": ["-c", "':py3 import os; os.execl(\"{shell}\", \"{shell}\", \"-c\", \"reset; exec {shell}\")'", "-c", "'quit'"]
+			"args": ["-c", "':py import os; os.execl(\"{shell}\", \"{shell}\", \"-p\", \"-c\", \"reset; exec {shell} -p\")'", "-c", "'quit'"]
 		},
 		{
 			"type": "shell",
@@ -907,10 +907,47 @@
 		{
 			"type": "write",
 			"stream": "print",
-			"payload": "{command} >/dev/null",
-			"args": ["-es" ,"'+%print'" ,"'+:w! {lfile}'", "'+:q!'", "/dev/stdin"]
+			"payload": "{cat} - | {command}",
+			"args": ["-es" ,"'+%print'" ,"'+:w! {lfile}'", "'+:q!'", "/dev/stdin"],
+			"exit": "{ctrl_d}"
 		}
-// Vim can PROBABLY file write... but I have not figured that out just yet.
+	],
+	"vim.basic": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-c", "':!exec {shell} -p'", "-c", "':q'"],
+			// Include an extra newline to be sure to exit vim itself.
+			"exit": "exit\n\n"
+		},
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-c", "':py3 import os; os.execl(\"{shell}\", \"{shell}\", \"-p\", \"-c\", \"reset; exec {shell} -p\")'", "-c", "'quit'"]
+		},
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-c", "':py import os; os.execl(\"{shell}\", \"{shell}\", \"-p\", \"-c\", \"reset; exec {shell} -p\")'", "-c", "'quit'"]
+		},
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-c", "':lua os.execute(\"reset; exec {shell}\")'", "-c", "'quit'"]
+		},
+		{
+			"type": "read",
+			"stream": "print",
+			"payload": "{command}",
+			"args": ["-es" ,"'+%print'" ,"'+:q!'", "{lfile}"]
+		},
+		{
+			"type": "write",
+			"stream": "print",
+			"payload": "{cat} - | {command}",
+			"args": ["-es" ,"'+%print'" ,"'+:w! {lfile}'", "'+:q!'", "/dev/stdin"],
+			"exit": "{ctrl_d}"
+		}
 	],
 //-------------------------------------------------------------------
 	"wish": [

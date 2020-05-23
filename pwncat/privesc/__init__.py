@@ -277,12 +277,14 @@ class Finder:
         for technique in techniques:
             if Capability.SHELL in technique.capabilities:
                 try:
+
                     # Attempt our basic, known technique
+                    shlvl = pwncat.victim.getenv("SHLVL")
                     exit_script = technique.method.execute(technique)
                     pwncat.victim.flush_output(some=True)
 
                     # Reset the terminal to ensure we are stable
-                    time.sleep(0.1)
+                    time.sleep(0.1)  # This seems inevitable for some privescs...
                     pwncat.victim.reset()
 
                     # Check that we actually succeeded
@@ -300,7 +302,9 @@ class Finder:
 
                         # Get out of this subshell. We don't need it
                         # pwncat.victim.process(exit_script, delim=False)
+
                         pwncat.victim.run(exit_script, wait=False)
+                        time.sleep(0.1)  # Still inevitable for some privescs...
                         pwncat.victim.recvuntil("\n")
 
                         # Clean up whatever mess was left over
@@ -312,6 +316,8 @@ class Finder:
                     # Continue on as if it hadn't worked.
                 except PrivescError:
                     pass
+                except ValueError:
+                    raise PrivescError
             if Capability.READ in technique.capabilities:
                 readers.append(technique)
             if Capability.WRITE in technique.capabilities:

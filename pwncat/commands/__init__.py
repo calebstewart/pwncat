@@ -238,7 +238,7 @@ class CommandParser:
                 # We have a connection! Go back to raw mode
                 pwncat.victim.state = State.RAW
                 self.running = False
-            except Exception as exc:
+            except (Exception, KeyboardInterrupt) as exc:
                 traceback.print_exc()
                 continue
 
@@ -299,7 +299,7 @@ class CommandParser:
                 command.parser.prog = prog_name
 
         except SystemExit:
-            # The arguments were icncorrect
+            # The arguments were incorrect
             return
 
 
