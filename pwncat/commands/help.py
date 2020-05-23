@@ -10,8 +10,13 @@ from pwncat import util
 class Command(CommandDefinition):
     """ List known commands and print their associated help documentation. """
 
+    def get_command_names(self):
+        if pwncat.victim and pwncat.victim.command_parser:
+            return [c.PROG for c in pwncat.victim.command_parser.commands]
+        return []
+
     PROG = "help"
-    ARGS = {"topic": parameter(Complete.NONE, nargs="?")}
+    ARGS = {"topic": parameter(Complete.CHOICES, choices=get_command_names, nargs="?")}
     LOCAL = True
 
     def run(self, args):

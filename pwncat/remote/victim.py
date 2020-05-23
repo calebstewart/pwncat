@@ -569,13 +569,6 @@ class Victim:
         :return: The full path to the requested binary or None if it was not found.
         """
 
-        if self.host.busybox is not None:
-            if name in self.busybox_provides:
-                if quote:
-                    return f"{shlex.quote(str(self.busybox_path))} {name}"
-                else:
-                    return f"{self.busybox_path} {name}"
-
         binary = (
             self.session.query(pwncat.db.Binary)
             .filter_by(name=name, host_id=self.host.id)

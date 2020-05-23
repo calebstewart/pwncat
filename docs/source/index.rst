@@ -68,6 +68,7 @@ well. Pull requests are always welcome!
     installation.rst
     usage.rst
     configuration.rst
+    commands/index.rst
     upload.rst
     download.rst
     tamper.rst

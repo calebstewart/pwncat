@@ -61,8 +61,10 @@ class Command(CommandDefinition):
     def run(self, args):
 
         if args.action == "list":
-            if not pwncat.victim.has_busybox:
-                util.error("busybox hasn't been installed yet (hint: run 'busybox'")
+            if pwncat.victim.host.busybox is None:
+                util.error(
+                    "busybox hasn't been installed yet (hint: run 'busybox --install'"
+                )
                 return
             util.info("binaries which the remote busybox provides:")
 
