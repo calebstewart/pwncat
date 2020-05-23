@@ -13,26 +13,56 @@ create ``argparse`` objects, syntax highlighting lexers, and ``prompt_toolkit`` 
 commands.
 
 To create a new command, simply create a python file under the ``pwncat/commands`` directory. The name
-can be anything that conforms to python module naming standards. A basic structure for a new command
-looks like this:
+can be anything that conforms to python module naming standards. As an example, the ``sysinfo`` command
+is fairly straightforward:
 
 .. code-block:: python
 
+    from colorama import Fore
+
     from pwncat.commands.base import CommandDefinition, Complete, parameter
-    from pwncat import util, victim
+    import pwncat
+
 
     class Command(CommandDefinition):
+        """
+        Display remote system information including host ID, IP address,
+        architecture, kernel version, distribution and init system. This
+        command also provides the capability to view installed services
+        if the init system is supported by ``pwncat``.
+        """
 
-        PROG = "whoami"
-        ARGS = {}
-        DEFAULTS = {}
-        LOCAL = False
+        PROG = "sysinfo"
+        ARGS = {
+            "--services,-s": parameter(
+                Complete.NONE, action="store_true", help="List all services and their state"
+            )
+        }
 
-        def run(self, args) -> None:
-            util.info(f"current user: {victim.whoami()}")
+        def run(self, args):
 
-This is a simple command with no arguments and no defaults. The command can be run from the local
-prompt by the name ``whoami`` and will be properly syntax highlighted. This command also shows a
+            if args.services:
+                for service in pwncat.victim.services:
+                    if service.running:
+                        print(
+                            f"{Fore.GREEN}{service.name}{Fore.RESET} - {service.description}"
+                        )
+                    else:
+                        print(
+                            f"{Fore.RED}{service.name}{Fore.RESET} - {service.description}"
+                        )
+            else:
+                print(f"Host ID: {Fore.CYAN}{pwncat.victim.host.hash}{Fore.RESET}")
+                print(
+                    f"Remote Address: {Fore.GREEN}{pwncat.victim.client.getpeername()}{Fore.RESET}"
+                )
+                print(f"Architecture: {Fore.RED}{pwncat.victim.host.arch}{Fore.RESET}")
+                print(f"Kernel Version: {Fore.RED}{pwncat.victim.host.kernel}{Fore.RESET}")
+                print(f"Distribution: {Fore.RED}{pwncat.victim.host.distro}{Fore.RESET}")
+                print(f"Init System: {Fore.BLUE}{pwncat.victim.host.init}{Fore.RESET}")
+
+This is a simple command that will print system information from the host database and provide
+the capability to view installed services, provided the init system is supported. This command also shows a
 basic example of interacting with the remote victim. The ``pwncat.victim`` object allows you to
 interact abstractly with the currently connected victim. The ``LOCAL`` property tells the ``CommandParser``
 whether this command operates only on local resources. If set to true, the command will be allowed

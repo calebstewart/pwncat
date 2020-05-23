@@ -18,7 +18,10 @@ It is recommended to use a virtual environment, however. This can be done easily
 
     python -m venv env
     source env/bin/activate
+    pip install -r requirements.txt
     python setup.py install
+
+When updating ``pwncat`` is it recommended to setup and update the virtual environment again.
 
 After installation, you can use ``pwncat`` via the installed script:
 

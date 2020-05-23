@@ -35,34 +35,40 @@ class Capability(Flag):
     capabilities which a given binary supports. """
 
     READ = auto()
+    """ File read """
     WRITE = auto()
+    """ File write """
     SHELL = auto()
+    """ Shell access """
 
     ALL = READ | SHELL | WRITE
+    """ All capabilities, used for iter_* methods """
     NONE = 0
+    """ No capabilities. Should never happen. """
 
 
 class Stream(Flag):
     """ What time of streaming data is required for a specific method.
-
-        * RAW - The terminal is placed in raw mode and raw binary data transfer
-            is supported.
-        * PRINT - The terminal is left in normal mode and raw transfer is 
-            supported but will only be successful for printable data.
-        * HEX - The terminal is left in normal mode, but raw data is supported
-            by transferring data in HEX encoding.
-        * BASE64 - Same as HEX, but data is transferred in base64.
     """
 
     RAW = auto()
+    """ A raw, unencoded stream of data. If writing, this mode requires
+    a ``length`` parameter to indicate how many bytes of data to transfer. """
     PRINT = auto()
+    """ Supports reading/writing printable data only """
     HEX = auto()
+    """ Supports reading/writing hex-encoded data """
     BASE64 = auto()
+    """ Supports reading/writing base64 data """
     ANY = RAW | PRINT | HEX | BASE64
+    """ Used with the iter_* methods. Shortcut for searching for any stream """
     NONE = 0
+    """ No stream method. Should never happen. """
 
 
 class Method:
+    """ Abstract method class built from the JSON database """
+
     def __init__(self, binary: "Binary", cap: Capability, data: Dict[str, Any]):
         """ Create a new method associated with the given binary. """
 
@@ -192,6 +198,12 @@ class Method:
 
 
 class MethodWrapper:
+    """
+    Wraps a method and full binary path pair which together are capable of
+    generating a payload to perform the specified capability.
+    
+    """
+
     def __init__(self, method: Method, binary_path: str):
         """ Create a Method Wrapper which references a specific binary path. 
         and method arguments. """
@@ -202,8 +214,8 @@ class MethodWrapper:
         """ Wrap the given BinaryIO pipe with the appropriate stream wrapper
         for this method. For "RAW" or "PRINT" streams, this is a null wrapper.
         For BASE64 and HEX streams, this will automatically decode the data as
-        it is streamed. This method will also wrap in TextIOWrapper if "b" is
-        not specified in `mode`. """
+        it is streamed. Closing the wrapper will automatically close the underlying
+        pipe. """
 
         if self.stream is Stream.RAW or self.stream is Stream.PRINT:
             return pipe
@@ -243,6 +255,10 @@ class MethodWrapper:
         return wrapped
 
     def build(self, **kwargs) -> Tuple[str, str, str]:
+        """ Build the payload for this method and binary path. Depending on
+        capability and stream type, different named parameters are required.
+        
+        """
         return self.payload(**kwargs), self.input(**kwargs), self.exit(**kwargs)
 
     def payload(self, **kwargs) -> str:
@@ -335,6 +351,18 @@ class Binary:
 
 
 class GTFOBins:
+    """
+    Wrapper around the GTFOBins database. Provides access to searching for methods
+    of performing various capabilities generically. All iterations yield MethodWrapper
+    objects.
+    
+    :param gtfobins: path to the gtfobins database
+    :type gtfobins: str
+    :param which: a callable which resolves binary basenames to full paths. A second
+        parameter indicates whether the returned path should be quoted as with shlex.quote.
+    :type which: Callable[[str, Optional[bool]], str]
+    """
+
     def __init__(self, gtfobins: str, which: Callable[[str], str]):
         """ Create a new GTFOBins object. This will load the JSON gtfobins data
         file specified in the `gtfobins` parameter. The `which` method is

