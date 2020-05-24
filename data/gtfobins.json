@@ -861,9 +861,18 @@
 
 
 
-
-
-
+//-------------------------------------------------------------------
+// `tftp` should be in place, but we do not yet have capabilities
+// to upload and download a file sanely with GTFObins.
+// That might be best in its own privesc method.
+//-------------------------------------------------------------------
+	"time": [
+			{
+				"type": "shell",
+				"payload": "{command}",
+				"args": ["{shell}", "-p"]
+			}
+		],
 
 //-------------------------------------------------------------------
 	"timeout": [
