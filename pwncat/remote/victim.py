@@ -1571,6 +1571,9 @@ class Victim:
         """
 
         ident = self.id
+        # Keep a list of users by name so we can remove users that no longer exist
+        current_users = []
+        # Same as above for
 
         # Clear the user cache
         with self.open("/etc/passwd", "r") as filp:
@@ -1594,6 +1597,13 @@ class Victim:
                 user.shell = line[6]
                 if user not in self.host.users:
                     self.host.users.append(user)
+                current_users.append(user.name)
+
+        # Remove users that don't exist anymore
+        for user in self.host.users:
+            if user.name not in current_users:
+                self.session.delete(user)
+                self.host.users.remove(user)
 
         with self.open("/etc/group", "r") as filp:
             for line in filp:
@@ -1650,6 +1660,11 @@ class Victim:
                     else:
                         user.hash = None
 
+        # Reload the host object
+        self.host = (
+            self.session.query(pwncat.db.Host).filter_by(id=self.host.id).first()
+        )
+
         return self.users
 
     @property
@@ -1683,7 +1698,7 @@ class Victim:
         :returns: str
         """
 
-        for user in self.users:
+        for user in self.users.values():
             if user.id == uid:
                 return user
         raise KeyError

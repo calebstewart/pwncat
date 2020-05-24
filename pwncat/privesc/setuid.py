@@ -30,7 +30,12 @@ class SetuidMethod(Method):
         current_user: "pwncat.db.User" = pwncat.victim.current_user
 
         # We've already searched for SUID binaries as this user
-        if len(current_user.suid):
+        count = (
+            pwncat.victim.session.query(pwncat.db.SUID)
+            .filter_by(user_id=current_user.id, host_id=current_user.host_id)
+            .count()
+        )
+        if count > 0:
             return
 
         # Spawn a find command to locate the setuid binaries
@@ -56,10 +61,12 @@ class SetuidMethod(Method):
         ) as stream:
             for file, user in zip(files, stream):
                 user = user.strip().decode("utf-8")
-                binary = pwncat.db.SUID(path=file,)
+                binary = pwncat.db.SUID(
+                    path=file,
+                    user_id=current_user.id,
+                    owner_id=pwncat.victim.users[user].id,
+                )
                 pwncat.victim.host.suid.append(binary)
-                pwncat.victim.users[user].owned_suid.append(binary)
-                current_user.suid.append(binary)
 
         pwncat.victim.session.commit()
 
