@@ -145,6 +145,11 @@ class Finder:
 
         # Enumerate escalation options for this user
         user_map = {}
+        try:
+            data_printable = data.decode("utf-8").isprintable()
+        except UnicodeDecodeError:
+            data_printable = False
+
         for method in self.methods:
             try:
                 found_techniques = method.enumerate(Capability.ALL)

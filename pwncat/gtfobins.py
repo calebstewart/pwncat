@@ -182,7 +182,6 @@ class Method:
                 **kwargs,
             )
 
-        # Generate the main payload
         payload = self.binary.gtfo.resolve_binaries(
             self.payload,
             command=command,
@@ -244,7 +243,7 @@ class MethodWrapper:
             an exception. We know our underlying socket will block on sending
             data, so all data will be sent. Again, this is gross, but it makes
             the python stdlib happy. """
-            n = original_write(data)
+            n = original_write(data, line_length=76)
             return min(len(data), (n * 3) // 4)
 
         wrapped.close = close_wrapper

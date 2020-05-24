@@ -22,6 +22,7 @@ dependencies = [
 dependency_links = [
     "https://github.com/calebstewart/python-prompt-toolkit/tarball/master#egg=prompt-toolkit",
     "https://github.com/calebstewart/paramiko/tarball/master#egg=paramiko",
+    "https://github.com/JohnHammond/base64io-python/tarball/master#egg=base64io",
 ]
 
 # Setup

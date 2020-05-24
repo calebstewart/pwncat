@@ -85,7 +85,12 @@ class SetuidMethod(Method):
 
             for method in binary.iter_methods(suid.path, caps, Stream.ANY):
                 known_techniques.append(
-                    Technique(suid.owner.name, self, method, method.cap)
+                    Technique(
+                        pwncat.victim.find_user_by_id(suid.owner_id).name,
+                        self,
+                        method,
+                        method.cap,
+                    )
                 )
 
         return known_techniques
@@ -144,6 +149,14 @@ class SetuidMethod(Method):
         mode = "w"
         if method.stream is Stream.RAW:
             mode += "b"
+
+        try:
+            data_printable = data.decode("utf-8").isprintable()
+        except UnicodeDecodeError:
+            data_printable = False
+
+        if method.stream == Stream.PRINT and not data_printable:
+            raise PrivescError(f"{technique}: input data not printable")
 
         # Send the read payload
         pipe = pwncat.victim.subprocess(
