@@ -186,15 +186,13 @@ class Command(CommandDefinition):
                 if args.identity:
                     try:
                         # Load the private key for the user
-                        key = paramiko.RSAKey.from_private_key_file(
-                            pwncat.victim.config["privkey"]
-                        )
+                        key = paramiko.RSAKey.from_private_key_file(args.identity)
                     except:
                         password = prompt(
                             "RSA Private Key Passphrase: ", is_password=True
                         )
                         key = paramiko.RSAKey.from_private_key_file(
-                            pwncat.victim.config["privkey"], password
+                            args.identity, password
                         )
 
                     # Attempt authentication

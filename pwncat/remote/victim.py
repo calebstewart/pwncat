@@ -8,6 +8,7 @@ import sys
 import time
 from typing import Dict, Optional, IO, Any, List, Tuple, Iterator, Union
 
+import paramiko
 import requests
 from colorama import Fore
 from sqlalchemy.engine import Engine, create_engine
@@ -324,10 +325,12 @@ class Victim:
             raise RuntimeError("no available methods to spawn a pty!")
 
         # Open the PTY
-        util.info(
-            f"opening pseudoterminal via {Fore.GREEN}{method}{Fore.RESET}", overlay=True
-        )
-        self.run(method_cmd, wait=False)
+        if not isinstance(self.client, paramiko.Channel):
+            util.info(
+                f"opening pseudoterminal via {Fore.GREEN}{method}{Fore.RESET}",
+                overlay=True,
+            )
+            self.run(method_cmd, wait=False)
 
         # This stuff won't carry through to the PTY, so we need to reset it again.
         util.info("setting terminal prompt", overlay=True)
