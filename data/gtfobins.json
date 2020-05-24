@@ -865,28 +865,114 @@
 
 
 
+//-------------------------------------------------------------------
+	"timeout": [
+			{
+				"type": "shell",
+				"payload": "{command}",
+				"args": ["--foreground", "7d", "{shell}", "-p"]
+			}
+		],
+
+//-------------------------------------------------------------------
+	"tmux": [
+			{
+				"type": "shell",
+				"payload": "{command}",
+				"args": ["-c", "{shell}"]
+			}
+		],
+
+//-------------------------------------------------------------------
+// `top` would have a very hacky way of working, running it twice to create
+// the configuration file and then abuse it... but even after setting the stage,
+// it does not keep the setuid permissions and using this with sudo would not be
+// able to write to the root configuration directory.
+// So... we won't use top.
+	// "top": [
+	// 		{
+	// 			"type": "shell",
+	// 			"payload": "{rm} -f ~/.config/procps/toprc; {mkdir} -p ~/.config/procps/; umask 000; {command}; umask 002",
+	// 			"input": "Wq"
+	// 		},
+	// 		{
+	// 			"type": "shell",
+	// 			"payload": "echo -e 'pipe\\tx\\texec {shell} -p 1>&0 2>&0' >>~/.config/procps/toprc; {command}",
+	// 			"input": "Y\n\nreset\n",
+	// 			"exit": "exit\n{ctrl_c}"
+	// 		}
+	// 	],
 
 
 //-------------------------------------------------------------------
-"valgrind": [
-		{
-			"type": "shell",
-			"payload": "{command}",
-			"args": ["-q", "{shell}"]
-		}
-	],
+	"ul": [
+			{
+				"type": "read",
+				"stream": "print",
+				"payload": "{command}",
+				"args": ["{lfile}"]
+			}
+		],
+//-------------------------------------------------------------------
+	"unexpand": [
+			{
+				"type": "read",
+				"stream": "raw",
+				"payload": "{command}",
+				"args": ["-t99999999","{lfile}"]
+			}
+		],
+
+
+//-------------------------------------------------------------------
+	"uniq": [
+			{
+				"type": "read",
+				"stream": "print",
+				"payload": "{command}",
+				"args": ["{lfile}"]
+			}
+		],
+
+//-------------------------------------------------------------------
+	"unshare": [
+			{
+				"type": "shell",
+				"payload": "{command}",
+				"args": ["{shell}", "-p"]
+			}
+		],
+
+//-------------------------------------------------------------------
+	"uuencode": [
+			{
+				"type": "read",
+				"stream" : "raw",
+				"payload": "{command} | {uudecode}",
+				"args": ["{lfile}", "/dev/stdout"]
+			}
+		],
+
+//-------------------------------------------------------------------
+	"valgrind": [
+			{
+				"type": "shell",
+				"payload": "{command}",
+				"args": ["-q", "{shell}"]
+			}
+		],
 
 //-------------------------------------------------------------------
 
-"vi": [
-		{
-			"type": "shell",
-			"payload": "{command}",
-			"args": ["-c", "':!exec {shell} -p'", "-c", "':q'"],
-			// Include an extra newline to be sure to exit vim itself.
-			"exit": "exit\n\n"
-		}
-	],
+	"vi": [
+			{
+				"type": "shell",
+				"payload": "{command}",
+				"args": ["-c", "':!exec {shell} -p'", "-c", "':q'"],
+				// Include an extra newline to be sure to exit vim itself.
+				"exit": "exit\n\n"
+			}
+		],
 
 //-------------------------------------------------------------------
 	"vim": [

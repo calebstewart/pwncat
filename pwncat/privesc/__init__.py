@@ -208,7 +208,9 @@ class Finder:
             or current_user.name == "root"
         ):
             pipe = pwncat.victim.open(filename, "rb")
-            return pipe, chain
+            # this also offers the technique used:
+            # escalate to user w/ shell & read normally
+            return pipe, chain, chain[-1][0]
 
         if starting_user is None:
             starting_user = current_user
@@ -227,7 +229,7 @@ class Finder:
                     ):
                         try:
                             read_pipe = tech.method.read_file(filename, tech)
-                            return (read_pipe, chain)
+                            return (read_pipe, chain, tech)
                         except PrivescError:
                             pass
                     if tech.user not in user_map:

@@ -114,10 +114,10 @@ class Command(CommandDefinition):
             if not args.path:
                 self.parser.error("missing required argument: --path")
             try:
-                read_pipe, chain = pwncat.victim.privesc.read_file(
+                read_pipe, chain, technique = pwncat.victim.privesc.read_file(
                     args.path, args.user, args.max_depth
                 )
-                util.success("file successfully opened!")
+                util.success(f"file successfully opened with {technique}!")
 
                 # Read the data from the pipe
                 shutil.copyfileobj(read_pipe, sys.stdout.buffer)
