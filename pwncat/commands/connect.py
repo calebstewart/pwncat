@@ -200,18 +200,17 @@ class Command(CommandDefinition):
                     # Attempt authentication
                     try:
                         t.auth_publickey(args.user, key)
-                    except paramiko.ssh_exception.AuthenticationException:
-                        pass
+                    except paramiko.ssh_exception.AuthenticationException as exc:
+                        util.error(f"authentication failed: {exc}")
                 else:
                     try:
                         t.auth_password(args.user, args.password)
-                    except paramiko.ssh_exception.AuthenticationException:
-                        pass
+                    except paramiko.ssh_exception.AuthenticationException as exc:
+                        util.error(f"authentication failed: {exc}")
 
                 if not t.is_authenticated():
                     t.close()
                     sock.close()
-                    util.error("authentication failed")
                     return
 
                 # Open an interactive session

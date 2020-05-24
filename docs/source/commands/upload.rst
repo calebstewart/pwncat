@@ -1,5 +1,5 @@
-File Upload
-===========
+Upload
+======
 
 ``pwncat`` makes file upload easy through the ``upload`` command. File upload is accomplished via
 the ``gtfobins`` modules, which will enumerate available local binaries capable of writing printable
@@ -12,16 +12,6 @@ At the local ``pwncat`` prompt, local and remote files are tab-completed to prov
 interface, and a progress bar is displayed.
 
 .. code-block:: bash
+    :caption: Upload a script to the remote host
 
-    (local) pwncat$ upload --help
-    usage: upload [-h] source destination
-
-    Upload a file from the local host to the remote host
-
-    positional arguments:
-      source
-      destination
-
-    optional arguments:
-      -h, --help   show this help message and exit
-
+    upload ./malicious.sh /tmp/definitely-not-malicious

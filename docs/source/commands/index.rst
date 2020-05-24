@@ -10,3 +10,8 @@ Command index
     bruteforce.rst
     busybox.rst
     connect.rst
+    download.rst
+    persist.rst
+    privesc.rst
+    tamper.rst
+    upload.rst

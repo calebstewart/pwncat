@@ -69,11 +69,6 @@ well. Pull requests are always welcome!
     usage.rst
     configuration.rst
     commands/index.rst
-    upload.rst
-    download.rst
-    tamper.rst
-    privesc.rst
-    persist.rst
     api/index.rst
 
 Indices and tables
