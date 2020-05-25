@@ -179,6 +179,8 @@ class Command(CommandDefinition):
                             break
                         except PersistenceError:
                             continue
+                    else:
+                        util.warn("failed to correct uid/euid mismatch")
 
                 util.success("privilege escalation succeeded using:")
                 for i, (technique, _) in enumerate(chain):

