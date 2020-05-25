@@ -151,7 +151,10 @@ class SetuidMethod(Method):
             mode += "b"
 
         try:
-            data_printable = data.decode("utf-8").isprintable()
+            # data_printable = data.decode("utf-8").isprintable()
+            # Use the custom `util.isprintable()` so we can keep newlines
+            data_printable = util.isprintable(data)
+
         except UnicodeDecodeError:
             data_printable = False
 

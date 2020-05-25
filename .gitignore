@@ -9,3 +9,4 @@ testbed
 .idea/
 data/*.sqlite
 testing/
+data/pwncat.sqlite-journal

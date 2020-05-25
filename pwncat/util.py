@@ -60,6 +60,22 @@ class Init(Enum):
     SYSV = auto()
 
 
+def isprintable(data) -> bool:
+    """
+    This is a convenience function to be used rather than the usual 
+    ``str.printable`` boolean value, as that built-in **DOES NOT** consider
+    newlines to be part of the printable data set (weird!)
+    """
+
+    if type(data) is str:
+        data = data.encode("utf-8")
+    for c in data:
+        if c not in bytes(string.printable, "ascii"):
+            return False
+
+    return True
+
+
 def human_readable_size(size, decimal_places=2):
     for unit in ["B", "KiB", "MiB", "GiB", "TiB"]:
         if size < 1024.0:
