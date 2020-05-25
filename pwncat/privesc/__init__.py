@@ -295,7 +295,7 @@ class Finder:
                     pwncat.victim.reset()
 
                     # Check that we actually succeeded
-                    current = pwncat.victim.whoami()
+                    current = pwncat.victim.update_user()
 
                     if current == technique.user or (
                         technique.user == pwncat.victim.config["backdoor_user"]
@@ -680,7 +680,7 @@ class Finder:
             if persist.escalate(target_user):
 
                 # The method thought it worked, but didn't appear to
-                if pwncat.victim.whoami() != target_user:
+                if pwncat.victim.update_user() != target_user:
                     if pwncat.victim.getenv("SHLVL") != shlvl:
                         pwncat.victim.run("exit", wait=False)
                     continue
@@ -704,25 +704,13 @@ class Finder:
             except PrivescError:
                 pass
 
-        if (
-            target_user == "root"
-            and pwncat.victim.config["backdoor_user"] in techniques
-        ):
-            try:
-                tech, exit_command = self.escalate_single(
-                    techniques[pwncat.victim.config["backdoor_user"]], shlvl
-                )
-                chain.append((tech, exit_command))
-                return chain
-            except PrivescError:
-                pass
-
         # Try to escalate directly to the target if possible
         if target_user in techniques:
             try:
                 tech, exit_command = self.escalate_single(
                     techniques[target_user], shlvl
                 )
+                pwncat.victim.update_user()
                 chain.append((tech, exit_command))
                 return chain
             except PrivescError:
@@ -737,7 +725,7 @@ class Finder:
                 f"checking local persistence implants: {persist.format(user)}"
             )
             if persist.escalate(user):
-                if pwncat.victim.whoami() != user:
+                if pwncat.victim.update_user() != user:
                     if pwncat.victim.getenv("SHLVL") != shlvl:
                         pwncat.victim.run("exit", wait=False)
                     continue

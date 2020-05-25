@@ -25,6 +25,7 @@ from pwncat.gtfobins import GTFOBins, Capability, Stream
 from pwncat.remote import RemoteService
 from pwncat.tamper import Tamper, TamperManager
 from pwncat.util import State
+import pwncat.enumerate
 
 
 def remove_busybox_tamper():
@@ -137,12 +138,17 @@ class Victim:
         self.privesc: privesc.Finder = None
         # Persistence manager
         self.persist: persist.Persistence = persist.Persistence()
+        # The enumeration manager
+        self.enumerate: pwncat.enumerate.Enumerate = pwncat.enumerate.Enumerate()
         # Database engine
         self.engine: Engine = None
         # Database session
         self.session: Session = None
         # The host object as seen by the database
         self.host: pwncat.db.Host = None
+        # The current user. This is cached while at the `pwncat` prompt
+        # and reloaded whenever returning from RAW mode.
+        self.cached_user: str = None
 
     def reconnect(
         self, hostid: str, requested_method: str = None, requested_user: str = None
@@ -622,16 +628,19 @@ class Victim:
                     if binding.strip().startswith("pass"):
                         self.client.send(data)
                         binding = binding.lstrip("pass")
+                    else:
+                        self.restore_local_term()
+                        sys.stdout.write("\n")
 
-                    self.restore_local_term()
-                    sys.stdout.write("\n")
+                        # Update the current user
+                        self.update_user()
 
-                    # Evaluate the script
-                    self.command_parser.eval(binding, "<binding>")
+                        # Evaluate the script
+                        self.command_parser.eval(binding, "<binding>")
 
-                    self.flush_output()
-                    self.client.send(b"\n")
-                    self.saved_term_state = util.enter_raw_mode()
+                        self.flush_output()
+                        self.client.send(b"\n")
+                        self.saved_term_state = util.enter_raw_mode()
 
                 except KeyError:
                     pass
@@ -686,6 +695,8 @@ class Victim:
             self._state = State.COMMAND
             # Hopefully this fixes weird cursor position issues
             util.success("local terminal restored")
+            # Reload the current user name
+            self.update_user()
             # Setting the state to local command mode does not return until
             # command processing is complete.
             self.command_parser.run()
@@ -696,6 +707,8 @@ class Victim:
             self._state = State.SINGLE
             # Hopefully this fixes weird cursor position issues
             sys.stdout.write("\n")
+            # Update the current user
+            self.update_user()
             # Setting the state to local command mode does not return until
             # command processing is complete.
             self.command_parser.run_single()
@@ -1500,8 +1513,15 @@ class Victim:
         
         :return: str, the current user name
         """
-        result = self.run("whoami")
-        return result.strip().decode("utf-8")
+        return self.cached_user
+
+    def update_user(self):
+        """
+        Requery the current user
+        :return: the current user
+        """
+        self.cached_user = self.run("whoami").strip().decode("utf-8")
+        return self.cached_user
 
     def getenv(self, name: str):
         """

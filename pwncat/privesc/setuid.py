@@ -74,23 +74,18 @@ class SetuidMethod(Method):
         """ Find all techniques known at this time """
 
         # Update the cache for the current user
-        self.find_suid()
+        # self.find_suid()
 
         known_techniques = []
-        for suid in pwncat.victim.host.suid:
+        for suid in pwncat.victim.enumerate.iter("suid"):
             try:
-                binary = pwncat.victim.gtfo.find_binary(suid.path, caps)
+                binary = pwncat.victim.gtfo.find_binary(suid.data.path, caps)
             except BinaryNotFound:
                 continue
 
-            for method in binary.iter_methods(suid.path, caps, Stream.ANY):
+            for method in binary.iter_methods(suid.data.path, caps, Stream.ANY):
                 known_techniques.append(
-                    Technique(
-                        pwncat.victim.find_user_by_id(suid.owner_id).name,
-                        self,
-                        method,
-                        method.cap,
-                    )
+                    Technique(suid.data.owner.name, self, method, method.cap,)
                 )
 
         return known_techniques

@@ -44,3 +44,5 @@ class Host(Base):
     # A list of SUID binaries found across all users (may have overlap, and may not be
     # accessible by the current user).
     suid = relationship("SUID")
+    # List of enumerated facts about the remote victim
+    facts = relationship("Fact")

@@ -105,6 +105,9 @@ class Command(CommandDefinition):
             removed.append(binary)
             pwncat.victim.session.delete(binary)
 
+        # This ensures the pwncat.victim.host.binaries array
+        # is correct and doesn't contain entries which were
+        # deleted prior to an auto-commit.
         pwncat.victim.session.commit()
         pwncat.victim.host = (
             pwncat.victim.session.query(pwncat.db.Host)
