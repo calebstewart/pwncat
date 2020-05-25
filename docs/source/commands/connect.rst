@@ -102,3 +102,35 @@ to connect with. If only one of ``--method`` or ``--user`` is specified, all met
 For example, specifying only ``method`` will cause ``pwncat`` to attempt each user for which that method is installed.
 On the other hand, specifying only ``--user`` will cause ``pwncat`` to attempt connection with every method which
 offers persistence as that user. When both are specified, only the exact matching persistence method will be attempted.
+
+Automated Connection w/ Configuration Script
+--------------------------------------------
+
+Configuration scripts are expected to be used on an engagement basis. If you have made a connection to victim and have
+installed persistence methods, you can add your connect command to your configuration script in order to simply
+connection in the future. For example, if you have made a previous connection to the host ``1.1.1.1`` and would like
+``pwncat`` to automatically reconnect to that host on startup, you could create a configuration script:
+
+.. code-block:: bash
+    :caption: pwncatrc - configuration script
+
+    # Ensure pwncat knows about your database
+    set db "sqlite:///engagement.sqlite"
+
+    # Automatically attempt reconnection to your host via authorized_keys
+    # as the root user
+    connect --reconnnect --host 1.1.1.1 -m authorized_keys -u root
+
+With this script, ``pwncat`` will attempt to connect to the specified host without any other parameters. This simplifies
+the ``pwncat`` command if you intend to connect/reconnect multiple times.
+
+.. code-block:: bash
+    :caption: Simplified Reconnection w/ Configuration Script
+
+    $ pwncat -C data/pwncatrc
+    [+] setting terminal prompt
+    [+] running in /usr/bin/bash
+    [+] terminal state synchronized
+    [+] pwncat is ready 🐈
+
+    (remote) root@pwncat-centos-testing:~#

