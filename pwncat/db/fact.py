@@ -18,4 +18,6 @@ class Fact(Base):
     type = Column(String)
     source = Column(String)
     data = Column(PickleType)
-    __table_args__ = (UniqueConstraint("type", "data", name="_type_data_uc"),)
+    __table_args__ = (
+        UniqueConstraint("type", "data", "host_id", name="_type_data_uc"),
+    )

