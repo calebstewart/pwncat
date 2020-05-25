@@ -24,11 +24,11 @@ class Binary:
     """ The owner of the binary """
 
     def __str__(self):
-        return f"{Fore.YELLOW}{self.path}{Fore.RESET} owned by {Fore.GREEN}{self.owner.name}{Fore.RESET}"
-
-    @property
-    def description(self) -> str:
-        return str(self)
+        if self.owner.id == 0:
+            color = Fore.RED
+        else:
+            color = Fore.GREEN
+        return f"{Fore.CYAN}{self.path}{Fore.RESET} owned by {color}{self.owner.name}{Fore.RESET}"
 
     @property
     def owner(self):
@@ -60,19 +60,10 @@ def enumerate() -> Generator[Binary, None, None]:
     with pwncat.victim.subprocess(
         "find / -perm -4000 -printf '%U %p\\n' 2>/dev/null", mode="r", no_job=True
     ) as stream:
-        util.progress("searching for setuid binaries")
         for path in stream:
             # Parse out owner ID and path
             path = path.strip().decode("utf-8").split(" ")
             uid, path = int(path[0]), " ".join(path[1:])
-
-            # Print status message
-            util.progress(
-                (
-                    f"searching for setuid binaries as {Fore.GREEN}{current_user.name}{Fore.RESET}: "
-                    f"{Fore.CYAN}{os.path.basename(path)}{Fore.RESET}"
-                )
-            )
 
             # Check if we already know about this SUID binary from a different search
             # This will only searched the cached database entries and not end up being

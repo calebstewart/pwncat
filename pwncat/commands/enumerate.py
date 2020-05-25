@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
+import textwrap
+from typing import List, Dict
+
 from colorama import Fore, Style
 
 import pwncat
+from pwncat import util
 from pwncat.commands.base import (
     CommandDefinition,
     Complete,
@@ -38,6 +42,11 @@ class Command(CommandDefinition):
             const="show",
             help="Find and display all facts of the given type",
         ),
+        "--long,-l": parameter(
+            Complete.NONE,
+            action="store_true",
+            help="Show long description of enumeration results",
+        ),
         "--no-enumerate,-n": parameter(
             Complete.NONE,
             action="store_true",
@@ -67,25 +76,41 @@ class Command(CommandDefinition):
             self.parser.print_help()
             return
 
-        if not args.type:
-            args.type = "all"
+        # if not args.type:
+        #     args.type = "all"
 
         if args.action == "show":
-            self.show_facts(args.type, args.provider)
+            self.show_facts(args.type, args.provider, args.long)
         elif args.action == "flush":
             self.flush_facts(args.type, args.provider)
 
-    def show_facts(self, typ: str, provider: str):
+    def show_facts(self, typ: str, provider: str, long: bool):
         """ Display known facts matching the criteria """
 
-        if typ is not None:
-            print(f"{Fore.YELLOW}{Style.BRIGHT}{typ.upper()} Facts{Style.RESET_ALL}")
-            for fact in pwncat.victim.enumerate:
-                if fact.type != typ:
-                    continue
-                if provider is not None and fact.source != provider:
-                    continue
-                print(f"  {fact.data} from {fact.source}")
+        facts: Dict[str, Dict[str, List[pwncat.db.Fact]]] = {}
+
+        util.progress("enumerating facts")
+        for fact in pwncat.victim.enumerate.iter(
+            typ, filter=lambda f: provider is None or f.source == provider
+        ):
+            util.progress(f"enumerating facts: {fact.data}")
+            if fact.type not in facts:
+                facts[fact.type] = {}
+            if fact.source not in facts[fact.type]:
+                facts[fact.type][fact.source] = []
+            facts[fact.type][fact.source].append(fact)
+
+        util.erase_progress()
+
+        for typ, sources in facts.items():
+            for source, facts in sources.items():
+                print(
+                    f"{Style.BRIGHT}{Fore.YELLOW}{typ.upper()}{Fore.RESET} Facts by {Fore.BLUE}{source}{Style.RESET_ALL}"
+                )
+                for fact in facts:
+                    print(f"  {fact.data}")
+                    if long and getattr(fact.data, "description", None) is not None:
+                        print(textwrap.indent(fact.data.description, "    "))
 
     def flush_facts(self, typ: str, provider: str):
         """ Flush all facts that match criteria """

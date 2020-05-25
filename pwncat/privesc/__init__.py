@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import dataclasses
 import ipaddress
 from typing import Type, List, Tuple, Optional
 from prompt_toolkit.shortcuts import confirm
@@ -11,6 +12,7 @@ import re
 import os
 
 import pwncat
+from pwncat.enumerate.private_key import PrivateKeyFact
 from pwncat.privesc.base import Method, PrivescError, Technique, SuMethod
 from pwncat.privesc.setuid import SetuidMethod
 from pwncat.privesc.sudo import SudoMethod
@@ -535,6 +537,17 @@ class Finder:
                         # The terminal adds \r most of the time. This is a text
                         # file so this is safe.
                         privkey = privkey.replace("\r\n", "\n")
+
+                        # Ensure we remember that we found this user's private key!
+                        pwncat.victim.enumerate.add_fact(
+                            "private_key",
+                            PrivateKeyFact(
+                                pwncat.victim.users[reader.user].id,
+                                privkey_path,
+                                privkey,
+                            ),
+                            "pwncat.privesc.Finder",
+                        )
 
                         used_technique = reader
 

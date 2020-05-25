@@ -2,6 +2,8 @@
 import pkgutil
 from typing import Generator, Callable, Any
 
+import sqlalchemy
+
 import pwncat
 
 
@@ -40,7 +42,7 @@ class Enumerate:
             self.enumerators[enumerator.provides].append(enumerator)
 
     def iter(
-        self, typ: str, filter: Callable[[Fact], bool] = None, only_cached=False
+        self, typ: str = None, filter: Callable[[Fact], bool] = None, only_cached=False
     ) -> Generator[pwncat.db.Fact, None, None]:
         """
         Iterate over facts of the given type. The optional filter argument provides a
@@ -56,14 +58,18 @@ class Enumerate:
         for fact in pwncat.victim.host.facts:
             if fact.data is None:
                 continue
-            if fact.type == typ:
-                if filter is not None and not filter(fact):
-                    continue
-                yield fact
+            if typ is not None and fact.type != typ:
+                continue
+            if filter is not None and not filter(fact):
+                continue
+            yield fact
+
+        if only_cached or (typ is not None and typ not in self.enumerators):
+            return
 
         # If we know of enumerators for this type of fact, we check with them for
         # any new matching facts.
-        if not only_cached and typ in self.enumerators:
+        if typ is not None:
             for enumerator in self.enumerators[typ]:
                 for data in enumerator.enumerate():
                     fact = self.add_fact(typ, data, enumerator.name)
@@ -72,6 +78,16 @@ class Enumerate:
                     if filter is not None and not filter(fact):
                         continue
                     yield fact
+        else:
+            for typ, enumerators in self.enumerators.items():
+                for enumerator in enumerators:
+                    for data in enumerator.enumerate():
+                        fact = self.add_fact(typ, data, enumerator.name)
+                        if fact.data is None:
+                            continue
+                        if filter is not None and not filter(fact):
+                            continue
+                        yield fact
 
     def __iter__(self):
         """
@@ -79,7 +95,7 @@ class Enumerate:
         
         :return:
         """
-        yield from pwncat.victim.host.facts
+        yield from self.iter()
 
     def add_fact(self, typ: str, data: Any, source: str) -> pwncat.db.Fact:
         """
@@ -94,9 +110,17 @@ class Enumerate:
         row = pwncat.db.Fact(
             host_id=pwncat.victim.host.id, type=typ, data=data, source=source,
         )
-        pwncat.victim.host.facts.append(row)
-        pwncat.victim.session.add(row)
-        pwncat.victim.session.commit()
+        try:
+            pwncat.victim.session.add(row)
+            pwncat.victim.session.commit()
+            pwncat.victim.host.facts.append(row)
+        except sqlalchemy.exc.IntegrityError:
+            pwncat.victim.session.rollback()
+            return (
+                pwncat.victim.session.query(pwncat.db.Fact)
+                .filter_by(host_id=pwncat.victim.host.id, type=typ, data=data)
+                .first()
+            )
 
         return row
 

