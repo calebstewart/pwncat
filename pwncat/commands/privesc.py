@@ -5,7 +5,7 @@ import pwncat
 from pwncat.commands.base import (
     CommandDefinition,
     Complete,
-    parameter,
+    Parameter,
     StoreConstOnce,
     StoreForAction,
 )
@@ -35,7 +35,7 @@ class Command(CommandDefinition):
 
     PROG = "privesc"
     ARGS = {
-        "--list,-l": parameter(
+        "--list,-l": Parameter(
             Complete.NONE,
             action=StoreConstOnce,
             nargs=0,
@@ -43,27 +43,27 @@ class Command(CommandDefinition):
             dest="action",
             help="Enumerate and list available privesc techniques",
         ),
-        "--all,-a": parameter(
+        "--all,-a": Parameter(
             Complete.NONE,
             action="store_const",
             dest="user",
             const=None,
             help="list escalations for all users",
         ),
-        "--user,-u": parameter(
+        "--user,-u": Parameter(
             Complete.CHOICES,
             default="root",
             choices=get_user_choices,
             metavar="USER",
             help="the user to gain privileges as",
         ),
-        "--max-depth,-m": parameter(
+        "--max-depth,-m": Parameter(
             Complete.NONE,
             default=None,
             type=int,
             help="Maximum depth for the privesc search (default: no maximum)",
         ),
-        "--read,-r": parameter(
+        "--read,-r": Parameter(
             Complete.NONE,
             action=StoreConstOnce,
             nargs=0,
@@ -71,7 +71,7 @@ class Command(CommandDefinition):
             dest="action",
             help="Attempt to read a remote file as the specified user",
         ),
-        "--write,-w": parameter(
+        "--write,-w": Parameter(
             Complete.NONE,
             action=StoreConstOnce,
             nargs=0,
@@ -79,12 +79,12 @@ class Command(CommandDefinition):
             dest="action",
             help="Attempt to write a remote file as the specified user",
         ),
-        "--path,-p": parameter(
+        "--path,-p": Parameter(
             Complete.REMOTE_FILE,
             action=StoreForAction(["write", "read"]),
             help="Remote path for read or write actions",
         ),
-        "--escalate,-e": parameter(
+        "--escalate,-e": Parameter(
             Complete.NONE,
             action=StoreConstOnce,
             nargs=0,
@@ -92,7 +92,7 @@ class Command(CommandDefinition):
             dest="action",
             help="Attempt to escalate to gain a full shell as the target user",
         ),
-        "--data,-d": parameter(
+        "--data,-d": Parameter(
             Complete.LOCAL_FILE,
             action=StoreForAction(["write"]),
             default=None,

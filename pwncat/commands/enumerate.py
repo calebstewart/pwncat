@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import argparse
+import os
 import textwrap
 from typing import List, Dict
 
@@ -9,10 +11,23 @@ from pwncat import util
 from pwncat.commands.base import (
     CommandDefinition,
     Complete,
-    parameter,
+    Parameter,
     StoreConstOnce,
+    Group,
     StoreForAction,
 )
+
+
+class ReportAction(argparse.Action):
+    """ Mirror the StoreConstOnce action, but also store the argument as the path
+    to the local report. """
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        if hasattr(self, "__action_seen"):
+            raise argparse.ArgumentError(self, "only one action may be specified")
+        setattr(namespace, "__action_seen", True)
+        setattr(namespace, "action", "report")
+        setattr(namespace, "report", values[0])
 
 
 class Command(CommandDefinition):
@@ -32,39 +47,76 @@ class Command(CommandDefinition):
     
     """
 
+    def get_fact_types(self):
+        if pwncat.victim is None or pwncat.victim.enumerate is None:
+            return
+        for typ, _ in pwncat.victim.enumerate.enumerators.items():
+            yield typ
+
+    def get_provider_names(self):
+        if pwncat.victim is None or pwncat.victim.enumerate is None:
+            return
+        seen = []
+        for fact in pwncat.victim.enumerate.iter(only_cached=True):
+            if fact.source in seen:
+                continue
+            seen.append(fact.source)
+            yield fact.source
+
     PROG = "enum"
+    GROUPS = {
+        "action": Group(
+            title="enumeration actions",
+            description="Exactly one action must be chosen from the below list.",
+        )
+    }
     ARGS = {
-        "--show,-s": parameter(
+        "--show,-s": Parameter(
             Complete.NONE,
             action=StoreConstOnce,
             nargs=0,
             dest="action",
             const="show",
+            group="action",
             help="Find and display all facts of the given type",
         ),
-        "--long,-l": parameter(
+        "--long,-l": Parameter(
             Complete.NONE,
             action="store_true",
             help="Show long description of enumeration results",
         ),
-        "--no-enumerate,-n": parameter(
+        "--no-enumerate,-n": Parameter(
             Complete.NONE,
             action="store_true",
             help="Do not perform actual enumeration; only print already enumerated values",
         ),
-        "--type,-t": parameter(
-            Complete.NONE, help="The type of enumeration data to query"
+        "--type,-t": Parameter(
+            Complete.CHOICES,
+            choices=get_fact_types,
+            metavar="TYPE",
+            help="The type of enumeration data to query",
         ),
-        "--flush,-f": parameter(
+        "--flush,-f": Parameter(
             Complete.NONE,
+            group="action",
             action=StoreConstOnce,
             nargs=0,
             dest="action",
             const="flush",
             help="Flush the queried enumeration data from the database",
         ),
-        "--provider,-p": parameter(
-            Complete.NONE, help="The enumeration provider to filter by"
+        "--provider,-p": Parameter(
+            Complete.CHOICES,
+            choices=get_provider_names,
+            metavar="PROVIDER",
+            help="The enumeration provider to filter by",
+        ),
+        "--report,-r": Parameter(
+            Complete.LOCAL_FILE,
+            group="action",
+            action=ReportAction,
+            nargs=1,
+            help="Generate an enumeration report containing the specified enumeration data",
         ),
     }
     DEFAULTS = {"action": "help"}
@@ -83,6 +135,53 @@ class Command(CommandDefinition):
             self.show_facts(args.type, args.provider, args.long)
         elif args.action == "flush":
             self.flush_facts(args.type, args.provider)
+        elif args.action == "report":
+            self.generate_report(args.report, args.type, args.provider)
+
+    def generate_report(self, report_path: str, typ: str, provider: str):
+        """ Generate a markdown report of enumeration data for the remote host """
+
+        report_data: Dict[str, Dict[str, List[pwncat.db.Fact]]] = {}
+        hostname = ""
+
+        util.progress("enumerating report_data")
+        for fact in pwncat.victim.enumerate.iter(
+            typ, filter=lambda f: provider is None or f.source == provider
+        ):
+            util.progress(f"enumerating report_data: {fact.data}")
+            if fact.type == "system.hostname":
+                hostname = str(fact.data)
+            if fact.type not in report_data:
+                report_data[fact.type] = {}
+            if fact.source not in report_data[fact.type]:
+                report_data[fact.type][fact.source] = []
+            report_data[fact.type][fact.source].append(fact)
+
+        util.erase_progress()
+
+        try:
+            with open(report_path, "w") as filp:
+                filp.write(f"# {hostname} - {pwncat.victim.host.ip}\n\n")
+                for typ, sources in report_data.items():
+                    filp.write(f"## {typ.upper()} Facts\n\n")
+                    sections = []
+                    for source, facts in sources.items():
+                        for fact in facts:
+                            if getattr(fact.data, "description", None) is not None:
+                                sections.append(fact)
+                                continue
+                            filp.write(f"- {util.strip_ansi_escape(str(fact.data))}\n")
+
+                    filp.write("\n")
+
+                    for section in sections:
+                        filp.write(
+                            f"### {util.strip_ansi_escape(str(section.data))}\n\n"
+                        )
+                        filp.write(f"```\n{section.data.description}\n```\n\n")
+            util.success(f"enumeration report written to {report_path}")
+        except OSError:
+            self.parser.error(f"{report_path}: failed to open output file")
 
     def show_facts(self, typ: str, provider: str, long: bool):
         """ Display known facts matching the criteria """

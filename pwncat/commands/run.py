@@ -2,7 +2,7 @@
 import sys
 
 import pwncat
-from pwncat.commands.base import CommandDefinition, Complete, parameter
+from pwncat.commands.base import CommandDefinition, Complete, Parameter
 
 
 class Command(CommandDefinition):

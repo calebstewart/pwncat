@@ -7,10 +7,13 @@ import sqlalchemy
 import pwncat
 
 
-class Fact:
-    """
-    I don't know how to generically represent this yet...
-    """
+class FactData:
+    def __str__(self):
+        return "unknown"
+
+    @property
+    def description(self):
+        return None
 
 
 class Enumerate:
@@ -35,14 +38,32 @@ class Enumerate:
     def __init__(self):
 
         self.enumerators = {}
-        for loader, module_name, is_pkg in pkgutil.walk_packages(__path__):
+        self.load_package(__path__)
+
+    def load_package(self, path: list):
+
+        for loader, module_name, is_pkg in pkgutil.walk_packages(path):
             enumerator = loader.find_module(module_name).load_module(module_name)
-            if enumerator.provides not in self.enumerators:
-                self.enumerators[enumerator.provides] = []
-            self.enumerators[enumerator.provides].append(enumerator)
+
+            if is_pkg:
+                continue
+
+            provided_types = enumerator.provides
+
+            # if we didn't specify a list, make it a list for consistency
+            if not isinstance(provided_types, list):
+                provided_types = [provided_types]
+
+            for provides in provided_types:
+                if provides not in self.enumerators:
+                    self.enumerators[provides] = []
+                self.enumerators[provides].append(enumerator)
 
     def iter(
-        self, typ: str = None, filter: Callable[[Fact], bool] = None, only_cached=False
+        self,
+        typ: str = None,
+        filter: Callable[[pwncat.db.Fact], bool] = None,
+        only_cached=False,
     ) -> Generator[pwncat.db.Fact, None, None]:
         """
         Iterate over facts of the given type. The optional filter argument provides a
@@ -69,27 +90,30 @@ class Enumerate:
         if only_cached or (typ is not None and typ not in self.enumerators):
             return
 
-        # If we know of enumerators for this type of fact, we check with them for
-        # any new matching facts.
-        if typ is not None:
-            for enumerator in self.enumerators[typ]:
+        for name, enumerators in self.enumerators.items():
+            if typ is not None and not name.startswith(typ):
+                continue
+            for enumerator in enumerators:
+
+                # Check if this enumerator has already run
+                dummy_name = enumerator.name
+                if enumerator.per_user:
+                    # For per_user enumerators, we run enumerate once per user ID
+                    dummy_name += f".{pwncat.victim.current_user.id}"
+
+                # A dummy value is added to the database to signify this enumerator ran
+                if self.exist(enumerator.provides, dummy_name):
+                    continue
                 for data in enumerator.enumerate():
-                    fact = self.add_fact(typ, data, enumerator.name)
+                    fact = self.add_fact(name, data, enumerator.name)
                     if fact.data is None:
                         continue
                     if filter is not None and not filter(fact):
                         continue
                     yield fact
-        else:
-            for typ, enumerators in self.enumerators.items():
-                for enumerator in enumerators:
-                    for data in enumerator.enumerate():
-                        fact = self.add_fact(typ, data, enumerator.name)
-                        if fact.data is None:
-                            continue
-                        if filter is not None and not filter(fact):
-                            continue
-                        yield fact
+
+                # Add the dummy value
+                self.add_fact(enumerator.provides, None, dummy_name)
 
     def __iter__(self):
         """
@@ -126,7 +150,7 @@ class Enumerate:
 
         return row
 
-    def flush(self, typ: str = None, provider: str = None):
+    def flush(self, typ: str = None, provider: str = None, exact: bool = False):
         """
         Flush all facts provided by the given provider.
         
@@ -136,7 +160,9 @@ class Enumerate:
 
         # Delete all matching facts
         for fact in pwncat.victim.host.facts:
-            if typ is not None and fact.type != typ:
+            if typ is not None and exact and fact.type != typ:
+                continue
+            elif typ is not None and not exact and not fact.type.startswith(typ):
                 continue
             if provider is not None and fact.source != provider:
                 continue

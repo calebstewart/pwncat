@@ -2,7 +2,7 @@
 
 from colorama import Fore
 
-from pwncat.commands.base import CommandDefinition, Complete, parameter
+from pwncat.commands.base import CommandDefinition, Complete, Parameter
 import pwncat
 
 
@@ -16,7 +16,7 @@ class Command(CommandDefinition):
 
     PROG = "sysinfo"
     ARGS = {
-        "--services,-s": parameter(
+        "--services,-s": Parameter(
             Complete.NONE, action="store_true", help="List all services and their state"
         )
     }

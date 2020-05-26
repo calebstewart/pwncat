@@ -10,6 +10,7 @@ from pwncat import util
 
 name = "pwncat.enumerate.suid"
 provides = "suid"
+per_user = True
 
 
 @dataclasses.dataclass
@@ -44,17 +45,6 @@ def enumerate() -> Generator[Binary, None, None]:
  
     :return: Generator[Binary, None, None]
     """
-
-    current_user = pwncat.victim.current_user
-
-    # We've already enumerated this user
-    if pwncat.victim.enumerate.exist(
-        f"suid", provider=f"suid-searched-{current_user.id}"
-    ):
-        return
-
-    # Add the fact indicating we already searched for SUID binaries
-    pwncat.victim.enumerate.add_fact(f"suid", None, f"suid-searched-{current_user.id}")
 
     # Spawn a find command to locate the setuid binaries
     with pwncat.victim.subprocess(

@@ -4,7 +4,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 import pwncat
-from pwncat.commands.base import CommandDefinition, Complete, parameter
+from pwncat.commands.base import CommandDefinition, Complete, Parameter
 from pwncat import util
 
 
@@ -16,17 +16,17 @@ class Command(CommandDefinition):
 
     PROG = "set"
     ARGS = {
-        "--password,-p": parameter(
+        "--password,-p": Parameter(
             Complete.NONE, action="store_true", help="set a user password",
         ),
-        "variable": parameter(
+        "variable": Parameter(
             Complete.CHOICES,
             nargs="?",
             choices=get_config_variables,
             metavar="VARIABLE",
             help="the variable name to modify",
         ),
-        "value": parameter(
+        "value": Parameter(
             Complete.LOCAL_FILE, nargs="?", help="the value for the given variable"
         ),
     }

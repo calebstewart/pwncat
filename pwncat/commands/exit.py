@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from pwncat import util
-from pwncat.commands.base import CommandDefinition, Complete, parameter
+from pwncat.commands.base import CommandDefinition, Complete, Parameter
 
 
 class Command(CommandDefinition):
@@ -11,7 +11,7 @@ class Command(CommandDefinition):
 
     PROG = "exit"
     ARGS = {
-        "--yes,-y": parameter(
+        "--yes,-y": Parameter(
             Complete.NONE,
             action="store_true",
             help="Confirm you would like to close pwncat",

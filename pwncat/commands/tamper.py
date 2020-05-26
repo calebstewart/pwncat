@@ -4,7 +4,7 @@ from pwncat import util
 from pwncat.commands.base import (
     CommandDefinition,
     Complete,
-    parameter,
+    Parameter,
     StoreConstOnce,
     StoreForAction,
 )
@@ -16,18 +16,18 @@ class Command(CommandDefinition):
 
     PROG = "tamper"
     ARGS = {
-        "--tamper,-t": parameter(
+        "--tamper,-t": Parameter(
             Complete.NONE,
             action=StoreForAction(["revert"]),
             type=int,
             help="Tamper ID to revert (IDs found in tamper list)",
         ),
-        "--all,-a": parameter(
+        "--all,-a": Parameter(
             Complete.NONE,
             action="store_true",
             help="Attempt to revert all tampered files",
         ),
-        "--revert,-r": parameter(
+        "--revert,-r": Parameter(
             Complete.NONE,
             action=StoreConstOnce,
             nargs=0,
@@ -35,7 +35,7 @@ class Command(CommandDefinition):
             const="revert",
             help="Revert the selected tamper",
         ),
-        "--list,-l": parameter(
+        "--list,-l": Parameter(
             Complete.NONE,
             action=StoreConstOnce,
             nargs=0,

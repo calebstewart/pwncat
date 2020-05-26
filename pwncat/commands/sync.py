@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import pwncat
-from pwncat.commands.base import CommandDefinition, Complete, parameter
+from pwncat.commands.base import CommandDefinition, Complete, Parameter
 from pwncat import util
 import os
 

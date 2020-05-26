@@ -6,7 +6,7 @@ import pwncat
 from pwncat.commands.base import (
     CommandDefinition,
     Complete,
-    parameter,
+    Parameter,
     StoreConstOnce,
     StoreForAction,
 )
@@ -22,7 +22,7 @@ class Command(CommandDefinition):
 
     PROG = "busybox"
     ARGS = {
-        "--list,-l": parameter(
+        "--list,-l": Parameter(
             Complete.NONE,
             action=StoreConstOnce,
             nargs=0,
@@ -30,7 +30,7 @@ class Command(CommandDefinition):
             dest="action",
             help="List applets which the remote busybox provides",
         ),
-        "--install,-i": parameter(
+        "--install,-i": Parameter(
             Complete.NONE,
             action=StoreConstOnce,
             nargs=0,
@@ -38,7 +38,7 @@ class Command(CommandDefinition):
             dest="action",
             help="Install busybox on the remote host for use with pwncat",
         ),
-        "--status,-s": parameter(
+        "--status,-s": Parameter(
             Complete.NONE,
             action=StoreConstOnce,
             nargs=0,
@@ -46,7 +46,7 @@ class Command(CommandDefinition):
             dest="action",
             help="List the current busybox installation status",
         ),
-        "--url,-u": parameter(
+        "--url,-u": Parameter(
             Complete.NONE,
             action=StoreForAction(["install"]),
             nargs=1,

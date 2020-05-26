@@ -3,7 +3,7 @@ import textwrap
 
 import pwncat
 from pwncat.commands import CommandParser
-from pwncat.commands.base import CommandDefinition, Complete, parameter
+from pwncat.commands.base import CommandDefinition, Complete, Parameter
 from pwncat import util
 
 
@@ -16,7 +16,7 @@ class Command(CommandDefinition):
         return []
 
     PROG = "help"
-    ARGS = {"topic": parameter(Complete.CHOICES, choices=get_command_names, nargs="?")}
+    ARGS = {"topic": Parameter(Complete.CHOICES, choices=get_command_names, nargs="?")}
     LOCAL = True
 
     def run(self, args):

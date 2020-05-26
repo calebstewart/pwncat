@@ -9,6 +9,7 @@ from pwncat import util
 
 name = "pwncat.enumerate.private_key"
 provides = "private_key"
+per_user = True
 
 
 @dataclasses.dataclass
@@ -42,21 +43,13 @@ class PrivateKeyFact:
 
 def enumerate() -> Generator[PrivateKeyFact, None, None]:
 
-    if pwncat.victim.enumerate.exist(
-        "private_key", name + f".{pwncat.victim.current_user.id}"
-    ):
-        return
-
-    pwncat.victim.enumerate.add_fact(
-        "private_key", None, name + f".{pwncat.victim.current_user.id}"
-    )
-
     data = []
 
     util.progress("enumerating private keys")
 
+    # Search for private keys in common locations
     with pwncat.victim.subprocess(
-        "grep -l -I -D skip -rE 'BEGIN .* PRIVATE KEY' /home /etc /opt 2>/dev/null | xargs stat -c '%u %n' 2>/dev/null"
+        "grep -l -I -D skip -rE '^-+BEGIN .* PRIVATE KEY-+$' /home /etc /opt 2>/dev/null | xargs stat -c '%u %n' 2>/dev/null"
     ) as pipe:
         for line in pipe:
             line = line.strip().decode("utf-8").split(" ")

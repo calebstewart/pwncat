@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import re
 from typing import Tuple, BinaryIO, Callable, List
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import TCPServer, BaseRequestHandler
@@ -126,6 +127,18 @@ def quote(token: str):
         return token
 
     return '"' + token.replace('"', '\\"') + '"'
+
+
+ansi_escape_pattern = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+
+
+def strip_ansi_escape(s: str) -> str:
+    """
+    Strip the ansi escape sequences out of the given string
+    :param s: the string to strip
+    :return: a version of 's' without ansi escape sequences
+    """
+    return ansi_escape_pattern.sub("", s)
 
 
 def copyfileobj(src, dst, callback, nomv=False):

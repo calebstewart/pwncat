@@ -11,7 +11,7 @@ from pwncat import util
 from pwncat.commands.base import (
     CommandDefinition,
     Complete,
-    parameter,
+    Parameter,
     StoreForAction,
     StoreConstOnce,
 )
@@ -24,11 +24,11 @@ class Command(CommandDefinition):
 
     PROG = "connect"
     ARGS = {
-        "--config,-C": parameter(
+        "--config,-C": Parameter(
             Complete.NONE,
             help="Path to a configuration script to execute prior to connecting",
         ),
-        "--listen,-l": parameter(
+        "--listen,-l": Parameter(
             Complete.NONE,
             action=StoreConstOnce,
             dest="action",
@@ -36,7 +36,7 @@ class Command(CommandDefinition):
             nargs=0,
             help="Listen for an incoming reverse shell",
         ),
-        "--connect,-c": parameter(
+        "--connect,-c": Parameter(
             Complete.NONE,
             action=StoreConstOnce,
             dest="action",
@@ -44,7 +44,7 @@ class Command(CommandDefinition):
             nargs=0,
             help="Connect to a remote bind shell",
         ),
-        "--ssh,-s": parameter(
+        "--ssh,-s": Parameter(
             Complete.NONE,
             action=StoreConstOnce,
             dest="action",
@@ -52,7 +52,7 @@ class Command(CommandDefinition):
             nargs=0,
             help="Connect to a remote ssh server",
         ),
-        "--reconnect,-r": parameter(
+        "--reconnect,-r": Parameter(
             Complete.NONE,
             action=StoreConstOnce,
             dest="action",
@@ -60,7 +60,7 @@ class Command(CommandDefinition):
             nargs=0,
             help="Reconnect to the given host via a persistence method",
         ),
-        "--list": parameter(
+        "--list": Parameter(
             Complete.NONE,
             action=StoreConstOnce,
             dest="action",
@@ -68,32 +68,32 @@ class Command(CommandDefinition):
             nargs=0,
             help="List remote hosts with persistence methods installed",
         ),
-        "--host,-H": parameter(
+        "--host,-H": Parameter(
             Complete.NONE,
             help="Address to listen on or remote host to connect to. For reconnections, this can be a host hash",
         ),
-        "--port,-p": parameter(
+        "--port,-p": Parameter(
             Complete.NONE,
             type=int,
             help="The port to listen on or connect to",
             action=StoreForAction(["connect", "listen"]),
         ),
-        "--method,-m": parameter(
+        "--method,-m": Parameter(
             Complete.NONE,
             help="The method to user for reconnection",
             action=StoreForAction(["reconnect"]),
         ),
-        "--user,-u": parameter(
+        "--user,-u": Parameter(
             Complete.NONE,
             help="The user to reconnect as; if this is a system method, this parameter is ignored.",
             action=StoreForAction(["reconnect", "ssh"]),
         ),
-        "--password,-P": parameter(
+        "--password,-P": Parameter(
             Complete.NONE,
             help="The password for the specified user for SSH connections",
             action=StoreForAction(["ssh"]),
         ),
-        "--identity,-i": parameter(
+        "--identity,-i": Parameter(
             Complete.NONE,
             help="The private key for authentication for SSH connections",
             action=StoreForAction(["ssh"]),
