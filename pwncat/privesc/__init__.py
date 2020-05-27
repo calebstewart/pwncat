@@ -285,7 +285,15 @@ class Finder:
         methods. Primarily, it will directly execute any techniques which provide
         the SHELL capability first. Afterwards, it will try to backdoor /etc/passwd
         if the target user is root. Lastly, it will try to escalate using a local
-        SSH server combined with READ/WRITE capabilities to gain a local shell. """
+        SSH server combined with READ/WRITE capabilities to gain a local shell.
+
+        This is, by far, the most disgusting function in all of `pwncat`. I'd like
+        to clean it up, but I'm not sure how to break this up. It's all one continuous
+        line of logic. It's meant to implement all possible privilege escalation methods
+        for one user given a list of techniques for that user. The largest chunk of this
+        is the SSH part, which needs to check that SSH exists, then try various methods
+        to either leak or write private keys for the given user.
+        """
 
         readers: List[Technique] = []
         writers: List[Technique] = []

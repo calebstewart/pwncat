@@ -8,7 +8,7 @@ import pwncat
 from pwncat import util
 
 name = "pwncat.enumerate.private_key"
-provides = "private_key"
+provides = "system.user.private_key"
 per_user = True
 
 

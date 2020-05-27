@@ -37,7 +37,6 @@ def enumerate() -> Generator[FactData, None, None]:
     try:
         with pwncat.victim.open("/proc/1/comm", "r") as filp:
             comm = filp.read().strip()
-        print("what the fuck", comm)
         if comm is not None:
             if "systemd" in comm.lower():
                 init = util.Init.SYSTEMD
