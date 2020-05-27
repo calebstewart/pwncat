@@ -480,7 +480,7 @@ class Victim:
                             f"pruning {Fore.RED}{name}{Fore.RESET} from busybox"
                         )
 
-            util.success(f"pruned {len(provides)-len(new_provides)} setuid entries")
+            util.success(f"pruned {len(provides) - len(new_provides)} setuid entries")
             provides = new_provides
 
         # Let the class know we now have access to busybox

@@ -9,7 +9,7 @@ from pwncat import util
 import pwncat
 
 name = "pwncat.enumerate.system"
-provides = "system.version.kernel"
+provides = "system.kernel.version"
 per_user = False
 
 
