@@ -96,14 +96,16 @@ class Enumerate:
             for enumerator in enumerators:
 
                 # Check if this enumerator has already run
-                dummy_name = enumerator.name
-                if enumerator.per_user:
-                    # For per_user enumerators, we run enumerate once per user ID
-                    dummy_name += f".{pwncat.victim.current_user.id}"
+                if not getattr(enumerator, "always_run", False):
+                    dummy_name = enumerator.name
+                    if enumerator.per_user:
+                        # For per_user enumerators, we run enumerate once per user ID
+                        dummy_name += f".{pwncat.victim.current_user.id}"
 
-                # A dummy value is added to the database to signify this enumerator ran
-                if self.exist(enumerator.provides, dummy_name):
-                    continue
+                    # A dummy value is added to the database to signify this enumerator ran
+                    if self.exist(enumerator.provides, dummy_name):
+                        continue
+
                 for data in enumerator.enumerate():
                     fact = self.add_fact(name, data, enumerator.name)
                     if fact.data is None:
@@ -113,7 +115,8 @@ class Enumerate:
                     yield fact
 
                 # Add the dummy value
-                self.add_fact(enumerator.provides, None, dummy_name)
+                if not getattr(enumerator, "always_run", False):
+                    self.add_fact(enumerator.provides, None, dummy_name)
 
     def __iter__(self):
         """

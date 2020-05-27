@@ -1,26 +1,19 @@
 #!/usr/bin/env python3
-from typing import Generator, List, BinaryIO
-import shlex
-import sys
-from time import sleep
 import os
-from colorama import Fore, Style
-import io
+from typing import List, BinaryIO
+
+from colorama import Fore
 
 import pwncat
-from pwncat.privesc.base import Method, PrivescError, Technique
-from pwncat.gtfobins import Binary, Stream, Capability, MethodWrapper, BinaryNotFound
-from pwncat.file import RemoteBinaryPipe
 from pwncat import util
+from pwncat.gtfobins import Stream, Capability, BinaryNotFound
+from pwncat.privesc import BaseMethod, Technique, PrivescError
 
 
-class SetuidMethod(Method):
+class Method(BaseMethod):
 
     name = "setuid"
     BINARIES = ["find"]
-
-    def __init__(self, pty: "pwncat.pty.PtyHandler"):
-        super(SetuidMethod, self).__init__(pty)
 
     def enumerate(self, caps: Capability = Capability.ALL) -> List[Technique]:
         """ Find all techniques known at this time """
