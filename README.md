@@ -132,9 +132,15 @@ terminal escape sequences which `pwncat` adds, so you may get a very long termin
 \[\033[01;31m\](remote)\[\033[00m\] \[\033[01;33m\]\u@\h\[\033[00m\]:\[\033[01;36m\]\w\[\033[00m\]$
 ```
 
-We are currently trying to figure out an acceptible way of handling with. `dash` (and other
-minimalist shells) are capable of handling terminal escape sequences for color, but inserting
-things like user and host name automatically are unsupported.
+Currently, the only workaround is to use the `prompt` command at the local `pwncat` prompt.
+The command allows you to modify the prompt which `pwncat` will automatically set whenever
+resetting the remote terminal. Two options are provided: "basic" and "fancy". The "fancy"
+prompt is the default which causes the above output in Dash. To switch to the basic prompt
+you can use the following command at the `pwncat` prompt:
+
+```shell script
+prompt --basic
+```
 
 While this is inconvenient, it does not affect the behaviour of `pwncat`. All `pwncat`
-features will continue to function properly.
+features will continue to function properly no matter what your prompt looks like.

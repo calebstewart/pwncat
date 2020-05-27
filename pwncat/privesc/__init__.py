@@ -707,6 +707,9 @@ class Finder:
             # Attempt to escalate with the local persistence method
             if persist.escalate(target_user):
 
+                # Stabilize the terminal
+                pwncat.victim.reset(hard=False)
+
                 # The method thought it worked, but didn't appear to
                 if pwncat.victim.update_user() != target_user:
                     if pwncat.victim.getenv("SHLVL") != shlvl:
@@ -738,6 +741,7 @@ class Finder:
                 tech, exit_command = self.escalate_single(
                     techniques[target_user], shlvl
                 )
+                pwncat.victim.reset(hard=False)
                 pwncat.victim.update_user()
                 chain.append((tech, exit_command))
                 return chain
@@ -753,6 +757,11 @@ class Finder:
                 f"checking local persistence implants: {persist.format(user)}"
             )
             if persist.escalate(user):
+
+                # Ensure history and prompt are correct
+                pwncat.victim.reset(hard=False)
+
+                # Update the current user
                 if pwncat.victim.update_user() != user:
                     if pwncat.victim.getenv("SHLVL") != shlvl:
                         pwncat.victim.run("exit", wait=False)
@@ -780,6 +789,8 @@ class Finder:
             try:
                 tech, exit_command = self.escalate_single(techs, shlvl)
                 chain.append((tech, exit_command))
+                pwncat.victim.reset(hard=False)
+                pwncat.victim.update_user()
             except PrivescError:
                 continue
             try:

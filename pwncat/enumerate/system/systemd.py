@@ -89,9 +89,7 @@ def enumerate() -> Generator[FactData, None, None]:
 
     for i in range(0, len(data), 5):
         if i >= (len(data) - 4):
-            print(data[i:])
             break
-        print(data[i : i + 4])
         name = data[i + 2].strip().rstrip(".service")
         pid = int(data[i].strip())
         if "[not set]" in data[i + 1]:

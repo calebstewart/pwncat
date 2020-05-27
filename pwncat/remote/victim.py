@@ -1459,13 +1459,17 @@ class Victim:
 
         return output
 
-    def reset(self):
+    def reset(self, hard: bool = True):
         """
         Reset the remote terminal using the ``reset`` command. This also restores
         your prompt, and sets up the environment correctly for ``pwncat``.
-        
+
+        :param hard: whether to actually call the `reset` command.
+            This prevents a long pause when we simply need to reset other
+            things such as the prompt, aliases or history control.
         """
-        self.run("reset", wait=False)
+        if hard:
+            self.run("reset", wait=False)
         self.has_cr = True
         self.has_echo = True
         self.run("unset HISTFILE; export HISTCONTROL=ignorespace")

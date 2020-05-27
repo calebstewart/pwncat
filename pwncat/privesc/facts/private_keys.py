@@ -22,7 +22,7 @@ class Method(BaseMethod):
         """
 
         for fact in pwncat.victim.enumerate.iter("system.service"):
-            if "ssh" in fact.data.name and fact.data.running:
+            if "ssh" in fact.data.name and fact.data.state == "running":
                 break
         else:
             raise PrivescError("no sshd service running")
