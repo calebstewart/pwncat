@@ -17,6 +17,7 @@ dependencies = [
     "prompt-toolkit",
     "sqlalchemy",
     "paramiko",
+    "pytablewriter",
 ]
 
 dependency_links = [

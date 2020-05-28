@@ -8,3 +8,4 @@ git+https://github.com/JohnHammond/base64io-python
 commentjson
 requests
 sqlalchemy
+pytablewriter
