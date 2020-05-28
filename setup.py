@@ -33,7 +33,7 @@ setup(
     author="Caleb Stewart",
     url="https://gitlab.com/calebstewart/pwncat",
     packages=find_packages(),
-    package_data={},
+    package_data={"pwncat": ["data/*"]},
     entry_points={"console_scripts": ["pwncat=pwncat.__main__:main"]},
     data_files=[],
     install_requires=dependencies,

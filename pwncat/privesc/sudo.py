@@ -27,6 +27,7 @@ class Method(BaseMethod):
             b"[sudo]" in output
             or b"password for " in output
             or output.endswith(b"password: ")
+            or b"lecture" in output
         ):
             if current_user.password is None:
                 pwncat.victim.client.send(CTRL_C)  # break out of password prompt

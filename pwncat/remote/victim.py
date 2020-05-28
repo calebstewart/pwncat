@@ -9,6 +9,7 @@ import time
 from typing import Dict, Optional, IO, Any, List, Tuple, Iterator, Union
 
 import paramiko
+import pkg_resources
 import requests
 from colorama import Fore
 from sqlalchemy.engine import Engine, create_engine
@@ -122,7 +123,9 @@ class Victim:
             "nc": ["netcat", "ncat"],
         }
         # GTFObins manager for this host
-        self.gtfo: GTFOBins = GTFOBins("data/gtfobins.json", self.which)
+        self.gtfo: GTFOBins = GTFOBins(
+            pkg_resources.resource_filename("pwncat", "data/gtfobins.json"), self.which
+        )
         # Whether the user has pressed the defined prefix
         self.has_prefix = False
         # Parser for local command input
