@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 import argparse
-import os
 import textwrap
 from typing import List, Dict
 
+import pytablewriter
 from colorama import Fore, Style
+from pytablewriter import MarkdownTableWriter
 
 import pwncat
 from pwncat import util
@@ -14,7 +15,6 @@ from pwncat.commands.base import (
     Parameter,
     StoreConstOnce,
     Group,
-    StoreForAction,
 )
 
 
@@ -144,13 +144,102 @@ class Command(CommandDefinition):
         report_data: Dict[str, Dict[str, List[pwncat.db.Fact]]] = {}
         hostname = ""
 
+        system_details = []
+
+        try:
+            # Grab hostname
+            hostname = pwncat.victim.enumerate.first("system.hostname").data
+            system_details.append(["Hostname", hostname])
+        except ValueError:
+            hostname = "[unknown-hostname]"
+
+        # Not provided by enumerate, but natively known due to our connection
+        system_details.append(["Primary Address", pwncat.victim.host.ip])
+        system_details.append(["Derived Hash", pwncat.victim.host.hash])
+
+        try:
+            # Grab distribution
+            distro = pwncat.victim.enumerate.first("system.distro").data
+            system_details.append(
+                ["Distribution", f"{distro.name} ({distro.ident}) {distro.version}"]
+            )
+        except ValueError:
+            pass
+
+        try:
+            # Grab the architecture
+            arch = pwncat.victim.enumerate.first("system.arch").data
+            system_details.append(["Architecture", arch.arch])
+        except ValueError:
+            pass
+
+        try:
+            # Grab kernel version
+            kernel = pwncat.victim.enumerate.first("system.kernel.version").data
+            system_details.append(
+                [
+                    "Kernel",
+                    f"Linux Kernel {kernel.major}.{kernel.minor}.{kernel.patch}-{kernel.abi}",
+                ]
+            )
+        except ValueError:
+            pass
+
+        try:
+            # Grab init system
+            init = pwncat.victim.enumerate.first("system.init").data
+            system_details.append(["Init", init.init])
+        except ValueError:
+            pass
+
+        # Build the table writer for the main section
+        table_writer = MarkdownTableWriter()
+        table_writer.headers = ["Property", "Value"]
+        table_writer.column_styles = [
+            pytablewriter.style.Style(align="right"),
+            pytablewriter.style.Style(align="center"),
+        ]
+        table_writer.value_matrix = system_details
+        table_writer.margin = 1
+
+        # Note enumeration data we don't need anymore
+        ignore_types = [
+            "system.hostname",
+            "system.kernel.version",
+            "system.distro",
+            "system.init",
+            "system.arch",
+        ]
+
+        # This is the list of known enumeration types that we want to
+        # happen first in this order. Other types will still be output
+        # but will be output in an arbitrary order following this list
+        ordered_types = [
+            # Possible kernel exploits - very important
+            "system.kernel.exploit",
+            # Enumerated user passwords - very important
+            "system.user.password",
+            # Enumerated possible user private keys - very important
+            "system.user.private_key",
+        ]
+
+        # These types are very noisy. They are important for full enumeration,
+        # but are better suited for the end of the list. These are output last
+        # no matter what in this order.
+        noisy_types = [
+            # System services. There's normally a lot of these
+            "system.service",
+            # Installed packages. There's *always* a lot of these
+            "system.package",
+        ]
+
         util.progress("enumerating report_data")
         for fact in pwncat.victim.enumerate.iter(
             typ, filter=lambda f: provider is None or f.source == provider
         ):
             util.progress(f"enumerating report_data: {fact.data}")
-            if fact.type == "system.hostname":
-                hostname = str(fact.data)
+            if fact.type in ignore_types:
+                continue
             if fact.type not in report_data:
                 report_data[fact.type] = {}
             if fact.source not in report_data[fact.type]:
@@ -162,26 +251,57 @@ class Command(CommandDefinition):
         try:
             with open(report_path, "w") as filp:
                 filp.write(f"# {hostname} - {pwncat.victim.host.ip}\n\n")
+
+                # Write the system info table
+                table_writer.dump(filp, close_after_write=False)
+                filp.write("\n")
+
+                # output ordered types first
+                for typ in ordered_types:
+                    if typ not in report_data:
+                        continue
+                    self.render_section(filp, typ, report_data[typ])
+
+                # output everything that's not a ordered or noisy type
                 for typ, sources in report_data.items():
-                    filp.write(f"## {typ.upper()} Facts\n\n")
-                    sections = []
-                    for source, facts in sources.items():
-                        for fact in facts:
-                            if getattr(fact.data, "description", None) is not None:
-                                sections.append(fact)
-                                continue
-                            filp.write(f"- {util.strip_ansi_escape(str(fact.data))}\n")
+                    if typ in ordered_types or typ in noisy_types:
+                        continue
+                    self.render_section(filp, typ, sources)
 
-                    filp.write("\n")
+                # Output the noisy types
+                for typ in noisy_types:
+                    if typ not in report_data:
+                        continue
+                    self.render_section(filp, typ, report_data[typ])
 
-                    for section in sections:
-                        filp.write(
-                            f"### {util.strip_ansi_escape(str(section.data))}\n\n"
-                        )
-                        filp.write(f"```\n{section.data.description}\n```\n\n")
             util.success(f"enumeration report written to {report_path}")
         except OSError:
             self.parser.error(f"{report_path}: failed to open output file")
+
+    def render_section(self, filp, typ: str, sources: Dict[str, List[pwncat.db.Fact]]):
+        """
+        Render the given facts all of the given type to the report pointed to by the open file
+        filp.
+
+        :param filp: the open file containing the report
+        :param typ: the type all of these facts provide
+        :param sources: a dictionary of sources->fact list
+        """
+
+        filp.write(f"## {typ.upper()} Facts\n\n")
+        sections = []
+        for source, facts in sources.items():
+            for fact in facts:
+                if getattr(fact.data, "description", None) is not None:
+                    sections.append(fact)
+                    continue
+                filp.write(f"- {util.strip_ansi_escape(str(fact.data))}\n")
+
+        filp.write("\n")
+
+        for section in sections:
+            filp.write(f"### {util.strip_ansi_escape(str(section.data))}\n\n")
+            filp.write(f"```\n{section.data.description}\n```\n\n")
 
     def show_facts(self, typ: str, provider: str, long: bool):
         """ Display known facts matching the criteria """

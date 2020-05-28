@@ -3,6 +3,8 @@ from io import RawIOBase
 import socket
 import time
 
+import pwncat
+
 
 class RemoteBinaryPipe(RawIOBase):
     """ Encapsulate a piped interaction with a remote process. The remote PTY

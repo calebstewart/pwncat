@@ -9,7 +9,7 @@ from pwncat import util
 import pwncat
 
 name = "pwncat.enumerate.system"
-provides = "system.version.distro"
+provides = "system.distro"
 per_user = False
 
 

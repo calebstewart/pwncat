@@ -8,7 +8,7 @@ import pwncat
 from pwncat.enumerate import FactData
 
 name = "pwncat.enumerate.capabilities"
-provides = "system.packages"
+provides = "system.package"
 per_user = True
 always_run = False
 

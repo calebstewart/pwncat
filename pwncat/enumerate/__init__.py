@@ -114,7 +114,9 @@ class Enumerate:
                         continue
                     yield fact
 
-                # Add the dummy value
+                # Add the dummy value. We do this after so that
+                # if the generator was closed, this data will get
+                # re-enumerated for the missing entries.
                 if not getattr(enumerator, "always_run", False):
                     self.add_fact(enumerator.provides, None, dummy_name)
 
@@ -125,6 +127,25 @@ class Enumerate:
         :return:
         """
         yield from self.iter()
+
+    def first(self, typ: str) -> pwncat.db.Fact:
+        """
+        Find and return the first fact matching this type. Raises a ValueError
+        if no fact of the given type exists/could be enumerated.
+
+        :param typ: the fact type
+        :return: the fact
+        :raises: ValueError
+        """
+
+        try:
+            iter = self.iter(typ)
+            fact = next(iter)
+            iter.close()
+        except StopIteration:
+            raise ValueError(f"{typ}: no facts located")
+
+        return fact
 
     def add_fact(self, typ: str, data: Any, source: str) -> pwncat.db.Fact:
         """
