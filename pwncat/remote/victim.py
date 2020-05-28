@@ -152,6 +152,8 @@ class Victim:
         # The current user. This is cached while at the `pwncat` prompt
         # and reloaded whenever returning from RAW mode.
         self.cached_user: str = None
+        # The original value of the PATH environment variable
+        self.original_path: List[str] = None
 
     def reconnect(
         self, hostid: str, requested_method: str = None, requested_user: str = None
@@ -352,6 +354,9 @@ class Victim:
 
         # Disable automatic margins, which fuck up the prompt
         self.run("tput rmam")
+
+        # Store the original path
+        self.original_path = self.getenv("PATH").split(":")
 
         # Now that we have a stable connection, we can create our
         # privesc finder object.
