@@ -33,6 +33,9 @@ def enumerate() -> Generator[FactData, None, None]:
     :return:
     """
 
+    init = util.Init.UNKNOWN
+    version = None
+
     # Try to get the command name of the running init process
     try:
         with pwncat.victim.open("/proc/1/comm", "r") as filp:
@@ -62,16 +65,13 @@ def enumerate() -> Generator[FactData, None, None]:
         elif "upstart" in comm.lower():
             init = util.Init.UPSTART
 
-    try:
-        with pwncat.victim.subprocess(f"{comm} --version", "r") as filp:
-            version = filp.read().decode("utf-8").strip()
-        if "systemd" in version.lower():
-            init = util.Init.SYSTEMD
-        elif "sysv" in version.lower():
-            init = util.Init.SYSV
-        elif "upstart" in version.lower():
-            init = util.Init.UPSTART
-    except:
-        version = ""
+    with pwncat.victim.subprocess(f"{comm} --version", "r") as filp:
+        version = filp.read().decode("utf-8").strip()
+    if "systemd" in version.lower():
+        init = util.Init.SYSTEMD
+    elif "sysv" in version.lower():
+        init = util.Init.SYSV
+    elif "upstart" in version.lower():
+        init = util.Init.UPSTART
 
     yield InitSystemData(init, version)

@@ -61,6 +61,28 @@ def StoreForAction(action: List[str]) -> Callable:
     return StoreFor
 
 
+def StoreConstForAction(action: List[str]) -> Callable:
+    """ Generates a custom argparse Action subclass which verifies that the current
+    selected "action" option is one of the provided actions in this function. If
+    not, an error is raised. This stores the constant `const` to the `dest` argument.
+    This is comparable to `store_const`, but checks that you have selected one of
+    the specified actions. """
+
+    class StoreFor(argparse.Action):
+        """ Store the value if the currently selected action matches the list of
+        actions passed to this function. """
+
+        def __call__(self, parser, namespace, values, option_string=None):
+            if getattr(namespace, "action", None) not in action:
+                raise argparse.ArgumentError(
+                    self, f"{option_string}: only valid for {action}",
+                )
+
+            setattr(namespace, self.dest, self.const)
+
+    return StoreFor
+
+
 def RemoteFileType(file_exist=True, directory_exist=False):
     def _type(command: "CommandDefinition", name: str):
         """ Ensures that the remote file named exists. This should only be used for 

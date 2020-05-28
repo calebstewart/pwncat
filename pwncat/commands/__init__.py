@@ -163,20 +163,6 @@ class CommandParser:
             complete_while_typing=False,
             history=history,
         )
-        self.toolbar = PromptSession(
-            [
-                ("fg:ansiyellow bold", "(local) "),
-                ("fg:ansimagenta bold", "pwncat"),
-                ("", "$ "),
-            ],
-            completer=completer,
-            lexer=lexer,
-            style=style,
-            auto_suggest=auto_suggest,
-            complete_while_typing=False,
-            prompt_in_toolbar=True,
-            history=history,
-        )
 
     @property
     def loaded(self):
@@ -209,7 +195,7 @@ class CommandParser:
     def run_single(self):
 
         try:
-            line = self.toolbar.prompt().strip()
+            line = self.prompt.prompt().strip()
         except (EOFError, OSError, KeyboardInterrupt):
             pass
         else:

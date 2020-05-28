@@ -15,6 +15,8 @@ from pwncat.commands.base import (
     Parameter,
     StoreConstOnce,
     Group,
+    StoreForAction,
+    StoreConstForAction,
 )
 
 
@@ -34,16 +36,14 @@ class Command(CommandDefinition):
     """
     Interface with the underlying enumeration module. This provides methods
     for enumerating, viewing and clearing cached facts about the victim.
-    Types of enumeration data include the following options:
-
-    * all - all known enumeration techniques
-    * common - common useful information
-    * suid - Set UID binaries on the remote host
-    * passwords - Known passwords for remote users
-    * keys - Known private keys found on the remote host
-    
-    Other enumeration data may be available which was dynamically registered by
-    other ``pwncat`` modules.
+    There are various types of enumeration data which can be collected by
+    pwncat. Some enumeration data is provided by "enumerator" modules which
+    will be automatically run if you request a type which they provide. On
+    the other hand, some enumeration is performed as a side-effect of other
+    operations (normally a privilege escalation). This data is only stored
+    when it is found organically. To find out what types are available, you
+    should use the tab-completion at the local prompt. Some shortcuts are
+    provided with the "enumeration groups" options below.
     
     """
 
@@ -68,7 +68,14 @@ class Command(CommandDefinition):
         "action": Group(
             title="enumeration actions",
             description="Exactly one action must be chosen from the below list.",
-        )
+        ),
+        "groups": Group(
+            title="enumeration groups",
+            description=(
+                "common enumeration groups; these put together various "
+                "groups of enumeration types which may be useful"
+            ),
+        ),
     }
     ARGS = {
         "--show,-s": Parameter(
@@ -78,12 +85,12 @@ class Command(CommandDefinition):
             dest="action",
             const="show",
             group="action",
-            help="Find and display all facts of the given type",
+            help="Find and display all facts of the given type and provider",
         ),
         "--long,-l": Parameter(
             Complete.NONE,
             action="store_true",
-            help="Show long description of enumeration results",
+            help="Show long description of enumeration results (only valid for --show)",
         ),
         "--no-enumerate,-n": Parameter(
             Complete.NONE,
@@ -92,9 +99,11 @@ class Command(CommandDefinition):
         ),
         "--type,-t": Parameter(
             Complete.CHOICES,
+            action=StoreForAction(["show", "flush"]),
+            nargs=1,
             choices=get_fact_types,
             metavar="TYPE",
-            help="The type of enumeration data to query",
+            help="The type of enumeration data to query (only valid for --show/--flush)",
         ),
         "--flush,-f": Parameter(
             Complete.NONE,
@@ -103,10 +112,17 @@ class Command(CommandDefinition):
             nargs=0,
             dest="action",
             const="flush",
-            help="Flush the queried enumeration data from the database",
+            help=(
+                "Flush the queried enumeration data from the database. "
+                "This only flushed the data specified by the --type and "
+                "--provider options. If no type or provider or specified, "
+                "all data is flushed"
+            ),
         ),
         "--provider,-p": Parameter(
             Complete.CHOICES,
+            action=StoreForAction(["show", "flush"]),
+            nargs=1,
             choices=get_provider_names,
             metavar="PROVIDER",
             help="The enumeration provider to filter by",
@@ -116,7 +132,36 @@ class Command(CommandDefinition):
             group="action",
             action=ReportAction,
             nargs=1,
-            help="Generate an enumeration report containing the specified enumeration data",
+            help=(
+                "Generate an enumeration report containing all enumeration "
+                "data pwncat is capable of generating in a Markdown format."
+            ),
+        ),
+        "--quick,-q": Parameter(
+            Complete.NONE,
+            action=StoreConstForAction(["show"]),
+            dest="type",
+            const=[
+                "system.hostname",
+                "system.arch",
+                "system.distro",
+                "system.kernel.version",
+                "system.kernel.exploit",
+                "system.network.hosts",
+                "system.network",
+            ],
+            nargs=0,
+            help="Activate the set of 'quick' enumeration types",
+            group="groups",
+        ),
+        "--all,-a": Parameter(
+            Complete.NONE,
+            action=StoreConstForAction(["show"]),
+            dest="type",
+            const=None,
+            nargs=0,
+            help="Activate all enumeration types (this is the default)",
+            group="groups",
         ),
     }
     DEFAULTS = {"action": "help"}
@@ -128,22 +173,22 @@ class Command(CommandDefinition):
             self.parser.print_help()
             return
 
-        # if not args.type:
-        #     args.type = "all"
-
         if args.action == "show":
             self.show_facts(args.type, args.provider, args.long)
         elif args.action == "flush":
             self.flush_facts(args.type, args.provider)
         elif args.action == "report":
-            self.generate_report(args.report, args.type, args.provider)
+            self.generate_report(args.report)
 
-    def generate_report(self, report_path: str, typ: str, provider: str):
-        """ Generate a markdown report of enumeration data for the remote host """
+    def generate_report(self, report_path: str):
+        """ Generate a markdown report of enumeration data for the remote host. This
+        report is generated from all facts which pwncat is capable of enumerating.
+        It does not need nor honor the type or provider options. """
 
+        # Dictionary mapping type names to facts. Each type name is mapped
+        # to a dictionary which maps sources to a list of facts. This makes
+        # organizing the output report easier.
         report_data: Dict[str, Dict[str, List[pwncat.db.Fact]]] = {}
-        hostname = ""
-
         system_details = []
 
         try:
@@ -202,7 +247,8 @@ class Command(CommandDefinition):
         table_writer.value_matrix = system_details
         table_writer.margin = 1
 
-        # Note enumeration data we don't need anymore
+        # Note enumeration data we don't need anymore. These are handled above
+        # in the system_details table which is output with the table_writer.
         ignore_types = [
             "system.hostname",
             "system.kernel.version",
@@ -234,9 +280,7 @@ class Command(CommandDefinition):
         ]
 
         util.progress("enumerating report_data")
-        for fact in pwncat.victim.enumerate.iter(
-            typ, filter=lambda f: provider is None or f.source == provider
-        ):
+        for fact in pwncat.victim.enumerate.iter():
             util.progress(f"enumerating report_data: {fact.data}")
             if fact.type in ignore_types:
                 continue
@@ -308,16 +352,22 @@ class Command(CommandDefinition):
 
         facts: Dict[str, Dict[str, List[pwncat.db.Fact]]] = {}
 
+        if isinstance(typ, list):
+            types = typ
+        else:
+            types = [typ]
+
         util.progress("enumerating facts")
-        for fact in pwncat.victim.enumerate.iter(
-            typ, filter=lambda f: provider is None or f.source == provider
-        ):
-            util.progress(f"enumerating facts: {fact.data}")
-            if fact.type not in facts:
-                facts[fact.type] = {}
-            if fact.source not in facts[fact.type]:
-                facts[fact.type][fact.source] = []
-            facts[fact.type][fact.source].append(fact)
+        for typ in types:
+            for fact in pwncat.victim.enumerate.iter(
+                typ, filter=lambda f: provider is None or f.source == provider
+            ):
+                util.progress(f"enumerating facts: {fact.data}")
+                if fact.type not in facts:
+                    facts[fact.type] = {}
+                if fact.source not in facts[fact.type]:
+                    facts[fact.type][fact.source] = []
+                facts[fact.type][fact.source].append(fact)
 
         util.erase_progress()
 

@@ -56,6 +56,7 @@ class Access(Flag):
 
 class Init(Enum):
 
+    UNKNOWN = auto()
     SYSTEMD = auto()
     UPSTART = auto()
     SYSV = auto()
