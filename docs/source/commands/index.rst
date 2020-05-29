@@ -11,6 +11,7 @@ Command index
     busybox.rst
     connect.rst
     download.rst
+    enum.rst
     persist.rst
     privesc.rst
     tamper.rst
