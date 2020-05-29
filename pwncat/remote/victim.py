@@ -152,8 +152,6 @@ class Victim:
         # The current user. This is cached while at the `pwncat` prompt
         # and reloaded whenever returning from RAW mode.
         self.cached_user: str = None
-        # The original value of the PATH environment variable
-        self.original_path: List[str] = None
 
     def reconnect(
         self, hostid: str, requested_method: str = None, requested_user: str = None
@@ -249,7 +247,7 @@ class Victim:
             hostname = self.run("hostname -f").strip()
         else:
             util.warn("hostname command not found; using peer address")
-            hostname = client.getpeername().encode("utf-8")
+            hostname = client.getpeername()[0].encode("utf-8")
         mac = None
 
         # Use ifconfig if available or ip link show.
@@ -354,9 +352,6 @@ class Victim:
 
         # Disable automatic margins, which fuck up the prompt
         self.run("tput rmam")
-
-        # Store the original path
-        self.original_path = self.getenv("PATH").split(":")
 
         # Now that we have a stable connection, we can create our
         # privesc finder object.
@@ -488,7 +483,7 @@ class Victim:
                             f"pruning {Fore.RED}{name}{Fore.RESET} from busybox"
                         )
 
-            util.success(f"pruned {len(provides) - len(new_provides)} setuid entries")
+            util.success(f"pruned {len(provides)-len(new_provides)} setuid entries")
             provides = new_provides
 
         # Let the class know we now have access to busybox
@@ -1467,17 +1462,13 @@ class Victim:
 
         return output
 
-    def reset(self, hard: bool = True):
+    def reset(self):
         """
         Reset the remote terminal using the ``reset`` command. This also restores
         your prompt, and sets up the environment correctly for ``pwncat``.
-
-        :param hard: whether to actually call the `reset` command.
-            This prevents a long pause when we simply need to reset other
-            things such as the prompt, aliases or history control.
+        
         """
-        if hard:
-            self.run("reset", wait=False)
+        self.run("reset", wait=False)
         self.has_cr = True
         self.has_echo = True
         self.run("unset HISTFILE; export HISTCONTROL=ignorespace")
