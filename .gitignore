@@ -10,3 +10,4 @@ testbed
 **/*.sqlite
 testing/
 data/pwncat.sqlite-journal
+pwncat.sqlite-journal
