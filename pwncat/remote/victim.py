@@ -1362,8 +1362,14 @@ class Victim:
             raise PermissionError("no password provided and whoami != root!")
 
         if current_user["uid"]["id"] != 0:
+            timeout = self.which("timeout")
+            if timeout is not None:
+                command = f'timeout 0.5 su {user} -c "echo good" || echo failure'
+            else:
+                command = f'su {user} -c "echo good" || echo failure'
+
             # Verify the validity of the password
-            self.env(["su", user, "-c", "echo good"], wait=False)
+            self.run(command, wait=False)
             self.recvuntil(b": ")
             self.client.send(password.encode("utf-8") + b"\n")
 
