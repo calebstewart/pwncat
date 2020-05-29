@@ -803,6 +803,7 @@ class Victim:
         if wait:
 
             response = self.recvuntil(edelim.encode("utf-8"))
+
             response = response.split(edelim.encode("utf-8"))[0]
             if sdelim.encode("utf-8") in response:
                 response = b"\n".join(response.split(b"\n")[1:])
@@ -850,8 +851,14 @@ class Victim:
 
         if delim:
             # Receive until we get our starting delimeter on a line by itself
-            while not self.recvuntil(b"\n").startswith(sdelim.encode("utf-8")):
-                pass
+            while True:
+                x = self.recvuntil(b"\n")
+                if x.startswith(sdelim.encode("utf-8")):
+                    break
+
+            data = self.client.recv(len(command), socket.MSG_PEEK)
+            if data == command.encode("utf-8"):
+                self.client.recv(len(command))
 
         return sdelim, edelim
 
@@ -1462,13 +1469,14 @@ class Victim:
 
         return output
 
-    def reset(self):
+    def reset(self, hard: bool = True):
         """
         Reset the remote terminal using the ``reset`` command. This also restores
         your prompt, and sets up the environment correctly for ``pwncat``.
         
         """
-        self.run("reset", wait=False)
+        if hard:
+            self.run("reset", wait=False)
         self.has_cr = True
         self.has_echo = True
         self.run("unset HISTFILE; export HISTCONTROL=ignorespace")
