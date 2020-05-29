@@ -74,4 +74,8 @@ def enumerate() -> Generator[FactData, None, None]:
     elif "upstart" in version.lower():
         init = util.Init.UPSTART
 
+    # No need to provide an empty version string. They apparently don't support "--version"
+    if version == "":
+        version = None
+
     yield InitSystemData(init, version)

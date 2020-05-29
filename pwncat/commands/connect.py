@@ -76,7 +76,7 @@ class Command(CommandDefinition):
             Complete.NONE,
             type=int,
             help="The port to listen on or connect to",
-            action=StoreForAction(["connect", "listen"]),
+            action=StoreForAction(["connect", "listen", "ssh"]),
         ),
         "--method,-m": Parameter(
             Complete.NONE,

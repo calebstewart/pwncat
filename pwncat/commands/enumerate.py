@@ -149,6 +149,7 @@ class Command(CommandDefinition):
                 "system.kernel.exploit",
                 "system.network.hosts",
                 "system.network",
+                "writable_path",
             ],
             nargs=0,
             help="Activate the set of 'quick' enumeration types",
@@ -267,6 +268,8 @@ class Command(CommandDefinition):
             "system.user.password",
             # Enumerated possible user private keys - very important
             "system.user.private_key",
+            # Directories in our path that are writable
+            "writable_path",
         ]
 
         # These types are very noisy. They are important for full enumeration,
@@ -350,7 +353,7 @@ class Command(CommandDefinition):
     def show_facts(self, typ: str, provider: str, long: bool):
         """ Display known facts matching the criteria """
 
-        facts: Dict[str, Dict[str, List[pwncat.db.Fact]]] = {}
+        data: Dict[str, Dict[str, List[pwncat.db.Fact]]] = {}
 
         if isinstance(typ, list):
             types = typ
@@ -363,15 +366,15 @@ class Command(CommandDefinition):
                 typ, filter=lambda f: provider is None or f.source == provider
             ):
                 util.progress(f"enumerating facts: {fact.data}")
-                if fact.type not in facts:
-                    facts[fact.type] = {}
-                if fact.source not in facts[fact.type]:
-                    facts[fact.type][fact.source] = []
-                facts[fact.type][fact.source].append(fact)
+                if fact.type not in data:
+                    data[fact.type] = {}
+                if fact.source not in data[fact.type]:
+                    data[fact.type][fact.source] = []
+                data[fact.type][fact.source].append(fact)
 
         util.erase_progress()
 
-        for typ, sources in facts.items():
+        for typ, sources in data.items():
             for source, facts in sources.items():
                 print(
                     f"{Style.BRIGHT}{Fore.YELLOW}{typ.upper()}{Fore.RESET} Facts by {Fore.BLUE}{source}{Style.RESET_ALL}"
@@ -384,4 +387,10 @@ class Command(CommandDefinition):
     def flush_facts(self, typ: str, provider: str):
         """ Flush all facts that match criteria """
 
-        pwncat.victim.enumerate.flush(typ, provider)
+        if isinstance(typ, list):
+            types = typ
+        else:
+            types = [typ]
+
+        for typ in types:
+            pwncat.victim.enumerate.flush(typ, provider)
