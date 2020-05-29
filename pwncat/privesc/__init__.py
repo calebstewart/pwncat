@@ -759,7 +759,7 @@ class Finder:
             if persist.escalate(user):
 
                 # Ensure history and prompt are correct
-                pwncat.victim.reset(hard=False)
+                pwncat.victim.reset()
 
                 # Update the current user
                 if pwncat.victim.update_user() != user:
