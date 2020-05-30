@@ -11,6 +11,9 @@ import io
 class ControlCodes:
     CTRL_C = "\x03"
     CTRL_X = "\x18"
+    CTRL_R = "\x12"
+    CTRL_O = "\x0F"
+    CTRL_T = "\x14"
     CTRL_Z = "\x1a"
     CTRL_D = "\x04"
     ESCAPE = "\x1B"
@@ -161,6 +164,9 @@ class Method:
                 ctrl_x=ControlCodes.CTRL_X,
                 escape=ControlCodes.ESCAPE,
                 ctrl_d=ControlCodes.CTRL_D,
+                ctrl_r=ControlCodes.CTRL_R,
+                ctrl_o=ControlCodes.CTRL_O,
+                ctrl_t=ControlCodes.CTRL_T,
                 **kwargs,
             )
             command = f"sudo -u {user} " + command + " " + args
@@ -179,6 +185,9 @@ class Method:
                 ctrl_x=ControlCodes.CTRL_X,
                 escape=ControlCodes.ESCAPE,
                 ctrl_d=ControlCodes.CTRL_D,
+                ctrl_r=ControlCodes.CTRL_R,
+                ctrl_o=ControlCodes.CTRL_O,
+                ctrl_t=ControlCodes.CTRL_T,
                 **kwargs,
             )
 
@@ -190,6 +199,9 @@ class Method:
             ctrl_z=ControlCodes.CTRL_Z,
             escape=ControlCodes.ESCAPE,
             ctrl_d=ControlCodes.CTRL_D,
+            ctrl_r=ControlCodes.CTRL_R,
+            ctrl_o=ControlCodes.CTRL_O,
+            ctrl_t=ControlCodes.CTRL_T,
             **kwargs,
         )
 
@@ -271,6 +283,9 @@ class MethodWrapper:
             ctrl_x=ControlCodes.CTRL_X,
             escape=ControlCodes.ESCAPE,
             ctrl_d=ControlCodes.CTRL_D,
+            ctrl_r=ControlCodes.CTRL_R,
+            ctrl_o=ControlCodes.CTRL_O,
+            ctrl_t=ControlCodes.CTRL_T,
             **kwargs,
         )
 
@@ -287,6 +302,9 @@ class MethodWrapper:
             ctrl_x=ControlCodes.CTRL_X,
             escape=ControlCodes.ESCAPE,
             ctrl_d=ControlCodes.CTRL_D,
+            ctrl_r=ControlCodes.CTRL_R,
+            ctrl_o=ControlCodes.CTRL_O,
+            ctrl_t=ControlCodes.CTRL_T,
             **kwargs,
         )
 

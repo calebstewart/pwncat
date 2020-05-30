@@ -107,7 +107,7 @@ def local_which(path: str, quote: bool = True):
     return result
 
 
-gtfo = GTFOBins("../data/gtfobins.json", local_which)
+gtfo = GTFOBins("../pwncat/data/gtfobins.json", local_which)
 
 if args.find:
     if not args.spec:

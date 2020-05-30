@@ -11,6 +11,7 @@ import pwncat
 
 
 class Method(BaseMethod):
+    # class Nerfed(BaseMethod):
     """
     Enumerate passwords in configuration files and attempt them on standard
     users (UID >= 1000) and root.
