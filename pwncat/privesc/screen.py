@@ -134,6 +134,8 @@ class Method(BaseMethod):
         file_owner = pwncat.victim.run(f"stat -c%u {rootshell}").strip()
         if file_owner != b"0":
 
+            # Hop back to the original directory
+            pwncat.victim.run("popd")
             raise PrivescError("failed to create root shell")
 
         # Hop back to the original directory
