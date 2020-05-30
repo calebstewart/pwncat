@@ -301,15 +301,15 @@ class Finder:
         for technique in techniques:
             if Capability.SHELL in technique.capabilities:
                 try:
+                    util.progress(f"attempting {technique}")
 
                     # Attempt our basic, known technique
-                    shlvl = pwncat.victim.getenv("SHLVL")
                     exit_script = technique.method.execute(technique)
                     pwncat.victim.flush_output(some=True)
 
                     # Reset the terminal to ensure we are stable
                     time.sleep(0.1)  # This seems inevitable for some privescs...
-                    pwncat.victim.reset()
+                    pwncat.victim.reset(hard=False)
 
                     # Check that we actually succeeded
                     current = pwncat.victim.update_user()
@@ -318,6 +318,7 @@ class Finder:
                         technique.user == pwncat.victim.config["backdoor_user"]
                         and current == "root"
                     ):
+                        util.progress(f"{technique} succeeded!")
                         pwncat.victim.flush_output()
                         return technique, exit_script
 
@@ -334,7 +335,9 @@ class Finder:
                         # Clean up whatever mess was left over
                         pwncat.victim.flush_output()
 
-                        pwncat.victim.reset()
+                        pwncat.victim.reset(hard=False)
+
+                        shlvl = pwncat.victim.getenv("SHLVL")
 
                     # The privesc didn't work, but didn't throw an exception.
                     # Continue on as if it hadn't worked.
@@ -402,52 +405,18 @@ class Finder:
 
                     return writer, "exit"
 
-        util.progress(f"checking for local {Fore.RED}sshd{Fore.RESET} server")
-
-        if len(writers) == 0 and len(readers) == 0:
-            raise PrivescError("no readers and no writers. ssh privesc impossible")
-
-        # Check if there is an SSH server running
         sshd_running = False
-        ps = pwncat.victim.which("ps")
-        if ps is not None:
-            sshd_running = (
-                b"sshd" in pwncat.victim.subprocess("ps -o command -e", "r").read()
-            )
-        else:
-            pgrep = pwncat.victim.which("pgrep")
-            if pgrep is not None:
-                sshd_running = (
-                    pwncat.victim.subprocess("pgrep 'sshd'", "r").read().strip() != b""
-                )
+        for fact in pwncat.victim.enumerate.iter("system.service"):
+            util.progress("enumerating services: {fact.data}")
+            if "sshd" in fact.data.name and fact.data.state == "running":
+                sshd_running = True
 
-        try:
-            with pwncat.victim.open("/proc/net/tcp", "r") as filp:
-                for line in filp.readlines()[1:]:
-                    line = line.strip().split()
-                    local_addr = line[1].split(":")
-                    remote_addr = line[2].split(":")
-                    local_addr = (
-                        (int(local_addr[0], 16)),
-                        (int(local_addr[1], 16)),
-                    )
-                    remote_addr = (
-                        (int(remote_addr[0], 16)),
-                        (int(remote_addr[1], 16)),
-                    )
-                    # Found the SSH socket! Save the listening address
-                    if local_addr[1] == 22 and remote_addr[0] == 0:
-                        sshd_listening = True
-                        sshd_address = str(ipaddress.ip_address(local_addr[0]))
-                        break
-                else:
-                    # We didn't find an SSH socket
-                    sshd_listening = False
-                    sshd_address = None
-        except (PermissionError, FileNotFoundError, IndexError):
-            # We couldn't verify one way or the other, just try it
+        if sshd_running:
             sshd_listening = True
-            sshd_address = "0.0.0.0"
+            sshd_address = "127.0.0.1"
+        else:
+            sshd_listening = False
+            sshd_address = None
 
         used_technique = None
 

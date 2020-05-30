@@ -3,17 +3,23 @@ import pkgutil
 from typing import Generator, Callable, Any
 
 import sqlalchemy
+from sqlalchemy.ext.mutable import Mutable
 
 import pwncat
 
 
-class FactData:
+class FactData(Mutable):
     def __str__(self):
         return "unknown"
 
     @property
     def description(self):
         return None
+
+    def __getstate__(self):
+        d = self.__dict__.copy()
+        d.pop("_parents", None)
+        return d
 
 
 class Enumerate:

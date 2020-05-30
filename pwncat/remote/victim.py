@@ -1362,6 +1362,11 @@ class Victim:
             raise PermissionError("no password provided and whoami != root!")
 
         if current_user["uid"]["id"] != 0:
+
+            # We try to use the `timeout` command to speed up the case where
+            # the attempted password is incorrect. If it doesn't exist, we
+            # just use a regular `su`, which will take a couple seconds to
+            # timeout depeding on your authentication settings.
             timeout = self.which("timeout")
             if timeout is not None:
                 command = f'timeout 0.5 su {user} -c "echo good" || echo failure'

@@ -2,7 +2,7 @@
 import dataclasses
 import os
 import re
-from typing import Generator, Optional
+from typing import Generator, Optional, List
 
 from colorama import Fore
 
@@ -10,7 +10,7 @@ import pwncat
 from pwncat.enumerate import FactData
 
 name = "pwncat.enumerate.passwords"
-provides = "passwords"
+provides = "configuration.password"
 per_user = True
 always_run = False
 
@@ -22,6 +22,8 @@ class Password(FactData):
     value: Optional[str]
     lineno: int
     line: str
+    # users which we know *dont* have this password
+    invalid: List[str]
 
     def __str__(self):
         if self.value is not None:
@@ -111,4 +113,4 @@ def enumerate() -> Generator[FactData, None, None]:
 
             # This was a match for the search. We  may have extracted a
             # password. Either way, log it.
-            yield Password(path, password, lineno, ":".join(line))
+            yield Password(path, password, lineno, ":".join(line), [])
