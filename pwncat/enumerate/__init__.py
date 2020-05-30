@@ -113,7 +113,13 @@ class Enumerate:
                         continue
 
                 for data in enumerator.enumerate():
-                    fact = self.add_fact(name, data, enumerator.name)
+                    try:
+                        fact = self.add_fact(
+                            name, data, enumerator.name, exist_ok=False
+                        )
+                    except ValueError:
+                        # Duplicate fact was enumerated
+                        continue
                     if fact.data is None:
                         continue
                     if filter is not None and not filter(fact):
@@ -153,7 +159,9 @@ class Enumerate:
 
         return fact
 
-    def add_fact(self, typ: str, data: Any, source: str) -> pwncat.db.Fact:
+    def add_fact(
+        self, typ: str, data: Any, source: str, exist_ok: bool = True
+    ) -> pwncat.db.Fact:
         """
         Register a fact with the fact database. This does not have to come from
         an enumerator. It likely didn't. This will be registered in the database
@@ -172,6 +180,8 @@ class Enumerate:
             pwncat.victim.host.facts.append(row)
         except sqlalchemy.exc.IntegrityError:
             pwncat.victim.session.rollback()
+            if not exist_ok:
+                raise ValueError(f"duplicate fact added")
             return (
                 pwncat.victim.session.query(pwncat.db.Fact)
                 .filter_by(host_id=pwncat.victim.host.id, type=typ, data=data)

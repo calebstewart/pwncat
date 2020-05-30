@@ -6,7 +6,7 @@ import shlex
 import socket
 import sys
 import time
-from typing import Dict, Optional, IO, Any, List, Tuple, Iterator, Union
+from typing import Dict, Optional, IO, Any, List, Tuple, Iterator, Union, Generator
 
 import paramiko
 import pkg_resources
@@ -1055,6 +1055,34 @@ class Victim:
                 access |= util.Access.PARENT_WRITE
 
         return access
+
+    def listdir(self, path: str) -> Generator[str, None, None]:
+        """
+        List the contents of the specified directory.
+
+        Raises the following exceptions:
+
+        - FileNotFoundError: the directory does not exist
+        - NotADirectoryError: the path is not a directory
+        - PermissionError: you don't have permission to list the directory
+
+        :param path: the path to the directory
+        :return: generator of file paths within the directory
+        """
+
+        # Ensure the path exists and we are allowed to read it
+        access = self.access(path)
+        if util.Access.DIRECTORY not in access and util.Access.EXISTS in access:
+            raise NotADirectoryError
+        if util.Access.EXISTS not in access:
+            raise FileNotFoundError
+        if util.Access.EXECUTE not in access:
+            raise PermissionError
+
+        with self.subprocess("ls --color=never --all -1", "r") as pipe:
+            for line in pipe:
+                line = line.strip().decode("utf-8")
+                yield line
 
     def open_read(
         self, path: str, mode: str
