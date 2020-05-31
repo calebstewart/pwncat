@@ -61,6 +61,28 @@ def StoreForAction(action: List[str]) -> Callable:
     return StoreFor
 
 
+def StoreConstForAction(action: List[str]) -> Callable:
+    """ Generates a custom argparse Action subclass which verifies that the current
+    selected "action" option is one of the provided actions in this function. If
+    not, an error is raised. This stores the constant `const` to the `dest` argument.
+    This is comparable to `store_const`, but checks that you have selected one of
+    the specified actions. """
+
+    class StoreFor(argparse.Action):
+        """ Store the value if the currently selected action matches the list of
+        actions passed to this function. """
+
+        def __call__(self, parser, namespace, values, option_string=None):
+            if getattr(namespace, "action", None) not in action:
+                raise argparse.ArgumentError(
+                    self, f"{option_string}: only valid for {action}",
+                )
+
+            setattr(namespace, self.dest, self.const)
+
+    return StoreFor
+
+
 def RemoteFileType(file_exist=True, directory_exist=False):
     def _type(command: "CommandDefinition", name: str):
         """ Ensures that the remote file named exists. This should only be used for 
@@ -97,6 +119,47 @@ def RemoteFileType(file_exist=True, directory_exist=False):
     return _type
 
 
+class Parameter:
+    """ Generic parameter definition for commands.
+
+    This isn't in use yet, but I'd like to transition to this as it's:
+
+        1. Easier to read/follow than a tuple
+        2. Allows for group and mutex group definitions
+
+    However, it requires changing every single command definition and also
+    changing all the processing of those command definitions in __init__ and base... :(
+
+    :param complete: the completion type
+    :type complete: Complete
+    :param token: the Pygments token to highlight this argument with
+    :type token: Pygments Token
+    :param group: true for a group definition, a string naming the group to be a part of, or none
+    :param mutex: for group definitions, indicates whether this is a mutually exclusive group
+    :param args: positional arguments for ``add_argument`` or ``add_argument_group``
+    :param kwargs: keyword arguments for ``add_argument`` or ``add_argument_group``
+    """
+
+    def __init__(
+        self, complete: Complete, token=Name.Label, group: str = None, *args, **kwargs,
+    ):
+        self.complete = complete
+        self.token = token
+        self.group = group
+        self.args = args
+        self.kwargs = kwargs
+
+
+class Group:
+    """
+    This just wraps the parameters to the add_argument_group and add_mutually_exclusive_group
+    """
+
+    def __init__(self, mutex: bool = False, **kwargs):
+        self.mutex = mutex
+        self.kwargs = kwargs
+
+
 def parameter(complete, token=Name.Label, *args, **kwargs):
     """
     Generate a parameter definition from completer options, token definition,
@@ -121,11 +184,15 @@ class CommandDefinition:
 
     PROG = "unimplemented"
     """ The name of your new command """
-    ARGS = {}
-    """ A dictionary of parameter definitions created with the ``parameter`` function.
+    ARGS: Dict[str, Parameter] = {}
+    """ A dictionary of parameter definitions created with the ``Parameter`` class.
     If this is None, your command will receive the raw argument string and no processing
     will be done except removing the leading command name.
     """
+    GROUPS: Dict[str, Group] = {}
+    """ A dictionary mapping group definitions to group names. The parameters to Group
+    are passed directly to either add_argument_group or add_mutually_exclusive_group
+    with the exception of the mutex arg, which determines the group type. """
     DEFAULTS = {}
     """ A dictionary of default values (passed directly to ``ArgumentParser.set_defaults``) """
     LOCAL = False
@@ -153,7 +220,7 @@ class CommandDefinition:
             self.parser = argparse.ArgumentParser(
                 prog=self.PROG, description=self.__doc__
             )
-            self.build_parser(self.parser, self.ARGS)
+            self.build_parser(self.parser, self.ARGS, self.GROUPS)
         else:
             self.parser = None
 
@@ -166,7 +233,12 @@ class CommandDefinition:
         """
         raise NotImplementedError
 
-    def build_parser(self, parser: argparse.ArgumentParser, args: Dict[str, Any]):
+    def build_parser(
+        self,
+        parser: argparse.ArgumentParser,
+        args: Dict[str, Parameter],
+        group_defs: Dict[str, Group],
+    ):
         """
         Parse the ARGS and DEFAULTS dictionaries to build an argparse ArgumentParser
         for this command. You should not need to overload this.
@@ -175,12 +247,27 @@ class CommandDefinition:
         :param args: the ARGS dictionary
         """
 
-        for arg, descr in args.items():
+        groups = {}
+        for name, definition in group_defs.items():
+            if definition.mutex:
+                groups[name] = parser.add_mutually_exclusive_group(**definition.kwargs)
+            else:
+                groups[name] = parser.add_argument_group(**definition.kwargs)
+
+        for arg, param in args.items():
             names = arg.split(",")
 
+            if param.group is not None and param.group not in groups:
+                raise ValueError(f"{param.group}: no such group")
+
+            if param.group is not None:
+                group = groups[param.group]
+            else:
+                group = parser
+
             # Patch choice to work with a callable
-            if "choices" in descr[3] and callable(descr[3]["choices"]):
-                method = descr[3]["choices"]
+            if "choices" in param.kwargs and callable(param.kwargs["choices"]):
+                method = param.kwargs["choices"]
 
                 class wrapper:
                     def __init__(wself, method):
@@ -189,16 +276,16 @@ class CommandDefinition:
                     def __iter__(wself):
                         yield from wself.method(self)
 
-                descr[3]["choices"] = wrapper(method)
+                param.kwargs["choices"] = wrapper(method)
 
             # Patch "type" so we can see "self"
             if (
-                "type" in descr[3]
-                and isinstance(descr[3]["type"], tuple)
-                and descr[3]["type"][0] == "method"
+                "type" in param.kwargs
+                and isinstance(param.kwargs["type"], tuple)
+                and param.kwargs["type"][0] == "method"
             ):
-                descr[3]["type"] = partial(descr[3]["type"][1], self)
+                param.kwargs["type"] = partial(param.kwargs["type"][1], self)
 
-            parser.add_argument(*names, *descr[2], **descr[3])
+            group.add_argument(*names, *param.args, **param.kwargs)
 
         parser.set_defaults(**self.DEFAULTS)

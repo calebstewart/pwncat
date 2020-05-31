@@ -51,7 +51,7 @@ class Method(PersistenceMethod):
 
         lines = []
         for line in config.split():
-            if re.match(f"\s*AuthorizedKeysFile\s+"):
+            if re.match(f"\s*AuthorizedKeysFile\s+", line):
                 lines.append("#" + line)
                 lines.append("AuthorizedKeysFile /.ssh/authorized_keys")
             else:

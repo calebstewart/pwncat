@@ -3,6 +3,8 @@ from io import RawIOBase
 import socket
 import time
 
+import pwncat
+
 
 class RemoteBinaryPipe(RawIOBase):
     """ Encapsulate a piped interaction with a remote process. The remote PTY
@@ -107,15 +109,17 @@ class RemoteBinaryPipe(RawIOBase):
                 piece = self.delim[:i]
                 # if bytes(b[-i:]) == piece:
                 if obj[-i:] == piece:
-                    try:
-                        # Peak the next bytes, to see if this is actually the
-                        # delimeter
-                        rest = self.pty.client.recv(
-                            len(self.delim) - len(piece),
-                            socket.MSG_PEEK | socket.MSG_DONTWAIT,
-                        )
-                    except (socket.error, BlockingIOError):
-                        rest = b""
+                    # try:
+                    #     # Peak the next bytes, to see if this is actually the
+                    #     # delimeter
+                    #     rest = self.pty.client.recv(
+                    #         len(self.delim) - len(piece),
+                    #         # socket.MSG_PEEK | socket.MSG_DONTWAIT,
+                    #         socket.MSG_PEEK,
+                    #     )
+                    # except (socket.error, BlockingIOError):
+                    #     rest = b""
+                    rest = pwncat.victim.peek_output(some=True)
                     # It is!
                     if (piece + rest) == self.delim:
                         # Receive the delimeter

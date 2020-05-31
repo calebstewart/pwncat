@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from pwncat.commands.base import CommandDefinition, parameter, Complete
+from pwncat.commands.base import CommandDefinition, Parameter, Complete
 import pwncat
 
 
@@ -13,7 +13,7 @@ class Command(CommandDefinition):
 
     PROG = "hashdump"
     ARGS = {
-        "--hashcat,-c": parameter(
+        "--hashcat,-c": Parameter(
             Complete.NONE, action="store_true", help="Display hashes in hashcat form"
         )
     }

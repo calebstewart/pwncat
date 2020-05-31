@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import pwncat
-from pwncat.commands.base import CommandDefinition, Complete, parameter
+from pwncat.commands.base import CommandDefinition, Complete, Parameter
 from colorama import Fore
 
 
@@ -14,8 +14,8 @@ class Command(CommandDefinition):
 
     PROG = "alias"
     ARGS = {
-        "alias": parameter(Complete.NONE, help="name for the new alias", nargs="?"),
-        "command": parameter(
+        "alias": Parameter(Complete.NONE, help="name for the new alias", nargs="?"),
+        "command": Parameter(
             Complete.CHOICES,
             metavar="COMMAND",
             choices=get_command_names,
@@ -35,7 +35,9 @@ class Command(CommandDefinition):
         elif args.command is not None:
             # This is safe because of "choices" in the argparser
             pwncat.victim.command_parser.aliases[args.alias] = [
-                c for c in pwncat.victim.command_parser.commands if c.PROG == args.command
+                c
+                for c in pwncat.victim.command_parser.commands
+                if c.PROG == args.command
             ][0]
         else:
             del pwncat.victim.command_parser.aliases[args.alias]

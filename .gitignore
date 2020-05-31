@@ -7,5 +7,7 @@ dist/
 .byebug_history
 testbed
 .idea/
-data/*.sqlite
+**/*.sqlite
 testing/
+data/pwncat.sqlite-journal
+pwncat.sqlite-journal

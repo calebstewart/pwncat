@@ -1,9 +1,6 @@
 Automated Privilege Escalation
 ==============================
 
-.. toctree::
-    :maxdepth: -1
-
 ``pwncat`` has the ability to attempt automated privilege escalation methods. A number of methods are implemented by
 default such as:
 

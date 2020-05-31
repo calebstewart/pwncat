@@ -6,7 +6,7 @@ from colorama import Fore, Style
 
 import pwncat
 from pwncat import util
-from pwncat.commands.base import CommandDefinition, Complete, parameter, StoreConstOnce
+from pwncat.commands.base import CommandDefinition, Complete, Parameter, StoreConstOnce
 from pwncat.persist import PersistenceMethod, PersistenceError
 
 
@@ -26,19 +26,19 @@ class Command(CommandDefinition):
 
     PROG = "persist"
     ARGS = {
-        "--method,-m": parameter(
+        "--method,-m": Parameter(
             Complete.CHOICES,
             metavar="METHOD",
             help="Select a persistence method to deploy",
             choices=get_method_choices,
         ),
-        "--user,-u": parameter(
+        "--user,-u": Parameter(
             Complete.CHOICES,
             metavar="USER",
             help="For non-system persistence modules, the user to install as (only valid if currently UID 0)",
             choices=get_user_choices,
         ),
-        "--status,-s": parameter(
+        "--status,-s": Parameter(
             Complete.NONE,
             action=StoreConstOnce,
             nargs=0,
@@ -46,7 +46,7 @@ class Command(CommandDefinition):
             const="status",
             help="Check the status of the given persistence method",
         ),
-        "--install,-i": parameter(
+        "--install,-i": Parameter(
             Complete.NONE,
             action=StoreConstOnce,
             nargs=0,
@@ -54,7 +54,7 @@ class Command(CommandDefinition):
             const="install",
             help="Install the selected persistence method",
         ),
-        "--list,-l": parameter(
+        "--list,-l": Parameter(
             Complete.NONE,
             nargs=0,
             action=StoreConstOnce,
@@ -62,7 +62,7 @@ class Command(CommandDefinition):
             const="list",
             help="List all available persistence methods",
         ),
-        "--remove,-r": parameter(
+        "--remove,-r": Parameter(
             Complete.NONE,
             nargs=0,
             action=StoreConstOnce,
@@ -70,7 +70,7 @@ class Command(CommandDefinition):
             const="remove",
             help="Remove the selected persistence method",
         ),
-        "--clean,-c": parameter(
+        "--clean,-c": Parameter(
             Complete.NONE,
             nargs=0,
             action=StoreConstOnce,

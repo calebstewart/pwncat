@@ -1,16 +1,16 @@
 import pwncat
 from pwncat.commands import CommandDefinition
-from pwncat.commands.base import parameter, Complete
+from pwncat.commands.base import Parameter, Complete
 
 
 class Command(CommandDefinition):
 
     PROG = "shortcut"
     ARGS = {
-        "prefix": parameter(
+        "prefix": Parameter(
             Complete.NONE, help="the prefix character used for the shortcut"
         ),
-        "command": parameter(Complete.NONE, help="the command to execute"),
+        "command": Parameter(Complete.NONE, help="the command to execute"),
     }
     LOCAL = True
 

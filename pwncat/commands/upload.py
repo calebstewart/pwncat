@@ -1,20 +1,18 @@
 #!/usr/bin/env python3
+import os
+import time
+from functools import partial
+
+from colorama import Fore
+
 import pwncat
+from pwncat import util
 from pwncat.commands.base import (
     CommandDefinition,
     Complete,
-    parameter,
-    StoreConstOnce,
-    StoreForAction,
+    Parameter,
     RemoteFileType,
 )
-from functools import partial
-from colorama import Fore
-from pwncat import util
-import argparse
-import datetime
-import time
-import os
 
 
 class Command(CommandDefinition):
@@ -22,8 +20,8 @@ class Command(CommandDefinition):
 
     PROG = "upload"
     ARGS = {
-        "source": parameter(Complete.LOCAL_FILE),
-        "destination": parameter(
+        "source": Parameter(Complete.LOCAL_FILE),
+        "destination": Parameter(
             Complete.REMOTE_FILE,
             type=("method", RemoteFileType(file_exist=False, directory_exist=True)),
         ),

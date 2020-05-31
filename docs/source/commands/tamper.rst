@@ -1,5 +1,5 @@
-Remote Tampers
-==============
+Tamper
+======
 
 ``pwncat`` tracks modifications of the remote system through the ``tamper`` module. Programmatically, ``pwncat``
 interfaces with the tamper subsystem through the ``pwncat.victim.tamper`` object. This allows generic modifications

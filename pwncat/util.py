@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import re
 from typing import Tuple, BinaryIO, Callable, List
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import TCPServer, BaseRequestHandler
@@ -55,9 +56,26 @@ class Access(Flag):
 
 class Init(Enum):
 
+    UNKNOWN = auto()
     SYSTEMD = auto()
     UPSTART = auto()
     SYSV = auto()
+
+
+def isprintable(data) -> bool:
+    """
+    This is a convenience function to be used rather than the usual 
+    ``str.printable`` boolean value, as that built-in **DOES NOT** consider
+    newlines to be part of the printable data set (weird!)
+    """
+
+    if type(data) is str:
+        data = data.encode("utf-8")
+    for c in data:
+        if c not in bytes(string.printable, "ascii"):
+            return False
+
+    return True
 
 
 def human_readable_size(size, decimal_places=2):
@@ -110,6 +128,18 @@ def quote(token: str):
         return token
 
     return '"' + token.replace('"', '\\"') + '"'
+
+
+ansi_escape_pattern = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+
+
+def strip_ansi_escape(s: str) -> str:
+    """
+    Strip the ansi escape sequences out of the given string
+    :param s: the string to strip
+    :return: a version of 's' without ansi escape sequences
+    """
+    return ansi_escape_pattern.sub("", s)
 
 
 def copyfileobj(src, dst, callback, nomv=False):

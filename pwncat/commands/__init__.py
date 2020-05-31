@@ -163,20 +163,6 @@ class CommandParser:
             complete_while_typing=False,
             history=history,
         )
-        self.toolbar = PromptSession(
-            [
-                ("fg:ansiyellow bold", "(local) "),
-                ("fg:ansimagenta bold", "pwncat"),
-                ("", "$ "),
-            ],
-            completer=completer,
-            lexer=lexer,
-            style=style,
-            auto_suggest=auto_suggest,
-            complete_while_typing=False,
-            prompt_in_toolbar=True,
-            history=history,
-        )
 
     @property
     def loaded(self):
@@ -209,7 +195,7 @@ class CommandParser:
     def run_single(self):
 
         try:
-            line = self.toolbar.prompt().strip()
+            line = self.prompt.prompt().strip()
         except (EOFError, OSError, KeyboardInterrupt):
             pass
         else:
@@ -321,16 +307,16 @@ class CommandLexer(RegexLexer):
             root.append(("^" + re.escape(command.PROG), Name.Function, command.PROG))
             mode = []
             if command.ARGS is not None:
-                for args, descr in command.ARGS.items():
+                for args, param in command.ARGS.items():
                     for arg in args.split(","):
                         if not arg.startswith("-"):
                             continue
-                        if descr[0] != Complete.NONE:
+                        if param.complete != Complete.NONE:
                             # Enter param state
-                            mode.append((r"\s+" + re.escape(arg), descr[1], "param"))
+                            mode.append((r"\s+" + re.escape(arg), param.token, "param"))
                         else:
                             # Don't enter param state
-                            mode.append((r"\s+" + re.escape(arg), descr[1]))
+                            mode.append((r"\s+" + re.escape(arg), param.token))
                 mode.append((r"\s+(\-\-help|\-h)", Name.Label))
             mode.append((r"\"", String, "string"))
             mode.append((r".", Text))
@@ -415,15 +401,15 @@ class CommandCompleter(Completer):
             self.layers[command.PROG] = [None, [], {}]
             option_names = []
             if command.ARGS is not None:
-                for name_list, descr in command.ARGS.items():
+                for name_list, param in command.ARGS.items():
                     name_list = name_list.split(",")
-                    if descr[0] == Complete.CHOICES:
-                        completer = WordCompleter(descr[3]["choices"])
-                    elif descr[0] == Complete.LOCAL_FILE:
+                    if param.complete == Complete.CHOICES:
+                        completer = ("choices", param.kwargs["choices"])
+                    elif param.complete == Complete.LOCAL_FILE:
                         completer = local_file_completer
-                    elif descr[0] == Complete.REMOTE_FILE:
+                    elif param.complete == Complete.REMOTE_FILE:
                         completer = remote_file_completer
-                    elif descr[0] == Complete.NONE:
+                    elif param.complete == Complete.NONE:
                         completer = None
                     if len(name_list) == 1 and not name_list[0].startswith("-"):
                         self.layers[command.PROG][1].append(completer)
@@ -510,6 +496,11 @@ class CommandCompleter(Completer):
                 state = "options"
                 this_completer = next_completer
                 next_completer = command[0]
+
+        if isinstance(this_completer, tuple) and this_completer[0] == "choices":
+            this_completer = WordCompleter(this_completer[1])
+        if isinstance(next_completer, tuple) and next_completer[0] == "choices":
+            next_completer = WordCompleter(next_completer[1])
 
         if text.endswith(" "):
             yield from next_completer.get_completions(document, complete_event)

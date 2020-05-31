@@ -3,7 +3,7 @@ import pwncat
 from pwncat.commands.base import (
     CommandDefinition,
     Complete,
-    parameter,
+    Parameter,
     StoreConstOnce,
     StoreForAction,
     RemoteFileType,
@@ -22,8 +22,8 @@ class Command(CommandDefinition):
 
     PROG = "download"
     ARGS = {
-        "source": parameter(Complete.REMOTE_FILE),
-        "destination": parameter(Complete.LOCAL_FILE),
+        "source": Parameter(Complete.REMOTE_FILE),
+        "destination": Parameter(Complete.LOCAL_FILE),
     }
 
     def run(self, args):

@@ -17,11 +17,12 @@ dependencies = [
     "prompt-toolkit",
     "sqlalchemy",
     "paramiko",
+    "pytablewriter",
 ]
 
 dependency_links = [
-    "https://github.com/calebstewart/python-prompt-toolkit/tarball/master#egg=prompt-toolkit",
     "https://github.com/calebstewart/paramiko/tarball/master#egg=paramiko",
+    "https://github.com/JohnHammond/base64io-python/tarball/master#egg=base64io",
 ]
 
 # Setup
@@ -32,7 +33,7 @@ setup(
     author="Caleb Stewart",
     url="https://gitlab.com/calebstewart/pwncat",
     packages=find_packages(),
-    package_data={},
+    package_data={"pwncat": ["data/*"]},
     entry_points={"console_scripts": ["pwncat=pwncat.__main__:main"]},
     data_files=[],
     install_requires=dependencies,

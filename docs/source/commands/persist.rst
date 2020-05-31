@@ -2,8 +2,9 @@ Persistence
 ===========
 
 The ``pwncat.victim.persist`` module provides an abstract way to install various persistence methods
-on the target host. To view a list of available persistence methods, you can use the ``--list/-l``
-switch:
+on the target host. The ``persist`` command provides an interface to this module to allow straightforward
+installation and management of remote persistence. To view a list of available persistence methods,
+you can use the ``--list/-l`` switch:
 
 .. code-block:: bash
 
@@ -14,11 +15,10 @@ switch:
      - sshd as system (local)
 
 This output indicates a few things. First, if a given method specifies "as user", then the persistence
-method is installed as a specific user. If no user is specified during installation, ``root`` is
-attempted, but will likely only succeed if you do not currently have root permissions. Second,
-persistence methods marked "local" allow a local user to escalate to that user (or to root for system
-persistence modules). This is in contrast to persistence methods which only allow remote access
-as the specified user.
+method is installed as a specific user. If no user is specified during installation, the current user is
+attempted. Second, persistence methods marked "local" allow a local user to escalate to that user (or to
+root for system persistence modules). This is in contrast to persistence methods which only allow remote
+access as the specified user.
 
 To get more information on a specific module, you can pass the ``--method/-m`` option with the method
 name when using ``--list/-l``. This will provide the module specific documentation on what is being

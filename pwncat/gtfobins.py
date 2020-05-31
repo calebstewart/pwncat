@@ -11,6 +11,9 @@ import io
 class ControlCodes:
     CTRL_C = "\x03"
     CTRL_X = "\x18"
+    CTRL_R = "\x12"
+    CTRL_O = "\x0F"
+    CTRL_T = "\x14"
     CTRL_Z = "\x1a"
     CTRL_D = "\x04"
     ESCAPE = "\x1B"
@@ -161,6 +164,9 @@ class Method:
                 ctrl_x=ControlCodes.CTRL_X,
                 escape=ControlCodes.ESCAPE,
                 ctrl_d=ControlCodes.CTRL_D,
+                ctrl_r=ControlCodes.CTRL_R,
+                ctrl_o=ControlCodes.CTRL_O,
+                ctrl_t=ControlCodes.CTRL_T,
                 **kwargs,
             )
             command = f"sudo -u {user} " + command + " " + args
@@ -179,10 +185,12 @@ class Method:
                 ctrl_x=ControlCodes.CTRL_X,
                 escape=ControlCodes.ESCAPE,
                 ctrl_d=ControlCodes.CTRL_D,
+                ctrl_r=ControlCodes.CTRL_R,
+                ctrl_o=ControlCodes.CTRL_O,
+                ctrl_t=ControlCodes.CTRL_T,
                 **kwargs,
             )
 
-        # Generate the main payload
         payload = self.binary.gtfo.resolve_binaries(
             self.payload,
             command=command,
@@ -191,6 +199,9 @@ class Method:
             ctrl_z=ControlCodes.CTRL_Z,
             escape=ControlCodes.ESCAPE,
             ctrl_d=ControlCodes.CTRL_D,
+            ctrl_r=ControlCodes.CTRL_R,
+            ctrl_o=ControlCodes.CTRL_O,
+            ctrl_t=ControlCodes.CTRL_T,
             **kwargs,
         )
 
@@ -244,7 +255,7 @@ class MethodWrapper:
             an exception. We know our underlying socket will block on sending
             data, so all data will be sent. Again, this is gross, but it makes
             the python stdlib happy. """
-            n = original_write(data)
+            n = original_write(data, line_length=76)
             return min(len(data), (n * 3) // 4)
 
         wrapped.close = close_wrapper
@@ -272,6 +283,9 @@ class MethodWrapper:
             ctrl_x=ControlCodes.CTRL_X,
             escape=ControlCodes.ESCAPE,
             ctrl_d=ControlCodes.CTRL_D,
+            ctrl_r=ControlCodes.CTRL_R,
+            ctrl_o=ControlCodes.CTRL_O,
+            ctrl_t=ControlCodes.CTRL_T,
             **kwargs,
         )
 
@@ -288,6 +302,9 @@ class MethodWrapper:
             ctrl_x=ControlCodes.CTRL_X,
             escape=ControlCodes.ESCAPE,
             ctrl_d=ControlCodes.CTRL_D,
+            ctrl_r=ControlCodes.CTRL_R,
+            ctrl_o=ControlCodes.CTRL_O,
+            ctrl_t=ControlCodes.CTRL_T,
             **kwargs,
         )
 

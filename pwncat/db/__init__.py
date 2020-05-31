@@ -8,3 +8,4 @@ from pwncat.db.persist import Persistence
 from pwncat.db.suid import SUID
 from pwncat.db.tamper import Tamper
 from pwncat.db.user import User, Group, SecondaryGroupAssociation
+from pwncat.db.fact import Fact

@@ -2,7 +2,7 @@
 import argparse
 
 from pwncat import util
-from pwncat.commands.base import CommandDefinition, Complete, parameter
+from pwncat.commands.base import CommandDefinition, Complete, Parameter
 import pwncat
 
 
@@ -23,13 +23,13 @@ class Command(CommandDefinition):
 
     PROG = "bruteforce"
     ARGS = {
-        "--dictionary,-d": parameter(
+        "--dictionary,-d": Parameter(
             Complete.LOCAL_FILE,
             type=argparse.FileType("r"),
             help="The local dictionary to use for bruteforcing (default: kali rockyou)",
             default="/usr/share/wordlists/rockyou.txt",
         ),
-        "--user,-u": parameter(
+        "--user,-u": Parameter(
             Complete.CHOICES,
             choices=get_remote_users,
             help="A local user to bruteforce; this can be passed multiple times for multiple users.",
