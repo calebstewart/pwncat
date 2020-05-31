@@ -1429,6 +1429,92 @@ class Victim:
             self.client.sendall(password.encode("utf-8") + b"\n")
             self.flush_output()
 
+    def sudo(
+        self,
+        command: str,
+        user: Optional[str] = None,
+        group: Optional[str] = None,
+        as_is: bool = False,
+        wait: bool = True,
+        password: str = None,
+        stream: bool = False,
+        **kwargs,
+    ):
+        """
+        Run the specified command with sudo. If specified, "user" and/or "group" options
+        will be added to the command.
+
+        If as_is is true, the command string is assumed to contain "sudo" in it and "user"/"group"
+        are not processed. This enables you to use a pre-built command, but utilize the standard
+        processing of user/password information and communication.
+
+        :param command: the command/options to pass to sudo. This is appended
+            to the sudo command, so it can contain other options such as "-l"
+        :param user: the user to run as. this adds a "-u" option to the sudo command
+        :param group: the group to run as. this adds a "-g" option to the sudo command
+        :return: the command output or None if wait is False
+        """
+
+        if as_is:
+            sudo_command = command
+        else:
+            sudo_command = f"sudo -p 'Password: '"
+
+            if user is not None:
+                sudo_command += f"-u {user}"
+            if group is not None:
+                sudo_command += f"-u {group}"
+
+            sudo_command += f" {command}"
+
+        if password is None:
+            password = self.current_user.password
+
+        if stream:
+            pipe = self.subprocess(sudo_command, **kwargs)
+        else:
+            sdelim, edelim = pwncat.victim.process(sudo_command, delim=True)
+
+        output = self.peek_output(some=True).lower()
+        if (
+            b"[sudo]" in output
+            or b"password for " in output
+            or output.endswith(b"password: ")
+            or b"lecture" in output
+        ):
+            if password is None:
+                self.client.send(util.CTRL_C)
+                raise PermissionError(f"{self.current_user.name}: no known password")
+
+            self.flush_output()
+
+            self.client.send(password.encode("utf-8") + b"\n")
+
+            old_timeout = pwncat.victim.client.gettimeout()
+            pwncat.victim.client.settimeout(5)
+            output = pwncat.victim.peek_output(some=True)
+            pwncat.victim.client.settimeout(old_timeout)
+
+            if (
+                b"[sudo]" in output
+                or b"password for " in output
+                or b"sorry," in output
+                or b"sudo: " in output
+            ):
+                pwncat.victim.client.send(util.CTRL_C)
+                pwncat.victim.recvuntil(b"\n")
+                raise PermissionError(f"{self.current_user.name}: incorrect password")
+
+        if stream:
+            return pipe
+
+        # The user didn't want to wait, give them the ending delimiter
+        if not wait:
+            return edelim
+
+        # Return the output of the process
+        return self.recvuntil(edelim.encode("utf-8")).split(edelim.encode("utf-8"))[0]
+
     def raw(self, echo: bool = False):
         """
         Place the remote terminal in raw mode. This is used internally to facilitate
@@ -1761,6 +1847,13 @@ class Victim:
             known_users[user.name] = user
 
         return known_users
+
+    @property
+    def groups(self) -> Dict[str, pwncat.db.Group]:
+        if len(self.host.groups) == 0:
+            self.reload_users()
+
+        return {g.name: g for g in self.host.groups}
 
     def find_user_by_id(self, uid: int):
         """

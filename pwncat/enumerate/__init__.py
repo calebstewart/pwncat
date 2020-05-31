@@ -65,6 +65,9 @@ class Enumerate:
                     self.enumerators[provides] = []
                 self.enumerators[provides].append(enumerator)
 
+    def __call__(self, *args, **kwargs):
+        return self.iter(*args, **kwargs)
+
     def iter(
         self,
         typ: str = None,
