@@ -232,9 +232,32 @@ class Command(CommandDefinition):
             pass
 
         try:
+            # Grab SELinux State
+            selinux = pwncat.victim.enumerate.first("system.selinux").data
+            system_details.append(["SELinux", selinux.state])
+        except ValueError:
+            pass
+
+        try:
+            # Grab ASLR State
+            aslr = pwncat.victim.enumerate.first("system.aslr").data
+            system_details.append(
+                ["ASLR", "DISABLED" if aslr.state == 0 else "ENABLED"]
+            )
+        except ValueError:
+            pass
+
+        try:
             # Grab init system
             init = pwncat.victim.enumerate.first("system.init").data
             system_details.append(["Init", init.init])
+        except ValueError:
+            pass
+
+        try:
+            # Check if we are in a container
+            container = pwncat.victim.enumerate.first("system.container").data
+            system_details.append(["Container", container.type])
         except ValueError:
             pass
 
@@ -256,12 +279,16 @@ class Command(CommandDefinition):
             "system.distro",
             "system.init",
             "system.arch",
+            "system.aslr",
+            "system.container",
         ]
 
         # This is the list of known enumeration types that we want to
         # happen first in this order. Other types will still be output
         # but will be output in an arbitrary order following this list
         ordered_types = [
+            # Sudo privileges
+            "sudo",
             # Possible kernel exploits - very important
             "system.kernel.exploit",
             # Enumerated user passwords - very important

@@ -483,7 +483,7 @@ class Victim:
                             f"pruning {Fore.RED}{name}{Fore.RESET} from busybox"
                         )
 
-            util.success(f"pruned {len(provides)-len(new_provides)} setuid entries")
+            util.success(f"pruned {len(provides) - len(new_provides)} setuid entries")
             provides = new_provides
 
         # Let the class know we now have access to busybox
@@ -1556,11 +1556,11 @@ class Victim:
             try:
                 new = self.client.recv(4096)
                 if len(new) == 0:
-                    if len(output) > 0 or some == False:
+                    if len(output) > 0 or some is False:
                         break
                 output += new
             except (socket.timeout, BlockingIOError):
-                if len(output) > 0 or some == False:
+                if len(output) > 0 or some is False:
                     break
 
         self.client.settimeout(old_timeout)
