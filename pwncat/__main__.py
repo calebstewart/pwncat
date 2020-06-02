@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
-import argparse
 import logging
 import selectors
 import shlex
 import sys
-
-from sqlalchemy.exc import InvalidRequestError
 import warnings
+
 from sqlalchemy import exc as sa_exc
+from sqlalchemy.exc import InvalidRequestError
 
 import pwncat
 from pwncat import util

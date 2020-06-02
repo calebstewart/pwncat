@@ -195,19 +195,28 @@ class Command(CommandDefinition):
         try:
             # Grab hostname
             hostname = pwncat.victim.enumerate.first("system.hostname").data
-            system_details.append(["Hostname", hostname])
+            system_details.append(["Hostname", util.escape_markdown(hostname)])
         except ValueError:
             hostname = "[unknown-hostname]"
 
         # Not provided by enumerate, but natively known due to our connection
-        system_details.append(["Primary Address", pwncat.victim.host.ip])
-        system_details.append(["Derived Hash", pwncat.victim.host.hash])
+        system_details.append(
+            ["Primary Address", util.escape_markdown(pwncat.victim.host.ip)]
+        )
+        system_details.append(
+            ["Derived Hash", util.escape_markdown(pwncat.victim.host.hash)]
+        )
 
         try:
             # Grab distribution
             distro = pwncat.victim.enumerate.first("system.distro").data
             system_details.append(
-                ["Distribution", f"{distro.name} ({distro.ident}) {distro.version}"]
+                [
+                    "Distribution",
+                    util.escape_markdown(
+                        f"{distro.name} ({distro.ident}) {distro.version}"
+                    ),
+                ]
             )
         except ValueError:
             pass
@@ -215,7 +224,7 @@ class Command(CommandDefinition):
         try:
             # Grab the architecture
             arch = pwncat.victim.enumerate.first("system.arch").data
-            system_details.append(["Architecture", arch.arch])
+            system_details.append(["Architecture", util.escape_markdown(arch.arch)])
         except ValueError:
             pass
 
@@ -225,7 +234,9 @@ class Command(CommandDefinition):
             system_details.append(
                 [
                     "Kernel",
-                    f"Linux Kernel {kernel.major}.{kernel.minor}.{kernel.patch}-{kernel.abi}",
+                    util.escape_markdown(
+                        f"Linux Kernel {kernel.major}.{kernel.minor}.{kernel.patch}-{kernel.abi}"
+                    ),
                 ]
             )
         except ValueError:
@@ -234,7 +245,7 @@ class Command(CommandDefinition):
         try:
             # Grab SELinux State
             selinux = pwncat.victim.enumerate.first("system.selinux").data
-            system_details.append(["SELinux", selinux.state])
+            system_details.append(["SELinux", util.escape_markdown(selinux.state)])
         except ValueError:
             pass
 
@@ -242,7 +253,7 @@ class Command(CommandDefinition):
             # Grab ASLR State
             aslr = pwncat.victim.enumerate.first("system.aslr").data
             system_details.append(
-                ["ASLR", "DISABLED" if aslr.state == 0 else "ENABLED"]
+                ["ASLR", "disabled" if aslr.state == 0 else "enabled"]
             )
         except ValueError:
             pass
@@ -250,14 +261,14 @@ class Command(CommandDefinition):
         try:
             # Grab init system
             init = pwncat.victim.enumerate.first("system.init").data
-            system_details.append(["Init", init.init])
+            system_details.append(["Init", util.escape_markdown(str(init.init))])
         except ValueError:
             pass
 
         try:
             # Check if we are in a container
             container = pwncat.victim.enumerate.first("system.container").data
-            system_details.append(["Container", container.type])
+            system_details.append(["Container", util.escape_markdown(container.type)])
         except ValueError:
             pass
 
@@ -369,12 +380,16 @@ class Command(CommandDefinition):
                 if getattr(fact.data, "description", None) is not None:
                     sections.append(fact)
                     continue
-                filp.write(f"- {util.strip_ansi_escape(str(fact.data))}\n")
+                filp.write(
+                    f"- {util.escape_markdown(util.strip_ansi_escape(str(fact.data)))}\n"
+                )
 
         filp.write("\n")
 
         for section in sections:
-            filp.write(f"### {util.strip_ansi_escape(str(section.data))}\n\n")
+            filp.write(
+                f"### {util.escape_markdown(util.strip_ansi_escape(str(section.data)))}\n\n"
+            )
             filp.write(f"```\n{section.data.description}\n```\n\n")
 
     def show_facts(self, typ: str, provider: str, long: bool):

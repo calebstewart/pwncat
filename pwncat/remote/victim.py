@@ -5,8 +5,7 @@ import os
 import shlex
 import socket
 import sys
-import time
-from typing import Dict, Optional, IO, Any, List, Tuple, Iterator, Union, Generator
+from typing import Dict, Optional, Any, List, Tuple, Iterator, Union, Generator
 
 import paramiko
 import pkg_resources
@@ -16,17 +15,17 @@ from sqlalchemy.engine import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 import pwncat.db
-from pwncat import privesc
+import pwncat.enumerate
 from pwncat import persist
+from pwncat import privesc
 from pwncat import util
 from pwncat.commands import CommandParser
 from pwncat.config import Config, KeyType
 from pwncat.file import RemoteBinaryPipe
 from pwncat.gtfobins import GTFOBins, Capability, Stream
 from pwncat.remote import RemoteService
-from pwncat.tamper import Tamper, TamperManager
+from pwncat.tamper import TamperManager
 from pwncat.util import State
-import pwncat.enumerate
 
 
 def remove_busybox_tamper():
@@ -381,7 +380,6 @@ class Victim:
         returned from ``victim.which`` vice local versions.
         
         :param url: a base url for compiled versions of busybox
-        :param type: str
         """
 
         if self.host.busybox is not None:
@@ -573,7 +571,7 @@ class Victim:
         cache entries for the remote host to speed up pwncat. Further, if busybox
         is installed, it will return busybox version of binaries without asking
         the remote host.
-        
+
         :param name: the name of the remote binary (e.g. "touch").
         :type name: str
         :param quote: whether to quote the returned string with shlex.
@@ -614,7 +612,7 @@ class Victim:
         r"""
         Process local input from ``stdin``. This is used internally to handle keyboard
         shortcuts and pass data to the remote host when in raw mode.
-        
+
         :param data: the newly entered data
         :type data: bytes
         """
@@ -667,14 +665,14 @@ class Victim:
         The current state of ``pwncat``. Changing this property has side-effects
         beyond just modifying a variable. Switching to RAW mode will close the local
         terminal automatically and enter RAW/no-echo mode in the local terminal.
-        
+
         Setting command mode will not return until command mode is exited, and enters
         the CommandProcessor input loop.
-        
+
         Setting SINGLE mode is like COMMAND mode except it will return after one local
         command is entered and executed.
-        
-        
+
+
         :return: pwncat.util.State
         """
         return self._state
@@ -742,10 +740,10 @@ class Victim:
         ``env`` command-line program. The only difference is that there is no way
         to clear the current environment. This will also resolve argv[0] to ensure
         it exists on the remote system.
-        
+
         If the specified binary does not exist on the remote host, a FileNotFoundError
         is raised.
-        
+
         :param argv: the argument list. argv[0] is the command to run.
         :type argv: List[str]
         :param envp: a dictionary of environment variables to set
@@ -827,7 +825,7 @@ class Victim:
         and end of command output. This method will wait for the starting
         delimeter before returning. The output of the command can then be
         retrieved from the ``victim.client`` socket.
-        
+
         :param cmd: the command to run on the remote host
         :type cmd: str
         :param delim: whether to wrap the output in delimeters
@@ -841,11 +839,7 @@ class Victim:
         sdelim = util.random_string(10)
         edelim = util.random_string(10)
 
-        if delim:
-            command = f" echo; echo {sdelim}; {cmd}; echo {edelim}"
-        else:
-            command = f" {cmd}"
-
+        command = f" echo; echo {sdelim}; {cmd}; echo {edelim}" if delim else f" {cmd}"
         # Send the command to the remote host
         self.client.send(command.encode("utf-8") + b"\n")
 
@@ -877,14 +871,14 @@ class Victim:
         file-like object is closed, no other interaction with the remote host
         can occur (this will result in a deadlock). It is recommended to wrap
         uses of this object in a ``with`` statement:
-        
+
         .. code-block:: python
-        
+
             with pwncat.victim.subprocess("find / -name interesting", "r") as stdout:
                 for file_path in stdout:
                     print("Interesting file:", file_path.strip().decode("utf-8"))
-        
-        
+
+
         :param cmd: the command to execute
         :param mode: a mode string like with the standard "open" function
         :param data: data to send to the remote process prior to waiting for output
@@ -962,7 +956,7 @@ class Victim:
         Retrieve the size of a remote file. This method raises a FileNotFoundError
         if the remote file does not exist. It may also raise PermissionError if
         the remote file is not readable.
-        
+
         :param path: path to the remote file
         :type path: str
         :return: int
@@ -1000,8 +994,8 @@ class Victim:
         the remote ``test`` command to interrogate the given path and it's parent
         directory. If the ``test`` and ``[`` commands are not available, Access.NONE
         is returned.
-        
-        
+
+
         :param path: the remote file path
         :type path: str
         :return: pwncat.util.Access flags
@@ -1035,8 +1029,10 @@ class Victim:
                 access |= util.Access.EXECUTE
             if b"exists" in result:
                 access |= util.Access.EXISTS
-            if b"write" in result or (
-                b"parent_write" in result and not b"exists" in result
+            if (
+                b"write" in result
+                or b"parent_write" in result
+                and b"exists" not in result
             ):
                 access |= util.Access.WRITE
             if b"read" in result:
@@ -1091,7 +1087,7 @@ class Victim:
         This method implements the underlying read logic for the ``open`` method.
         It shouldn't be called directly. It may raise a FileNotFoundError or
         PermissionError depending on access to the requested file.
-        
+
         :param path: the path to the remote file
         :type path: str
         :param mode: the open mode for the remote file (supports "b" and text modes)
@@ -1175,7 +1171,7 @@ class Victim:
         access = self.access(path)
         if util.Access.DIRECTORY in access:
             raise IsADirectoryError(f"Is a directory: '{path}'")
-        if util.Access.EXISTS in access and not util.Access.WRITE in access:
+        if util.Access.EXISTS in access and util.Access.WRITE not in access:
             raise PermissionError(f"Permission denied: '{path}'")
         if util.Access.EXISTS not in access:
             if util.Access.PARENT_EXIST not in access:
@@ -1236,7 +1232,7 @@ class Victim:
         or process stream is open. This will cause a dead-lock. This method
         may raise a FileNotFoundError or PermissionDenied in case of access issues
         with the remote file.
-        
+
         :param path: remote file path
         :type path: str
         :param mode: the open mode; this cannot contain both read and write!
@@ -1265,7 +1261,7 @@ class Victim:
         Create a remote temporary file and open it in the specified mode.
         The mode must contain "w", as opening a new file for reading makes
         not sense. If "b" is not included, the file will be opened in text mode.
-        
+
         :param mode: the mode string as with ``victim.open``
         :type mode: str
         :param length: length of the expected data (as with ``open``)
@@ -1296,7 +1292,7 @@ class Victim:
         known and an abstract RemoteService layer is implemented for the init system.
         Currently, only ``systemd`` is understood by pwncat, but facilities to implement
         more abstracted init systems is built-in.
-        
+
         :return: Iterator[RemoteService]
         """
 
@@ -1312,7 +1308,7 @@ class Victim:
         Locate a remote service by name. This uses the same interface as the ``services``
         property, meaning a supported ``init`` system must be used on the remote host.
         If the service is not found, a ValueError is raised.
-        
+
         :param name: the name of the remote service
         :type name: str
         :param user: whether to lookup user services (e.g. ``systemctl --user``)
@@ -1341,7 +1337,7 @@ class Victim:
         A ValueError is raised if the init system is not understood by ``pwncat``.
         A PermissionError may be raised if insufficient permissions are found to create
         the service.
-        
+
         :param name: the name of the remote service
         :type name: str
         :param description: the description for the remote service
@@ -1373,9 +1369,9 @@ class Victim:
         and then utilized to switch the active user of your shell. If ``check``
         is specified, do not actually switch users. Only check that the given
         password is correct.
-        
+
         Raises PermissionError if the password is incorrect or the ``su`` fails.
-        
+
         :param user: the user to switch to
         :type user: str
         :param password: the password for the specified user or None if currently UID=0
@@ -1542,7 +1538,7 @@ class Victim:
     def flush_output(self, some=False):
         """
         Flush any data in the socket buffer.
-        
+
         :param some: if true, wait for at least one byte of data before flushing.
         :type some: bool
         """
@@ -1569,7 +1565,7 @@ class Victim:
         """
         Retrieve the currently pending data in the socket buffer without
         removing the data from the buffer.
-        
+
         :param some: if true, wait for at least one byte of data to be received
         :type some: bool
         :return: bytes
@@ -1598,7 +1594,7 @@ class Victim:
         """
         Reset the remote terminal using the ``reset`` command. This also restores
         your prompt, and sets up the environment correctly for ``pwncat``.
-        
+
         """
         if hard:
             self.run("reset", wait=False)
@@ -1615,7 +1611,7 @@ class Victim:
         Receive data from the socket until the specified string of bytes is
         found. There is no timeout features, so you should be 100% sure these
         bytes will end up in the output of the remote process at some point.
-        
+
         :param needle: the bytes to search for
         :type needle: bytes
         :param flags: flags to pass to the underlying ``recv`` call
@@ -1646,7 +1642,7 @@ class Victim:
     def whoami(self):
         """
         Use the ``whoami`` command to retrieve the current user name.
-        
+
         :return: str, the current user name
         """
         return self.cached_user
@@ -1662,7 +1658,7 @@ class Victim:
     def getenv(self, name: str):
         """
         Utilize ``echo`` to get the current value of the given environment variable.
-        
+
         :param name: environment variable name
         :type name: str
         :return: str
@@ -1674,9 +1670,9 @@ class Victim:
         """
         Retrieves a dictionary representing the result of the ``id`` command.
         The resulting dictionary looks like:
-       
+
         .. code-block:: python
-        
+
             {
                 "uid": { "name": "username", "id": 1000 },
                 "gid": { "name": "username", "id": 1000 },
@@ -1685,7 +1681,7 @@ class Victim:
                 "groups": [ {"name": "wheel", "id": 10} ],
                 "context": "SELinux context"
             }
-        
+
         :return: Dict[str,Any]
         """
 
@@ -1699,14 +1695,14 @@ class Victim:
 
         id_properties = {}
         for key, value in props.items():
-            if key == "groups":
+            if key == "context":
+                id_properties["context"] = value.split(":")
+            elif key == "groups":
                 groups = []
                 for group in value.split(","):
                     p = group.split("(")
                     groups.append({"id": int(p[0]), "name": p[1].split(")")[0]})
                 id_properties["groups"] = groups
-            elif key == "context":
-                id_properties["context"] = value.split(":")
             else:
                 p = value.split("(")
                 id_properties[key] = {"id": int(p[0]), "name": p[1].split(")")[0]}
@@ -1726,7 +1722,7 @@ class Victim:
         """
         Reload user and group information from /etc/passwd and /etc/group and
         update the local database.
-        
+
         """
 
         ident = self.id
@@ -1831,7 +1827,7 @@ class Victim:
         """
         Return a list of users from the local user database cache.
         If the users have not been requested yet, this willc all ``victim.reload_users``.
-        
+
         :return: Dict[str, pwncat.db.User]
         """
 
@@ -1858,7 +1854,7 @@ class Victim:
     def find_user_by_id(self, uid: int):
         """
         Locate a user in the database with the specified user ID.
-        
+
         :param uid: the user id to look up
         :type uid: int
         :returns: str

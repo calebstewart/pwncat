@@ -577,7 +577,7 @@ class Finder:
                     authkeys_path, ("\n".join(authkeys) + "\n").encode("utf-8"), writer
                 )
 
-                if len(readers) == 0:
+                if not readers:
                     # We couldn't read their authkeys, but log that we clobbered it.
                     # The user asked us to. At least create an un-removable tamper
                     # noting that we clobbered this file.
@@ -773,10 +773,7 @@ class Finder:
 
     def in_chain(self, user: str, chain: List[Tuple["Technique", str]]) -> bool:
         """ Check if the given user is in the chain """
-        for link in chain:
-            if link[0].user == user:
-                return True
-        return False
+        return any(link[0].user == user for link in chain)
 
     def unwrap(self, techniques: List[Tuple["Technique", str]]):
         # Work backwards to get back to the original shell

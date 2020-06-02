@@ -43,9 +43,7 @@ class Method_disabled(BaseMethod):
         if triplet[0] == 4 and triplet[1] == 4 and triplet[2] >= 26:
             raise PrivescError("kernel seemingly not vulnerable")
 
-        techniques = [Technique("root", self, None, Capability.SHELL)]
-
-        return techniques
+        return [Technique("root", self, None, Capability.SHELL)]
 
     def execute(self, technique: Technique):
         """ Run the specified technique """

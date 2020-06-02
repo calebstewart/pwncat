@@ -71,17 +71,13 @@ def isprintable(data) -> bool:
 
     if type(data) is str:
         data = data.encode("utf-8")
-    for c in data:
-        if c not in bytes(string.printable, "ascii"):
-            return False
-
-    return True
+    return all(c in bytes(string.printable, "ascii") for c in data)
 
 
 def human_readable_size(size, decimal_places=2):
     for unit in ["B", "KiB", "MiB", "GiB", "TiB"]:
         if size < 1024.0:
-            break
+            return f"{size:.{decimal_places}f}{unit}"
         size /= 1024.0
     return f"{size:.{decimal_places}f}{unit}"
 
@@ -94,9 +90,7 @@ def human_readable_delta(seconds):
     if seconds < 60:
         return f"{seconds:.2f} seconds"
 
-    output = []
-    output.append(f"{int(seconds%60)} seconds")
-
+    output = [f"{int(seconds % 60)} seconds"]
     minutes = seconds // 60
     output.append(f"{minutes % 60} minutes")
 
@@ -140,6 +134,15 @@ def strip_ansi_escape(s: str) -> str:
     :return: a version of 's' without ansi escape sequences
     """
     return ansi_escape_pattern.sub("", s)
+
+
+def escape_markdown(s: str) -> str:
+    """
+    Escape any markdown special characters
+    :param s:
+    :return:
+    """
+    return re.sub(r"""([\\`*_}{\[\]()#+!])""", r"\\\1", s)
 
 
 def copyfileobj(src, dst, callback, nomv=False):
@@ -330,7 +333,7 @@ def log(level, message, overlay=False):
         "prog": f"[{Fore.CYAN}+{Fore.RESET}]",
     }
 
-    if overlay or (LAST_LOG_MESSAGE[1] and (level == "success" or level == "error")):
+    if overlay or (LAST_LOG_MESSAGE[1] and level in ["success", "error"]):
         erase_progress()
     elif LAST_LOG_MESSAGE[1]:
         sys.stdout.write("\n")
