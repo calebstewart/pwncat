@@ -159,7 +159,7 @@ class Command(CommandDefinition):
             if not args.user:
                 self.parser.error("you must specify a user")
 
-            if not args.password and not args.identity:
+            if not (args.password or args.identity):
                 self.parser.error("either a password or identity file is required")
 
             try:

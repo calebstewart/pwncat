@@ -60,7 +60,9 @@ class Command(CommandDefinition):
 
     def run(self, args):
 
-        if args.action == "list":
+        if args.action == "install":
+            pwncat.victim.bootstrap_busybox(args.url)
+        elif args.action == "list":
             if pwncat.victim.host.busybox is None:
                 util.error(
                     "busybox hasn't been installed yet (hint: run 'busybox --install'"
@@ -95,5 +97,3 @@ class Command(CommandDefinition):
                 .scalar()
             )
             util.info(f"busybox provides {Fore.GREEN}{nprovides}{Fore.RESET} applets")
-        elif args.action == "install":
-            pwncat.victim.bootstrap_busybox(args.url)

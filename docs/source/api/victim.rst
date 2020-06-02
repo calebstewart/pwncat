@@ -164,6 +164,68 @@ Starting, stopping or enabling a service is as easy as calling a method or setti
     except ValueError:
         print("sshd doesn't exist!")
 
+Compiling Code for the Victim
+-----------------------------
+
+``pwncat`` provides an abstract capability to compile binaries in ``C`` for the victim. By setting
+the ``cross`` configuration item to the path to valid C compiler on your attacking system capable
+of generating compiled binaries for the victim, you can have ``pwncat`` compile exploits locally
+and upload only the compiled binaries. This not only speeds up privilege escalation checks, but also
+enables some methods in the case the remote host does not have a working C compiler. If no ``cross``
+value is provided, ``pwncat`` will still check for an utilize a remote compiler if available.
+
+To access, this functionality, you can use the ``pwncat.victim.compile`` method. This method takes
+a list of source files, an output suffix, and a list of CFLAGS and LDFLAGS. The result is the path
+to the compiled binary on the remote host. Ideally, it will utilize a local cross-compiler and upload
+the binary, but it is also capable of uploading the specified source files and compiling remotely
+as well.
+
+.. code-block:: python
+    :caption: Compiling Local Source Files For A Victim
+
+    import pwncat
+
+    # Compile your code for the remote host
+    remote_path = pwncat.victim.compile(["main.c", "other.c"], cflags=["-static"], ldflags=["-lssl"])
+    # Run the new binary
+    pwncat.victim.run(remote_path)
+    # Track the new binary in the tamper database
+    pwncat.victim.tamper.created_file(remote_path)
+
+The list of sources can also accept file objects instead of file paths. In this case, you can wrap
+a literal string in a `io.StringIO` object in order to compile short source files from memory:
+
+.. code-block:: python
+    :caption: Compiling Source From Memory
+
+    import pwncat
+    import textwrap
+    import io
+
+    # Simple in-memory source file
+    source = textwrap.dedent(r"""
+        #include <stdio.h>
+
+        int main(int argc, char** argv) {
+            printf("Hello World!\n");
+            return 0;
+        }
+    """)
+    # Compile the source file
+    remote_path = pwncat.victim.compile([io.StringIO(source)])
+    # will print b"Hello World!\n"
+    print(pwncat.victim.run(remote_path))
+
+You can also utilize the CFLAGS argument to produce shared libraries if needed:
+
+.. code-block:: python
+    :caption: Compiling Shared Libraries
+
+    import pwncat
+
+    # Compile the source as a shared library
+    remote_path = pwncat.victim.compile(["main.c"], cflags=["-fPIC", "-shared"], suffix=".so")
+
 The Victim Object
 -----------------
 

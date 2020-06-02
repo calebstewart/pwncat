@@ -397,10 +397,7 @@ class Command(CommandDefinition):
 
         data: Dict[str, Dict[str, List[pwncat.db.Fact]]] = {}
 
-        if isinstance(typ, list):
-            types = typ
-        else:
-            types = [typ]
+        types = typ if isinstance(typ, list) else [typ]
 
         util.progress("enumerating facts")
         for typ in types:
@@ -429,10 +426,6 @@ class Command(CommandDefinition):
     def flush_facts(self, typ: str, provider: str):
         """ Flush all facts that match criteria """
 
-        if isinstance(typ, list):
-            types = typ
-        else:
-            types = [typ]
-
+        types = typ if isinstance(typ, list) else [typ]
         for typ in types:
             pwncat.victim.enumerate.flush(typ, provider)
