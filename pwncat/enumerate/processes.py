@@ -60,7 +60,9 @@ def enumerate() -> Generator[FactData, None, None]:
     ps = pwncat.victim.which("ps")
 
     if ps is not None:
-        with pwncat.victim.subprocess(f"{ps} -elfww --no-headers", "r") as filp:
+        with pwncat.victim.subprocess(
+            f"{ps} -eo pid,ppid,user,command --no-header -ww", "r"
+        ) as filp:
             # Skip first line... it's just the headers
             try:
                 # next(filp)
@@ -73,7 +75,7 @@ def enumerate() -> Generator[FactData, None, None]:
                 line = line.strip().decode("utf-8")
 
                 entities = line.split()
-                _, _, username, pid, ppid, _, _, _, _, _, _, _, _, _, *argv = entities
+                pid, ppid, username, *argv = entities
                 if username not in pwncat.victim.users:
                     uid = username
                 else:
