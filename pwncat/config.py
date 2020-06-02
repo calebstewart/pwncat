@@ -25,14 +25,13 @@ def key_type(value: str) -> bytes:
 class KeyType:
     def __init__(self, name: str):
         if len(name) == 1:
-            self.name = name
             self.value = name.encode("utf-8")
         else:
             if name not in ALL_KEYS:
                 raise ValueError(f"{name}: invalid key")
             key = [key for key in Keys if key.value == name][0]
-            self.name = name
             self.value = REVERSE_ANSI_SEQUENCES[key].encode("utf-8")
+        self.name = name
 
     def __repr__(self):
         return f"Key(name={repr(self.name)})"
@@ -63,6 +62,7 @@ class Config:
             "backdoor_pass": {"value": "pwncat", "type": str},
             "on_load": {"value": "", "type": str},
             "db": {"value": "sqlite:///:memory:", "type": str},
+            "cross": {"value": None, "type": str},
         }
 
         # Map ascii escape sequences or printable bytes to lists of commands to

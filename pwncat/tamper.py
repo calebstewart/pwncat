@@ -130,15 +130,17 @@ class TamperManager:
         added_lines: Optional[List[str]] = None,
     ):
         """ Add a new modified file tamper """
-        self.add(
-            ModifiedFile(
-                path, added_lines=added_lines, original_content=original_content
-            )
+        tamper = ModifiedFile(
+            path, added_lines=added_lines, original_content=original_content
         )
+        self.add(tamper)
+        return tamper
 
     def created_file(self, path: str):
         """ Register a new added file on the remote system """
-        self.add(CreatedFile(path))
+        tamper = CreatedFile(path)
+        self.add(tamper)
+        return tamper
 
     def add(self, tamper: Tamper):
         """ Register a custom tamper tracker """
@@ -148,7 +150,9 @@ class TamperManager:
         pwncat.victim.session.commit()
 
     def custom(self, name: str, revert: Optional[Callable] = None):
-        self.add(LambdaTamper(name, revert))
+        tamper = LambdaTamper(name, revert)
+        self.add(tamper)
+        return tamper
 
     def __iter__(self) -> Iterator[Tamper]:
         for tracker in pwncat.victim.host.tampers:

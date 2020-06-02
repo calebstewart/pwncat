@@ -3,8 +3,11 @@ import hashlib
 import io
 import os
 import shlex
+import shutil
 import socket
+import subprocess
 import sys
+import tempfile
 from typing import Dict, Optional, Any, List, Tuple, Iterator, Union, Generator
 
 import paramiko
@@ -726,6 +729,163 @@ class Victim:
         Restore the local terminal to a normal state (e.g. from raw/no-echo mode).
         """
         util.restore_terminal(self.saved_term_state)
+
+    def compile(
+        self,
+        sources: List[Union[str, io.IOBase]],
+        output: str = None,
+        suffix: str = None,
+        cflags: List[str] = None,
+        ldflags: List[str] = None,
+    ):
+        """
+        If possible, compile the given source files on the local host using the cross compiler given
+        by the `cross` configuration value. If `cross` is not set or cannot compile the given sources,
+        then check if a valid compiler is available on the remote host. If a local cross compiler is
+        selected, the output file is then uploaded to the remote host.
+
+        In either case, the full path to the output file on the remote host is returned.
+
+        May raise FileNotFound error if the given source doesn't exist. May also raise util.CompilationError
+        with the stdout/stderr of the compiler if compilation failed either locally or on the remote host.
+
+        :param sources: a list of source files or IO streams used as source files
+        :param output: the base name of the output file, if this is None, the name is randomly selected
+            with an optional suffix.
+        :param suffix: a suffix to add to the basename. This isn't useful except for when output is
+            None, but will be honored in either case.
+        :param cflags: a list of arguments to pass to GCC prior to the sources
+        :param ldflags: a list of arguments to pass to GCC after the sources
+        :return: a string indicating the path to the remote binary after compilation.
+        """
+
+        if cflags is None:
+            cflags = []
+        if ldflags is None:
+            ldflags = []
+
+        try:
+            cross = self.config["cross"]
+        except KeyError:
+            cross = None
+
+        if cross is not None and os.path.isfile(cross):
+            # Attempt compilation locally
+            util.progress("attempting local compilation")
+
+            real_sources = []
+            local_temps = []
+
+            # First, ensure all files are on disk, and keep track of local temp files we
+            # need to remove later.
+            for source in sources:
+                if isinstance(source, str):
+                    if not os.path.isfile(source):
+                        raise FileNotFoundError(f"{source}: No such file or directory")
+                    real_sources.append(source)
+                else:
+                    with tempfile.NamedTemporaryFile(
+                        mode="w", suffix=".c", delete=False
+                    ) as filp:
+                        filp.write(source.read())
+                        real_sources.append(filp.name)
+                        local_temps.append(filp.name)
+
+            # Next, ensure we have a valid temporary file location locally for the output file with
+            # the correct suffix. We will upload with the requested name in a moment
+            with tempfile.NamedTemporaryFile("w", suffix=suffix, delete=False) as filp:
+                filp.write("\n")
+                local_output = filp.name
+
+            # Build the GCC command needed to compile
+            command = [
+                cross,
+                f"-march={self.host.arch.replace('_', '-')}",
+                "-o",
+                local_output,
+                *cflags,
+                *real_sources,
+                *ldflags,
+            ]
+
+            # Run GCC and grab the output
+            try:
+                util.progress(f"attempting local compilation: compiling sources")
+                subprocess.run(command, check=True, capture_output=True)
+            except subprocess.CalledProcessError as exc:
+                raise util.CompilationError(True, exc.stdout, exc.stderr)
+
+            # We have a compiled executable. We now need to upload it.
+            length = os.path.getsize(local_output)
+            with open(local_output, "rb") as source:
+                util.progress(f"attempting local compilation: uploaded compiled binary")
+                # Decide on a name
+                if output is not None and output.startswith("/"):
+                    # Absolute path
+                    dest = pwncat.victim.open(output, "wb", length=length)
+                else:
+                    # We don't care where it goes, make a tempfile
+                    dest = self.tempfile("wb", length=length, suffix=suffix)
+
+                remote_path = dest.name
+
+                with dest:
+                    shutil.copyfileobj(source, dest, length=length)
+
+            util.progress(f"attempting local compilation: marking binary executable")
+            self.env(["chmod", "+x", remote_path])
+
+            util.erase_progress()
+
+            return remote_path
+
+        # Do we even have a remote compiler?
+        gcc = self.which("gcc")
+        if gcc is None:
+            raise util.CompilationError(False, None, None)
+
+        util.progress("attempting remote compilation")
+
+        # We have a remote compiler. We need to get the sources to the remote host
+        real_sources = []
+        for source in sources:
+            # Upload or write data
+            if isinstance(source, str):
+                util.progress(f"attempting remote compilation: uploading {source}")
+                with open(source, "rb") as src:
+                    with self.tempfile(
+                        "wb", length=os.path.getsize(source), suffix=".c"
+                    ) as dest:
+                        shutil.copyfileobj(src, dest)
+                        real_sources.append(dest.name)
+            else:
+                util.progress(f"attempting remote compilation: uploading source data")
+                with self.tempfile("w", suffix=".c") as dest:
+                    shutil.copyfileobj(source, dest)
+                    real_sources.append(dest.name)
+
+        # We just need to create a file...
+        with self.tempfile("w", length=1) as filp:
+            filp.write("\n")
+            remote_path = filp.name
+
+        # Build the command
+        command = [gcc, "-o", remote_path, *cflags, *real_sources, *ldflags]
+        command = shlex.join(command) + f" 2>&1 || echo '__pwncat_gcc_failed__'"
+
+        util.progress("attempting remote compilation: compiling...")
+        with self.subprocess(command, "r") as pipe:
+            stdout = pipe.read().decode("utf-8")
+
+        util.progress("attempting remote compilation: removing temp files")
+        self.env(["rm", "-f", *real_sources])
+
+        if "__pwncat_gcc_failed__" in stdout:
+            raise util.CompilationError(True, stdout, stdout)
+
+        util.erase_progress()
+
+        return remote_path
 
     def env(
         self,

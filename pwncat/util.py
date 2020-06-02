@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import re
-from typing import Tuple, BinaryIO, Callable, List
+from typing import Tuple, BinaryIO, Callable, List, Optional
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import TCPServer, BaseRequestHandler
 from prompt_toolkit.shortcuts import ProgressBar
@@ -60,6 +60,32 @@ class Init(Enum):
     SYSTEMD = auto()
     UPSTART = auto()
     SYSV = auto()
+
+
+class CompilationError(Exception):
+    """
+    Indicates that compilation failed on either the local or remote host.
+
+    :param source_error: indicates whether there was a compilation error due to source
+        code syntax. If not, this was due to a missing compiler.
+    """
+
+    def __init__(
+        self, source_error: bool, stdout: Optional[str], stderr: Optional[str]
+    ):
+        self.source_error = source_error
+        self.stdout = stdout
+        self.stderr = stderr
+
+    def __str__(self):
+        """
+        Provide a easy output depending on the reason for the failure.
+        :return: str
+        """
+        if self.source_error:
+            return f"No working local or remote compiler found"
+        else:
+            return f"Error during compilation of source files"
 
 
 def isprintable(data) -> bool:
