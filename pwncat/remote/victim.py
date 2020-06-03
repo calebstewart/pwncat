@@ -512,8 +512,11 @@ class Victim:
         """
 
         util.progress("identifying init system")
-        with self.open("/proc/1/comm", "r") as filp:
-            init = filp.read()
+        try:
+            with self.open("/proc/1/comm", "r") as filp:
+                init = filp.read()
+        except (FileNotFoundError, PermissionError):
+            init = None
 
         if "systemd" in init:
             self.host.init = util.Init.SYSTEMD
@@ -521,6 +524,8 @@ class Victim:
             self.host.init = util.Init.UPSTART
         elif "sysv" in init:
             self.host.init = util.Init.SYSV
+        else:
+            self.host.init = util.Init.UNKNOWN
 
         util.progress("identifying remote kernel version")
         try:
