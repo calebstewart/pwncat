@@ -865,7 +865,7 @@ class Victim:
                     real_sources.append(dest.name)
 
         # We just need to create a file...
-        with self.tempfile("w", length=1) as filp:
+        with self.tempfile("w", length=1, suffix=suffix) as filp:
             filp.write("\n")
             remote_path = filp.name
 
@@ -881,6 +881,7 @@ class Victim:
         self.env(["rm", "-f", *real_sources])
 
         if "__pwncat_gcc_failed__" in stdout:
+            self.env(["rm", "-f", remote_path])
             raise util.CompilationError(True, stdout, stdout)
 
         util.erase_progress()

@@ -25,10 +25,7 @@ class Binary:
     """ The owner of the binary """
 
     def __str__(self):
-        if self.owner.id == 0:
-            color = Fore.RED
-        else:
-            color = Fore.GREEN
+        color = Fore.RED if self.owner.id == 0 else Fore.GREEN
         return f"{Fore.CYAN}{self.path}{Fore.RESET} owned by {color}{self.owner.name}{Fore.RESET}"
 
     @property

