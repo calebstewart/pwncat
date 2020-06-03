@@ -53,10 +53,7 @@ class Method(BaseMethod):
         techniques = []
         for rule in rules:
             for method in pwncat.victim.gtfo.iter_sudo(rule.command, caps=capability):
-                if rule.runas_user == "ALL":
-                    user = "root"
-                else:
-                    user = rule.runas_user
+                user = "root" if rule.runas_user == "ALL" else rule.runas_user
                 techniques.append(Technique(user, self, (method, rule), method.cap))
 
         return techniques
