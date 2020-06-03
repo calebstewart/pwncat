@@ -43,6 +43,7 @@ class Finder:
 
     def load_package(self, path: list):
 
+        util.progress("loading privesc methods")
         for loader, module_name, is_pkg in pkgutil.walk_packages(path):
             method_module = loader.find_module(module_name).load_module(module_name)
 
@@ -54,10 +55,13 @@ class Finder:
                 continue
 
             try:
+                util.progress(f"loading privesc methods: {method_module.Method.name}")
                 method_module.Method.check()
                 self.methods.append(method_module.Method())
             except PrivescError:
                 pass
+
+        util.erase_progress()
 
     def search(self, target_user: str = None) -> List["Technique"]:
         """ Search for privesc techniques for the current user to get to the
