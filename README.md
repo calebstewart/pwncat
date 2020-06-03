@@ -144,3 +144,18 @@ prompt --basic
 
 While this is inconvenient, it does not affect the behaviour of `pwncat`. All `pwncat`
 features will continue to function properly no matter what your prompt looks like.
+
+### BSD Support
+
+While BSD is a Unix-based kernel, in practice it's userland tools are noticeably 
+different from their Linux counterparts. Due to this, many of the automated
+features of `pwncat` will not work or outright fail when running against a BSD
+based target. I have tried to catch all errors or edge cases, however there are
+likely some hiccups which haven't been fully tested against BSD. In any case,
+the stabilized shell should function within a BSD environment, but I don't
+provide any guarantees.
+
+If I find some time later down the road, I may try to stabilize `pwncat` on BSD,
+but for now my focus is on Linux-based distributions. If you'd like to
+contribute to making `pwncat` behave better on BSD, you are more then welcome to
+reach out or just fork the repo. As always, pull requests are welcome!

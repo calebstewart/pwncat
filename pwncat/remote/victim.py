@@ -99,7 +99,7 @@ class Victim:
         local terminal if requested and exit raw mode. """
 
         # Configuration storage for this victim
-        self.config = Config(self)
+        self.config = Config()
         # Current user input state
         self._state = None
         # Saved remote terminal state (for transition to/from raw mode)
@@ -1105,7 +1105,7 @@ class Victim:
         elif data is not None:
             self.client.sendall(data)
 
-        pipe = RemoteBinaryPipe(self, mode, edelim.encode("utf-8"), True, exit_cmd)
+        pipe = RemoteBinaryPipe(mode, edelim.encode("utf-8"), True, exit_cmd)
         pipe.name = name
 
         if "w" in mode:

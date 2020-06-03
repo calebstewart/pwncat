@@ -2,6 +2,7 @@
 from io import RawIOBase
 import socket
 import time
+from typing import Union
 
 import pwncat
 
@@ -14,21 +15,18 @@ class RemoteBinaryPipe(RawIOBase):
     reading or writing will be allowed. """
 
     def __init__(
-        self,
-        pty: "pwncat.pty.PtyHandler",
-        mode: str,
-        delim: bytes,
-        binary: bool,
-        exit_cmd: bytes,
+        self, mode: str, delim: bytes, binary: bool, exit_cmd: Union[bytes, str],
     ):
-        self.pty = pty
+        if isinstance(exit_cmd, str):
+            exit_cmd = exit_cmd.encode("utf-8")
+
         self.delim = delim
         self.eof = 0
         self.next_eof = False
         self.binary = binary
         self.split_eof = b""
         self.mode = mode
-        self.exit_cmd = exit_cmd
+        self.exit_cmd: bytes = exit_cmd
         self.count = 0
         self.name = None
 
@@ -47,11 +45,11 @@ class RemoteBinaryPipe(RawIOBase):
 
         # Send exit command if it was provided
         if self.exit_cmd and len(self.exit_cmd):
-            self.pty.client.send(self.exit_cmd)
+            pwncat.victim.client.send(self.exit_cmd)
 
         # Reset the terminal
-        self.pty.restore_remote()
-        # self.pty.reset()
+        pwncat.victim.restore_remote()
+        # pwncat.victim.reset()
         # Send a bare echo, and read all data to ensure we don't clobber the
         # output of the user's terminal
 
@@ -66,7 +64,7 @@ class RemoteBinaryPipe(RawIOBase):
         # process if it misbehaves. Use "w" carefully with known good
         # parameters.
         if "w" not in self.mode:
-            self.pty.run("kill -9 %%", wait=False)
+            pwncat.victim.run("kill -9 %%", wait=False)
 
         # Cleanup
         self.on_eof()
@@ -75,21 +73,17 @@ class RemoteBinaryPipe(RawIOBase):
         if self.eof:
             return None
 
-        if isinstance(b, memoryview):
-            obj = b.obj
-        else:
-            obj = b
-
+        obj = b.obj if isinstance(b, memoryview) else b
         # Receive the data
-        if getattr(self.pty.client, "recv_into", None) is not None:
+        if getattr(pwncat.victim.client, "recv_into", None) is not None:
             while True:
                 try:
-                    n = self.pty.client.recv_into(b)
+                    n = pwncat.victim.client.recv_into(b)
                     break
                 except (BlockingIOError, socket.error):
                     pass
         else:
-            data = self.pty.client.recv(len(b))
+            data = pwncat.victim.client.recv(len(b))
             b[: len(data)] = data
             n = len(data)
 
@@ -112,7 +106,7 @@ class RemoteBinaryPipe(RawIOBase):
                     # try:
                     #     # Peak the next bytes, to see if this is actually the
                     #     # delimeter
-                    #     rest = self.pty.client.recv(
+                    #     rest = pwncat.victim.client.recv(
                     #         len(self.delim) - len(piece),
                     #         # socket.MSG_PEEK | socket.MSG_DONTWAIT,
                     #         socket.MSG_PEEK,
@@ -123,7 +117,7 @@ class RemoteBinaryPipe(RawIOBase):
                     # It is!
                     if (piece + rest) == self.delim:
                         # Receive the delimeter
-                        self.pty.client.recv(len(self.delim) - len(piece))
+                        pwncat.victim.client.recv(len(self.delim) - len(piece))
                         # Adjust result
                         n -= len(piece)
                         # Set EOF for next read
@@ -134,7 +128,7 @@ class RemoteBinaryPipe(RawIOBase):
 
     def flush_read(self):
         """ read all until eof and ignore it """
-        for block in iter(lambda: self.read(1024 * 1024), b""):
+        for _ in iter(lambda: self.read(1024 * 1024), b""):
             pass
 
     def write(self, data: bytes):
@@ -142,7 +136,7 @@ class RemoteBinaryPipe(RawIOBase):
         if self.eof:
             return None
         try:
-            n = self.pty.client.send(data)
+            n = pwncat.victim.client.send(data)
         except (socket.timeout, BlockingIOError):
             n = 0
 

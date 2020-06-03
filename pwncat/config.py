@@ -48,7 +48,7 @@ def local_file_type(value: str) -> str:
 
 
 class Config:
-    def __init__(self, pty: "pwncat.pty.PtyHandler"):
+    def __init__(self):
 
         # Basic key-value store w/ typing
         self.values: Dict[str, Dict[str, Any]] = {
