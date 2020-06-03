@@ -42,14 +42,14 @@
 			"type": "write",
 			"stream": "raw",
 			"payload": "{command} 2>/dev/null",
-			"args": ["of={lfile}", "iflag=count_bytes,fullblock", "count={length}"]
+			"args": ["of={lfile}", "iflag=fullblock", "bs=1", "count={length}"]
 		},
 		{
 			"type": "write",
 			"stream": "print",
 			"payload": "{command} 2>/dev/null",
 			"args": ["of={lfile}"],
-			"exit": "{ctrl_d}"
+			"exit": "{ctrl_d}{ctrl_d}"
 		}
 	],
 //-------------------------------------------------------------------

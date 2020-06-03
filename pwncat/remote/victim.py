@@ -1368,6 +1368,8 @@ class Victim:
         if method.stream is Stream.RAW:
             sub_mode += "b"
 
+        print("payload", payload)
+
         # Run the payload on the remote host.
         pipe = self.subprocess(
             payload,

