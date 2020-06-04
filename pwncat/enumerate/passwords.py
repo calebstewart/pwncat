@@ -52,13 +52,13 @@ def enumerate() -> Generator[FactData, None, None]:
     locations = ["/var/www", "$HOME", "/opt", "/etc"]
     # The types of files which are "code". This means that we only recognize the
     # actual password if it is a literal value (enclosed in single or double quotes)
-    code_types = [".c", ".php", ".py", ".sh", ".pl", ".js", ".ini"]
+    code_types = [".c", ".php", ".py", ".sh", ".pl", ".js", ".ini", ".json"]
     grep = pwncat.victim.which("grep")
 
     if grep is None:
         return
 
-    command = f"{grep} -InRiE 'password[\"'\"'\"']?\\s*(=>|=|:)' {' '.join(locations)} 2>/dev/null"
+    command = f"{grep} -InriE 'password[\"'\"'\"']?\\s*(=>|=|:)' {' '.join(locations)} 2>/dev/null"
     with pwncat.victim.subprocess(command, "r") as filp:
         for line in filp:
             line = line.decode("utf-8").strip().split(":")
