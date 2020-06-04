@@ -1030,6 +1030,9 @@ class Victim:
         exit_cmd: str = None,
         no_job=False,
         name: str = None,
+        env: Dict[str, str] = None,
+        stdout: str = None,
+        stderr: str = None,
     ) -> Union[io.BufferedRWPair, io.BufferedReader]:
         """
         Start a process on the remote host and return a file-like object
@@ -1053,11 +1056,41 @@ class Victim:
             delimeter.
         :param no_job: whether to run as a sub-job in the shell (only used for "r" mode)
         :param name: the name assigned to the output file object
+        :param env: environment variables to set for this command
+        :param stdout: a string specifying the location to redirect standard out (or None)
+        :param stderr: a string specifying where to redirect stderr (or None)
         :return: Union[BufferedRWPair, BufferedReader]
         """
 
+        # Join the command if it was supplied as a list
         if isinstance(cmd, list):
-            cmd = shlex.join(cmd)
+            if self.which(cmd[0]) is not None:
+                # We don't want to prevent things like aliases from working
+                # but if the given command exists in our database, replace
+                # it with the path retrieved from which.
+                cmd[0] = self.which(cmd[0])
+            cmd = util.join(cmd)
+
+        # Add environment to the beginning of the command if requested
+        if env is not None:
+            cmd = (
+                " ".join(
+                    [
+                        f"{util.quote(name)}={util.quote(value)}"
+                        for name, value in env.items()
+                    ]
+                )
+                + cmd
+            )
+
+        # Redirect stdout, this is useful when the command
+        # is passed as a list vice a command string
+        if stdout is not None:
+            cmd += f" >{stdout}"
+
+        # Redirect stderr for the same reason as above
+        if stderr is not None:
+            cmd += f" 2>{stderr}"
 
         for c in mode:
             if c not in "rwb":
@@ -1241,7 +1274,9 @@ class Victim:
         if util.Access.EXECUTE not in access:
             raise PermissionError
 
-        with self.subprocess("ls --color=never --all -1", "r") as pipe:
+        with self.subprocess(
+            ["ls", "--color=never", "--all", "-1"], stderr="/dev/null", mode="r"
+        ) as pipe:
             for line in pipe:
                 line = line.strip().decode("utf-8")
                 yield line
@@ -1367,8 +1402,6 @@ class Victim:
         sub_mode = "w"
         if method.stream is Stream.RAW:
             sub_mode += "b"
-
-        print("payload", payload)
 
         # Run the payload on the remote host.
         pipe = self.subprocess(

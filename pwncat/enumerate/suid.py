@@ -45,7 +45,10 @@ def enumerate() -> Generator[Binary, None, None]:
 
     # Spawn a find command to locate the setuid binaries
     with pwncat.victim.subprocess(
-        "find / -perm -4000 -printf '%U %p\\n' 2>/dev/null", mode="r", no_job=True
+        ["find", "/", "-perm", "-4000", "-printf", "%U %p\\n"],
+        stderr="/dev/null",
+        mode="r",
+        no_job=True,
     ) as stream:
         for path in stream:
             # Parse out owner ID and path
