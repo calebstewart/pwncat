@@ -81,7 +81,7 @@ def enumerate() -> Generator[FactData, None, None]:
             "UID",
             "--property",
             "SubState",
-            "*",
+            "\\*",
         ],
         PAGER="",
     )
