@@ -21,6 +21,10 @@ import tty
 import sys
 import os
 
+from rich.console import Console
+
+console = Console()
+
 CTRL_C = b"\x03"
 
 ALPHANUMERIC = string.ascii_letters + string.digits

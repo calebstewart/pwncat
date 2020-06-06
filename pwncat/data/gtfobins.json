@@ -36,7 +36,8 @@
 			//         to the remote process should be in  base64 form, and the
 			//         tty is not set to raw mode.
 			//     - hex -> same as base64, but base16 instead.
-			"stream": "raw"
+			"stream": "raw",
+			"exit": "{ctrl_c}"
 		},
 		{
 			"type": "write",

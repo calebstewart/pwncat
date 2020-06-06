@@ -1743,7 +1743,7 @@ class Victim:
         :param some: if true, wait for at least one byte of data before flushing.
         :type some: bool
         """
-        output = b""
+        output = 0
         old_timeout = self.client.gettimeout()
         self.client.settimeout(0)
         # self.client.send(b"echo\n")
@@ -1755,9 +1755,9 @@ class Victim:
                 if len(new) == 0:
                     if len(output) > 0 or some is False:
                         break
-                output += new
+                output += len(new)
             except (socket.timeout, BlockingIOError):
-                if len(output) > 0 or some is False:
+                if output > 0 or some is False:
                     break
 
         self.client.settimeout(old_timeout)

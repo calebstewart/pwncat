@@ -18,6 +18,7 @@ dependencies = [
     "sqlalchemy",
     "paramiko",
     "pytablewriter",
+    "rich",
 ]
 
 dependency_links = [

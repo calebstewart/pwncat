@@ -47,6 +47,9 @@ class RemoteBinaryPipe(RawIOBase):
         if self.exit_cmd and len(self.exit_cmd):
             pwncat.victim.client.send(self.exit_cmd)
 
+        # Flush anything in the queue
+        pwncat.victim.flush_output()
+
         # Reset the terminal
         pwncat.victim.restore_remote()
         # pwncat.victim.reset()
@@ -103,17 +106,17 @@ class RemoteBinaryPipe(RawIOBase):
                 piece = self.delim[:i]
                 # if bytes(b[-i:]) == piece:
                 if obj[-i:] == piece:
-                    # try:
-                    #     # Peak the next bytes, to see if this is actually the
-                    #     # delimeter
-                    #     rest = pwncat.victim.client.recv(
-                    #         len(self.delim) - len(piece),
-                    #         # socket.MSG_PEEK | socket.MSG_DONTWAIT,
-                    #         socket.MSG_PEEK,
-                    #     )
-                    # except (socket.error, BlockingIOError):
-                    #     rest = b""
-                    rest = pwncat.victim.peek_output(some=True)
+                    try:
+                        # Peak the next bytes, to see if this is actually the
+                        # delimeter
+                        rest = pwncat.victim.client.recv(
+                            len(self.delim) - len(piece),
+                            # socket.MSG_PEEK | socket.MSG_DONTWAIT,
+                            socket.MSG_PEEK,
+                        )
+                    except (socket.error, BlockingIOError):
+                        rest = b""
+                    # rest = pwncat.victim.peek_output(some=True)
                     # It is!
                     if (piece + rest) == self.delim:
                         # Receive the delimeter

@@ -35,7 +35,7 @@ from pprint import pprint
 import pwncat
 import pwncat.db
 from pwncat.commands.base import CommandDefinition, Complete
-from pwncat.util import State
+from pwncat.util import State, console
 from pwncat import util
 
 
@@ -224,8 +224,11 @@ class CommandParser:
                 # We have a connection! Go back to raw mode
                 pwncat.victim.state = State.RAW
                 self.running = False
-            except (Exception, KeyboardInterrupt) as exc:
-                traceback.print_exc()
+            except Exception:
+                console.print_exception(width=None)
+                continue
+            except KeyboardInterrupt:
+                console.log("Keyboard Interrupt")
                 continue
 
     def dispatch_line(self, line: str, prog_name: str = None):
