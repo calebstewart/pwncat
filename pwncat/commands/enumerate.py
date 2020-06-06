@@ -321,7 +321,7 @@ class Command(CommandDefinition):
         ]
 
         util.progress("enumerating report_data")
-        for fact in pwncat.victim.enumerate.iter():
+        for fact in pwncat.victim.enumerate():
             util.progress(f"enumerating report_data: {fact.data}")
             if fact.type in ignore_types:
                 continue
