@@ -8,8 +8,10 @@ import pwncat
 
 
 class Method(BaseMethod):
+    """ Enumerate passwords seen in the pam_sneaky log """
 
     name = "enumerated-passwords"
+    id = "logged-passwords"
     BINARIES = ["su"]
 
     def enumerate(self, capability: int = Capability.ALL) -> List[Technique]:

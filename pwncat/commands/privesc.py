@@ -33,6 +33,12 @@ class Command(CommandDefinition):
         parameter checking and tab completion of the "users" parameter below. """
         return list(pwncat.victim.users)
 
+    def get_method_ids(self):
+        """ Get a list of valid method IDs """
+        if pwncat.victim is None:
+            return []
+        return [method.id for method in pwncat.victim.privesc.methods]
+
     PROG = "privesc"
     ARGS = {
         "--list,-l": Parameter(
@@ -92,6 +98,12 @@ class Command(CommandDefinition):
             dest="action",
             help="Attempt to escalate to gain a full shell as the target user",
         ),
+        "--exclude,-x": Parameter(
+            Complete.CHOICES,
+            action="append",
+            choices=get_method_ids,
+            help="Methods to exclude from the search",
+        ),
         "--data,-d": Parameter(
             Complete.LOCAL_FILE,
             action=StoreForAction(["write"]),
@@ -104,7 +116,7 @@ class Command(CommandDefinition):
     def run(self, args):
 
         if args.action == "list":
-            techniques = pwncat.victim.privesc.search(args.user)
+            techniques = pwncat.victim.privesc.search(args.user, exclude=args.exclude)
             if len(techniques) == 0:
                 util.warn("no techniques found")
             else:
@@ -153,7 +165,9 @@ class Command(CommandDefinition):
                 util.error(f"file write failed: {exc}")
         elif args.action == "escalate":
             try:
-                chain = pwncat.victim.privesc.escalate(args.user, args.max_depth)
+                chain = pwncat.victim.privesc.escalate(
+                    args.user, depth=args.max_depth, exclude=args.exclude
+                )
 
                 ident = pwncat.victim.id
                 if ident["euid"]["id"] == 0 and ident["uid"]["id"] != 0:

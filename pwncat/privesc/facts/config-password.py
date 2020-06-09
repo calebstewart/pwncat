@@ -24,6 +24,7 @@ class Method(BaseMethod):
     """
 
     name = "configuration-password"
+    id = "enum.passwords"
     BINARIES = ["su"]
 
     def enumerate(self, capability: int = Capability.ALL) -> List[Technique]:

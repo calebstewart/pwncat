@@ -11,6 +11,7 @@ from pwncat.util import Access
 class Method(BaseMethod):
 
     name = "enumerated-private-key"
+    id = "enum.privkeys"
     BINARIES = ["ssh"]
 
     def enumerate(self, capability: int = Capability.ALL) -> List[Technique]:

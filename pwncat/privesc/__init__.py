@@ -59,14 +59,21 @@ class Finder:
             except PrivescError:
                 pass
 
-    def search(self, target_user: str = None) -> List["Technique"]:
+    def search(
+        self, target_user: str = None, exclude: List[str] = None
+    ) -> List["Technique"]:
         """ Search for privesc techniques for the current user to get to the
         target user. If target_user is not specified, all techniques for all
         users will be returned. """
 
+        if exclude is None:
+            exclude = []
+
         techniques = []
         for method in self.methods:
             try:
+                if method.id in exclude:
+                    continue
                 techniques.extend(method.enumerate())
             except PrivescError:
                 pass
@@ -635,6 +642,7 @@ class Finder:
     def escalate(
         self,
         target_user: str = None,
+        exclude: Optional[List[str]] = None,
         depth: int = None,
         chain: List["Technique"] = None,
         starting_user=None,
@@ -644,6 +652,9 @@ class Finder:
 
         if chain is None:
             chain = []
+
+        if exclude is None:
+            exclude = []
 
         if target_user is None:
             target_user = "root"
@@ -692,6 +703,8 @@ class Finder:
         # Enumerate escalation options for this user
         techniques = {}
         for method in self.methods:
+            if method.id in exclude:
+                continue
             try:
                 util.progress(f"evaluating {method} method")
                 found_techniques = method.enumerate(
@@ -763,7 +776,7 @@ class Finder:
             except PrivescError:
                 continue
             try:
-                return self.escalate(target_user, depth, chain, starting_user)
+                return self.escalate(target_user, exclude, depth, chain, starting_user)
             except PrivescError:
                 tech, exit_command = chain[-1]
                 pwncat.victim.run(exit_command, wait=False)

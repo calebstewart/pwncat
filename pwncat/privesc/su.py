@@ -11,6 +11,7 @@ from pwncat.privesc import BaseMethod, Technique, PrivescError
 class Method(BaseMethod):
 
     name = "su"
+    id = "su"
     BINARIES = ["su"]
 
     def enumerate(self, capability=Capability.ALL) -> List[Technique]:

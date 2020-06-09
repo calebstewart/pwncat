@@ -14,6 +14,7 @@ from pwncat.util import CompilationError
 class Method(BaseMethod):
 
     name = "screen (CVE-2017-5618)"
+    id = "screen-suid"
     BINARIES = []
 
     def enumerate(self, capability: int = Capability.ALL) -> List[Technique]:
