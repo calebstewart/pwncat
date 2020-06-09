@@ -224,12 +224,13 @@ class CommandParser:
                 # We have a connection! Go back to raw mode
                 pwncat.victim.state = State.RAW
                 self.running = False
-            except Exception:
+            except (Exception, KeyboardInterrupt):
                 console.print_exception(width=None)
                 continue
-            except KeyboardInterrupt:
-                console.log("Keyboard Interrupt")
-                continue
+
+    #             except KeyboardInterrupt:
+    #                 console.log("Keyboard Interrupt")
+    #                 continue
 
     def dispatch_line(self, line: str, prog_name: str = None):
         """ Parse the given line of command input and dispatch a command """

@@ -12,7 +12,11 @@ class Command(CommandDefinition):
     possible. """
 
     PROG = "sync"
-    ARGS = {}
+    ARGS = {
+        "--quiet,-q": Parameter(
+            Complete.NONE, action="store_true", help="do not output status messages"
+        )
+    }
     DEFAULTS = {}
 
     def run(self, args):
@@ -20,7 +24,8 @@ class Command(CommandDefinition):
         # Get the terminal type
         TERM = os.environ.get("TERM", None)
         if TERM is None:
-            util.warn("no local TERM set. falling back to 'xterm'")
+            if not args.quiet:
+                util.warn("no local TERM set. falling back to 'xterm'")
             TERM = "xterm"
 
         # Get the width and height
@@ -31,4 +36,5 @@ class Command(CommandDefinition):
             f"stty rows {rows};" f"stty columns {columns};" f"export TERM='{TERM}'"
         )
 
-        util.success("terminal state synchronized")
+        if not args.quiet:
+            util.success("terminal state synchronized")

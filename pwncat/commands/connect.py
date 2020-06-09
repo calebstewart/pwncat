@@ -5,9 +5,11 @@ import socket
 
 import paramiko
 from prompt_toolkit import prompt
+from rich.progress import Progress, BarColumn
 
 import pwncat
 from pwncat import util
+from pwncat.util import console
 from pwncat.commands.base import (
     CommandDefinition,
     Complete,
@@ -105,7 +107,7 @@ class Command(CommandDefinition):
     def run(self, args):
 
         if pwncat.victim.client is not None:
-            util.error("connect can only be called prior to an active connection!")
+            console.log("connection [red]already active[/red]")
             return
 
         if args.config:
@@ -114,7 +116,8 @@ class Command(CommandDefinition):
                 with open(args.config, "r") as filp:
                     pwncat.victim.command_parser.eval(filp.read(), args.config)
             except OSError as exc:
-                self.parser.error(str(exc))
+                console.log(f"[red]error[/red]: {exc}")
+                return
 
         if args.action == "none":
             # No action was provided, and no connection was made in the config
@@ -126,31 +129,47 @@ class Command(CommandDefinition):
             if not args.host:
                 args.host = "0.0.0.0"
 
-            util.progress(f"binding to {args.host}:{args.port}")
+            with Progress(
+                f"bound to [blue]{args.host}[/blue]:[cyan]{args.port}[/cyan]",
+                BarColumn(bar_width=None),
+            ) as progress:
+                task_id = progress.add_task("listening", total=1, start=False)
+                # Create the socket server
+                server = socket.create_server((args.host, args.port), reuse_port=True)
 
-            # Create the socket server
-            server = socket.create_server((args.host, args.port), reuse_port=True)
+                try:
+                    # Wait for a connection
+                    (client, address) = server.accept()
+                except KeyboardInterrupt:
+                    progress.update(task_id, visible=False)
+                    progress.log("[red]aborting[/red] listener")
+                    return
 
-            try:
-                # Wait for a connection
-                (client, address) = server.accept()
-            except KeyboardInterrupt:
-                util.warn(f"aborting listener...")
-                return
-
-            util.success(f"received connection from {address[0]}:{address[1]}")
-            pwncat.victim.connect(client)
+                progress.update(task_id, visible=False)
+                progress.log(
+                    f"[green]received[/green] connection from [blue]{address[0]}[/blue]:[cyan]{address[1]}[/cyan]"
+                )
+                pwncat.victim.connect(client)
         elif args.action == "connect":
             if not args.host:
-                self.parser.error("host address is required for outbound connections")
+                console.log("[red]error[/red]: no host address provided")
+                return
 
-            util.progress(f"connecting to {args.host}:{args.port}")
+            with Progress(
+                f"connecting to [blue]{args.host}[/blue]:[cyan]{args.port}[/cyan]",
+                BarColumn(bar_width=None),
+            ) as progress:
+                task_id = progress.add_task("connecting", total=1, start=False)
+                # Connect to the remote host
+                client = socket.create_connection((args.host, args.port))
 
-            # Connect to the remote host
-            client = socket.create_connection((args.host, args.port))
+                progress.update(task_id, visible=False)
+                progress.log(
+                    f"connection to "
+                    f"[blue]{args.host}[/blue]:[cyan]{args.port}[/cyan] [green]established[/green]"
+                )
 
-            util.success(f"connection to {args.host}:{args.port} established")
-            pwncat.victim.connect(client)
+                pwncat.victim.connect(client)
         elif args.action == "ssh":
 
             if not args.port:
