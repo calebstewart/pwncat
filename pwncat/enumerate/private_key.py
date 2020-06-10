@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import dataclasses
 from typing import Generator
+import re
+from Crypto.PublicKey import RSA
 
 from colorama import Fore
 
@@ -10,6 +12,7 @@ from pwncat import util
 name = "pwncat.enumerate.private_key"
 provides = "system.user.private_key"
 per_user = True
+encrypted_pattern = re.compile(r"^Proc-Type: .*,ENCRYPTED.*$", re.IGNORECASE)
 
 
 @dataclasses.dataclass
@@ -24,6 +27,8 @@ class PrivateKeyFact:
     """ The path to the private key on the remote host """
     content: str
     """ The actual content of the private key """
+    encrypted: bool
+    """ Is this private key encrypted? """
 
     def __str__(self):
         if self.uid == 0:
@@ -55,7 +60,7 @@ def enumerate() -> Generator[PrivateKeyFact, None, None]:
             line = line.strip().decode("utf-8").split(" ")
             uid, path = int(line[0]), " ".join(line[1:])
             util.progress(f"enumerating private keys: {Fore.CYAN}{path}{Fore.RESET}")
-            data.append(PrivateKeyFact(uid, path, None))
+            data.append(PrivateKeyFact(uid, path, None, False))
 
     for fact in data:
         try:
@@ -64,6 +69,20 @@ def enumerate() -> Generator[PrivateKeyFact, None, None]:
             )
             with pwncat.victim.open(fact.path, "r") as filp:
                 fact.content = filp.read().strip().replace("\r\n", "\n")
+
+            try:
+                # Try to import the key to test if it's valid and if there's
+                # a passphrase on the key. An "incorrect checksum" ValueError
+                # is raised if there's a key. Not sure what other errors may
+                # be raised, to be honest...
+                RSA.importKey(fact.content)
+            except ValueError as exc:
+                if "incorrect checksum" in str(exc).lower():
+                    # There's a passphrase on this key
+                    fact.encrypted = True
+                else:
+                    # Some other error happened, probably not a key
+                    continue
             yield fact
         except (PermissionError, FileNotFoundError):
             continue

@@ -10,3 +10,4 @@ requests
 sqlalchemy
 pytablewriter
 rich
+pycryptodome

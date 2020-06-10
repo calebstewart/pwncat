@@ -35,9 +35,10 @@ class Method(BaseMethod):
         techniques = []
         for fact in pwncat.victim.enumerate.iter(typ="system.user.private_key"):
             util.progress(f"enumerating private key facts: {str(fact.data)}")
-            techniques.append(
-                Technique(fact.data.user.name, self, fact.data, Capability.SHELL)
-            )
+            if not fact.data.encrypted:
+                techniques.append(
+                    Technique(fact.data.user.name, self, fact.data, Capability.SHELL)
+                )
 
         return techniques
 

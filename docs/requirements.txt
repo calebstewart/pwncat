@@ -1,5 +1,5 @@
 colorama==0.4.3
-git+https://github.com/calebstewart/python-prompt-toolkit
+prompt-toolkit
 git+https://github.com/calebstewart/paramiko
 wcwidth==0.1.9
 netifaces==0.10.9
@@ -9,3 +9,5 @@ commentjson
 requests
 sqlalchemy
 pytablewriter
+rich
+pycryptodome

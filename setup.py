@@ -19,6 +19,7 @@ dependencies = [
     "paramiko",
     "pytablewriter",
     "rich",
+    "pycryptodome",
 ]
 
 dependency_links = [
