@@ -1818,7 +1818,7 @@ class Victim:
             try:
                 new = self.client.recv(4096)
                 if len(new) == 0:
-                    if len(output) > 0 or some is False:
+                    if output > 0 or some is False:
                         break
                 output += len(new)
             except (socket.timeout, BlockingIOError):

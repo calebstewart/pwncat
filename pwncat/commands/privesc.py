@@ -102,6 +102,7 @@ class Command(CommandDefinition):
             Complete.CHOICES,
             action="append",
             choices=get_method_ids,
+            metavar="METHOD",
             help="Methods to exclude from the search",
         ),
         "--data,-d": Parameter(
