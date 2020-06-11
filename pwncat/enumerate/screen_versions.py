@@ -2,6 +2,7 @@
 import dataclasses
 import shlex
 from typing import Generator
+import os
 
 from colorama import Fore
 
@@ -46,12 +47,16 @@ def enumerate() -> Generator[FactData, None, None]:
 
     # Look for matching binaries
     with pwncat.victim.subprocess(
-        f"find {shlex.join(paths)} \( -type f -or -type l \) -executable -name 'screen*' -printf '%#m %p\\n' 2>/dev/null"
+        f"find {shlex.join(paths)} \\( -type f -or -type l \\) -executable \\( -name 'screen' -or -name 'screen-*' \\) -printf '%#m %p\\n' 2>/dev/null"
     ) as pipe:
         for line in pipe:
             line = line.decode("utf-8").strip()
             perms, *path = line.split(" ")
             path = " ".join(path)
             perms = int(perms, 8)
+
+            # When the screen source code is on disk and marked as executable, this happens...
+            if os.path.splitext(path)[1] in [".c", ".o", ".h"]:
+                continue
 
             yield ScreenVersion(path, perms)

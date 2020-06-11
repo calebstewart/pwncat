@@ -9,6 +9,7 @@ from typing import List, Tuple, Optional, Any
 
 from colorama import Fore
 from prompt_toolkit.shortcuts import confirm
+from rich.progress import Progress, BarColumn
 
 import pwncat
 from pwncat import util

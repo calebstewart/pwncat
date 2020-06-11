@@ -269,6 +269,7 @@ class Victim:
             "initializing: {task.fields[status]}",
             BarColumn(bar_width=None),
             "[progress.percentage]{task.percentage:>3.1f}%",
+            console=console,
         ) as progress:
 
             task_id = progress.add_task("initializing", total=7, status="hostname")
@@ -420,7 +421,7 @@ class Victim:
             # Synchronize the terminals
             self.command_parser.dispatch_line("sync --quiet")
 
-            progress.update(task_id, status="complete", advance=1, visible=True)
+            progress.update(task_id, status="complete", advance=1)
 
         # Force the local TTY to enter raw mode
         self.state = State.RAW
@@ -1315,6 +1316,24 @@ class Victim:
                 access |= util.Access.PARENT_WRITE
 
         return access
+
+    def chdir(self, path: str) -> str:
+        """
+        Change directories in the remote process. Returns the old CWD.
+
+        :param path: the directory to change to
+        :return: the old current working directory
+        """
+
+        cd_cmd = util.join(["cd", path])
+        command = f"echo $PWD; {cd_cmd} || echo _PWNCAT_BAD_CD_"
+        output = self.run(command).decode("utf-8")
+
+        if "_PWNCAT_BAD_CD_" in output:
+            raise FileNotFoundError(f"{path}: No such file or directory")
+
+        output = output.replace("\r\n", "\n").split("\n")
+        return output[0]
 
     def listdir(self, path: str) -> Generator[str, None, None]:
         """
