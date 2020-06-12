@@ -19,34 +19,17 @@ class Method(BaseMethod):
     def enumerate(self, caps: Capability = Capability.ALL) -> List[Technique]:
         """ Find all techniques known at this time """
 
-        # Update the cache for the current user
-        # self.find_suid()
+        for suid in pwncat.victim.enumerate.iter("suid"):
 
-        known_techniques = []
-        try:
-            for suid in pwncat.victim.enumerate.iter("suid"):
+            try:
+                binary = pwncat.victim.gtfo.find_binary(suid.data.path, caps)
+            except BinaryNotFound:
+                continue
 
-                # Print status message
-                util.progress(
-                    (
-                        f"enumerating suid binaries: "
-                        f"{Fore.CYAN}{os.path.basename(suid.data.path)}{Fore.RESET}"
-                    )
+            for method in binary.iter_methods(suid.data.path, caps, Stream.ANY):
+                yield Technique(
+                    suid.data.owner.name, self, method, method.cap,
                 )
-
-                try:
-                    binary = pwncat.victim.gtfo.find_binary(suid.data.path, caps)
-                except BinaryNotFound:
-                    continue
-
-                for method in binary.iter_methods(suid.data.path, caps, Stream.ANY):
-                    known_techniques.append(
-                        Technique(suid.data.owner.name, self, method, method.cap,)
-                    )
-        finally:
-            util.erase_progress()
-
-        return known_techniques
 
     def execute(self, technique: Technique):
         """ Run the specified technique """
@@ -128,4 +111,4 @@ class Method(BaseMethod):
             pipe.write(data)
 
     def get_name(self, tech: Technique):
-        return f"{Fore.CYAN}{tech.ident.binary_path}{Fore.RESET} ({Fore.RED}setuid{Fore.RESET})"
+        return f"[cyan]{tech.ident.binary_path}[/cyan] ([red]setuid[/red])"

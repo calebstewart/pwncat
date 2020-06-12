@@ -21,7 +21,6 @@ class Method(BaseMethod):
 
         rules = []
         for fact in pwncat.victim.enumerate("sudo"):
-            util.progress(f"enumerating sudo rules: {fact.data}")
 
             # Doesn't appear to be a user specification
             if not fact.data.matched:
@@ -51,13 +50,10 @@ class Method(BaseMethod):
         # We don't need that progress after this is complete
         util.erase_progress()
 
-        techniques = []
         for rule in rules:
             for method in pwncat.victim.gtfo.iter_sudo(rule.command, caps=capability):
                 user = "root" if rule.runas_user == "ALL" else rule.runas_user
-                techniques.append(Technique(user, self, (method, rule), method.cap))
-
-        return techniques
+                yield Technique(user, self, (method, rule), method.cap)
 
     def execute(self, technique: Technique):
         """ Run the specified technique """
@@ -135,14 +131,11 @@ class Method(BaseMethod):
     def get_name(self, tech: Technique):
         """ Get the name of the given technique for display """
         return (
-            (
-                f"{Fore.CYAN}{tech.ident[0].binary_path}{Fore.RESET} "
-                f"({Fore.RED}sudo{Fore.RESET}"
-            )
+            (f"[cyan]{tech.ident[0].binary_path}[/cyan] ([red]sudo")
             + (
                 ""
                 if "NOPASSWD" not in tech.ident[1].options
-                else f" {Style.BRIGHT+Fore.RED}NOPASSWD{Style.RESET_ALL}"
+                else f" [bold]NOPASSWD[/bold]"
             )
-            + ")"
+            + "[/red])"
         )

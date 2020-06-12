@@ -30,17 +30,11 @@ class Method(BaseMethod):
 
         # We only provide shell capability
         if Capability.SHELL not in capability:
-            return []
+            return
 
-        techniques = []
         for fact in pwncat.victim.enumerate.iter(typ="system.user.private_key"):
-            util.progress(f"enumerating private key facts: {str(fact.data)}")
             if not fact.data.encrypted:
-                techniques.append(
-                    Technique(fact.data.user.name, self, fact.data, Capability.SHELL)
-                )
-
-        return techniques
+                yield Technique(fact.data.user.name, self, fact.data, Capability.SHELL)
 
     def execute(self, technique: Technique) -> bytes:
         """

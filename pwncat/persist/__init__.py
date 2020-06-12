@@ -252,15 +252,11 @@ class PersistenceMethod:
     def format(self, user: Optional[str] = None):
         """ Format the name and user into a printable display name """
         if self.system:
-            result = (
-                f"{Fore.CYAN}{self.name}{Fore.RESET} as {Fore.RED}system{Fore.RESET}"
-            )
+            result = f"[cyan]{self.name}[/cyan] as [red]system[/red]"
         else:
             if user is None:
                 user = "user"
-            result = (
-                f"{Fore.CYAN}{self.name}{Fore.RESET} as {Fore.GREEN}{user}{Fore.RESET}"
-            )
+            result = f"[cyan]{self.name}[/cyan] as [green]{user}[/green]"
         if self.local:
-            result = f"{result} ({Fore.MAGENTA}local{Fore.RESET})"
+            result = f"{result} ([magenta]local[/magenta])"
         return result

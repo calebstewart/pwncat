@@ -26,15 +26,8 @@ class Method(BaseMethod):
         if Capability.SHELL not in capability:
             return []
 
-        techniques = []
         for fact in pwncat.victim.enumerate.iter(typ="system.user.password"):
-            util.progress(f"enumerating password facts: {str(fact.data)}")
-            techniques.append(
-                Technique(fact.data.user.name, self, fact.data, Capability.SHELL)
-            )
-        util.erase_progress()
-
-        return techniques
+            yield Technique(fact.data.user.name, self, fact.data, Capability.SHELL)
 
     def execute(self, technique: Technique) -> bytes:
         """

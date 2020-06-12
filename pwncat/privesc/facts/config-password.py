@@ -43,7 +43,6 @@ class Method(BaseMethod):
 
         techniques = []
         for fact in pwncat.victim.enumerate.iter(typ="configuration.password"):
-            util.progress(f"enumerating password facts: {str(fact.data)}")
             if fact.data.value is None:
                 continue
 
@@ -66,13 +65,9 @@ class Method(BaseMethod):
                 if (
                     user.id == 0 and user.name != pwncat.victim.config["backdoor_user"]
                 ) or user.id >= 1000:
-                    techniques.append(
-                        Technique(user.name, self, fact, Capability.SHELL)
-                    )
+                    yield Technique(user.name, self, fact, Capability.SHELL)
 
             seen_password.append(fact.data.value)
-
-        util.erase_progress()
 
         return techniques
 
@@ -97,4 +92,4 @@ class Method(BaseMethod):
         return "exit\n"
 
     def get_name(self, tech: Technique) -> str:
-        return f"{Fore.YELLOW}possible{Fore.RESET} password ({Fore.BLUE}{repr(tech.ident.data.value)}{Fore.RESET})"
+        return f"[yellow]possible[/yellow] password ([blue]{repr(tech.ident.data.value)}[/blue])"

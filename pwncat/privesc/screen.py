@@ -32,9 +32,6 @@ class Method(BaseMethod):
             if f.data.vulnerable and f.data.perms & 0o4000
         ]
 
-        # Make a list of techniques to return
-        techniques: List[Technique] = []
-
         for fact in facts:
 
             # Carve out the version of screen
@@ -62,9 +59,7 @@ class Method(BaseMethod):
                 continue
 
             # This may work!
-            techniques.append(Technique("root", self, fact, Capability.SHELL))
-
-        return techniques
+            yield Technique("root", self, fact, Capability.SHELL)
 
     def execute(self, technique: Technique):
         """ Run the specified technique """

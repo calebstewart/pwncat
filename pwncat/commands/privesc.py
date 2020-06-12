@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 from typing import List, Callable
 
+from rich.table import Table
+
 import pwncat
 from pwncat.commands.base import (
     CommandDefinition,
@@ -11,7 +13,7 @@ from pwncat.commands.base import (
 )
 from pwncat import util, privesc
 from pwncat.persist import PersistenceError
-from pwncat.util import State
+from pwncat.util import State, console
 from colorama import Fore
 import argparse
 import shutil
@@ -119,10 +121,15 @@ class Command(CommandDefinition):
         if args.action == "list":
             techniques = pwncat.victim.privesc.search(args.user, exclude=args.exclude)
             if len(techniques) == 0:
-                util.warn("no techniques found")
+                console.log("no techniques found")
             else:
                 for tech in techniques:
-                    util.info(f" - {tech}")
+                    color = "green" if tech.user == "root" else "green"
+                    console.print(
+                        f" - [magenta]{tech.get_cap_name()}[/magenta] "
+                        f"as [{color}]{tech.user}[/{color}] "
+                        f"via {tech.method.get_name(tech)}"
+                    )
         elif args.action == "read":
             if not args.path:
                 self.parser.error("missing required argument: --path")
@@ -187,7 +194,7 @@ class Command(CommandDefinition):
                                 continue
                             chain.append(
                                 (
-                                    f"{method.format()} ({Fore.CYAN}euid{Fore.RESET} correction)",
+                                    f"{method.format()} ([cyan]euid[/cyan] correction)",
                                     "exit",
                                 )
                             )
@@ -197,10 +204,10 @@ class Command(CommandDefinition):
                     else:
                         util.warn("failed to correct uid/euid mismatch")
 
-                util.success("privilege escalation succeeded using:")
+                console.log("privilege escalation succeeded using:")
                 for i, (technique, _) in enumerate(chain):
-                    arrow = f"{Fore.YELLOW}\u2ba1{Fore.RESET} "
-                    print(f"{(i+1)*' '}{arrow}{technique}")
+                    arrow = f"[yellow]\u2ba1[/yellow] "
+                    console.log(f"{(i+1)*' '}{arrow}{technique}")
                 pwncat.victim.reset()
                 pwncat.victim.state = State.RAW
             except privesc.PrivescError as exc:

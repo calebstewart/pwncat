@@ -16,23 +16,18 @@ class Method(BaseMethod):
 
     def enumerate(self, capability=Capability.ALL) -> List[Technique]:
 
-        result = []
         current_user = pwncat.victim.whoami()
 
         for user, info in pwncat.victim.users.items():
             if user == current_user:
                 continue
             if info.password is not None or current_user == "root":
-                result.append(
-                    Technique(
-                        user=user,
-                        method=self,
-                        ident=info.password,
-                        capabilities=Capability.SHELL,
-                    )
+                yield Technique(
+                    user=user,
+                    method=self,
+                    ident=info.password,
+                    capabilities=Capability.SHELL,
                 )
-
-        return result
 
     def execute(self, technique: Technique):
 
@@ -68,4 +63,4 @@ class Method(BaseMethod):
         return "exit"
 
     def get_name(self, tech: Technique):
-        return f"{Fore.RED}known password{Fore.RESET}"
+        return f"[red]known password[/red]"

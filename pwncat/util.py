@@ -343,6 +343,8 @@ def erase_progress():
     tasks, which don't need (or want) to be logged to the terminal """
     global LAST_LOG_MESSAGE
 
+    return
+
     sys.stdout.write(
         len(LAST_LOG_MESSAGE[0]) * "\b"
         + len(LAST_LOG_MESSAGE[0]) * " "
@@ -354,6 +356,8 @@ def erase_progress():
 def log(level, message, overlay=False):
     global LAST_LOG_MESSAGE
     global LAST_PROG_ANIM
+
+    return
 
     prefix = {
         "info": f"[{Fore.BLUE}+{Fore.RESET}]",
