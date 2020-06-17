@@ -14,7 +14,9 @@ class Method(BaseMethod):
     id = "enum.privkeys"
     BINARIES = ["ssh"]
 
-    def enumerate(self, capability: int = Capability.ALL) -> List[Technique]:
+    def enumerate(
+        self, progress, task, capability: int = Capability.ALL
+    ) -> List[Technique]:
         """
         Enumerate capabilities for this method.
 
@@ -33,6 +35,7 @@ class Method(BaseMethod):
             return
 
         for fact in pwncat.victim.enumerate.iter(typ="system.user.private_key"):
+            progress.update(task, step=str(fact.data))
             if not fact.data.encrypted:
                 yield Technique(fact.data.user.name, self, fact.data, Capability.SHELL)
 

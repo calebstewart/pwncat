@@ -14,7 +14,9 @@ class Method(BaseMethod):
     id = "logged-passwords"
     BINARIES = ["su"]
 
-    def enumerate(self, capability: int = Capability.ALL) -> List[Technique]:
+    def enumerate(
+        self, progress, task, capability: int = Capability.ALL
+    ) -> List[Technique]:
         """
         Enumerate capabilities for this method.
 
@@ -24,9 +26,10 @@ class Method(BaseMethod):
 
         # We only provide shell capability
         if Capability.SHELL not in capability:
-            return []
+            return
 
         for fact in pwncat.victim.enumerate.iter(typ="system.user.password"):
+            progress.update(task, step=str(fact.data))
             yield Technique(fact.data.user.name, self, fact.data, Capability.SHELL)
 
     def execute(self, technique: Technique) -> bytes:

@@ -16,11 +16,15 @@ class Method(BaseMethod):
     id = "sudo"
     BINARIES = ["sudo"]
 
-    def enumerate(self, capability: int = Capability.ALL) -> List[Technique]:
+    def enumerate(
+        self, progress, task, capability: int = Capability.ALL
+    ) -> List[Technique]:
         """ Find all techniques known at this time """
 
         rules = []
         for fact in pwncat.victim.enumerate("sudo"):
+
+            progress.update(task, step=str(fact.data))
 
             # Doesn't appear to be a user specification
             if not fact.data.matched:
@@ -52,6 +56,7 @@ class Method(BaseMethod):
 
         for rule in rules:
             for method in pwncat.victim.gtfo.iter_sudo(rule.command, caps=capability):
+                progress.update(task, step=str(rule))
                 user = "root" if rule.runas_user == "ALL" else rule.runas_user
                 yield Technique(user, self, (method, rule), method.cap)
 

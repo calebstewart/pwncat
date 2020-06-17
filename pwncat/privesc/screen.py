@@ -17,22 +17,26 @@ class Method(BaseMethod):
     id = "screen-suid"
     BINARIES = []
 
-    def enumerate(self, capability: int = Capability.ALL) -> List[Technique]:
+    def enumerate(
+        self, progress, task, capability: int = Capability.ALL
+    ) -> List[Technique]:
         """ Find all techniques known at this time """
 
         # If we have ran this before, don't bother running it
         if Capability.SHELL not in capability:
-            return []
+            return
 
         # Grab all possibly vulnerable screen version
         # It has to be SUID for this to work.
-        facts = [
-            f
-            for f in pwncat.victim.enumerate("screen-version")
-            if f.data.vulnerable and f.data.perms & 0o4000
-        ]
+        facts = []
+        for fact in pwncat.victim.enumerate("screen-version"):
+            progress.update(task, step=str(fact.data))
+            if fact.data.vulnerable and fact.data.perms & 0o4000:
+                facts.append(fact)
 
         for fact in facts:
+
+            progress.update(task, step=str(fact.data))
 
             # Carve out the version of screen
             version_output = (

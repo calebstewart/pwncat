@@ -27,7 +27,9 @@ class Method(BaseMethod):
     id = "enum.passwords"
     BINARIES = ["su"]
 
-    def enumerate(self, capability: int = Capability.ALL) -> List[Technique]:
+    def enumerate(
+        self, progress, task, capability: int = Capability.ALL
+    ) -> List[Technique]:
         """
         Enumerate capabilities for this method.
 
@@ -43,6 +45,9 @@ class Method(BaseMethod):
 
         techniques = []
         for fact in pwncat.victim.enumerate.iter(typ="configuration.password"):
+
+            progress.update(task, step=str(fact.data))
+
             if fact.data.value is None:
                 continue
 
@@ -68,8 +73,6 @@ class Method(BaseMethod):
                     yield Technique(user.name, self, fact, Capability.SHELL)
 
             seen_password.append(fact.data.value)
-
-        return techniques
 
     def execute(self, technique: Technique) -> bytes:
         """

@@ -16,10 +16,14 @@ class Method(BaseMethod):
     id = "setuid"
     BINARIES = ["find"]
 
-    def enumerate(self, caps: Capability = Capability.ALL) -> List[Technique]:
+    def enumerate(
+        self, progress, task, caps: Capability = Capability.ALL
+    ) -> List[Technique]:
         """ Find all techniques known at this time """
 
         for suid in pwncat.victim.enumerate.iter("suid"):
+
+            progress.update(task, step=str(suid.data))
 
             try:
                 binary = pwncat.victim.gtfo.find_binary(suid.data.path, caps)

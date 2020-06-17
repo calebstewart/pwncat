@@ -71,21 +71,37 @@ class Finder:
         if exclude is None:
             exclude = []
 
-        techniques = []
-        for method in self.methods:
-            try:
-                if method.id in exclude:
-                    continue
-                techniques.extend(method.enumerate())
-            except PrivescError:
-                pass
+        if target_user is None:
+            target_user = "[any]"
 
-        if target_user is not None:
-            techniques = [
-                technique for technique in techniques if technique.user == target_user
-            ]
+        with Progress(
+            f"[cyan]{pwncat.victim.current_user.name}[/cyan]",
+            "→",
+            f"[yellow]{target_user}[/yellow]",
+            "•",
+            "enumerating",
+            "•",
+            "{task.fields[method]}",
+            "•",
+            "{task.fields[step]}",
+            console=console,
+            auto_refresh=True,
+            transient=True,
+        ) as progress:
+            task = progress.add_task("enumerating", method="initializing", step="")
+            techniques = []
+            for method in self.methods:
+                progress.update(task, method=str(method))
+                try:
+                    if method.id in exclude:
+                        continue
+                    for tech in method.enumerate(progress, task):
+                        if target_user == tech.user or target_user == "[any]":
+                            techniques.append(tech)
+                except PrivescError:
+                    pass
 
-        return techniques
+            return techniques
 
     def add_backdoor(self):
         """ Add the backdoor user if it doesn't already exist. This is normally
@@ -168,47 +184,70 @@ class Finder:
         except UnicodeDecodeError:
             data_printable = False
 
-        for method in self.methods:
-            try:
-                found_techniques = method.enumerate(Capability.ALL)
-                for tech in found_techniques:
-                    if (
-                        tech.user == target_user
-                        and Capability.WRITE in tech.capabilities
-                    ):
-                        try:
-                            tech.method.write_file(filename, data, tech)
-                            return chain
-                        except PrivescError:
-                            pass
-                    if tech.user not in user_map:
-                        user_map[tech.user] = []
-                    user_map[tech.user].append(tech)
-            except PrivescError:
-                pass
+        with Progress(
+            f"write [cyan]{filename}[/cyan] as [yellow]{target_user}[/yellow]",
+            "•",
+            "{task.fields[status]}",
+            "•",
+            "{task.fields[step]}",
+            console=console,
+            auto_refresh=True,
+            transient=True,
+        ) as progress:
 
-        shlvl = pwncat.victim.getenv("SHLVL")
+            task = progress.add_task(
+                "writing", status="enumerating", step="initializing"
+            )
 
-        # We can't escalate directly to the target to read a file. So, try recursively
-        # against other users.
-        for user, techniques in user_map.items():
-            if user == target_user:
-                continue
-            if self.in_chain(user, chain):
-                continue
-            try:
-                tech, exit_command = self.escalate_single(techniques, shlvl)
-                chain.append((tech, exit_command))
-            except PrivescError:
-                continue
-            try:
-                return self.write_file(
-                    filename, data, safe, target_user, depth, chain, starting_user
-                )
-            except PrivescError:
-                tech, exit_command = chain[-1]
-                pwncat.victim.run(exit_command, wait=False)
-                chain.pop()
+            for method in self.methods:
+                try:
+                    found_techniques = method.enumerate(progress, task, Capability.ALL)
+                    for tech in found_techniques:
+                        progress.update(task, step=str(tech))
+                        if (
+                            tech.user == target_user
+                            and Capability.WRITE in tech.capabilities
+                        ):
+                            progress.update(task, step=f"attempting {tech}")
+                            try:
+                                tech.method.write_file(filename, data, tech)
+                                return chain
+                            except PrivescError:
+                                pass
+                        if tech.user not in user_map:
+                            user_map[tech.user] = []
+                        user_map[tech.user].append(tech)
+                except PrivescError:
+                    pass
+
+            shlvl = pwncat.victim.getenv("SHLVL")
+
+            progress.update(task, status="recursing", step="")
+
+            # We can't escalate directly to the target to read a file. So, try recursively
+            # against other users.
+            for user, techniques in user_map.items():
+                if user == target_user:
+                    continue
+                if self.in_chain(user, chain):
+                    continue
+                try:
+                    progress.update(task, step=f"escalating to [green]{user}[/green]")
+                    tech, exit_command = self.escalate_single(
+                        techniques, shlvl, progress, task
+                    )
+                    chain.append((tech, exit_command))
+                except PrivescError:
+                    continue
+                try:
+                    progress.update(task, step=f"recursing to [green]{user}[/green]")
+                    return self.write_file(
+                        filename, data, safe, target_user, depth, chain, starting_user
+                    )
+                except PrivescError:
+                    tech, exit_command = chain[-1]
+                    pwncat.victim.run(exit_command, wait=False)
+                    chain.pop()
 
         raise PrivescError(f"no route to {target_user} found")
 
@@ -241,48 +280,68 @@ class Finder:
         if depth is not None and len(chain) > depth:
             raise PrivescError("max depth reached")
 
-        # Enumerate escalation options for this user
-        user_map = {}
-        for method in self.methods:
-            try:
-                found_techniques = method.enumerate(Capability.ALL)
-                for tech in found_techniques:
-                    if tech.user == target_user and (
-                        tech.capabilities & Capability.READ
-                    ):
-                        try:
-                            read_pipe = tech.method.read_file(filename, tech)
-                            return (read_pipe, chain, tech)
-                        except PrivescError:
-                            pass
-                    if tech.user not in user_map:
-                        user_map[tech.user] = []
-                    user_map[tech.user].append(tech)
-            except PrivescError:
-                pass
+        with Progress(
+            f"write [cyan]{filename}[/cyan] as [yellow]{target_user}[/yellow]",
+            "•",
+            "{task.fields[status]}",
+            "•",
+            "{task.fields[step]}",
+            console=console,
+            auto_refresh=True,
+            transient=True,
+        ) as progress:
 
-        shlvl = pwncat.victim.getenv("SHLVL")
+            task = progress.add_task(
+                "reading", status="enumerating", step="initializing"
+            )
+            # Enumerate escalation options for this user
+            user_map = {}
+            for method in self.methods:
+                try:
+                    found_techniques = method.enumerate(progress, task, Capability.ALL)
+                    for tech in found_techniques:
+                        progress.update(task, step=str(tech))
+                        if tech.user == target_user and (
+                            tech.capabilities & Capability.READ
+                        ):
+                            progress.update(task, step=f"attempting {tech}")
+                            try:
+                                read_pipe = tech.method.read_file(filename, tech)
+                                return (read_pipe, chain, tech)
+                            except PrivescError:
+                                pass
+                        if tech.user not in user_map:
+                            user_map[tech.user] = []
+                        user_map[tech.user].append(tech)
+                except PrivescError:
+                    pass
 
-        # We can't escalate directly to the target to read a file. So, try recursively
-        # against other users.
-        for user, techniques in user_map.items():
-            if user == target_user:
-                continue
-            if self.in_chain(user, chain):
-                continue
-            try:
-                tech, exit_command = self.escalate_single(techniques, shlvl)
-                chain.append((tech, exit_command))
-            except PrivescError:
-                continue
-            try:
-                return self.read_file(
-                    filename, target_user, depth, chain, starting_user
-                )
-            except PrivescError:
-                tech, exit_command = chain[-1]
-                pwncat.victim.run(exit_command, wait=False)
-                chain.pop()
+            shlvl = pwncat.victim.getenv("SHLVL")
+
+            progress.update(task, status="recursing", step="")
+
+            # We can't escalate directly to the target to read a file. So, try recursively
+            # against other users.
+            for user, techniques in user_map.items():
+                if user == target_user:
+                    continue
+                if self.in_chain(user, chain):
+                    continue
+                try:
+                    progress.update(task, step=f"escalating to [green]{user}[/green]")
+                    tech, exit_command = self.escalate_single(techniques, shlvl)
+                    chain.append((tech, exit_command))
+                except PrivescError:
+                    continue
+                try:
+                    progress.update(task, step=f"recursing to [green]{user}[/green]")
+                    return self.read_file(
+                        filename, target_user, depth, chain, starting_user
+                    )
+                except PrivescError:
+                    tech, exit_command = chain[-1]
+                    pwncat.victim.run(exit_command, wait=False)
+                    chain.pop()
 
         raise PrivescError(f"no route to {target_user} found")
 
@@ -775,7 +834,9 @@ class Finder:
                 continue
             try:
                 found_techniques = method.enumerate(
-                    Capability.SHELL | Capability.WRITE | Capability.READ
+                    progress,
+                    task,
+                    Capability.SHELL | Capability.WRITE | Capability.READ,
                 )
                 for tech in found_techniques:
                     progress.update(task, step=str(tech))
@@ -949,7 +1010,7 @@ class BaseMethod:
                 raise PrivescError(f"required remote binary not found: {binary}")
 
     def enumerate(
-        self, capability: int = Capability.ALL
+        self, progress: Progress, task: Any, capability: int = Capability.ALL
     ) -> Generator[Technique, None, None]:
         """
         Enumerate all possible techniques known and possible on the remote host for

