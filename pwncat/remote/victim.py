@@ -577,7 +577,7 @@ class Victim:
             with self.open("/proc/1/comm", "r") as filp:
                 init = filp.read()
         except (FileNotFoundError, PermissionError):
-            init = None
+            init = ""
 
         if "systemd" in init:
             self.host.init = util.Init.SYSTEMD
