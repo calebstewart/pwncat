@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import pwncat
 from pwncat.commands.base import CommandDefinition, Complete, Parameter
-from pwncat import util
+from pwncat.util import console
 import os
 
 
@@ -25,7 +25,9 @@ class Command(CommandDefinition):
         TERM = os.environ.get("TERM", None)
         if TERM is None:
             if not args.quiet:
-                util.warn("no local TERM set. falling back to 'xterm'")
+                console.log(
+                    "[yellow]warning[/yellow]: no local [blue]TERM[/blue]; falling back to 'xterm'"
+                )
             TERM = "xterm"
 
         # Get the width and height
@@ -33,8 +35,11 @@ class Command(CommandDefinition):
 
         # Update the state
         pwncat.victim.run(
-            f"stty rows {rows};" f"stty columns {columns};" f"export TERM='{TERM}'"
+            f"stty rows {rows}; stty columns {columns}; export TERM='{TERM}'"
         )
 
         if not args.quiet:
-            util.success("terminal state synchronized")
+            console.log(
+                "[green]:heavy_check_mark:[/green] terminal state synchronized",
+                emoji=True,
+            )

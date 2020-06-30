@@ -5,7 +5,7 @@ from typing import Dict, Type, Tuple, Iterator
 from colorama import Fore, Style
 
 import pwncat
-from pwncat import util
+from pwncat.util import console
 from pwncat.commands.base import CommandDefinition, Complete, Parameter, StoreConstOnce
 from pwncat.persist import PersistenceMethod, PersistenceError
 
@@ -84,80 +84,65 @@ class Command(CommandDefinition):
     # List of available persistence methods
     METHODS: Dict[str, Type["PersistenceMethod"]] = {}
 
-    @property
-    def installed_methods(self) -> Iterator[Tuple[str, str, PersistenceMethod]]:
-        me = pwncat.victim.current_user
-        for method in pwncat.victim.persist:
-            if method.system and method.installed():
-                yield (method.name, None, method)
-            elif not method.system:
-                if me.id == 0:
-                    for user in pwncat.victim.users:
-                        util.progress(f"checking {method.name} for: {user}")
-                        if method.installed(user):
-                            util.erase_progress()
-                            yield (method.name, user, method)
-                        util.erase_progress()
-                else:
-                    if method.installed(me.name):
-                        yield (method.name, me.name, method)
+    def show_status(self):
+        """ Show the list of installed methods """
+
+        ninstalled = 0
+        for user, method in pwncat.victim.persist.installed:
+            console.print(f" - {method.format(user)} installed")
+            ninstalled += 1
+        if not ninstalled:
+            console.log("[yellow]warning[/yellow]: no persistence methods installed")
+
+    def list_methods(self, method):
+        """ List available methods or help for a specific method """
+
+        if method:
+            try:
+                method = next(pwncat.victim.persist.find(method))
+                console.print(f"[underline bold]{method.format()}")
+                console.print(textwrap.indent(textwrap.dedent(method.__doc__), "  "))
+            except StopIteration:
+                console.log(f"[red]error[/red]: {method}: no such persistence method")
+        else:
+            for method in pwncat.victim.persist:
+                console.print(f" - {method.format()}")
+
+    def clean_methods(self):
+        """ Remove all persistence methods from the victim """
+
+        util.progress("cleaning persistence methods: ")
+        for user, method in pwncat.victim.persist.installed:
+            try:
+                util.progress(f"cleaning persistance methods: {method.format(user)}")
+                pwncat.victim.persist.remove(method.name, user)
+                util.success(f"removed {method.format(user)}")
+            except PersistenceError as exc:
+                util.erase_progress()
+                util.warn(
+                    f"{method.format(user)}: removal failed: {exc}\n", overlay=True
+                )
+        util.erase_progress()
 
     def run(self, args):
 
-        if args.action == "status":
-            ninstalled = 0
-            for user, method in pwncat.victim.persist.installed:
-                print(f" - {method.format(user)} installed")
-                ninstalled += 1
-            if not ninstalled:
-                util.warn(
-                    "no persistence methods observed as "
-                    f"{Fore.GREEN}{pwncat.victim.whoami()}{Fore.RED}"
-                )
-            return
-        elif args.action == "list":
-            if args.method:
-                try:
-                    method = next(pwncat.victim.persist.find(args.method))
-                    print(f"\033[4m{method.format()}{Style.RESET_ALL}")
-                    print(textwrap.indent(textwrap.dedent(method.__doc__), "  "))
-                except StopIteration:
-                    util.error(f"{args.method}: no such persistence method")
-            else:
-                for method in pwncat.victim.persist:
-                    print(f" - {method.format()}")
-            return
-        elif args.action == "clean":
-            util.progress("cleaning persistence methods: ")
-            for user, method in pwncat.victim.persist.installed:
-                try:
-                    util.progress(
-                        f"cleaning persistance methods: {method.format(user)}"
-                    )
-                    pwncat.victim.persist.remove(method.name, user)
-                    util.success(f"removed {method.format(user)}")
-                except PersistenceError as exc:
-                    util.erase_progress()
-                    util.warn(
-                        f"{method.format(user)}: removal failed: {exc}\n", overlay=True
-                    )
-            util.erase_progress()
-            return
-        elif args.method is None:
-            self.parser.error("no method specified")
-            return
-
-        # Grab the user we want to install the persistence as
-        if args.user:
-            user = args.user
-        else:
-            # Default is to install as current user
-            user = pwncat.victim.whoami()
-
         try:
-            if args.action == "install":
-                pwncat.victim.persist.install(args.method, user)
+            if args.action == "status":
+                self.show_status()
+            elif args.action == "list":
+                self.list_methods(args.method)
+            elif args.action == "clean":
+                self.clean_methods()
+            elif args.action == "install":
+                pwncat.victim.persist.install(
+                    args.method, args.user if args.user else pwncat.victim.whoami()
+                )
             elif args.action == "remove":
-                pwncat.victim.persist.remove(args.method, user)
+                pwncat.victim.persist.remove(
+                    args.method, args.user if args.user else pwncat.victim.whoami()
+                )
+            elif args.method is None:
+                self.parser.error("no method specified")
+                return
         except PersistenceError as exc:
-            util.error(f"{exc}")
+            console.log(f"[red]error[/red]: {exc}")

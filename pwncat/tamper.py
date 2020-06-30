@@ -42,7 +42,7 @@ class CreatedFile(Tamper):
             raise RevertFailed(str(exc))
 
     def __str__(self):
-        return f"{Fore.RED}Created{Fore.RESET} file {Fore.CYAN}{self.path}{Fore.RESET}"
+        return f"[red]Created[/red] file [cyan]{self.path}[/cyan]"
 
 
 class ModifiedFile(Tamper):
@@ -90,7 +90,7 @@ class ModifiedFile(Tamper):
             raise RevertFailed(str(exc))
 
     def __str__(self):
-        return f"{Fore.RED}Modified{Fore.RESET} {Fore.CYAN}{self.path}{Fore.RESET}"
+        return f"[red]Modified[/red] [cyan]{self.path}[/cyan]"
 
     def __repr__(self):
         return f"ModifiedFile(path={self.path})"

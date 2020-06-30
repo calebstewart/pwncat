@@ -9,7 +9,7 @@ from sqlalchemy import exc as sa_exc
 from sqlalchemy.exc import InvalidRequestError
 
 import pwncat
-from pwncat import util
+from pwncat.util import console
 from pwncat.remote import Victim
 
 
@@ -60,9 +60,9 @@ def main():
                     sys.stdout.flush()
     except ConnectionResetError:
         pwncat.victim.restore_local_term()
-        util.warn("connection reset by remote host")
+        console.log("[yellow]warning[/yellow]: connection reset by remote host")
     except SystemExit:
-        util.success("closing down connection.")
+        console.log("closing connection")
     finally:
         # Restore the shell
         pwncat.victim.restore_local_term()
@@ -71,7 +71,7 @@ def main():
             pwncat.victim.session.commit()
         except InvalidRequestError:
             pass
-        util.success("local terminal restored")
+        console.log("local terminal restored")
 
 
 if __name__ == "__main__":

@@ -630,14 +630,14 @@ class Finder:
                     privkey = None
             elif writers:
                 # TODO this needs to be updated to work in the middle of a rich progress
-                util.warn(
-                    "no readers found for {Fore.GREEN}{techniques[0].user}{Fore.RESET}"
+                console.log(
+                    f"[yellow]warning[/yellow]: no readers found for [green]{techniques[0].user}[/green] "
+                    f"however, we do have a writer."
                 )
-                util.warn(f"however, we do have a writer.")
-                response = confirm(
-                    "would you like to clobber their authorized keys? ", suffix="(y/N) "
-                )
-                if not response:
+                response = console.input(
+                    "Would you like to clobber their authorized keys? (y/N) "
+                ).lower()
+                if response != "y":
                     raise PrivescError("user aborted key clobbering")
 
             # If we don't already know a private key, then we need a writer

@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
+from typing import List
+
+from rich.progress import Progress, BarColumn
+
 import pwncat
-from pwncat import util
+from pwncat.util import console
 from pwncat.commands.base import (
     CommandDefinition,
     Complete,
@@ -8,7 +12,7 @@ from pwncat.commands.base import (
     StoreConstOnce,
     StoreForAction,
 )
-from pwncat.tamper import RevertFailed
+from pwncat.tamper import RevertFailed, Tamper
 
 
 class Command(CommandDefinition):
@@ -49,29 +53,36 @@ class Command(CommandDefinition):
 
         if args.action == "revert":
             if args.all:
-                removed_tampers = []
-                util.progress(f"reverting tamper")
-                for tamper in pwncat.victim.tamper:
-                    try:
-                        util.progress(f"reverting tamper: {tamper}")
-                        tamper.revert()
-                        removed_tampers.append(tamper)
-                    except RevertFailed as exc:
-                        util.warn(f"{tamper}: revert failed: {exc}")
-                for tamper in removed_tampers:
-                    pwncat.victim.tamper.remove(tamper)
-                util.success("tampers reverted!")
-                pwncat.victim.session.commit()
+                tampers = list(pwncat.victim.tamper)
             else:
-                if args.tamper not in range(len(pwncat.victim.tamper)):
-                    self.parser.error("invalid tamper id")
-                tamper = pwncat.victim.tamper[args.tamper]
                 try:
+                    tampers = [pwncat.victim.tamper[args.tamper]]
+                except KeyError:
+                    console.log("[red]error[/red]: invalid tamper id")
+                    return
+            self.revert(tampers)
+        else:
+            for ident, tamper in enumerate(pwncat.victim.tamper):
+                console.print(f" [cyan]{ident}[/cyan] - {tamper}")
+
+    def revert(self, tampers: List[Tamper]):
+        """ Revert the list of tampers with a nice progress bar """
+
+        with Progress(
+            "[bold]reverting[/bold]",
+            "•",
+            "{task.fields[tamper]}",
+            BarColumn(bar_width=None),
+            "[progress.percentage]{task.percentage:>3.1f}%",
+            console=console,
+        ) as progress:
+            task = progress.add_task("reverting", tamper="init", total=len(tampers))
+            for tamper in tampers:
+                try:
+                    progress.update(task, tamper=str(tamper))
                     tamper.revert()
                     pwncat.victim.tamper.remove(tamper)
                 except RevertFailed as exc:
-                    util.error(f"revert failed: {exc}")
-                pwncat.victim.session.commit()
-        else:
-            for id, tamper in enumerate(pwncat.victim.tamper):
-                print(f" {id} - {tamper}")
+                    progress.log(f"[yellow]warning[/yellow]: revert failed: {exc}")
+                progress.update(task, advance=1)
+            progress.update(task, tamper="complete")

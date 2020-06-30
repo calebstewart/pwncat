@@ -5,7 +5,7 @@ from sqlalchemy.orm import sessionmaker
 
 import pwncat
 from pwncat.commands.base import CommandDefinition, Complete, Parameter
-from pwncat import util
+from pwncat.util import console, State
 
 
 class Command(CommandDefinition):
@@ -38,17 +38,17 @@ class Command(CommandDefinition):
                 found = False
                 for name, user in pwncat.victim.users.items():
                     if user.password is not None:
-                        print(
-                            f" - {Fore.GREEN}{user}{Fore.RESET} -> {Fore.RED}{repr(user.password)}{Fore.RESET}"
+                        console.print(
+                            f" - [green]{user}[/green] -> [red]{repr(user.password)}[/red]"
                         )
                         found = True
                 if not found:
-                    util.warn("no known user passwords")
+                    console.log("[yellow]warning[/yellow]: no known user passwords")
             else:
                 if args.variable not in pwncat.victim.users:
                     self.parser.error(f"{args.variable}: no such user")
-                print(
-                    f" - {Fore.GREEN}{args.variable}{Fore.RESET} -> {Fore.RED}{repr(args.value)}{Fore.RESET}"
+                console.print(
+                    f" - [green]{args.variable}[/green] -> [red]{repr(args.value)}[/red]"
                 )
                 pwncat.victim.users[args.variable].password = args.value
         else:
@@ -58,9 +58,9 @@ class Command(CommandDefinition):
                 and args.value is not None
             ):
                 try:
-                    pwncat.victim.state = util.State._member_map_[args.value.upper()]
+                    pwncat.victim.state = State._member_map_[args.value.upper()]
                 except KeyError:
-                    util.error(f"{args.value}: invalid state")
+                    console.log(f"[red]error[/red]: {args.value}: invalid state")
             elif args.variable is not None and args.value is not None:
                 try:
                     pwncat.victim.config[args.variable] = args.value
@@ -79,17 +79,15 @@ class Command(CommandDefinition):
                             )
                             pwncat.victim.session = pwncat.victim.session_maker()
                 except ValueError as exc:
-                    util.error(str(exc))
+                    console.log(f"[red]error[/red]: {exc}")
             elif args.variable is not None:
                 value = pwncat.victim.config[args.variable]
-                print(
-                    f" {Fore.CYAN}{args.variable}{Fore.RESET} = "
-                    f"{Fore.YELLOW}{repr(value)}{Fore.RESET}"
+                console.print(
+                    f" [cyan]{args.variable}[/cyan] = [yellow]{repr(value)}[/yellow]"
                 )
             else:
                 for name in pwncat.victim.config:
                     value = pwncat.victim.config[name]
-                    print(
-                        f" {Fore.CYAN}{name}{Fore.RESET} = "
-                        f"{Fore.YELLOW}{repr(value)}{Fore.RESET}"
+                    console.print(
+                        f" [cyan]{name}[/cyan] = [yellow]{repr(value)}[/yellow]"
                     )
