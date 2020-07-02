@@ -29,6 +29,14 @@ class SELinuxState(FactData):
         return result
 
     @property
+    def mode(self) -> str:
+        return self.status.get("Current mode", "unknown").lower()
+
+    @property
+    def enabled(self) -> bool:
+        return self.state.lower() == "enabled"
+
+    @property
     def description(self):
         width = max(len(x) for x in self.status) + 1
         return "\n".join(

