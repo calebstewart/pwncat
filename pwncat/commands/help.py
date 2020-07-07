@@ -4,7 +4,7 @@ import textwrap
 import pwncat
 from pwncat.commands import CommandParser
 from pwncat.commands.base import CommandDefinition, Complete, Parameter
-from pwncat import util
+from pwncat.util import console
 
 
 class Command(CommandDefinition):
@@ -26,9 +26,8 @@ class Command(CommandDefinition):
                     if command.parser is not None:
                         command.parser.print_help()
                     else:
-                        print(textwrap.dedent(command.__doc__).strip())
+                        console.print(textwrap.dedent(command.__doc__).strip())
                     break
         else:
-            util.info("the following commands are available:")
             for command in pwncat.victim.command_parser.commands:
-                print(f" * {command.PROG}")
+                console.print(f" - {command.PROG}")

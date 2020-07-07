@@ -6,9 +6,11 @@ from typing import List, Dict
 import pytablewriter
 from colorama import Fore, Style
 from pytablewriter import MarkdownTableWriter
+from rich.progress import Progress, BarColumn
 
 import pwncat
 from pwncat import util
+from pwncat.util import console
 from pwncat.commands.base import (
     CommandDefinition,
     Complete,
@@ -320,18 +322,23 @@ class Command(CommandDefinition):
             "system.package",
         ]
 
-        util.progress("enumerating report_data")
-        for fact in pwncat.victim.enumerate():
-            util.progress(f"enumerating report_data: {fact.data}")
-            if fact.type in ignore_types:
-                continue
-            if fact.type not in report_data:
-                report_data[fact.type] = {}
-            if fact.source not in report_data[fact.type]:
-                report_data[fact.type][fact.source] = []
-            report_data[fact.type][fact.source].append(fact)
-
-        util.erase_progress()
+        with Progress(
+            "enumerating report data",
+            "•",
+            "[cyan]{task.fields[status]}",
+            transient=True,
+            console=console,
+        ) as progress:
+            task = progress.add_task("", status="initializing")
+            for fact in pwncat.victim.enumerate():
+                progress.update(task, status=str(fact.data))
+                if fact.type in ignore_types:
+                    continue
+                if fact.type not in report_data:
+                    report_data[fact.type] = {}
+                if fact.source not in report_data[fact.type]:
+                    report_data[fact.type][fact.source] = []
+                report_data[fact.type][fact.source].append(fact)
 
         try:
             with open(report_path, "w") as filp:
@@ -359,9 +366,9 @@ class Command(CommandDefinition):
                         continue
                     self.render_section(filp, typ, report_data[typ])
 
-            util.success(f"enumeration report written to {report_path}")
-        except OSError:
-            self.parser.error(f"{report_path}: failed to open output file")
+            console.log(f"enumeration report written to [cyan]{report_path}[/cyan]")
+        except OSError as exc:
+            console.log(f"[red]error[/red]: [cyan]{report_path}[/cyan]: {exc}")
 
     def render_section(self, filp, typ: str, sources: Dict[str, List[pwncat.db.Fact]]):
         """
@@ -399,29 +406,34 @@ class Command(CommandDefinition):
 
         types = typ if isinstance(typ, list) else [typ]
 
-        util.progress("enumerating facts")
-        for typ in types:
-            for fact in pwncat.victim.enumerate.iter(
-                typ, filter=lambda f: provider is None or f.source == provider
-            ):
-                util.progress(f"enumerating facts: {fact.data}")
-                if fact.type not in data:
-                    data[fact.type] = {}
-                if fact.source not in data[fact.type]:
-                    data[fact.type][fact.source] = []
-                data[fact.type][fact.source].append(fact)
-
-        util.erase_progress()
+        with Progress(
+            "enumerating facts",
+            "•",
+            "[cyan]{task.fields[status]}",
+            transient=True,
+            console=console,
+        ) as progress:
+            task = progress.add_task("", status="initializing")
+            for typ in types:
+                for fact in pwncat.victim.enumerate.iter(
+                    typ, filter=lambda f: provider is None or f.source == provider
+                ):
+                    progress.update(task, status=str(fact.data))
+                    if fact.type not in data:
+                        data[fact.type] = {}
+                    if fact.source not in data[fact.type]:
+                        data[fact.type][fact.source] = []
+                    data[fact.type][fact.source].append(fact)
 
         for typ, sources in data.items():
             for source, facts in sources.items():
-                print(
-                    f"{Style.BRIGHT}{Fore.YELLOW}{typ.upper()}{Fore.RESET} Facts by {Fore.BLUE}{source}{Style.RESET_ALL}"
+                console.print(
+                    f"[bright_yellow]{typ.upper()}[/bright_yellow] Facts by [blue]{source}[/blue]"
                 )
                 for fact in facts:
-                    print(f"  {fact.data}")
+                    console.print(f"  {fact.data}")
                     if long and getattr(fact.data, "description", None) is not None:
-                        print(textwrap.indent(fact.data.description, "    "))
+                        console.print(textwrap.indent(fact.data.description, "    "))
 
     def flush_facts(self, typ: str, provider: str):
         """ Flush all facts that match criteria """

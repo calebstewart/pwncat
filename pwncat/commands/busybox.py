@@ -10,7 +10,7 @@ from pwncat.commands.base import (
     StoreConstOnce,
     StoreForAction,
 )
-from pwncat import util
+from pwncat.util import console
 
 
 class Command(CommandDefinition):
@@ -64,11 +64,11 @@ class Command(CommandDefinition):
             pwncat.victim.bootstrap_busybox(args.url)
         elif args.action == "list":
             if pwncat.victim.host.busybox is None:
-                util.error(
-                    "busybox hasn't been installed yet (hint: run 'busybox --install'"
+                console.log(
+                    "[red]error[/red]: "
+                    "busybox is not installed (hint: run 'busybox --install')"
                 )
                 return
-            util.info("binaries which the remote busybox provides:")
 
             # Find all binaries which are provided by busybox
             provides = pwncat.victim.session.query(pwncat.db.Binary).filter(
@@ -77,13 +77,13 @@ class Command(CommandDefinition):
             )
 
             for binary in provides:
-                print(f" * {binary.name}")
+                console.print(f" - {binary.name}")
         elif args.action == "status":
             if pwncat.victim.host.busybox is None:
-                util.error("busybox hasn't been installed yet")
+                console.log("[red]error[/red]: busybox hasn't been installed yet")
                 return
-            util.info(
-                f"busybox is installed to: {Fore.BLUE}{pwncat.victim.host.busybox}{Fore.RESET}"
+            console.log(
+                f"busybox is installed to: [blue]{pwncat.victim.host.busybox}[/blue]"
             )
 
             # Find all binaries which are provided from busybox
@@ -96,4 +96,4 @@ class Command(CommandDefinition):
                 .with_entities(func.count())
                 .scalar()
             )
-            util.info(f"busybox provides {Fore.GREEN}{nprovides}{Fore.RESET} applets")
+            console.log(f"busybox provides [green]{nprovides}[/green] applets")

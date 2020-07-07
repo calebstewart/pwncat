@@ -51,9 +51,6 @@ class Method(BaseMethod):
             # The rule appears to match, add it to the list
             rules.append(fact.data)
 
-        # We don't need that progress after this is complete
-        util.erase_progress()
-
         for rule in rules:
             for method in pwncat.victim.gtfo.iter_sudo(rule.command, caps=capability):
                 progress.update(task, step=str(rule))

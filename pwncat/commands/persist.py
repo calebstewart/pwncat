@@ -3,6 +3,15 @@ import textwrap
 from typing import Dict, Type, Tuple, Iterator
 
 from colorama import Fore, Style
+from rich.progress import (
+    BarColumn,
+    DownloadColumn,
+    TextColumn,
+    TransferSpeedColumn,
+    TimeRemainingColumn,
+    Progress,
+    TaskID,
+)
 
 import pwncat
 from pwncat.util import console
@@ -111,18 +120,29 @@ class Command(CommandDefinition):
     def clean_methods(self):
         """ Remove all persistence methods from the victim """
 
-        util.progress("cleaning persistence methods: ")
-        for user, method in pwncat.victim.persist.installed:
-            try:
-                util.progress(f"cleaning persistance methods: {method.format(user)}")
-                pwncat.victim.persist.remove(method.name, user)
-                util.success(f"removed {method.format(user)}")
-            except PersistenceError as exc:
-                util.erase_progress()
-                util.warn(
-                    f"{method.format(user)}: removal failed: {exc}\n", overlay=True
-                )
-        util.erase_progress()
+        with Progress(
+            "cleaning",
+            "{task.fields[method]}",
+            BarColumn(bar_width=None),
+            "[progress.percentage]{task.percentage:>3.1f}%",
+            console=console,
+        ) as progress:
+            installed = list(pwncat.victim.persist.installed)
+
+            task = progress.add_task("", method="initializing", total=len(installed))
+
+            for user, method in installed:
+                try:
+                    progress.update(task, method=method.format(user))
+                    pwncat.victim.persist.remove(method.name, user)
+                except PersistenceError as exc:
+                    progress.log(
+                        f"[yellow]warning[/yellow]: {method.format(user)}: "
+                        f"removal failed: {exc}"
+                    )
+                progress.update(task, advance=1)
+
+            progress.update(task, method="[bold green]complete")
 
     def run(self, args):
 

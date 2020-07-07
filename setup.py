@@ -30,7 +30,7 @@ dependency_links = [
 # Setup
 setup(
     name="pwncat",
-    version="0.2.0",
+    version="0.3.0",
     description="A fancy reverse and bind shell handler",
     author="Caleb Stewart",
     url="https://gitlab.com/calebstewart/pwncat",

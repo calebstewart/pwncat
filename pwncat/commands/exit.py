@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from pwncat import util
+from pwncat.util import console
 from pwncat.commands.base import CommandDefinition, Complete, Parameter
 
 
@@ -23,7 +23,7 @@ class Command(CommandDefinition):
 
         # Ensure we confirmed we want to exit
         if not args.yes:
-            util.error("exit not confirmed")
+            console.log("[red]error[/red]: exit not confirmed (use '--yes')")
             return
 
         # Get outa here!

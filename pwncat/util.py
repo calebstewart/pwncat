@@ -339,53 +339,11 @@ LAST_PROG_ANIM = -1
 
 
 def erase_progress():
-    """ Erase the last progress line. Useful for progress messages for long-running
-    tasks, which don't need (or want) to be logged to the terminal """
-    global LAST_LOG_MESSAGE
-
-    return
-
-    sys.stdout.write(
-        len(LAST_LOG_MESSAGE[0]) * "\b"
-        + len(LAST_LOG_MESSAGE[0]) * " "
-        + len(LAST_LOG_MESSAGE[0]) * "\b"
-    )
-    LAST_LOG_MESSAGE = (LAST_LOG_MESSAGE[0], False)
+    raise RuntimeError("new-logging: please use the rich module for logging")
 
 
 def log(level, message, overlay=False):
-    global LAST_LOG_MESSAGE
-    global LAST_PROG_ANIM
-
-    return
-
-    prefix = {
-        "info": f"[{Fore.BLUE}+{Fore.RESET}]",
-        "success": f"[{Fore.GREEN}+{Fore.RESET}]",
-        "warn": f"[{Fore.YELLOW}?{Fore.RESET}]",
-        "error": f"[{Fore.RED}!{Fore.RESET}]",
-        "prog": f"[{Fore.CYAN}+{Fore.RESET}]",
-    }
-
-    if overlay or (LAST_LOG_MESSAGE[1] and level in ["success", "error"]):
-        erase_progress()
-    elif LAST_LOG_MESSAGE[1]:
-        sys.stdout.write("\n")
-
-    if level == "prog":
-        LAST_PROG_ANIM = (LAST_PROG_ANIM + 1) % len(PROG_ANIMATION)
-        prefix["prog"] = prefix["prog"].replace("+", PROG_ANIMATION[LAST_PROG_ANIM])
-
-    LAST_LOG_MESSAGE = (
-        f"{prefix[level]} {Style.DIM}{message}{Style.RESET_ALL}",
-        overlay,
-    )
-    sys.stdout.write(LAST_LOG_MESSAGE[0])
-
-    if not overlay:
-        sys.stdout.write("\n")
-    else:
-        sys.stdout.flush()
+    raise RuntimeError("new-logging: please use the rich module for logging")
 
 
 def info(message, overlay=False):

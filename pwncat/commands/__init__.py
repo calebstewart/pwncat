@@ -36,7 +36,6 @@ import pwncat
 import pwncat.db
 from pwncat.commands.base import CommandDefinition, Complete
 from pwncat.util import State, console
-from pwncat import util
 
 
 def resolve_blocks(source: str):
@@ -187,8 +186,8 @@ class CommandParser:
             try:
                 self.dispatch_line(command)
             except Exception as exc:
-                util.error(
-                    f"{Fore.CYAN}{name}{Fore.RESET}: {Fore.YELLOW}{command}{Fore.RESET}: {str(exc)}"
+                console.log(
+                    f"[red]error[/red]: [cyan]{name}[/cyan]: [yellow]{command}[/yellow]: {str(exc)}"
                 )
                 break
 
@@ -244,7 +243,7 @@ class CommandParser:
             # Spit the line with shell rules
             argv = shlex.split(line)
         except ValueError as e:
-            util.error(e.args[0])
+            console.log(f"[red]error[/red]: {e.args[0]}")
             return
 
         if argv[0][0] in self.shortcuts:
@@ -262,12 +261,12 @@ class CommandParser:
                 if argv[0] in self.aliases:
                     command = self.aliases[argv[0]]
                 else:
-                    util.error(f"{argv[0]}: unknown command")
+                    console.log(f"[red]error[/red]: {argv[0]}: unknown command")
                     return
 
             if not self.loading_complete and not command.LOCAL:
-                util.error(
-                    f"{argv[0]}: non-local commands cannot run until after session setup."
+                console.log(
+                    f"[red]error[/red]: {argv[0]}: non-local command use before connection"
                 )
                 return
 
