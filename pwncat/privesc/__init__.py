@@ -23,6 +23,20 @@ class PrivescError(Exception):
     """ An error occurred while attempting a privesc technique """
 
 
+@dataclasses.dataclass
+class PersistenceTechnique:
+    """ Wrapper which allows a persistence method to be added to the chain """
+
+    persist: Any
+    """ The persistence method used """
+    user: str
+    """ The user for this method """
+
+    def __str__(self):
+        """ Get a string representation of this object """
+        return f"persistence - {self.persist.format(self.user)}"
+
+
 class Finder:
     """ Locate a privesc chain which ends with the given user. If `depth` is
     supplied, stop searching at `depth` techniques. If `depth` is not supplied
@@ -819,7 +833,7 @@ class Finder:
                     continue
 
                 # It worked!
-                chain.append((f"persistence - {persist.format(target_user)}", "exit"))
+                chain.append((PersistenceTechnique(persist, target_user), "exit"))
                 return chain
 
         # We update the status to enumerating and move the progress forward
@@ -879,7 +893,7 @@ class Finder:
                         pwncat.victim.run("exit", wait=False)
                     continue
 
-                chain.append((f"persistence - {persist.format(user)}", "exit"))
+                chain.append((PersistenceTechnique(persist, user), "exit"))
 
                 try:
                     return self._escalate(

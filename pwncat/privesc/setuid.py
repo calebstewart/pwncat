@@ -6,6 +6,7 @@ from colorama import Fore
 
 import pwncat
 from pwncat import util
+from pwncat.util import console
 from pwncat.gtfobins import Stream, Capability, BinaryNotFound
 from pwncat.privesc import BaseMethod, Technique, PrivescError
 

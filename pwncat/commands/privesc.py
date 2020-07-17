@@ -183,7 +183,10 @@ class Command(CommandDefinition):
                     console.log(f"{(i+1)*' '}{arrow}{technique}")
 
                 ident = pwncat.victim.id
-                if ident["euid"]["id"] == 0 and ident["uid"]["id"] != 0:
+                if ident["euid"]["id"] != ident["uid"]["id"]:
+                    console.log(
+                        "[yellow]warning[/yellow]: euid/uid mismatch - attempting automated fix"
+                    )
                     pwncat.victim.command_parser.dispatch_line("euid_fix")
 
                 pwncat.victim.reset()

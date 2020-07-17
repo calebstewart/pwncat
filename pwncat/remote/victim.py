@@ -422,6 +422,9 @@ class Victim:
             # Synchronize the terminals
             self.command_parser.dispatch_line("sync --quiet")
 
+            # Ensure we are in a good working directory
+            self.chdir("/")
+
             progress.update(task_id, status="complete", advance=1)
 
         # Force the local TTY to enter raw mode
@@ -503,8 +506,8 @@ class Victim:
             # Custom tamper to remove busybox and stop tracking it here
             self.tamper.custom(
                 (
-                    f"{Fore.RED}installed{Fore.RESET} {Fore.GREEN}busybox{Fore.RESET} "
-                    f"to {Fore.CYAN}{busybox_remote_path}{Fore.RESET}"
+                    f"[red]installed[/red] [green]busybox[/green] "
+                    f"to [cyan]{busybox_remote_path}[/cyan]"
                 ),
                 remove_busybox_tamper,
             )
@@ -1955,7 +1958,8 @@ class Victim:
         Requery the current user
         :return: the current user
         """
-        self.cached_user = self.run("whoami").strip().decode("utf-8")
+        id = self.id
+        self.cached_user = id["euid"]["name"]
         return self.cached_user
 
     def getenv(self, name: str):
