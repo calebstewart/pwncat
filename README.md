@@ -20,8 +20,9 @@ interact in a similar fashion to `ssh`.
 `TERM` environment variable) with your local settings to ensure the shell
 behaves correctly.
 
-To showcase a little bit of the cool functionality, I have recorded a short
-[asciinema cast](https://asciinema.org/a/YFF84YCJfp9tQHhTuGkA2PJ4T).
+John Hammond and I presented `pwncat` at GRIMMCon. Our presentation, which
+covers the usage as well as some of the backend API can be found on YouTube
+[here](https://www.youtube.com/watch?v=CISzI9klRkw).
 
 pwncat [documentation] is being built out on Read the Docs. Head there for
 the latest usage and development documentation!
