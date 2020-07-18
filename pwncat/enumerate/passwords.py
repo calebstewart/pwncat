@@ -28,13 +28,13 @@ class Password(FactData):
     def __str__(self):
         if self.value is not None:
             return (
-                f"{Fore.YELLOW}{repr(self.value)}{Fore.RESET} from "
-                f"{Fore.CYAN}{self.path}{Fore.RESET}:{Fore.BLUE}{self.lineno}{Fore.RESET}"
+                f"[yellow]{repr(self.value)}[/yellow] from "
+                f"[cyan]{self.path}[/cyan]:[blue]{self.lineno}[/blue]"
             )
         else:
             return (
                 "Possible password at "
-                f"{Fore.CYAN}{self.path}{Fore.RESET}:{Fore.BLUE}{self.lineno}{Fore.RESET}"
+                f"[cyan]{self.path}[/cyan]:[blue]{self.lineno}[/blue]"
             )
 
     @property
@@ -63,9 +63,11 @@ def enumerate() -> Generator[FactData, None, None]:
     command = f"{grep} -InriE 'password[\"'\"'\"']?\\s*(=>|=|:)' {' '.join(locations)} 2>/dev/null"
     with pwncat.victim.subprocess(command, "r") as filp:
         for line in filp:
-            line = line.decode("utf-8").strip().split(":")
+            try:
+                line = line.decode("utf-8").strip().split(":")
+            except UnicodeDecodeError:
+                continue
             if len(line) < 3:
-                print(line)
                 continue
             path = line[0]
             lineno = int(line[1])

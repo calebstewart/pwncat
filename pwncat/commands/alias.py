@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import pwncat
 from pwncat.commands.base import CommandDefinition, Complete, Parameter
+from pwncat.util import console
 from colorama import Fore
 
 
@@ -28,9 +29,8 @@ class Command(CommandDefinition):
     def run(self, args):
         if args.alias is None:
             for name, command in pwncat.victim.command_parser.aliases.items():
-                print(
-                    f" {Fore.CYAN}{name}{Fore.RESET} \u2192 "
-                    f"{Fore.YELLOW}{command.PROG}{Fore.RESET}"
+                console.print(
+                    f" [cyan]{name}[/cyan] \u2192 [yellow]{command.PROG}[/yellow]"
                 )
         elif args.command is not None:
             # This is safe because of "choices" in the argparser

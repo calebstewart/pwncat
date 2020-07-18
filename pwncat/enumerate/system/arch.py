@@ -26,7 +26,7 @@ class ArchData(FactData):
     arch: str
 
     def __str__(self):
-        return f"Running on a {Fore.CYAN}{self.arch}{Fore.RESET} processor"
+        return f"Running on a [cyan]{self.arch}[/cyan] processor"
 
 
 def enumerate() -> Generator[FactData, None, None]:

@@ -21,7 +21,7 @@ class UserPassword(FactData):
     password: str
 
     def __str__(self):
-        return f"Password for {Fore.GREEN}{self.user.name}{Fore.RESET}: {Fore.BLUE}{repr(self.password)}{Fore.RESET}"
+        return f"Password for [green]{self.user.name}[/green]: [green]{repr(self.password)}[/green]"
 
     @property
     def user(self):

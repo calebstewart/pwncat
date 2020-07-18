@@ -22,11 +22,9 @@ class FileCapabilityData(FactData):
     """ List of strings representing the capabilities (e.g. "cap_net_raw+ep") """
 
     def __str__(self):
-        line = f"{Fore.CYAN}{self.path}{Fore.RESET} -> ["
-        line += ",".join(
-            f"{Fore.BLUE if c != 'ep' else Fore.RED}{c}{Fore.RESET}" for c in self.caps
-        )
-        line += "]"
+        line = f"[cyan]{self.path}[/cyan] -> [["
+        line += ",".join(f"[blue]{c}[/blue]" for c in self.caps)
+        line += "]]"
         return line
 
 

@@ -26,9 +26,9 @@ class SudoVersion(FactData):
     vulnerable: bool
 
     def __str__(self):
-        result = f"{Fore.YELLOW}sudo{Fore.RESET} version {Fore.CYAN}{self.version}{Fore.RESET}"
+        result = f"[yellow]sudo[/yellow] version [cyan]{self.version}[/cyan]"
         if self.vulnerable:
-            result += f" (may be {Fore.RED}vulnerable{Fore.RESET})"
+            result += f" (may be [red]vulnerable[/red])"
         return result
 
     @property

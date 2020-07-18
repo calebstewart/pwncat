@@ -30,9 +30,9 @@ class KernelVersion(FactData):
 
     def __str__(self):
         return (
-            f"Running Linux Kernel {Fore.RED}{self.major}{Fore.RESET}."
-            f"{Fore.GREEN}{self.minor}{Fore.RESET}."
-            f"{Fore.BLUE}{self.patch}{Fore.RESET}-{Fore.CYAN}{self.abi}{Fore.RESET}"
+            f"Running Linux Kernel [red]{self.major}[/red]."
+            f"[green]{self.minor}[/green]."
+            f"[blue]{self.patch}[/blue]-[cyan]{self.abi}[/cyan]"
         )
 
 

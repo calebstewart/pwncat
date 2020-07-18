@@ -20,7 +20,7 @@ class InitSystemData(FactData):
     version: str
 
     def __str__(self):
-        return f"Running {Fore.BLUE}{self.init}{Fore.RESET}"
+        return f"Running [blue]{self.init}[/blue]"
 
     @property
     def description(self):

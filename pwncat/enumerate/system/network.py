@@ -19,7 +19,7 @@ class NetworkData(FactData):
     address: str
 
     def __str__(self):
-        return f"Interface {Fore.CYAN}{self.interface}{Fore.RESET} w/ address {Fore.BLUE}{self.address}{Fore.RESET}"
+        return f"Interface [cyan]{self.interface}[/cyan] w/ address [blue]{self.address}[/blue]"
 
 
 def enumerate() -> Generator[FactData, None, None]:

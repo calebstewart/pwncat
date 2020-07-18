@@ -24,25 +24,25 @@ class ProcessData(FactData):
     def __str__(self):
         if isinstance(self.uid, str):
             user = self.uid
-            color = Fore.YELLOW
+            color = "yellow"
         else:
             if self.uid == 0:
-                color = Fore.RED
+                color = "red"
             elif self.uid < 1000:
-                color = Fore.BLUE
+                color = "blue"
             else:
-                color = Fore.MAGENTA
+                color = "magenta"
 
             # Color our current user differently
             if self.uid == pwncat.victim.current_user.id:
-                color = Fore.LIGHTBLUE_EX
+                color = "lightblue"
 
             user = self.user.name
 
-        result = f"{color}{user:>10s}{Fore.RESET} "
-        result += f"{Fore.MAGENTA}{self.pid:<7d}{Fore.RESET} "
-        result += f"{Fore.LIGHTMAGENTA_EX}{self.ppid:<7d}{Fore.RESET} "
-        result += f"{Fore.CYAN}{shlex.join(self.argv)}{Fore.RESET}"
+        result = f"[{color}]{user:>10s}[/{color}] "
+        result += f"[magenta]{self.pid:<7d}[/magenta] "
+        result += f"[lightblue]{self.ppid:<7d}[/lightblue] "
+        result += f"[cyan]{shlex.join(self.argv)}[/cyan]"
 
         return result
 

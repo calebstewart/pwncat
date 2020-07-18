@@ -20,7 +20,7 @@ class HostData(FactData):
     hostnames: List[str]
 
     def __str__(self):
-        return f"{Fore.CYAN}{self.address}{Fore.RESET} -> {Fore.BLUE}{self.hostnames}{Fore.RESET}"
+        return f"[cyan]{self.address}[/cyan] -> [blue]{self.hostnames}[/blue]"
 
 
 def enumerate() -> Generator[FactData, None, None]:

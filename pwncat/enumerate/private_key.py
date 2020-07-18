@@ -32,10 +32,10 @@ class PrivateKeyFact:
 
     def __str__(self):
         if self.uid == 0:
-            color = Fore.RED
+            color = "red"
         else:
-            color = Fore.GREEN
-        return f"Potential private key for {color}{self.user.name}{Fore.RESET} at {Fore.CYAN}{self.path}{Fore.RESET}"
+            color = "green"
+        return f"Potential private key for [{color}]{self.user.name}[/{color}] at [cyan]{self.path}[/cyan]"
 
     @property
     def description(self) -> str:

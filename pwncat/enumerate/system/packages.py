@@ -23,9 +23,9 @@ class PackageData(FactData):
     version: str
 
     def __str__(self):
-        line = f"{Fore.CYAN}{self.name}{Fore.RESET}"
+        line = f"[cyan]{self.name}[/cyan]"
         if self.version is not None:
-            line += f" version {Fore.BLUE}{self.version}{Fore.RESET}"
+            line += f" version [blue]{self.version}[/blue]"
         return line
 
 

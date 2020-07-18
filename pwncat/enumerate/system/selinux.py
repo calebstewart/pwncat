@@ -21,11 +21,11 @@ class SELinuxState(FactData):
     def __str__(self):
         result = f"SELinux is "
         if self.state == "enabled":
-            result += f"{Fore.RED}enabled{Fore.RESET}"
+            result += f"[red]enabled[/red]"
         elif self.state == "disabled":
-            result += f"{Fore.GREEN}disabled{Fore.RESET}"
+            result += f"[green]disabled[/green]"
         else:
-            result += f"{Fore.YELLOW}{self.state}{Fore.RESET}"
+            result += f"[yellow]{self.state}[/yellow]"
         return result
 
     @property

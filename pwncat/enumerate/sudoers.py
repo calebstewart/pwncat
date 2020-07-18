@@ -51,30 +51,28 @@ class SudoSpec(FactData):
             return self.line
 
         if self.user is not None:
-            display += f"User {Fore.BLUE}{self.user}{Fore.RESET}: "
+            display += f"User [blue]{self.user}[/blue]: "
         else:
-            display += f"Group {Fore.CYAN}{self.group}{Fore.RESET}: "
+            display += f"Group [cyan]{self.group}[/cyan]: "
 
-        display += f"{Fore.YELLOW}{self.command}{Fore.RESET} as "
+        display += f"[yellow]{self.command}[/yellow] as "
 
         if self.runas_user == "root":
-            display += f"{Fore.RED}root{Fore.RESET}"
+            display += f"[red]root[/red]"
         elif self.runas_user is not None:
-            display += f"{Fore.BLUE}{self.runas_user}{Fore.RESET}"
+            display += f"[blue]{self.runas_user}[/blue]"
 
         if self.runas_group == "root":
-            display += f":{Fore.RED}root{Fore.RESET}"
+            display += f":[red]root[/red]"
         elif self.runas_group is not None:
-            display += f"{Fore.CYAN}{self.runas_group}{Fore.RESET}"
+            display += f"[cyan]{self.runas_group}[/cyan]"
 
         if self.host is not None:
-            display += f" on {Fore.MAGENTA}{self.host}{Fore.RESET}"
+            display += f" on [magenta]{self.host}[/magenta]"
 
         if self.options:
             display += (
-                " ("
-                + ",".join(f"{Fore.GREEN}{x}{Fore.RESET}" for x in self.options)
-                + ")"
+                " (" + ",".join(f"[green]{x}[/green]" for x in self.options) + ")"
             )
 
         return display

@@ -26,18 +26,18 @@ class ServiceData(FactData):
 
     def __str__(self):
         if self.uid == 0:
-            color = Fore.RED
+            color = "red"
         else:
-            color = Fore.GREEN
+            color = "green"
 
-        line = f"Service {Fore.CYAN}{self.name}{Fore.RESET} as {color}{pwncat.victim.find_user_by_id(self.uid).name}{Fore.RESET}"
+        line = f"Service [cyan]{self.name}[/cyan] as [{color}]{pwncat.victim.find_user_by_id(self.uid).name}[/{color}]"
         if self.state == "running":
-            color = Fore.GREEN
+            color = "green"
         elif self.state == "dead":
-            color = Fore.YELLOW
+            color = "yellow"
         else:
-            color = Fore.BLUE
-        line += f" ({color}{self.state}{Fore.RESET})"
+            color = "blue"
+        line += f" ([{color}]{self.state}[/{color}])"
         return line
 
 

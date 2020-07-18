@@ -7,6 +7,7 @@ import pytablewriter
 from colorama import Fore, Style
 from pytablewriter import MarkdownTableWriter
 from rich.progress import Progress, BarColumn
+from rich import markup
 
 import pwncat
 from pwncat import util
@@ -20,6 +21,12 @@ from pwncat.commands.base import (
     StoreForAction,
     StoreConstForAction,
 )
+
+
+def strip_markup(styled_text: str) -> str:
+    """ Strip the Rich markup from a string """
+    t = markup.render(styled_text)
+    return t.plain
 
 
 class ReportAction(argparse.Action):
@@ -387,15 +394,13 @@ class Command(CommandDefinition):
                 if getattr(fact.data, "description", None) is not None:
                     sections.append(fact)
                     continue
-                filp.write(
-                    f"- {util.escape_markdown(util.strip_ansi_escape(str(fact.data)))}\n"
-                )
+                filp.write(f"- {util.escape_markdown(strip_markup(str(fact.data)))}\n")
 
         filp.write("\n")
 
         for section in sections:
             filp.write(
-                f"### {util.escape_markdown(util.strip_ansi_escape(str(section.data)))}\n\n"
+                f"### {util.escape_markdown(strip_markup(str(section.data)))}\n\n"
             )
             filp.write(f"```\n{section.data.description}\n```\n\n")
 
@@ -433,7 +438,11 @@ class Command(CommandDefinition):
                 for fact in facts:
                     console.print(f"  {fact.data}")
                     if long and getattr(fact.data, "description", None) is not None:
-                        console.print(textwrap.indent(fact.data.description, "    "))
+                        console.print(
+                            markup.escape(
+                                textwrap.indent(fact.data.description, "    ")
+                            )
+                        )
 
     def flush_facts(self, typ: str, provider: str):
         """ Flush all facts that match criteria """

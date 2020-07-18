@@ -19,7 +19,7 @@ class ContainerData(FactData):
     """ what type of container? either docker or lxd """
 
     def __str__(self):
-        return f"Running in a {Fore.YELLOW}{self.type}{Fore.RESET} container"
+        return f"Running in a [yellow]{self.type}[/yellow] container"
 
 
 def enumerate() -> Generator[FactData, None, None]:

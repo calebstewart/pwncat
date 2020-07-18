@@ -30,9 +30,9 @@ class DistroVersion(FactData):
 
     def __str__(self):
         return (
-            f"Running {Fore.BLUE}{self.name}{Fore.RESET} ({Fore.CYAN}{self.ident}{Fore.RESET}), "
-            f"Version {Fore.RED}{self.version}{Fore.RESET}, "
-            f"Build ID {Fore.GREEN}{self.build_id}{Fore.RESET}."
+            f"Running [blue]{self.name}[/blue] ([cyan]{self.ident}[/cyan]), "
+            f"Version [red]{self.version}[/red], "
+            f"Build ID [green]{self.build_id}[/green]."
         )
 
 

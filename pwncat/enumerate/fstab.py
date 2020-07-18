@@ -33,15 +33,15 @@ class FstabEntry(FactData):
     def __str__(self):
         if self.mounted:
             return (
-                f"{Fore.BLUE}{self.spec}{Fore.RESET} {Fore.GREEN}mounted{Fore.RESET} at "
-                f"{Fore.YELLOW}{self.target}{Fore.RESET} "
-                f"as {Fore.CYAN}{self.fstype}{Fore.RESET}"
+                f"[blue]{self.spec}[/blue] [green]mounted[/green] at "
+                f"[yellow]{self.target}[/yellow] "
+                f"as [cyan]{self.fstype}[/cyan]"
             )
         else:
             return (
-                f"{Fore.BLUE}{self.spec}{Fore.RESET} {Fore.RED}available{Fore.RESET} to "
-                f"mount at {Fore.YELLOW}{self.target}{Fore.RESET} "
-                f"as {Fore.CYAN}{self.fstype}{Fore.RESET}"
+                f"[blue]{self.spec}[/blue] [red]available[/red] to "
+                f"mount at [yellow]{self.target}[/yellow] "
+                f"as [cyan]{self.fstype}[/cyan]"
             )
 
     @property

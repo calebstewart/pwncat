@@ -29,7 +29,9 @@ class CronEntry(FactData):
     """ The entire date/time specifier from the crontab entry """
 
     def __str__(self):
-        return f"{Fore.BLUE}{self.user.name}{Fore.RESET} runs {Fore.YELLOW}{repr(self.command)}{Fore.RESET}"
+        return (
+            f"[blue]{self.user.name}[/blue] runs [yellow]{repr(self.command)}[/yellow]"
+        )
 
     @property
     def description(self):

@@ -20,8 +20,8 @@ class ASLRState(FactData):
 
     def __str__(self):
         if self.state == 0:
-            return f"ASLR is {Fore.GREEN}disabled{Fore.RESET}"
-        return f"ASLR is {Fore.RED}enabled{Fore.RESET}"
+            return f"ASLR is [green]disabled[/green]"
+        return f"ASLR is [red]enabled[/red]"
 
 
 def enumerate() -> Generator[FactData, None, None]:

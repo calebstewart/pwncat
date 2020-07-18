@@ -22,7 +22,7 @@ class ScreenVersion(FactData):
     vulnerable: bool = True
 
     def __str__(self):
-        return f"{Fore.CYAN}{self.path}{Fore.RESET} (perms: {Fore.BLUE}{oct(self.perms)[2:]}{Fore.RESET})"
+        return f"[cyan]{self.path}[/cyan] (perms: [blue]{oct(self.perms)[2:]}[/blue])"
 
 
 def enumerate() -> Generator[FactData, None, None]:
