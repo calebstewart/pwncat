@@ -380,6 +380,12 @@ class Finder:
         readers: List[Technique] = []
         writers: List[Technique] = []
 
+        # A previous escalation attempt may have left us in a working directory
+        # that causes problems during escalation (e.g. a home directory). Ensure
+        # we are in a safe directory
+        pwncat.victim.flush_output()
+        pwncat.victim.chdir("/tmp")
+
         for technique in techniques:
             if Capability.SHELL in technique.capabilities:
                 try:
