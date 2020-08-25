@@ -343,12 +343,11 @@ class Victim:
             # the history objects
             self.command_parser.setup_prompt()
 
-            progress.update(task_id, status="history and prompt", advance=1)
+            progress.update(task_id, status="history", advance=1)
 
             # Ensure history is disabled
             self.run("unset HISTFILE; export HISTCONTROL=ignorespace")
             self.run("unset PROMPT_COMMAND")
-            self.run(f"export PS1='{self.remote_prefix} {self.remote_prompt}'")
 
             progress.update(task_id, status="running shell", advance=1)
 
@@ -366,6 +365,17 @@ class Victim:
                     "[yellow]warning[/yellow]: could not detect shell; assuming [blue]/bin/sh[/blue]"
                 )
                 self.shell = self.which("sh")
+
+            progress.update(task_id, status="prompt")
+
+            if self.shell == "/bin/sh":
+                progress.log(
+                    f"[yellow]warning[/yellow]: /bin/sh does not support colored prompts."
+                )
+                self.remote_prefix = "(remote)"
+                self.remote_prompt = f"{pwncat.victim.host.ip}:$PWD\\$ "
+
+            self.run(f"export PS1='{self.remote_prefix} {self.remote_prompt}'")
 
             progress.update(task_id, status="spawning pty", advance=1)
 
