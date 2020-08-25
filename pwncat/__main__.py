@@ -49,7 +49,7 @@ def main():
         while not done:
             for k, _ in selector.select():
                 if k.fileobj is sys.stdin:
-                    data = sys.stdin.buffer.read(8)
+                    data = sys.stdin.buffer.read(1)
                     pwncat.victim.process_input(data)
                 else:
                     data = pwncat.victim.recv()

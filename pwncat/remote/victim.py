@@ -730,8 +730,8 @@ class Victim:
         else:
             self.client.send(data)
 
-    def recv(self) -> bytes:
-        return self.client.recv(4096)
+    def recv(self, count=4096) -> bytes:
+        return self.client.recv(count)
 
     @property
     def state(self) -> State:
