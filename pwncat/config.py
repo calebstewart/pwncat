@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
+from typing import Any, Dict, List, Union
+import ipaddress
+import re
+import os
+
 from prompt_toolkit.input.ansi_escape_sequences import (
     REVERSE_ANSI_SEQUENCES,
     ANSI_SEQUENCES,
 )
 from prompt_toolkit.keys import ALL_KEYS, Keys
-from typing import Any, Dict, List, Union
 import commentjson as json
-import ipaddress
-import re
-import os
+
+from pwncat.modules import BaseModule
 
 
 def key_type(value: str) -> bytes:
@@ -65,6 +68,10 @@ class Config:
             "cross": {"value": None, "type": str},
         }
 
+        # Locals are set per-used-module
+        self.locals: Dict[str, Any] = {}
+        self.module: BaseModule = None
+
         # Map ascii escape sequences or printable bytes to lists of commands to
         # run.
         self.bindings: Dict[KeyType, str] = {
@@ -87,14 +94,43 @@ class Config:
         key = KeyType(name_or_value)
         return self.bindings[key]
 
+    def set(self, name: str, value: Any, glob: bool = False):
+        """ Set a config value """
+
+        if glob:
+            self.values[name]["value"] = self.values[name]["type"](value)
+            return
+        elif self.module is None or name not in self.module.ARGUMENTS:
+            raise KeyError(f"{name}: no such configuration value")
+
+        self.locals[name] = self.module.ARGUMENTS[name].type(value)
+
+    def use(self, module: BaseModule):
+        """ Use the specified module. This clears the current
+        locals configuration. """
+
+        self.locals = {}
+        self.module = module
+
+    def back(self):
+        """ Remove the currently used module and clear locals """
+
+        self.locals = {}
+        self.module = None
+
     def __getitem__(self, name: str) -> Any:
         """ Get a configuration item """
+
+        if name in self.locals:
+            return self.locals[name]
+
         return self.values[name]["value"]
 
     def __setitem__(self, name: str, value: Any):
         """ Set a configuration item """
-        item = self.values[name]
-        item["value"] = item["type"](value)
+        return self.set(name, value, glob=False)
 
     def __iter__(self):
+        # NOTE - this is bad. We should deconflict
         yield from self.values
+        yield from self.locals

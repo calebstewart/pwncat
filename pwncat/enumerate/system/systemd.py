@@ -30,7 +30,13 @@ class ServiceData(FactData):
         else:
             color = "green"
 
-        line = f"Service [cyan]{self.name}[/cyan] as [{color}]{pwncat.victim.find_user_by_id(self.uid).name}[/{color}]"
+        try:
+            user_name = pwncat.victim.find_user_by_id(self.uid).name
+        except KeyError:
+            user_name = f"{self.uid} (unknown user)"
+            color = "yellow"
+
+        line = f"Service [cyan]{self.name}[/cyan] as [{color}]{user_name}[/{color}]"
         if self.state == "running":
             color = "green"
         elif self.state == "dead":

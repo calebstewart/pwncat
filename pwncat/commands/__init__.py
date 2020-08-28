@@ -207,6 +207,23 @@ class CommandParser:
 
         while self.running:
             try:
+
+                if pwncat.victim.config.module:
+                    self.prompt.message = [
+                        (
+                            "fg:ansiyellow bold",
+                            f"({pwncat.victim.config.module.name}) ",
+                        ),
+                        ("fg:ansimagenta bold", "pwncat"),
+                        ("", "$ "),
+                    ]
+                else:
+                    self.prompt.message = [
+                        ("fg:ansiyellow bold", "(local) "),
+                        ("fg:ansimagenta bold", "pwncat"),
+                        ("", "$ "),
+                    ]
+
                 line = self.prompt.prompt().strip()
 
                 if line == "":
