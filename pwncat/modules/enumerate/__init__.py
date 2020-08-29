@@ -30,7 +30,13 @@ class EnumerateModule(BaseModule):
     # Arguments which all enumeration modules should take
     # This shouldn't be modified. Enumeration modules don't take any
     # parameters
-    ARGUMENTS = {"types": Argument(List(str), default=[])}
+    ARGUMENTS = {
+        "types": Argument(
+            List(str),
+            default=[],
+            help="A list of enumeration types to retrieve (default: all)",
+        )
+    }
 
     def run(self, types):
         """ Locate all facts this module provides.

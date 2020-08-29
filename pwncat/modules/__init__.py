@@ -35,6 +35,7 @@ class Argument:
 
     type: Callable[[str], Any] = str
     default: Any = NoValue
+    help: str = ""
 
 
 def List(_type=str):

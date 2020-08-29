@@ -23,7 +23,7 @@ class FileCapabilityData:
 
 
 class Module(EnumerateModule):
-    """ Enumerate SUID binaries on the remote host """
+    """ Enumerate capabilities of the binaries of the remote host """
 
     PROVIDES = ["file.caps"]
 

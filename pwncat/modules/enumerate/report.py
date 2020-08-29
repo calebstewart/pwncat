@@ -35,13 +35,27 @@ def FileType(mode: str = "r"):
 
 
 class Module(pwncat.modules.BaseModule):
-    """ Perform multiple enumeration modules and write a formatted
-    report to the filesystem. """
+    """
+    Perform multiple enumeration modules and write a formatted
+    report to the filesystem.
+    """
 
     ARGUMENTS = {
-        "output": pwncat.modules.Argument(FileType("w"), default=None),
-        "modules": pwncat.modules.Argument(pwncat.modules.List(str), default=[".*"]),
-        "types": pwncat.modules.Argument(pwncat.modules.List(str), default=[]),
+        "output": pwncat.modules.Argument(
+            FileType("w"),
+            default=None,
+            help="The file to write a markdown report to (default: stdout)",
+        ),
+        "modules": pwncat.modules.Argument(
+            pwncat.modules.List(str),
+            default=[".*"],
+            help="List of modules to run (default: all)",
+        ),
+        "types": pwncat.modules.Argument(
+            pwncat.modules.List(str),
+            default=[],
+            help="List of enumeration types to collect (default: all)",
+        ),
     }
 
     def run(self, output, modules, types):
