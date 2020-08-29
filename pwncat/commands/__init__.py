@@ -517,10 +517,19 @@ class CommandCompleter(Completer):
                 this_completer = next_completer
                 next_completer = command[0]
 
+        # We are completing the first argument. This could be
+        # any option argument or the first positional argument.
+        # We need to merge them.
+        if not args and text.endswith(" ") and command[1]:
+            completer = command[1][0]
+            if isinstance(completer, tuple) and completer[0] == "choices":
+                completer = WordCompleter(completer[1], WORD=True)
+            next_completer = merge_completers([next_completer, completer])
+
         if isinstance(this_completer, tuple) and this_completer[0] == "choices":
-            this_completer = WordCompleter(this_completer[1])
+            this_completer = WordCompleter(this_completer[1], WORD=True)
         if isinstance(next_completer, tuple) and next_completer[0] == "choices":
-            next_completer = WordCompleter(next_completer[1])
+            next_completer = WordCompleter(next_completer[1], WORD=True)
 
         if text.endswith(" "):
             yield from next_completer.get_completions(document, complete_event)
