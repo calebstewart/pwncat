@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, ForeignKey, PickleType
 from sqlalchemy.orm import relationship
 
 from pwncat.db.base import Base
@@ -16,3 +16,6 @@ class Persistence(Base):
     method = Column(String)
     # The user this persistence was applied as (ignored for system persistence)
     user = Column(String)
+    # The custom arguments passed to the persistence module
+    # this **will** include the `user` argument.
+    args = Column(PickleType)

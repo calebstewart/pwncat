@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 from io import IOBase
 from pathlib import Path
+import collections
+import itertools
 import inspect
 
 from rich.progress import Progress
@@ -15,6 +17,11 @@ from pwncat.modules.enumerate import EnumerateModule
 def strip_markup(styled_text: str) -> str:
     text = markup.render(styled_text)
     return text.plain
+
+
+def list_wrapper(iterable):
+    """ Wraps a list in a generator """
+    yield from iterable
 
 
 def FileType(mode: str = "r"):
@@ -56,9 +63,12 @@ class Module(pwncat.modules.BaseModule):
             default=[],
             help="List of enumeration types to collect (default: all)",
         ),
+        "clear": pwncat.modules.Argument(
+            bool, default=False, help="Clear the cached results of all matching modules"
+        ),
     }
 
-    def run(self, output, modules, types):
+    def run(self, output, modules, types, clear):
         """ Perform a enumeration of the given moduels and save the output """
 
         module_names = modules
@@ -66,50 +76,41 @@ class Module(pwncat.modules.BaseModule):
         # Find all the matching modules (use set to ensure uniqueness)
         modules = set()
         for name in module_names:
-            modules = modules | set(pwncat.modules.match(f"enumerate.{name}"))
+            modules = modules | set(
+                pwncat.modules.match(f"enumerate.{name}", base=EnumerateModule)
+            )
+
+        if clear:
+            for module in modules:
+                yield pwncat.modules.Status(module.name)
+                module.run(progress=self.progress, clear=True)
+            pwncat.victim.session.commit()
+            pwncat.victim.reload_host()
+            return
 
         # Enumerate all facts
         facts = {}
-        with Progress(
-            "collecting results",
-            "•",
-            "[blue]{task.fields[module]}",
-            "•",
-            "[cyan]{task.fields[status]}",
-            transient=True,
-            console=console,
-        ) as progress:
-            task = progress.add_task("", status="...", module="initializing")
+        for module in modules:
 
-            for module in modules:
-                if not isinstance(module, EnumerateModule):
-                    continue
-                progress.update(task, module=module.name)
+            # update our status with the name of the module we are evaluating
+            yield pwncat.modules.Status(module.name)
 
-                result_object = module.run(types=types)
-
-                if inspect.isgenerator(result_object):
-                    for item in result_object:
-                        progress.update(task, status=str(item))
-                        if (
-                            not isinstance(item, pwncat.modules.Status)
-                            and item.type != "marker"
-                        ):
-                            if item.type not in facts:
-                                facts[item.type] = [item]
-                            else:
-                                facts[item.type].append(item)
+            # Iterate over facts from the sub-module with our progress manager
+            for item in module.run(progress=self.progress, types=types):
+                if output is None:
+                    yield item
+                elif item.type not in facts:
+                    facts[item.type] = [item]
                 else:
-                    if isinstance(result_object, pwncat.db.Fact):
-                        if result_object.type not in facts:
-                            facts[result_object.type] = [result_object]
-                        else:
-                            facts[result_object.type].append(result_object)
+                    facts[item.type].append(item)
 
+        # We didn't ask for a report output file, so don't write one.
+        # Because output is none, the results were already returned
+        # in the above loop.
         if output is None:
-            for key in facts:
-                yield from facts[key]
             return
+
+        yield pwncat.modules.Status("writing report")
 
         with output as filp:
 

@@ -45,10 +45,10 @@ class Command(CommandDefinition):
         values = {}
         for arg in args.args:
             if "=" not in arg:
-                console.log(f"[red]error[/red]: {arg}: invalid assignment")
-                return
-            name, value = arg.split("=")
-            values[name] = value
+                values[arg] = True
+            else:
+                name, value = arg.split("=")
+                values[name] = value
 
         pwncat.victim.config.locals.update(values)
 
@@ -63,6 +63,9 @@ class Command(CommandDefinition):
             return
         except pwncat.modules.MissingArgument as exc:
             console.log(f"[red]error[/red]: missing argument: {exc}")
+            return
+        except pwncat.modules.InvalidArgument as exc:
+            console.log(f"[red]error[/red]: invalid argument: {exc}")
             return
 
         if args.raw:
@@ -120,4 +123,4 @@ class Command(CommandDefinition):
                     console.print(
                         f"[bold][yellow]{result.category}[/yellow] - {result.title}[/bold]"
                     )
-                console.print(textwrap.indent(result.description, "  "))
+                console.print(result.description)

@@ -29,8 +29,12 @@ class Command(CommandDefinition):
         )
 
         for module in pwncat.modules.match(args.module):
+            # Rich will ellipsize the column, but we need to squeze
+            # white space and remove newlines. `textwrap.shorten` is
+            # the easiest way to do that, so we use a large size for
+            # width.
             table.add_row(
-                module.name,
+                f"[cyan]{module.name}[/cyan]",
                 textwrap.shorten(
                     module.__doc__.replace("\n", " "), width=200, placeholder="..."
                 ),

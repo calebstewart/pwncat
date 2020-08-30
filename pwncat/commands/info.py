@@ -41,7 +41,9 @@ class Command(CommandDefinition):
         else:
             module = pwncat.victim.config.module
 
-        console.print(f"[bold underline]Module {module.name}[/bold underline]")
+        console.print(
+            f"[bold underline]Module [cyan]{module.name}[/cyan][/bold underline]"
+        )
         console.print(
             textwrap.indent(textwrap.dedent(module.__doc__.strip("\n")), " ") + "\n"
         )

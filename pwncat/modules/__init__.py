@@ -29,6 +29,10 @@ class MissingArgument(Exception):
     """ A required argument is missing """
 
 
+class InvalidArgument(Exception):
+    """ This argument does not exist and ALLOW_KWARGS was false """
+
+
 @dataclass
 class Argument:
     """ Argument information for a module """
@@ -50,6 +54,25 @@ def List(_type=str):
     _ListType.__repr__ = lambda self: f"List[{_type}]"
 
     return _ListType
+
+
+def Bool(value: str):
+    """ Argument of type "bool". Accepts true/false (case-insensitive)
+    as well as 1/0. The presence of an argument of type "Bool" with no
+    assignment (e.g. run module arg) is equivalent to `run module arg=true`. """
+
+    if isinstance(value, bool):
+        return value
+
+    if not isinstance(value, str):
+        return bool(value)
+
+    if value.lower() == "true" or value == "1":
+        return True
+    elif value.lower() == "false" or value == "0":
+        return False
+
+    raise ValueError(f"invalid boolean value: {value}")
 
 
 class Result:
@@ -93,13 +116,17 @@ class Status(str):
 def run_decorator(real_run):
     """ Decorate a run function to evaluate types """
 
-    def decorator(self, **kwargs):
+    def decorator(self, progress=None, **kwargs):
+
+        # Validate arguments
         for key in kwargs:
             if key in self.ARGUMENTS:
                 try:
                     kwargs[key] = self.ARGUMENTS[key].type(kwargs[key])
                 except ValueError:
                     raise ArgumentFormatError(key)
+            elif not self.ALLOW_KWARGS:
+                raise InvalidArgument(key)
         for key in self.ARGUMENTS:
             if key not in kwargs and key in pwncat.victim.config:
                 kwargs[key] = pwncat.victim.config[key]
@@ -107,8 +134,53 @@ def run_decorator(real_run):
                 kwargs[key] = self.ARGUMENTS[key].default
             elif key not in kwargs and self.ARGUMENTS[key].default is NoValue:
                 raise MissingArgument(key)
+
+        # Save progress reference
+        self.progress = progress
+
         # Return the result
-        return real_run(self, **kwargs)
+        result_object = real_run(self, **kwargs)
+
+        if inspect.isgenerator(result_object):
+
+            try:
+                if progress is None:
+                    # We weren't given a progress instance, so start one ourselves
+                    self.progress = Progress(
+                        "collecting results",
+                        "•",
+                        "[yellow]{task.fields[module]}",
+                        "•",
+                        "[cyan]{task.fields[status]}",
+                        transient=True,
+                        console=console,
+                    )
+                    self.progress.start()
+
+                # Added a task to this progress bar
+                task = self.progress.add_task("", module=self.name, status="...")
+
+                # Collect results
+                results = []
+                for item in result_object:
+                    self.progress.update(task, status=str(item))
+                    if not isinstance(item, Status):
+                        results.append(item)
+
+                # This task is done
+                self.progress.update(
+                    task, completed=True, visible=False, status="complete"
+                )
+
+                if self.COLLAPSE_RESULT and len(results) == 1:
+                    return results[0]
+
+                return results
+            finally:
+                if progress is None:
+                    self.progress.stop()
+        else:
+            return result_object
 
     return decorator
 
@@ -130,6 +202,15 @@ class BaseModule(metaclass=BaseModuleMeta):
         # "name": Argument(int, default="value"),
         # "name2": Argument(List(int), default=[1, 2, 3]),
     }
+    # Allow other kwargs parameters outside of what is specified by
+    # the arguments dictionary. This allows arbitrary arguments which
+    # are not type-checked to be passed. You should use `**kwargs` in
+    # your run method.
+    ALLOW_KWARGS = False
+    # If you want to use `yield Status(...)` to update the progress bar
+    # but only return one scalar value, setting this to true will collapse
+    # an array with only a single object to it's scalar value.
+    COLLAPSE_RESULT = False
 
     def __init__(self):
         return
@@ -157,23 +238,26 @@ def reload():
         setattr(LOADED_MODULES[module_name], "name", module_name)
 
 
-def find(name: str):
+def find(name: str, base=BaseModule):
     """ Find a matching name, and return it. Must be an exact match. """
 
     if not LOADED_MODULES:
         reload()
 
+    if not isinstance(LOADED_MODULES[name], base):
+        raise KeyError(name)
+
     return LOADED_MODULES[name]
 
 
-def match(pattern: str):
+def match(pattern: str, base=BaseModule):
     """ Find matching modules based on Regular Expression pattern """
 
     if not LOADED_MODULES:
         reload()
 
     for module_name, module in LOADED_MODULES.items():
-        if re.match(pattern, module_name):
+        if isinstance(module, base) and re.match(pattern, module_name):
             yield module
 
 
@@ -189,26 +273,4 @@ def run(pattern: str, **kwargs):
     # Grab the module
     module = LOADED_MODULES[pattern]
 
-    with Progress(
-        "collecting results",
-        "•",
-        pattern,
-        "•",
-        "[cyan]{task.fields[status]}",
-        transient=True,
-        console=console,
-    ) as progress:
-        task = progress.add_task("", status="...")
-
-        result_object = module.run(**kwargs)
-
-        if inspect.isgenerator(result_object):
-            results = []
-            for item in result_object:
-                progress.update(task, status=str(item))
-                if not isinstance(item, Status):
-                    results.append(item)
-        else:
-            results = result_object
-
-    return results
+    return module.run(**kwargs)

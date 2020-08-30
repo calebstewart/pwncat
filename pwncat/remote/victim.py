@@ -579,6 +579,14 @@ class Victim:
 
         console.log(f"busybox installed w/ {len(provides)} applets")
 
+    def reload_host(self):
+        """ Reload the host database object. This is needed after some clearing
+        operations such as clearing enumeration data. """
+
+        self.host = (
+            self.session.query(pwncat.db.Host).filter_by(id=self.host.id).first()
+        )
+
     def probe_host_details(self, progress: Progress, task_id):
         """
         Probe the remote host for details such as the installed init system, distribution

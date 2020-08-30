@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from enum import Enum, auto
+import time
 
 import sqlalchemy
 
@@ -35,16 +36,39 @@ class EnumerateModule(BaseModule):
             List(str),
             default=[],
             help="A list of enumeration types to retrieve (default: all)",
-        )
+        ),
+        "clear": Argument(
+            bool,
+            default=False,
+            help="If specified, do not perform enumeration. Cleared cached results.",
+        ),
     }
 
-    def run(self, types):
+    def run(self, types, clear):
         """ Locate all facts this module provides.
 
         Sub-classes should not override this method. Instead, use the
         enumerate method. `run` will cross-reference with database and
         ensure enumeration modules aren't re-run.
         """
+
+        marker_name = self.name
+        if self.SCHEDULE == Schedule.PER_USER:
+            marker_name += f".{pwncat.victim.current_user.id}"
+
+        if clear:
+            # Delete enumerated facts
+            query = pwncat.victim.session.query(pwncat.db.Fact).filter_by(
+                source=self.name, host_id=pwncat.victim.host.id
+            )
+            query.delete(synchronize_session=False)
+            # Delete our marker
+            if self.SCHEDULE != Schedule.ALWAYS:
+                query = pwncat.victim.session.query(pwncat.db.Fact).filter_by(
+                    host_id=pwncat.victim.host.id, type="marker", source=marker_name
+                )
+                query.delete(synchronize_session=False)
+            return
 
         # Yield all the know facts which have already been enumerated
         existing_facts = (
@@ -58,16 +82,12 @@ class EnumerateModule(BaseModule):
 
         yield from existing_facts.all()
 
-        marker_name = None
-
         if self.SCHEDULE != Schedule.ALWAYS:
-            marker_name = self.name
-            if self.SCHEDULE == Schedule.PER_USER:
-                marker_name += f".{pwncat.victim.current_user.id}"
-
             exists = (
                 pwncat.victim.session.query(pwncat.db.Fact.id)
-                .filter_by(type="marker", source=marker_name)
+                .filter_by(
+                    host_id=pwncat.victim.host.id, type="marker", source=marker_name
+                )
                 .scalar()
                 is not None
             )

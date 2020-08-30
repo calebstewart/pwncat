@@ -14,6 +14,6 @@ class Module(BaseModule):
     }
 
     def run(self, output):
-        return pwncat.modules.find("enumerate.report").run(
+        return pwncat.modules.find("enumerate.gather").run(
             types=["file.suid", "file.caps"], output=output
         )
