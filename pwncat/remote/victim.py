@@ -1741,6 +1741,7 @@ class Victim:
         wait: bool = True,
         password: str = None,
         stream: bool = False,
+        send_password: bool = True,
         **kwargs,
     ):
         """
@@ -1785,13 +1786,15 @@ class Victim:
             or output.endswith(b"password: ")
             or b"lecture" in output
         ):
-            if password is None:
+
+            if send_password and password is None:
                 self.client.send(util.CTRL_C)
                 raise PermissionError(f"{self.current_user.name}: no known password")
 
             self.flush_output()
 
-            self.client.send(password.encode("utf-8") + b"\n")
+            if send_password:
+                self.client.send(password.encode("utf-8") + b"\n")
 
             old_timeout = pwncat.victim.client.gettimeout()
             pwncat.victim.client.settimeout(5)
