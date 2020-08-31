@@ -92,10 +92,12 @@ class Command(CommandDefinition):
 
         # Organize results by category
         for result in results:
-            if not isinstance(result, pwncat.modules.Result) or result.category is None:
-                uncategorized.append(result)
-            elif result.is_long_form():
+            if isinstance(result, pwncat.modules.Result) and result.is_long_form():
                 longform.append(result)
+            elif (
+                not isinstance(result, pwncat.modules.Result) or result.category is None
+            ):
+                uncategorized.append(result)
             elif result.category not in categories:
                 categories[result.category] = [result]
             else:
