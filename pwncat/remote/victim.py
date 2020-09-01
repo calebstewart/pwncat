@@ -1805,11 +1805,12 @@ class Victim:
                 b"[sudo]" in output
                 or b"password for " in output
                 or b"sorry," in output
+                or b"Sorry," in output
                 or b"sudo: " in output
             ):
                 pwncat.victim.client.send(util.CTRL_C)
                 pwncat.victim.recvuntil(b"\n")
-                raise PermissionError(f"{self.current_user.name}: incorrect password")
+                raise PermissionError(f"{self.current_user.name}: incorrect password/permissions")
 
         if stream:
             return pipe

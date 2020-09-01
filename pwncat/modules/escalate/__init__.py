@@ -125,7 +125,7 @@ class GTFOTechnique(Technique):
 
     def exec(self, binary: str):
 
-        payload, input_data, exit_cmd = self.method.build(shell=binary, **self.kwargs)
+        payload, input_data, exit_cmd = self.method.build(shell=binary, user=self.user, **self.kwargs)
 
         # Run the initial command
         pwncat.victim.run(payload, wait=False)
