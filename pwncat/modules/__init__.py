@@ -118,6 +118,11 @@ def run_decorator(real_run):
 
     def decorator(self, progress=None, **kwargs):
 
+        if "exec" in kwargs:
+            has_exec = True
+        else:
+            has_exec = False
+
         # Validate arguments
         for key in kwargs:
             if key in self.ARGUMENTS:
@@ -134,6 +139,9 @@ def run_decorator(real_run):
                 kwargs[key] = self.ARGUMENTS[key].default
             elif key not in kwargs and self.ARGUMENTS[key].default is NoValue:
                 raise MissingArgument(key)
+
+        if "exec" in kwargs and kwargs["exec"] and not has_exec:
+            raise Exception(f"What the hell? {self.ARGUMENTS['exec'].default}")
 
         # Save progress reference
         self.progress = progress

@@ -25,7 +25,7 @@ class Module(EnumerateModule):
     :return:
     """
 
-    PROVIDES = ["aslr"]
+    PROVIDES = ["system.aslr"]
 
     def enumerate(self):
 
@@ -38,6 +38,6 @@ class Module(EnumerateModule):
                     value = None
 
             if value is not None:
-                yield "aslr", ASLRStateData(value)
+                yield "system.aslr", ASLRStateData(value)
         except (FileNotFoundError, PermissionError):
             pass

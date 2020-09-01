@@ -6,12 +6,13 @@ import pwncat
 from pwncat import util
 from pwncat.modules.enumerate import EnumerateModule, Schedule
 
+
 @dataclasses.dataclass
 class KernelVersionData:
     """
     Represents a W.X.Y-Z kernel version where W is the major version,
     X is the minor version, Y is the patch, and Z is the ABI.
-    
+
     This explanation came from here:
         https://askubuntu.com/questions/843197/what-are-kernel-version-number-components-w-x-yy-zzz-called
     """
@@ -28,12 +29,14 @@ class KernelVersionData:
             f"[blue]{self.patch}[/blue]-[cyan]{self.abi}[/cyan]"
         )
 
+
 class Module(EnumerateModule):
     """
     Enumerate kernel/OS version information
     :return:
     """
-    PROVIDES = ["kernel"]
+
+    PROVIDES = ["system.kernel"]
 
     def enumerate(self):
 
@@ -62,4 +65,4 @@ class Module(EnumerateModule):
             y = y_and_z[0]
             z = "-".join(y_and_z[1:])
 
-            yield "kernel", KernelVersionData(int(w), int(x), int(y), z)
+            yield "system.kernel", KernelVersionData(int(w), int(x), int(y), z)

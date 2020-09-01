@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from enum import Enum, auto
+import fnmatch
 import time
 
 import sqlalchemy
@@ -78,9 +79,12 @@ class EnumerateModule(BaseModule):
         )
 
         if types:
-            existing_facts = existing_facts.filter(pwncat.db.Fact.type.in_(types))
-
-        yield from existing_facts.all()
+            for fact in existing_facts.all():
+                for typ in types:
+                    if fnmatch.fnmatch(fact.type, typ):
+                        yield fact
+        else:
+            yield from existing_facts.all()
 
         if self.SCHEDULE != Schedule.ALWAYS:
             exists = (
@@ -109,8 +113,12 @@ class EnumerateModule(BaseModule):
                 continue
 
             # Don't yield the actual fact if we didn't ask for this type
-            if types and row.type not in types:
-                yield Status(data)
+            if types:
+                for typ in types:
+                    if fnmatch.fnmatch(row.type, typ):
+                        yield row
+                    else:
+                        yield Status(data)
             else:
                 yield row
 

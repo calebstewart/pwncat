@@ -29,13 +29,14 @@ class DistroVersionData:
             f"Build ID [green]{self.build_id}[/green]."
         )
 
+
 class Module(EnumerateModule):
     """
     Enumerate kernel/OS version information
     :return:
     """
 
-    PROVIDES = ["distro"]
+    PROVIDES = ["system.distro"]
 
     def enumerate(self):
 
@@ -69,7 +70,12 @@ class Module(EnumerateModule):
             except (PermissionError, FileNotFoundError):
                 pass
 
-        if pretty_name is None and build_id is None and ident is None and version is None:
+        if (
+            pretty_name is None
+            and build_id is None
+            and ident is None
+            and version is None
+        ):
             return
 
-        yield "distro", DistroVersionData(pretty_name, ident, build_id, version)
+        yield "system.distro", DistroVersionData(pretty_name, ident, build_id, version)

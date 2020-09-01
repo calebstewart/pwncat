@@ -30,7 +30,7 @@ class Module(EnumerateModule):
     :return:
     """
 
-    PROVIDES = ["arch"]
+    PROVIDES = ["system.arch"]
 
     def enumerate(self):
         """
@@ -43,4 +43,4 @@ class Module(EnumerateModule):
         except FileNotFoundError:
             return
 
-        yield "arch", ArchData(result)
+        yield "system.arch", ArchData(result)

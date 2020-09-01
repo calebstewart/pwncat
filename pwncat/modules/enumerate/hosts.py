@@ -7,6 +7,7 @@ import pwncat
 from pwncat import util
 from pwncat.modules.enumerate import EnumerateModule, Schedule
 
+
 @dataclasses.dataclass
 class HostData:
 
@@ -17,13 +18,14 @@ class HostData:
         joined_hostnames = ", ".join(self.hostnames)
         return f"[cyan]{self.address}[/cyan] -> [blue]{joined_hostnames}[/blue]"
 
+
 class Module(EnumerateModule):
     """
     Enumerate hosts identified in /etc/hosts which are not localhost
     :return:
     """
 
-    PROVIDES = ["hosts"]
+    PROVIDES = ["network.hosts"]
 
     def enumerate(self):
 
@@ -45,6 +47,6 @@ class Module(EnumerateModule):
                     ):
                         continue
                     address, *hostnames = [e for e in line.split(" ") if e != ""]
-                    yield "hosts", HostData(address, hostnames)
-        except (PermissionError, FileNotFoundError):  
+                    yield "network.hosts", HostData(address, hostnames)
+        except (PermissionError, FileNotFoundError):
             pass

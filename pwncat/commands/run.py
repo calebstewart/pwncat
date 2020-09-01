@@ -9,12 +9,18 @@ from pwncat.commands.base import CommandDefinition, Complete, Parameter
 
 class Command(CommandDefinition):
     """
-    Run a shell command on the victim host and display the output.
-    
-    **NOTE** This must be a non-interactive command. If an interactive command
-        is run, you will have to use C-c to return to the pwncat prompt and then
-        C-d to get back to your interactive remote prompt in order to interact
-        with the remote host again!"""
+    Run a module. If no module is specified, use the module in the
+    current context. You can enter a module context with the `use`
+    command.
+
+    Module arguments can be appended to the run command with `variable=value`
+    syntax. Arguments are type-checked prior to executing, and the results
+    are displayed to the terminal.
+
+    To locate available modules, you can use the `search` command. To
+    find documentation on individual modules including expected
+    arguments, you can use the `info` command.
+    """
 
     def get_module_choices(self):
         yield from [module.name for module in pwncat.modules.match(".*")]
@@ -27,8 +33,9 @@ class Command(CommandDefinition):
         "module": Parameter(
             Complete.CHOICES,
             nargs="?",
+            metavar="MODULE",
             choices=get_module_choices,
-            help="The module path to execute",
+            help="The module name to execute",
         ),
         "args": Parameter(Complete.NONE, nargs="*", help="Module arguments"),
     }
@@ -50,10 +57,12 @@ class Command(CommandDefinition):
                 name, value = arg.split("=")
                 values[name] = value
 
-        pwncat.victim.config.locals.update(values)
+        # pwncat.victim.config.locals.update(values)
+        config_values = pwncat.victim.config.locals.copy()
+        config_values.update(values)
 
         try:
-            result = pwncat.modules.run(args.module, **pwncat.victim.config.locals)
+            result = pwncat.modules.run(args.module, **config_values)
             pwncat.victim.config.back()
         except pwncat.modules.ModuleNotFound:
             console.log(f"[red]error[/red]: {args.module}: not found")

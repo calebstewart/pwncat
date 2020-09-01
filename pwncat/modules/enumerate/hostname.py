@@ -13,13 +13,13 @@ class Module(EnumerateModule):
     :return: A generator of hostname facts
     """
 
-    PROVIDES = ["hostname"]
+    PROVIDES = ["network.hostname"]
 
     def enumerate(self):
 
         try:
             hostname = pwncat.victim.env(["hostname", "-f"]).decode("utf-8").strip()
-            yield "hostname", hostname
+            yield "network.hostname", hostname
             return
         except FileNotFoundError:
             pass
@@ -30,7 +30,7 @@ class Module(EnumerateModule):
             for name in hostname:
                 if "static hostname" in name.lower():
                     hostname = name.split(": ")[1]
-                    yield "hostname", hostname
+                    yield "network.hostname", hostname
                     return
         except (FileNotFoundError, IndexError):
             pass

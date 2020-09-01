@@ -4,20 +4,20 @@ import dataclasses
 
 import pwncat
 from pwncat import util
+from pwncat.modules import Result
 from pwncat.modules.enumerate import EnumerateModule, Schedule
 
+
 @dataclasses.dataclass
-class InitSystemData:
+class InitSystemData(Result):
 
     init: util.Init
     version: str
 
-    def __str__(self):
+    @property
+    def title(self):
         return f"Running [blue]{self.init}[/blue]"
 
-    @property
-    def description(self):
-        return self.version
 
 class Module(EnumerateModule):
     """
@@ -25,7 +25,7 @@ class Module(EnumerateModule):
     :return:
     """
 
-    PROVIDES = ["init"]
+    PROVIDES = ["system.init"]
 
     def enumerate(self):
 
@@ -74,4 +74,4 @@ class Module(EnumerateModule):
         if version == "":
             version = None
 
-        yield "init", InitSystemData(init, version)
+        yield "system.init", InitSystemData(init, version)

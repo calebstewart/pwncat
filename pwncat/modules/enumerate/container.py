@@ -23,29 +23,30 @@ class Module(EnumerateModule):
     :return:
     """
 
-    PROVIDES = ["container"]
+    PROVIDES = ["system.container"]
 
     def enumerate(self):
 
         try:
             with pwncat.victim.open("/proc/self/cgroup", "r") as filp:
                 if "docker" in filp.read().lower():
-                    yield "container", ContainerData("docker")
+                    yield "system.container", ContainerData("docker")
                     return
         except (FileNotFoundError, PermissionError):
             pass
 
         with pwncat.victim.subprocess(
-            f'find / -maxdepth 3 -name "*dockerenv*" -exec ls -la {{}} \\; 2>/dev/null', "r"
+            f'find / -maxdepth 3 -name "*dockerenv*" -exec ls -la {{}} \\; 2>/dev/null',
+            "r",
         ) as pipe:
             if pipe.read().strip() != b"":
-                yield "container", ContainerData("docker")
+                yield "system.container", ContainerData("docker")
                 return
 
         try:
             with pwncat.victim.open("/proc/1/environ", "r") as filp:
                 if "container=lxc" in filp.read().lower():
-                    yield "container", ContainerData("lxc")
+                    yield "system.container", ContainerData("lxc")
                     return
         except (FileNotFoundError, PermissionError):
             pass

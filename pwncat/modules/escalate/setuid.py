@@ -2,7 +2,17 @@
 
 import pwncat
 from pwncat.gtfobins import Capability, Stream, BinaryNotFound
-from pwncat.modules.escalate import EscalateModule, EscalateError, GTFOTechnique
+from pwncat.modules.escalate import (
+    EscalateModule,
+    EscalateError,
+    GTFOTechnique,
+    euid_fix,
+)
+
+
+@euid_fix
+class SUIDTechnique(GTFOTechnique):
+    """ Same as GTFO Technique but with EUID fix decorator """
 
 
 class Module(EscalateModule):
@@ -27,7 +37,7 @@ class Module(EscalateModule):
             for method in binary.iter_methods(
                 fact.data.path, Capability.ALL, Stream.ANY
             ):
-                yield GTFOTechnique(fact.data.owner.name, self, method, suid=True)
+                yield SUIDTechnique(fact.data.owner.name, self, method, suid=True)
 
     def human_name(self, tech: "Technique"):
         return f"[cyan]{tech.method.binary_path}[/cyan] ([red]setuid[/red])"
