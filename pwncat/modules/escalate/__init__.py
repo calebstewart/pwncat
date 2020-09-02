@@ -77,7 +77,7 @@ class GTFOTechnique(Technique):
     def write(self, filepath: str, data: str):
 
         payload, input_data, exit_cmd = self.method.build(
-            lfile=filepath, length=len(data), **self.kwargs
+            lfile=filepath, length=len(data), user=self.user, **self.kwargs
         )
 
         mode = "w"
@@ -107,7 +107,7 @@ class GTFOTechnique(Technique):
 
     def read(self, filepath: str):
 
-        payload, input_data, exit_cmd = self.method.build(lfile=filepath, **self.kwargs)
+        payload, input_data, exit_cmd = self.method.build(lfile=filepath, user=self.user, **self.kwargs)
 
         mode = "r"
         if self.method.stream is pwncat.gtfobins.Stream.RAW:
