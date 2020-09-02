@@ -505,7 +505,7 @@ class CommandCompleter(Completer):
         if isinstance(next_completer, tuple) and next_completer[0] == "choices":
             next_completer = WordCompleter(next_completer[1])
 
-        if text.endswith(" "):
+        if text.endswith(" ") and next_completer is not None:
             yield from next_completer.get_completions(document, complete_event)
-        else:
+        elif this_completer is not None:
             yield from this_completer.get_completions(document, complete_event)
