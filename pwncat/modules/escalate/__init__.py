@@ -2,6 +2,7 @@
 from typing import List, Dict, Tuple
 from io import BytesIO
 import dataclasses
+import time
 import os
 
 import pwncat
@@ -163,7 +164,9 @@ class GTFOTechnique(Technique):
 
     def read(self, filepath: str):
 
-        payload, input_data, exit_cmd = self.method.build(lfile=filepath, user=self.user, **self.kwargs)
+        payload, input_data, exit_cmd = self.method.build(
+            lfile=filepath, user=self.user, **self.kwargs
+        )
 
         mode = "r"
         if self.method.stream is pwncat.gtfobins.Stream.RAW:
@@ -181,7 +184,9 @@ class GTFOTechnique(Technique):
 
     def exec(self, binary: str):
 
-        payload, input_data, exit_cmd = self.method.build(shell=binary, user=self.user, **self.kwargs)
+        payload, input_data, exit_cmd = self.method.build(
+            shell=binary, user=self.user, **self.kwargs
+        )
 
         # Run the initial command
         pwncat.victim.run(payload, wait=False)
@@ -422,6 +427,9 @@ class EscalateResult(Result):
                     try:
                         progress.update(task, status=str(technique))
                         exit_cmd = technique.exec(shell)
+
+                        # These are evil, but required due to latency... :/
+                        time.sleep(0.1)
 
                         # Ensure we are stable
                         pwncat.victim.reset(hard=False)

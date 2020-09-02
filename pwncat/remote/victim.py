@@ -1774,6 +1774,8 @@ class Victim:
         if password is None:
             password = self.current_user.password
 
+        self.flush_output()
+
         if stream:
             pipe = self.subprocess(sudo_command, **kwargs)
         else:
@@ -1810,7 +1812,9 @@ class Victim:
             ):
                 pwncat.victim.client.send(util.CTRL_C)
                 pwncat.victim.recvuntil(b"\n")
-                raise PermissionError(f"{self.current_user.name}: incorrect password/permissions")
+                raise PermissionError(
+                    f"{self.current_user.name}: incorrect password/permissions"
+                )
 
         if stream:
             return pipe

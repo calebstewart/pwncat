@@ -2,7 +2,12 @@
 
 import pwncat
 from pwncat.gtfobins import Capability, Stream, BinaryNotFound
-from pwncat.modules.escalate import EscalateModule, EscalateError, GTFOTechnique, Technique
+from pwncat.modules.escalate import (
+    EscalateModule,
+    EscalateError,
+    GTFOTechnique,
+    Technique,
+)
 
 
 class Module(EscalateModule):
@@ -43,9 +48,11 @@ class Module(EscalateModule):
             rules.append(fact.data)
 
         for rule in rules:
-            for method in pwncat.victim.gtfo.iter_sudo(rule.command, caps=Capability.SHELL):
+            for method in pwncat.victim.gtfo.iter_sudo(
+                rule.command, caps=Capability.SHELL
+            ):
                 user = "root" if rule.runas_user == "ALL" else rule.runas_user
-                yield GTFOTechnique(user, self, method, spec=rule.runas_user)
+                yield GTFOTechnique(user, self, method, spec=rule.command)
 
     def human_name(self, tech: "Technique"):
         return f"[cyan]{tech.method.binary_path}[/cyan] ([red]sudo[/red])"
