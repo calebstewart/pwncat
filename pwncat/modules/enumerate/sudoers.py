@@ -17,8 +17,9 @@ sudo_pattern = re.compile(
 
 directives = ["Defaults", "User_Alias", "Runas_Alias", "Host_Alias", "Cmnd_Alias"]
 
+
 @dataclasses.dataclass
-class SudoSpec():
+class SudoSpec:
 
     line: str
     """ The full, unaltered line from the sudoers file """
@@ -39,7 +40,7 @@ class SudoSpec():
     """ A list of options specified (e.g. NOPASSWD, SETENV, etc) """
     hash: str = None
     """ A hash type and value which sudo will obey """
-    command: str = None
+    commands: List[str] = None
     """ The command specification """
 
     def __str__(self):
@@ -53,7 +54,7 @@ class SudoSpec():
         else:
             display += f"Group [cyan]{self.group}[/cyan]: "
 
-        display += f"[yellow]{self.command}[/yellow] as "
+        display += f"[yellow]{'[/yellow], [yellow]'.join(self.commands)}[/yellow] as "
 
         if self.runas_user == "root":
             display += f"[red]root[/red]"
@@ -77,9 +78,8 @@ class SudoSpec():
 
     @property
     def description(self):
-        if self.matched:
-            return self.line
         return None
+
 
 def LineParser(line):
     match = sudo_pattern.search(line)
@@ -125,19 +125,12 @@ def LineParser(line):
             hash = g
 
     command = match.group(11)
+    commands = re.split(r"""(?<!\\), ?""", command)
 
     return SudoSpec(
-        line,
-        True,
-        user,
-        group,
-        host,
-        runas_user,
-        runas_group,
-        options,
-        hash,
-        command,
+        line, True, user, group, host, runas_user, runas_group, options, hash, commands,
     )
+
 
 class Module(EnumerateModule):
     """ Enumerate sudo privileges for the current user. """
@@ -186,4 +179,5 @@ class Module(EnumerateModule):
 
             # Build the beginning part of a normal spec
             line = f"{pwncat.victim.current_user.name} local=" + line.strip()
+
             yield "sudo", LineParser(line)
