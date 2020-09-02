@@ -271,6 +271,8 @@ class Victim:
             "[progress.percentage]{task.percentage:>3.1f}%",
             console=console,
             transient=True,
+            auto_refresh=True,
+            refresh_per_second=60,
         ) as progress:
 
             task_id = progress.add_task("initializing", total=7, status="hostname")

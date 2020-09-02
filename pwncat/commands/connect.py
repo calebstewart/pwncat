@@ -131,6 +131,7 @@ class Command(CommandDefinition):
             with Progress(
                 f"bound to [blue]{args.host}[/blue]:[cyan]{args.port}[/cyan]",
                 BarColumn(bar_width=None),
+                transient=True,
             ) as progress:
                 task_id = progress.add_task("listening", total=1, start=False)
                 # Create the socket server
@@ -148,7 +149,8 @@ class Command(CommandDefinition):
                 progress.log(
                     f"[green]received[/green] connection from [blue]{address[0]}[/blue]:[cyan]{address[1]}[/cyan]"
                 )
-                pwncat.victim.connect(client)
+
+            pwncat.victim.connect(client)
         elif args.action == "connect":
             if not args.host:
                 console.log("[red]error[/red]: no host address provided")
@@ -157,6 +159,7 @@ class Command(CommandDefinition):
             with Progress(
                 f"connecting to [blue]{args.host}[/blue]:[cyan]{args.port}[/cyan]",
                 BarColumn(bar_width=None),
+                transient=True,
             ) as progress:
                 task_id = progress.add_task("connecting", total=1, start=False)
                 # Connect to the remote host
@@ -168,7 +171,7 @@ class Command(CommandDefinition):
                     f"[blue]{args.host}[/blue]:[cyan]{args.port}[/cyan] [green]established[/green]"
                 )
 
-                pwncat.victim.connect(client)
+            pwncat.victim.connect(client)
         elif args.action == "ssh":
 
             if not args.port:
