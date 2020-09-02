@@ -13,6 +13,7 @@ lark-parser==0.7.8
 mbstrdecoder==1.0.0
 msgfy==0.1.0
 netifaces==0.10.9
+packaging==20.4
 git+https://github.com/calebstewart/paramiko
 pathvalidate==2.3.0
 pprintpp==0.4.0
