@@ -53,7 +53,7 @@ class Module(EscalateModule):
                     command, caps=Capability.SHELL
                 ):
                     user = "root" if rule.runas_user == "ALL" else rule.runas_user
-                    yield GTFOTechnique(user, self, method, spec=command)
+                    yield GTFOTechnique(user, self, method, user=user, spec=command)
 
     def human_name(self, tech: "Technique"):
         return f"[cyan]{tech.method.binary_path}[/cyan] ([red]sudo[/red])"

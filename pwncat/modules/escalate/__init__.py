@@ -130,19 +130,19 @@ class GTFOTechnique(Technique):
 
     def __init__(
         self,
-        user: str,
+        target_user: str,
         module: "EscalateModule",
         method: pwncat.gtfobins.MethodWrapper,
         **kwargs,
     ):
-        super(GTFOTechnique, self).__init__(method.cap, user, module)
+        super(GTFOTechnique, self).__init__(method.cap, target_user, module)
         self.method = method
         self.kwargs = kwargs
 
     def write(self, filepath: str, data: str):
 
         payload, input_data, exit_cmd = self.method.build(
-            lfile=filepath, length=len(data), user=self.user, **self.kwargs
+            lfile=filepath, length=len(data), **self.kwargs
         )
 
         mode = "w"
@@ -172,9 +172,7 @@ class GTFOTechnique(Technique):
 
     def read(self, filepath: str):
 
-        payload, input_data, exit_cmd = self.method.build(
-            lfile=filepath, user=self.user, **self.kwargs
-        )
+        payload, input_data, exit_cmd = self.method.build(lfile=filepath, **self.kwargs)
 
         mode = "r"
         if self.method.stream is pwncat.gtfobins.Stream.RAW:
@@ -192,9 +190,7 @@ class GTFOTechnique(Technique):
 
     def exec(self, binary: str):
 
-        payload, input_data, exit_cmd = self.method.build(
-            shell=binary, user=self.user, **self.kwargs
-        )
+        payload, input_data, exit_cmd = self.method.build(shell=binary, **self.kwargs)
 
         # Run the initial command
         pwncat.victim.run(payload, wait=False)
