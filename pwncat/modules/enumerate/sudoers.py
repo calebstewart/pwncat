@@ -103,8 +103,8 @@ def LineParser(line):
     if match.group(3) is not None:
         runas_user = match.group(3).lstrip("(").rstrip(")")
         if match.group(4) is not None:
-            runas_group = match.group(4)
-            runas_user = runas_user.split(":")[0]
+            runas_group = match.group(4).lstrip(" ")
+            runas_user = runas_user.split(":")[0].rstrip(" ")
         else:
             runas_group = None
         if runas_user == "":
