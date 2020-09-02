@@ -3,13 +3,10 @@ import dataclasses
 import re
 from typing import Generator, Optional, List
 
-from colorama import Fore
-
 import pwncat
-from pwncat.enumerate import FactData
+from pwncat import util
+from pwncat.modules.enumerate import EnumerateModule, Schedule
 
-name = "sudo"
-provides = "sudo"
 per_user = True
 sudo_pattern = re.compile(
     r"""(%?[a-zA-Z][a-zA-Z0-9_]*)\s+([a-zA-Z_][-a-zA-Z0-9_.]*)\s*="""
@@ -21,7 +18,7 @@ sudo_pattern = re.compile(
 directives = ["Defaults", "User_Alias", "Runas_Alias", "Host_Alias", "Cmnd_Alias"]
 
 @dataclasses.dataclass
-class SudoSpec(FactData):
+class SudoSpec():
 
     line: str
     """ The full, unaltered line from the sudoers file """
@@ -142,51 +139,51 @@ def LineParser(line):
         command,
     )
 
-def enumerate() -> Generator[FactData, None, None]:
-    """
-    Enumerate sudo privileges for the current user. If able, this will
-    parse `/etc/sudoers`. Otherwise, it will attempt to use `sudo -l`
-    to enumerate the current user's privileges. In the latter case,
-    it will utilize a defined password if available.
+class Module(EnumerateModule):
+    """ Enumerate sudo privileges for the current user. """
 
-    :return:
-    """
+    PROVIDES = ["sudo"]
+    SCHEDULE = Schedule.PER_USER
 
-    try:
-        with pwncat.victim.open("/etc/sudoers", "r") as filp:
-            for line in filp:
-                line = line.strip()
-                # Ignore comments and empty lines
-                if line.startswith("#") or line == "":
-                    continue
+    def enumerate(self):
 
-                yield LineParser(line)
+        try:
+            with pwncat.victim.open("/etc/sudoers", "r") as filp:
+                for line in filp:
+                    line = line.strip()
+                    # Ignore comments and empty lines
+                    if line.startswith("#") or line == "":
+                        continue
 
-        # No need to parse `sudo -l`, since can read /etc/sudoers
-        return
-    except (FileNotFoundError, PermissionError):
-        pass
+                    yield "sudo", LineParser(line)
 
-    # Check for our privileges
-    try:
-        result = pwncat.victim.sudo("-l").decode("utf-8")
-    except PermissionError:
-        return
+            # No need to parse `sudo -l`, since can read /etc/sudoers
+            return
+        except (FileNotFoundError, PermissionError):
+            pass
 
-    for line in result.split("\n"):
-        line = line.rstrip()
+        # Check for our privileges
+        try:
+            result = pwncat.victim.sudo("-nl", send_password=False).decode("utf-8")
+            if result.strip() == "sudo: a password is required":
+                result = pwncat.victim.sudo("-l").decode("utf-8")
+        except PermissionError:
+            return
 
-        # Skipe header lines
-        if not line.startswith(" ") and not line.startswith("\t"):
-            continue
+        for line in result.split("\n"):
+            line = line.rstrip()
 
-        # Strip beginning whitespace
-        line = line.strip()
+            # Skipe header lines
+            if not line.startswith(" ") and not line.startswith("\t"):
+                continue
 
-        # Skip things that aren't user specifications
-        if not line.startswith("("):
-            continue
+            # Strip beginning whitespace
+            line = line.strip()
 
-        # Build the beginning part of a normal spec
-        line = f"{pwncat.victim.current_user.name} local=" + line.strip()
-        yield LineParser(line)
+            # Skip things that aren't user specifications
+            if not line.startswith("("):
+                continue
+
+            # Build the beginning part of a normal spec
+            line = f"{pwncat.victim.current_user.name} local=" + line.strip()
+            yield "sudo", LineParser(line)

@@ -1741,6 +1741,7 @@ class Victim:
         wait: bool = True,
         password: str = None,
         stream: bool = False,
+        send_password: bool = True,
         **kwargs,
     ):
         """
@@ -1785,13 +1786,15 @@ class Victim:
             or output.endswith(b"password: ")
             or b"lecture" in output
         ):
-            if password is None:
+
+            if send_password and password is None:
                 self.client.send(util.CTRL_C)
                 raise PermissionError(f"{self.current_user.name}: no known password")
 
             self.flush_output()
 
-            self.client.send(password.encode("utf-8") + b"\n")
+            if send_password:
+                self.client.send(password.encode("utf-8") + b"\n")
 
             old_timeout = pwncat.victim.client.gettimeout()
             pwncat.victim.client.settimeout(5)
@@ -1802,11 +1805,12 @@ class Victim:
                 b"[sudo]" in output
                 or b"password for " in output
                 or b"sorry," in output
+                or b"Sorry," in output
                 or b"sudo: " in output
             ):
                 pwncat.victim.client.send(util.CTRL_C)
                 pwncat.victim.recvuntil(b"\n")
-                raise PermissionError(f"{self.current_user.name}: incorrect password")
+                raise PermissionError(f"{self.current_user.name}: incorrect password/permissions")
 
         if stream:
             return pipe
