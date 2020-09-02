@@ -5,10 +5,10 @@ import inspect
 import pwncat
 import pwncat.db
 from pwncat.util import State
-from pwncat.modules import BaseModule, Argument, Bool, Status
+from pwncat.modules import BaseModule, Argument, Bool, Status, ModuleFailed
 
 
-class PersistError(Exception):
+class PersistError(ModuleFailed):
     """ There was a problem performing a persistence action """
 
 

@@ -64,6 +64,9 @@ class Command(CommandDefinition):
         try:
             result = pwncat.modules.run(args.module, **config_values)
             pwncat.victim.config.back()
+        except pwncat.modules.ModuleFailed as exc:
+            console.log(f"[red]error[/red]: module failed: {exc}")
+            return
         except pwncat.modules.ModuleNotFound:
             console.log(f"[red]error[/red]: {args.module}: not found")
             return

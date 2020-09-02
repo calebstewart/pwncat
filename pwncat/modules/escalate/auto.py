@@ -50,7 +50,7 @@ class Module(BaseModule):
     def run(self, user, exec, write, read, path, data, shell):
 
         whole_chain = EscalateChain(None, chain=[])
-        tried_users = []
+        tried_users = [user]
         result_list = []
         target_user = user
 
@@ -70,40 +70,48 @@ class Module(BaseModule):
 
         # Collect escalation options
         result = EscalateResult(techniques={})
+        yield Status("gathering techniques")
         for module in pwncat.modules.match(r"escalate\..*", base=EscalateModule):
             try:
+                yield Status(f"gathering techniques from {module.name}")
                 result.extend(module.run(progress=self.progress))
             except (ArgumentFormatError, MissingArgument):
                 continue
 
         while True:
 
-            if exec:
-                chain = result.exec(target_user, shell, self.progress)
-                whole_chain.extend(chain)
-                yield whole_chain
-                return
-            elif write:
-                result.write(target_user, path, data, self.progress)
-                whole_chain.unwrap()
-                return
-            elif read:
-                filp = result.read(target_user, path, self.progress)
-                original_close = filp.close
-
-                # We need to call unwrap after reading the data
-                def close_wrapper():
-                    original_close()
+            try:
+                if exec:
+                    yield Status(f"attempting escalation to {target_user}")
+                    chain = result.exec(target_user, shell, self.progress)
+                    whole_chain.extend(chain)
+                    yield whole_chain
+                    return
+                elif write:
+                    yield Status(f"attempting file write as {target_user}")
+                    result.write(target_user, path, data, self.progress)
                     whole_chain.unwrap()
+                    return
+                elif read:
+                    yield Status(f"attempting file read as {target_user}")
+                    filp = result.read(target_user, path, self.progress)
+                    original_close = filp.close
 
-                filp.close = close_wrapper
+                    # We need to call unwrap after reading the data
+                    def close_wrapper():
+                        original_close()
+                        whole_chain.unwrap()
 
-                yield FileContentsResult(path, filp)
-                return
-            else:
-                # We just wanted to list all techniques from all modules
-                yield result
-                return
+                    filp.close = close_wrapper
+
+                    yield FileContentsResult(path, filp)
+                    return
+                else:
+                    # We just wanted to list all techniques from all modules
+                    yield result
+                    return
+            except EscalateError:
+                pass
 
             for user in result.techniques.keys():
                 # Ignore already tried users
@@ -114,6 +122,8 @@ class Module(BaseModule):
                 tried_users.append(user)
 
                 try:
+                    yield Status(f"attempting recursion to {user}")
+
                     # Attempt escalation
                     chain = result.exec(user, shell, self.progress)
 
@@ -125,6 +135,7 @@ class Module(BaseModule):
 
                     # Get new results for this user
                     result = EscalateResult(techniques={})
+                    yield Status(f"success! gathering new techniques...")
                     for module in pwncat.modules.match(
                         r"escalate\..*", base=EscalateModule
                     ):

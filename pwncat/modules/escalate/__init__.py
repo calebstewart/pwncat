@@ -13,16 +13,17 @@ from pwncat.modules import (
     Bool,
     Result,
     ArgumentFormatError,
+    ModuleFailed,
 )
 from pwncat.gtfobins import Capability
 from pwncat.file import RemoteBinaryPipe
 
 
-class EscalateError(Exception):
+class EscalateError(ModuleFailed):
     """ Indicates an error while attempting some escalation action """
 
 
-def fix_euid_mismatch(target_uid: int, target_gid: int):
+def fix_euid_mismatch(exit_cmd: str, target_uid: int, target_gid: int):
     """ Attempt to gain EUID=UID=target_uid.
 
     This is intended to fix EUID/UID mismatches after a escalation.
@@ -52,6 +53,9 @@ def fix_euid_mismatch(target_uid: int, target_gid: int):
         if new_id["uid"]["id"] == target_uid and new_id["gid"]["id"] == target_gid:
             return
 
+    pwncat.victim.client.send(exit_cmd.encode("utf-8"))
+    pwncat.victim.flush_output()
+
     raise EscalateError("failed to resolve euid/uid mismatch")
 
 
@@ -66,14 +70,18 @@ def euid_fix(technique_class):
         def exec(self, binary: str):
 
             # Run the real exec
-            super(Wrapper, self).exec(binary)
+            result = super(Wrapper, self).exec(binary)
 
             # Check id again
             ending_id = pwncat.victim.id
 
             # If needed fix the UID
             if ending_id["euid"]["id"] != ending_id["uid"]["id"]:
-                fix_euid_mismatch(ending_id["euid"]["id"], ending_id["egid"]["id"])
+                fix_euid_mismatch(
+                    result, ending_id["euid"]["id"], ending_id["egid"]["id"]
+                )
+
+            return result
 
     return Wrapper
 
@@ -264,7 +272,7 @@ class EscalateChain(Result):
     def pop(self):
         """ Exit and remove the last link in the chain """
         _, exit_cmd = self.chain.pop()
-        pwncat.victim.client.send(exit_cmd)
+        pwncat.victim.client.send(exit_cmd.encode("utf-8"))
         pwncat.victim.reset(hard=False)
         pwncat.victim.update_user()
 
@@ -274,7 +282,7 @@ class EscalateChain(Result):
         # Go through the chain in reverse
         for technique, exit_cmd in self.chain[::-1]:
             # Send the exit command
-            pwncat.victim.client.send(exit_cmd)
+            pwncat.victim.client.send(exit_cmd.encode("utf-8"))
 
         pwncat.victim.reset(hard=False)
         pwncat.victim.update_user()
@@ -442,6 +450,8 @@ class EscalateResult(Result):
                             pwncat.victim.flush_output(some=False)
                             continue
 
+                        progress.update(task, visible=False, done=True)
+
                         return EscalateChain(
                             original_user.name, [(technique, exit_cmd)]
                         )
@@ -576,7 +586,11 @@ class EscalateResult(Result):
                 pwncat.victim.reset(hard=False)
                 pwncat.victim.update_user()
 
+                progress.update(task, visible=False, done=True)
+
                 return EscalateChain(original_user.name, [(used_tech, "exit")])
+
+        progress.update(task, visible=False, done=True)
 
         raise EscalateError(f"exec as {user} not possible")
 
@@ -671,6 +685,9 @@ class EscalateModule(BaseModule):
             raise ArgumentFormatError("data not specified for write")
 
         result = EscalateResult({})
+
+        yield Status("gathering techniques")
+
         for technique in self.enumerate(**kwargs):
             yield Status(technique)
             result.add(technique)

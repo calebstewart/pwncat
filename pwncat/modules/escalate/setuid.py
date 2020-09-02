@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import pwncat
+from pwncat.util import Access
 from pwncat.gtfobins import Capability, Stream, BinaryNotFound
 from pwncat.modules.escalate import (
     EscalateModule,
@@ -32,6 +33,10 @@ class Module(EscalateModule):
             try:
                 binary = pwncat.victim.gtfo.find_binary(fact.data.path, Capability.ALL)
             except BinaryNotFound:
+                continue
+
+            perms = pwncat.victim.access(fact.data.path)
+            if Access.EXECUTE not in perms:
                 continue
 
             for method in binary.iter_methods(

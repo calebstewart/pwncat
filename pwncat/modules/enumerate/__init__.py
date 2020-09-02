@@ -65,8 +65,10 @@ class EnumerateModule(BaseModule):
             query.delete(synchronize_session=False)
             # Delete our marker
             if self.SCHEDULE != Schedule.ALWAYS:
-                query = pwncat.victim.session.query(pwncat.db.Fact).filter_by(
-                    host_id=pwncat.victim.host.id, type="marker", source=marker_name
+                query = (
+                    pwncat.victim.session.query(pwncat.db.Fact)
+                    .filter_by(host_id=pwncat.victim.host.id, type="marker")
+                    .filter(pwncat.db.Fact.source.startswith(self.name))
                 )
                 query.delete(synchronize_session=False)
             return

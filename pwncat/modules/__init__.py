@@ -33,6 +33,10 @@ class InvalidArgument(Exception):
     """ This argument does not exist and ALLOW_KWARGS was false """
 
 
+class ModuleFailed(Exception):
+    """ Base class for module failure """
+
+
 @dataclass
 class Argument:
     """ Argument information for a module """
