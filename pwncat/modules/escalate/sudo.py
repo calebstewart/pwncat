@@ -20,7 +20,7 @@ class Module(EscalateModule):
     def enumerate(self):
         """ Enumerate SUDO permissions """
         rules = []
-        for fact in pwncat.modules.run("enumerate.sudoers"):
+        for fact in pwncat.modules.run("enumerate.sudoers", progress=self.progress):
 
             # Doesn't appear to be a user specification
             if not fact.data.matched:

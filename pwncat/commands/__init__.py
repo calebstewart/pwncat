@@ -240,6 +240,8 @@ class CommandParser:
                 # We have a connection! Go back to raw mode
                 pwncat.victim.state = State.RAW
                 self.running = False
+            except KeyboardInterrupt:
+                continue
             except (Exception, KeyboardInterrupt):
                 console.print_exception(width=None)
                 continue

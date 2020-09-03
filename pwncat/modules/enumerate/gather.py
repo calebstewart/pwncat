@@ -4,6 +4,7 @@ from pathlib import Path
 import collections
 import itertools
 import inspect
+import fnmatch
 
 from rich.progress import Progress
 from rich import markup
@@ -91,6 +92,21 @@ class Module(pwncat.modules.BaseModule):
         # Enumerate all facts
         facts = {}
         for module in modules:
+
+            for pattern in types:
+                for typ in module.PROVIDES:
+                    if fnmatch.fnmatch(typ, pattern):
+                        # This pattern matched
+                        break
+                else:
+                    # This pattern didn't match any of the provided
+                    # types
+                    continue
+                # We matched at least one type for this module
+                break
+            else:
+                # We didn't match any types for this module
+                continue
 
             # update our status with the name of the module we are evaluating
             yield pwncat.modules.Status(module.name)

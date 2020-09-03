@@ -144,9 +144,6 @@ def run_decorator(real_run):
             elif key not in kwargs and self.ARGUMENTS[key].default is NoValue:
                 raise MissingArgument(key)
 
-        if "exec" in kwargs and kwargs["exec"] and not has_exec:
-            raise Exception(f"What the hell? {self.ARGUMENTS['exec'].default}")
-
         # Save progress reference
         self.progress = progress
 
@@ -179,18 +176,22 @@ def run_decorator(real_run):
                     if not isinstance(item, Status):
                         results.append(item)
 
-                # This task is done
-                self.progress.update(
-                    task, completed=True, visible=False, status="complete"
-                )
-
                 if self.COLLAPSE_RESULT and len(results) == 1:
                     return results[0]
 
                 return results
             finally:
                 if progress is None:
+                    # If we are the last task/this is our progress bar,
+                    # we don't hide ourselves. This makes the progress bar
+                    # empty, and "transient" ends up remove an extra line in
+                    # the terminal.
                     self.progress.stop()
+                else:
+                    # This task is done, hide it.
+                    self.progress.update(
+                        task, completed=True, visible=False, status="complete"
+                    )
         else:
             return result_object
 
