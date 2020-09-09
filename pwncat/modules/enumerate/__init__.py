@@ -6,6 +6,7 @@ import time
 import sqlalchemy
 
 import pwncat
+from pwncat.platform import Platform
 from pwncat.modules import BaseModule, Status, Argument, List
 
 
@@ -24,6 +25,7 @@ class EnumerateModule(BaseModule):
     # This should be set by the sub-classes to know where to find
     # different types of enumeration data
     PROVIDES = []
+    PLATFORM = Platform.LINUX
 
     # Defines how often to run this enumeration. The default is to
     # only run once per system/target.

@@ -63,6 +63,7 @@ class Module(BaseModule):
         "remove": Argument(Bool, default=False, help="Remove all matched modules"),
     }
     ALLOW_KWARGS = True
+    PLATFORM = pwncat.platform.Platform.ANY
 
     def run(self, module, escalate, remove, **kwargs):
         """ Execute this module """

@@ -68,6 +68,7 @@ class Module(pwncat.modules.BaseModule):
             bool, default=False, help="Clear the cached results of all matching modules"
         ),
     }
+    PLATFORM = pwncat.platform.Platform.ANY
 
     def run(self, output, modules, types, clear):
         """ Perform a enumeration of the given moduels and save the output """
@@ -93,20 +94,21 @@ class Module(pwncat.modules.BaseModule):
         facts = {}
         for module in modules:
 
-            for pattern in types:
-                for typ in module.PROVIDES:
-                    if fnmatch.fnmatch(typ, pattern):
-                        # This pattern matched
-                        break
+            if types:
+                for pattern in types:
+                    for typ in module.PROVIDES:
+                        if fnmatch.fnmatch(typ, pattern):
+                            # This pattern matched
+                            break
+                    else:
+                        # This pattern didn't match any of the provided
+                        # types
+                        continue
+                    # We matched at least one type for this module
+                    break
                 else:
-                    # This pattern didn't match any of the provided
-                    # types
+                    # We didn't match any types for this module
                     continue
-                # We matched at least one type for this module
-                break
-            else:
-                # We didn't match any types for this module
-                continue
 
             # update our status with the name of the module we are evaluating
             yield pwncat.modules.Status(module.name)

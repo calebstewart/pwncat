@@ -8,6 +8,7 @@ import re
 from rich.progress import Progress
 
 from pwncat.util import console
+from pwncat.platform import Platform
 import pwncat
 
 LOADED_MODULES = {}
@@ -97,7 +98,7 @@ class Result:
     @property
     def description(self) -> str:
         """ Returns a long-form description """
-        raise NotImplementedError
+        return None
 
     def is_long_form(self) -> bool:
         """ Check if this is a long form result """
@@ -224,6 +225,8 @@ class BaseModule(metaclass=BaseModuleMeta):
     # but only return one scalar value, setting this to true will collapse
     # an array with only a single object to it's scalar value.
     COLLAPSE_RESULT = False
+    # The platform which this module is for
+    PLATFORM = Platform.UNKNOWN
 
     def __init__(self):
         return
@@ -260,7 +263,14 @@ def find(name: str, base=BaseModule):
     if not isinstance(LOADED_MODULES[name], base):
         raise KeyError(name)
 
-    return LOADED_MODULES[name]
+    # Grab the module
+    module = LOADED_MODULES[name]
+
+    # Ensure the module matches this platform
+    if pwncat.victim.host.platform not in module.PLATFORM:
+        raise ModuleNotFoundError(f"{module.name}: incorrect platform")
+
+    return module
 
 
 def match(pattern: str, base=BaseModule):
@@ -270,7 +280,11 @@ def match(pattern: str, base=BaseModule):
         reload()
 
     for module_name, module in LOADED_MODULES.items():
-        if isinstance(module, base) and re.match(pattern, module_name):
+        if (
+            isinstance(module, base)
+            and pwncat.victim.host.platform in module.PLATFORM
+            and re.match(pattern, module_name)
+        ):
             yield module
 
 
@@ -285,5 +299,9 @@ def run(pattern: str, **kwargs):
 
     # Grab the module
     module = LOADED_MODULES[pattern]
+
+    # Ensure the module matches this platform
+    if pwncat.victim.host.platform not in module.PLATFORM:
+        raise ModuleNotFoundError(f"{module.name}: incorrect platform")
 
     return module.run(**kwargs)

@@ -4,6 +4,7 @@ import dataclasses
 import re
 
 import pwncat
+from pwncat.platform import Platform
 from pwncat import util
 from pwncat.modules.enumerate import EnumerateModule, Schedule
 
@@ -26,6 +27,7 @@ class Module(EnumerateModule):
     """
 
     PROVIDES = ["network.hosts"]
+    PLATFORM = Platform.LINUX
 
     def enumerate(self):
 

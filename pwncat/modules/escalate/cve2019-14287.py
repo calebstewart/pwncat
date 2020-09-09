@@ -17,6 +17,8 @@ class Module(EscalateModule):
     Escalate to root using CVE-2019-14287 sudo vulnerability.
     """
 
+    PLATFORM = pwncat.platform.Platform.LINUX
+
     def enumerate(self):
         """ Enumerate SUDO vulnerability """
 

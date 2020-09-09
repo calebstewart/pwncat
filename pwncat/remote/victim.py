@@ -596,6 +596,9 @@ class Victim:
         for new systems or if the database was removed.
         """
 
+        # Currently, we only support Linux
+        self.host.platform = pwncat.platform.Platform.LINUX
+
         # progress.update(task_id, status="init system")
         try:
             with self.open("/proc/1/comm", "r") as filp:

@@ -2,6 +2,7 @@
 import dataclasses
 
 import pwncat
+from pwncat.platform import Platform
 from pwncat import util
 from pwncat.modules.enumerate import EnumerateModule, Schedule
 
@@ -30,6 +31,7 @@ class Module(EnumerateModule):
     """ Enumerate SUID binaries on the remote host """
 
     PROVIDES = ["file.suid"]
+    PLATFORM = Platform.LINUX
     SCHEDULE = Schedule.PER_USER
 
     def enumerate(self):

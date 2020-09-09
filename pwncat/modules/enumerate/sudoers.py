@@ -4,6 +4,7 @@ import re
 from typing import Generator, Optional, List
 
 import pwncat
+from pwncat.platform import Platform
 from pwncat import util
 from pwncat.modules.enumerate import EnumerateModule, Schedule
 
@@ -136,6 +137,7 @@ class Module(EnumerateModule):
     """ Enumerate sudo privileges for the current user. """
 
     PROVIDES = ["sudo.rule"]
+    PLATFORM = Platform.LINUX
     SCHEDULE = Schedule.PER_USER
 
     def enumerate(self):

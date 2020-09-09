@@ -46,6 +46,7 @@ class Module(BaseModule):
         "data": Argument(str, default=None, help="The data to be written"),
     }
     COLLAPSE_RESULT = True
+    PLATFORM = pwncat.platform.Platform.ANY
 
     def run(self, user, exec, write, read, path, data, shell):
 

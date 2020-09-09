@@ -26,6 +26,7 @@ class Module(PersistModule):
             str, default="current", help="The shell to assign for the user"
         ),
     }
+    PLATFORM = pwncat.platform.Platform.LINUX
 
     def install(self, user, backdoor_user, backdoor_pass, shell):
         """ Install this module """

