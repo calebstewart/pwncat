@@ -50,7 +50,9 @@ class Module(EnumerateModule):
 
     def enumerate(self):
 
-        for fact in pwncat.modules.run("enumerate.init", progress=self.progress):
+        for fact in pwncat.modules.run(
+            "enumerate.gather", types=["system.init"], progress=self.progress
+        ):
             if fact.data.init != Init.SYSTEMD:
                 return
             break

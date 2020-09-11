@@ -136,7 +136,7 @@ def LineParser(line):
 class Module(EnumerateModule):
     """ Enumerate sudo privileges for the current user. """
 
-    PROVIDES = ["sudo.rule"]
+    PROVIDES = ["software.sudo.rule"]
     PLATFORM = Platform.LINUX
     SCHEDULE = Schedule.PER_USER
 
@@ -182,4 +182,4 @@ class Module(EnumerateModule):
             # Build the beginning part of a normal spec
             line = f"{pwncat.victim.current_user.name} local=" + line.strip()
 
-            yield "sudo.rule", LineParser(line)
+            yield "software.sudo.rule", LineParser(line)

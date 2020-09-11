@@ -7,6 +7,7 @@ from pwncat.modules.escalate import (
     EscalateModule,
     EscalateError,
     GTFOTechnique,
+    Technique,
     euid_fix,
 )
 

@@ -7,7 +7,7 @@ from typing import List
 
 import pwncat
 from pwncat.gtfobins import Capability
-from pwncat.privesc import Technique, BaseMethod, PrivescError
+from pwncat.privesc import BaseMethod, PrivescError, Technique
 from pwncat.util import CompilationError
 
 

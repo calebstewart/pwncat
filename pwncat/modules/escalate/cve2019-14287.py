@@ -25,7 +25,7 @@ class Module(EscalateModule):
         sudo_fixed_version = "1.8.28"
 
         for fact in pwncat.modules.run(
-            "enumerate.sudo_version", progress=self.progress
+            "enumerate.software.sudo.version", progress=self.progress
         ):
             sudo_version = fact
             break
@@ -37,7 +37,9 @@ class Module(EscalateModule):
             return
 
         rules = []
-        for fact in pwncat.modules.run("enumerate.sudoers", progress=self.progress):
+        for fact in pwncat.modules.run(
+            "enumerate.software.sudo.rules", progress=self.progress
+        ):
 
             # Doesn't appear to be a user specification
             if not fact.data.matched:

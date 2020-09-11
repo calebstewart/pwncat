@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-from typing import Any, Callable
-from dataclasses import dataclass
-import pkgutil
 import inspect
+import pkgutil
 import re
+from dataclasses import dataclass
+from typing import Any, Callable
 
 from rich.progress import Progress
 
-from pwncat.util import console
-from pwncat.platform import Platform
 import pwncat
+from pwncat.platform import Platform
+from pwncat.util import console
 
 LOADED_MODULES = {}
 
@@ -229,7 +229,7 @@ class BaseModule(metaclass=BaseModuleMeta):
     PLATFORM = Platform.UNKNOWN
 
     def __init__(self):
-        return
+        self.progress = None
 
     def run(self, **kwargs):
         """ Execute this module """

@@ -37,7 +37,7 @@ class SudoVersion:
 
 class Module(EnumerateModule):
 
-    PROVIDES = ["sudo.version"]
+    PROVIDES = ["software.sudo.version"]
     PLATFORM = Platform.LINUX
     SCHEDULE = Schedule.ONCE
 
@@ -89,4 +89,4 @@ class Module(EnumerateModule):
 
         # We couldn't parse the version out, but at least give the full version
         # output in the long form/report of enumeration.
-        yield "sudo.version", SudoVersion("unknown", result, False)
+        yield "software.sudo.version", SudoVersion("unknown", result, False)

@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
+from io import TextIOWrapper
 import logging
 import selectors
 import shlex
 import sys
 import warnings
+import os
 
 from sqlalchemy import exc as sa_exc
 from sqlalchemy.exc import InvalidRequestError
@@ -33,6 +35,15 @@ def main():
     if not pwncat.victim.connected:
         exit(0)
 
+    # Make stdin unbuffered. Without doing this, some key sequences
+    # which are multi-byte don't get sent properly (e.g. up and left
+    # arrow keys)
+    sys.stdin = TextIOWrapper(
+        os.fdopen(sys.stdin.fileno(), "br", buffering=0),
+        write_through=True,
+        line_buffering=False,
+    )
+
     # Setup the selector to wait for data asynchronously from both streams
     selector = selectors.DefaultSelector()
     selector.register(sys.stdin, selectors.EVENT_READ, None)
@@ -49,7 +60,7 @@ def main():
         while not done:
             for k, _ in selector.select():
                 if k.fileobj is sys.stdin:
-                    data = sys.stdin.buffer.read(1)
+                    data = sys.stdin.buffer.read(64)
                     pwncat.victim.process_input(data)
                 else:
                     data = pwncat.victim.recv()

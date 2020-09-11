@@ -103,7 +103,13 @@ class EnumerateModule(BaseModule):
                 return
 
         # Get any new facts
-        for typ, data in self.enumerate():
+        for item in self.enumerate():
+            if isinstance(item, Status):
+                yield item
+                continue
+
+            typ, data = item
+
             row = pwncat.db.Fact(
                 host_id=pwncat.victim.host.id, type=typ, data=data, source=self.name
             )
