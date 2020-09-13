@@ -145,32 +145,6 @@ slipped through the cracks and been observed in the wild. When this happens, `pw
 will do whatever it can to preserve your terminal, but you may be greeted with some 
 peculiar output or command failures. 
 
-### Dash Support
-
-The Debian shell `dash` aims to be a very minimalistic shell. It's focus is not on user
-interface, but on running scripts quickly and correctly. As a result, some of the features
-we expect from an interactive shell simply don't work in `dash`. `pwncat` tries not to
-depend on a specific shell environment, so if you start your reverse or bind shell with
-`/bin/sh` or `/bin/dash`, then you may get a weird prompt. `dash` does not obey the
-terminal escape sequences which `pwncat` adds, so you may get a very long terminal like this:
-
-```shell script
-\[\033[01;31m\](remote)\[\033[00m\] \[\033[01;33m\]\u@\h\[\033[00m\]:\[\033[01;36m\]\w\[\033[00m\]$
-```
-
-Currently, the only workaround is to use the `prompt` command at the local `pwncat` prompt.
-The command allows you to modify the prompt which `pwncat` will automatically set whenever
-resetting the remote terminal. Two options are provided: "basic" and "fancy". The "fancy"
-prompt is the default which causes the above output in Dash. To switch to the basic prompt
-you can use the following command at the `pwncat` prompt:
-
-```shell script
-prompt --basic
-```
-
-While this is inconvenient, it does not affect the behaviour of `pwncat`. All `pwncat`
-features will continue to function properly no matter what your prompt looks like.
-
 ### BSD Support
 
 While BSD is a Unix-based kernel, in practice it's userland tools are noticeably 
