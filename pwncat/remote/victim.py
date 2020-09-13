@@ -113,11 +113,9 @@ class Victim:
         # Saved remote terminal state (for transition to/from raw mode)
         self.saved_term_state = None  # util.enter_raw_mode()
         # util.restore_terminal(self.saved_term_state, new_line=False)
-        # Prompt and prompt prefix
-        self.remote_prefix = "\\[\\033[01;31m\\](remote)\\[\\033[00m\\]"
+        # Prompt
         self.remote_prompt = (
-            "\\[\\033[01;33m\\]\\u@\\h\\[\\033[00m\\]:\\["
-            "\\033[01;36m\\]\\w\\[\\033[00m\\]\\$ "
+            """$(command printf "\033[01;31m(remote)\033[0m \033[01;33m$(whoami)@$(hostname)\033[0m:\033[1;36m$PWD\033[0m$ ")"""
         )
         # Aliases for equivalent commands
         self.binary_aliases = {
@@ -368,12 +366,6 @@ class Victim:
 
             progress.update(task_id, status="prompt")
 
-            if self.shell == "/bin/sh":
-                progress.log(
-                    f"[yellow]warning[/yellow]: /bin/sh does not support colored prompts."
-                )
-                self.remote_prefix = "(remote)"
-                self.remote_prompt = f"{pwncat.victim.host.ip}:$PWD\\$ "
 
             self.run(f"export PS1='{self.remote_prefix} {self.remote_prompt}'")
 
@@ -416,7 +408,7 @@ class Victim:
 
             # This stuff won't carry through to the PTY, so we need to reset it again.
             self.run("unset PROMPT_COMMAND")
-            self.run(f"export PS1='{self.remote_prefix} {self.remote_prompt}'")
+            self.run(f"export PS1='{self.remote_prompt}'")
 
             # Make sure HISTFILE is unset in this PTY (it resets when a pty is
             # opened)
@@ -1839,7 +1831,7 @@ class Victim:
         self.has_cr = True
         self.has_echo = True
         self.run("echo")
-        self.run(f"export PS1='{self.remote_prefix} {self.remote_prompt}'")
+        self.run(f"export PS1='{self.remote_prompt}'")
 
     def flush_output(self, some=False):
         """
@@ -1909,7 +1901,7 @@ class Victim:
         self.run("unset HISTFILE; export HISTCONTROL=ignorespace")
         self.run("unset PROMPT_COMMAND")
         self.run("unalias -a")
-        self.run(f"export PS1='{self.remote_prefix} {self.remote_prompt}'")
+        self.run(f"export PS1='{self.remote_prompt}'")
         self.run(f"tput rmam")
 
     def recvuntil(self, needle: bytes, interp=False, timeout=None):
