@@ -377,33 +377,40 @@ class Victim:
 
             self.run(f"export PS1='{self.remote_prefix} {self.remote_prompt}'")
 
-            progress.update(task_id, status="spawning pty", advance=1)
+            # This should be valid in any POSIX compliant shell
+            progress.update(task_id, status="checking for pty")
+            result = self.run("[ -t 1 ] && echo terminal")
 
-            # At this point, the system is functioning, but we don't have a raw terminal/
-            # pseudoterminal. Here, we attempt a couple methods of gaining a PTY.
-            method = None
-            method_cmd = None
+            if b"terminal" not in result:
+                progress.update(task_id, status="spawning pty", advance=1)
 
-            if self.which("python") is not None:
-                method_cmd = Victim.OPEN_METHODS["python"].format(
-                    self.which("python"), self.shell
-                )
-                method = "python"
-            elif self.which("script") is not None:
-                result = self.run("script --version")
-                if b"linux" in result:
-                    method_cmd = f"exec script -qc {self.shell} /dev/null"
-                    method = "script (util-linux)"
+                # At this point, the system is functioning, but we don't have a raw terminal/
+                # pseudoterminal. Here, we attempt a couple methods of gaining a PTY.
+                method = None
+                method_cmd = None
+
+                if self.which("python") is not None:
+                    method_cmd = Victim.OPEN_METHODS["python"].format(
+                        self.which("python"), self.shell
+                    )
+                    method = "python"
+                elif self.which("script") is not None:
+                    result = self.run("script --version")
+                    if b"linux" in result:
+                        method_cmd = f"exec script -qc {self.shell} /dev/null"
+                        method = "script (util-linux)"
+                    else:
+                        method_cmd = f"exec script -q /dev/null {self.shell}"
+                        method = "script (probably bsd)"
+                    method = "script"
                 else:
-                    method_cmd = f"exec script -q /dev/null {self.shell}"
-                    method = "script (probably bsd)"
-                method = "script"
-            else:
-                progress.log("[red]error[/red]: no available pty methods!")
+                    progress.log("[red]error[/red]: no available pty methods!")
 
-            # Open the PTY
-            if not isinstance(self.client, paramiko.Channel) and method is not None:
-                self.run(method_cmd, wait=False)
+                # Open the PTY
+                if not isinstance(self.client, paramiko.Channel) and method is not None:
+                    self.run(method_cmd, wait=False)
+            else:
+                progress.update(task_id, status="pty already running", advance=1)
 
             progress.update(task_id, status="synchronizing prompt", advance=1)
 
