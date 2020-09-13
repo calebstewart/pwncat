@@ -15,6 +15,9 @@ class Module(BaseModule):
     PLATFORM = pwncat.modules.Platform.ANY
 
     def run(self, output):
-        return pwncat.modules.find("enumerate.gather").run(
-            types=["file.suid", "file.caps"], output=output
+        return pwncat.modules.run(
+            "enumerate.gather",
+            progress=self.progress,
+            types=["system.*", "software.sudo.*", "file.suid"],
+            output=output,
         )

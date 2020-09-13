@@ -72,7 +72,7 @@ class Module(BaseModule):
             host_id=pwncat.victim.host.id
         )
         if module is not None:
-            query = query.filter_by(module=module)
+            query = query.filter_by(method=module)
 
         # Grab all the rows
         modules = [

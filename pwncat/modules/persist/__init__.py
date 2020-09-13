@@ -29,6 +29,7 @@ class PersistType(enum.Flag):
 
     LOCAL = enum.auto()
     REMOTE = enum.auto()
+    ALL_USERS = enum.auto()
 
 
 class PersistModule(BaseModule):
@@ -68,6 +69,13 @@ class PersistModule(BaseModule):
         ),
     }
 
+    def __init__(self):
+        super(PersistModule, self).__init__()
+
+        if PersistType.ALL_USERS in self.TYPE:
+            self.ARGUMENTS["user"].default = None
+            self.ARGUMENTS["user"].help = "Ignored. This module applies to all users."
+
     def run(self, remove, escalate, **kwargs):
 
         if "user" not in kwargs:
@@ -102,8 +110,9 @@ class PersistModule(BaseModule):
                 yield result
 
             # There was no exception, so we assume it worked. Put the user
-            # back in raw mode.
-            pwncat.victim.state = State.RAW
+            # back in raw mode. This is a bad idea, since we may be running
+            # escalate from a privesc context.
+            # pwncat.victim.state = State.RAW
             return
         elif ident is None and (remove or escalate):
             raise PersistError(f"{self.name}: not installed with these arguments")

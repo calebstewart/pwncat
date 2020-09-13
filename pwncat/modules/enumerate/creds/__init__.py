@@ -14,15 +14,22 @@ class PasswordData:
     password: str
     filepath: str
     lineno: int
+    uid: int = None
 
     def __str__(self):
         if self.password is not None:
             result = f"Potential Password [cyan]{repr(self.password)}[/cyan]"
+            if self.uid is not None:
+                result += f" for [blue]{self.user.name}[/blue]"
             if self.filepath is not None:
                 result += f" ({self.filepath}:{self.lineno})"
         else:
             result = f"Potential Password at [cyan]{self.filepath}[/cyan]:{self.lineno}"
         return result
+
+    @property
+    def user(self):
+        return pwncat.victim.find_user_by_id(self.uid) if self.uid is not None else None
 
 
 @dataclasses.dataclass

@@ -3,6 +3,7 @@ import inspect
 import pkgutil
 import re
 from dataclasses import dataclass
+import typing
 from typing import Any, Callable
 
 from rich.progress import Progress
@@ -230,18 +231,26 @@ class BaseModule(metaclass=BaseModuleMeta):
 
     def __init__(self):
         self.progress = None
+        # Filled in by reload
+        self.name = None
 
     def run(self, **kwargs):
         """ Execute this module """
         raise NotImplementedError
 
 
-def reload():
+def reload(where: typing.Optional[typing.List[str]] = None):
     """ Reload the modules """
 
-    for loader, module_name, is_pkg in pkgutil.walk_packages(
-        __path__, prefix=__name__ + "."
-    ):
+    # We need to load built-in modules first
+    if not LOADED_MODULES and where is not None:
+        reload()
+
+    # If no paths were specified, load built-ins
+    if where is None:
+        where = __path__
+
+    for loader, module_name, _ in pkgutil.walk_packages(where, prefix=__name__ + "."):
         module = loader.find_module(module_name).load_module(module_name)
 
         if getattr(module, "Module", None) is None:

@@ -6,6 +6,7 @@ import shlex
 import sys
 import warnings
 import os
+from pathlib import Path
 
 from sqlalchemy import exc as sa_exc
 from sqlalchemy.exc import InvalidRequestError
@@ -22,6 +23,25 @@ def main():
 
     # Build the victim object
     pwncat.victim = Victim()
+
+    # Find the user configuration
+    config_path = (
+        Path(os.environ.get("XDG_CONFIG_HOME", "~/.config/")) / "pwncat" / "pwncatrc"
+    )
+    config_path = config_path.expanduser()
+
+    print("config_path=" + str(config_path))
+
+    try:
+        # Read the config script
+        with config_path.open("r") as filp:
+            script = filp.read()
+
+        # Run the script
+        pwncat.victim.command_parser.eval(script, str(config_path))
+    except (FileNotFoundError, PermissionError):
+        # The config doesn't exist
+        pass
 
     # Arguments to `pwncat` are considered arguments to `connect`
     # We use the `prog_name` argument to make the help for "connect"

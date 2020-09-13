@@ -25,7 +25,7 @@ class Fact(Base, Result):
 
     @property
     def category(self) -> str:
-        return f"{self.type} facts"
+        return f"{self.type}"
 
     @property
     def title(self) -> str:

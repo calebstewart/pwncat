@@ -1386,7 +1386,7 @@ class Victim:
             raise PermissionError
 
         with self.subprocess(
-            ["ls", "--color=never", "--all", "-1"], stderr="/dev/null", mode="r"
+            ["ls", "--color=never", "--all", "-1", path], stderr="/dev/null", mode="r"
         ) as pipe:
             for line in pipe:
                 line = line.strip().decode("utf-8")

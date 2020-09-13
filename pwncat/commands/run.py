@@ -134,7 +134,5 @@ class Command(CommandDefinition):
                 if result.category is None:
                     console.print(f"[bold]{result.title}[/bold]")
                 else:
-                    console.print(
-                        f"[bold][yellow]{result.category}[/yellow] - {result.title}[/bold]"
-                    )
-                console.print(result.description)
+                    console.print(f"[bold]{result.category} - {result.title}[/bold]")
+                console.print(textwrap.indent(result.description, "  "))
