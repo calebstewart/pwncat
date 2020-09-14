@@ -114,9 +114,7 @@ class Victim:
         self.saved_term_state = None  # util.enter_raw_mode()
         # util.restore_terminal(self.saved_term_state, new_line=False)
         # Prompt
-        self.remote_prompt = (
-            """$(command printf "\033[01;31m(remote)\033[0m \033[01;33m$(whoami)@$(hostname)\033[0m:\033[1;36m$PWD\033[0m$ ")"""
-        )
+        self.remote_prompt = """$(command printf "\\033[01;31m(remote)\\033[0m \\033[01;33m$(whoami)@$(hostname)\\033[0m:\\033[1;36m$PWD\\033[0m$ ")"""
         # Aliases for equivalent commands
         self.binary_aliases = {
             "python": [
@@ -366,8 +364,7 @@ class Victim:
 
             progress.update(task_id, status="prompt")
 
-
-            self.run(f"export PS1='{self.remote_prefix} {self.remote_prompt}'")
+            self.run(f"export PS1='{self.remote_prompt}'")
 
             # This should be valid in any POSIX compliant shell
             progress.update(task_id, status="checking for pty")
