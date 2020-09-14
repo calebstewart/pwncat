@@ -33,7 +33,7 @@ class Command(CommandDefinition):
     def run(self, args):
 
         if args.fancy:
-            pwncat.victim.remote_prompt = """$(command printf "\033[01;31m(remote)\033[0m \033[01;33m$(whoami)@$(hostname)\033[0m:\033[1;36m$PWD\033[0m$ ")"""
+            pwncat.victim.remote_prompt = """$(command printf "\\033[01;31m(remote)\\033[0m \\033[01;33m$(whoami)@$(hostname)\\033[0m:\\033[1;36m$PWD\\033[0m$ ")"""
         else:
             pwncat.victim.remote_prompt = f"(remote) {pwncat.victim.host.ip}:$PWD\\$ "
 
