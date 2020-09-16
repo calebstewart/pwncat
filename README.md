@@ -69,6 +69,21 @@ modules, we recommend you use the `develop` target vice the `install` target
 for `setup.py`. This allows changes to the local repository to immediately
 be observed with your installed package.
 
+### Paramiko
+
+When connecting to a host with SSH, `paramiko` is used to connect. Due to 
+paramiko not implementing the full socket interface, I forked paramiko and
+implemented the features to make it compatible with a built-in socket. I 
+submitted a pull request with `paramiko`. The pull request was accepted but
+has still not been merged. As a result, the `setup.py` script references 
+my custom fork of paramiko. Some users have had issues where python does
+not install the custom fork and instead installs standard paramiko. In this
+case, you will get an error telling you to install the custom fork of
+paramiko. I'm working on fixing the setup script to ensure the correct version
+is installed and in the long run would like to remove this dependency eventually.
+In the meantime, if the fix recommended by pwncat does not work, please 
+comment on issue #60 for help.
+
 ## Docker Image
 
 The recommended installation method is a Python virtual environment. This
