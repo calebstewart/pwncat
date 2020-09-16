@@ -82,7 +82,7 @@ case, you will get an error telling you to install the custom fork of
 paramiko. I'm working on fixing the setup script to ensure the correct version
 is installed and in the long run would like to remove this dependency eventually.
 In the meantime, if the fix recommended by pwncat does not work, please 
-comment on issue #60 for help.
+comment on issue [#60](https://github.com/calebstewart/pwncat/issues/60) for help.
 
 ## Docker Image
 
