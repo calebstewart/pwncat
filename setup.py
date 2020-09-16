@@ -43,6 +43,7 @@ dependencies = [
     "typing-extensions==3.7.4.2",
     "urllib3==1.25.9",
     "wcwidth==0.1.9",
+    "python-rapidjson==0.9.1",
 ]
 
 dependency_links = [
