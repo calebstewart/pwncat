@@ -220,5 +220,10 @@ class Module(PersistModule):
     def escalate(self, user: str, password: str, log: str) -> bool:
         """ Escalate to the given user with this module """
 
+        try:
+            pwncat.victim.su(user, password, check=True)
+        except PermissionError:
+            raise PersistError("Escalation failed. Is selinux enabled?")
+
     def connect(self, user: str, password: str, log: str) -> socket.SocketType:
         """ Connect to the victim with this module """

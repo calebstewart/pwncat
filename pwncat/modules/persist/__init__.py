@@ -74,12 +74,20 @@ class PersistModule(BaseModule):
 
         if PersistType.ALL_USERS in self.TYPE:
             self.ARGUMENTS["user"].default = None
-            self.ARGUMENTS["user"].help = "Ignored. This module applies to all users."
+            self.ARGUMENTS[
+                "user"
+            ].help = "Ignored for install/remove. Defaults to root for escalate."
 
     def run(self, remove, escalate, **kwargs):
 
         if "user" not in kwargs:
             raise RuntimeError(f"{self.__class__} must take a user argument")
+
+        # We need to clear the user for ALL_USERS modules,
+        # but it may be needed for escalate.
+        requested_user = kwargs["user"]
+        if PersistType.ALL_USERS in self.TYPE:
+            kwargs["user"] = None
 
         # Check if this module has been installed with the same arguments before
         ident = (
@@ -103,6 +111,12 @@ class PersistModule(BaseModule):
             ).delete(synchronize_session=False)
             return
         elif ident is not None and escalate:
+            # This only happens for ALL_USERS, so we assume they want root.
+            if requested_user is None:
+                kwargs["user"] = "root"
+            else:
+                kwargs["user"] = requested_user
+
             result = self.escalate(**kwargs)
             if inspect.isgenerator(result):
                 yield from result
