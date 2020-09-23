@@ -12,8 +12,8 @@ import paramiko
 import pwncat
 from pwncat.util import CompilationError, Access
 from pwncat.platform import Platform
-from pwncat.modules import Argument, Status
-from pwncat.modules.persist import PersistModule, PersistError, PersistType
+from pwncat.modules import Argument, Status, PersistError, PersistType
+from pwncat.modules.persist import PersistModule
 
 
 class Module(PersistModule):
@@ -223,7 +223,7 @@ class Module(PersistModule):
         """ Escalate to the given user with this module """
 
         try:
-            pwncat.victim.su(user, password, check=True)
+            pwncat.victim.su(user, password)
         except PermissionError:
             raise PersistError("Escalation failed. Is selinux enabled?")
 

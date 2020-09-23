@@ -116,7 +116,6 @@ def main():
                 pwncat.victim.session.commit()
             except InvalidRequestError:
                 pass
-                console.log("local terminal restored")
 
 
 if __name__ == "__main__":

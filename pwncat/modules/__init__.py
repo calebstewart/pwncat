@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import enum
 import inspect
 import pkgutil
 import re
@@ -37,6 +38,30 @@ class InvalidArgument(Exception):
 
 class ModuleFailed(Exception):
     """ Base class for module failure """
+
+
+class PersistError(ModuleFailed):
+    """ There was a problem performing a persistence action """
+
+
+class PersistType(enum.Flag):
+    """
+    The type of persistence we are installing. Local persistence only
+    provides a method of persistence escalation from another user.
+    Remote persistence allows us to re-establish C2 after disconnecting.
+
+    Local persistence must implement the `escalate` method while remote
+    persistence must implement the `connect` method.
+
+    Persistence modules can be both Local and Remote (e.g. private key
+    persistence when a local `ssh` client is available). You can simply
+    bitwise OR these flags together to specify both.
+
+    """
+
+    LOCAL = enum.auto()
+    REMOTE = enum.auto()
+    ALL_USERS = enum.auto()
 
 
 @dataclass

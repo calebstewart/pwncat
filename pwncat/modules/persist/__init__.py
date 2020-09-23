@@ -5,31 +5,15 @@ import inspect
 import pwncat
 import pwncat.db
 from pwncat.util import State
-from pwncat.modules import BaseModule, Argument, Bool, Status, ModuleFailed
-
-
-class PersistError(ModuleFailed):
-    """ There was a problem performing a persistence action """
-
-
-class PersistType(enum.Flag):
-    """
-    The type of persistence we are installing. Local persistence only
-    provides a method of persistence escalation from another user.
-    Remote persistence allows us to re-establish C2 after disconnecting.
-
-    Local persistence must implement the `escalate` method while remote
-    persistence must implement the `connect` method.
-
-    Persistence modules can be both Local and Remote (e.g. private key
-    persistence when a local `ssh` client is available). You can simply
-    bitwise OR these flags together to specify both.
-
-    """
-
-    LOCAL = enum.auto()
-    REMOTE = enum.auto()
-    ALL_USERS = enum.auto()
+from pwncat.modules import (
+    BaseModule,
+    Argument,
+    Bool,
+    Status,
+    ModuleFailed,
+    PersistError,
+    PersistType,
+)
 
 
 class PersistModule(BaseModule):
@@ -74,6 +58,8 @@ class PersistModule(BaseModule):
         ),
     }
     COLLAPSE_RESULT = True
+    # We should always try persistence before other methods.
+    PRIORITY = -1
 
     def __init__(self):
         super(PersistModule, self).__init__()

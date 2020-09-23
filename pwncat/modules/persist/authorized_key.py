@@ -10,8 +10,8 @@ import pwncat
 import pwncat.tamper
 from pwncat.util import Access
 from pwncat.platform import Platform
-from pwncat.modules import Argument
-from pwncat.modules.persist import PersistModule, PersistType, PersistError
+from pwncat.modules import Argument, PersistType, PersistError
+from pwncat.modules.persist import PersistModule
 
 
 class Module(PersistModule):

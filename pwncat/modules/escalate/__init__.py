@@ -7,6 +7,7 @@ import time
 import os
 
 # import rich.prompt
+from rich.prompt import Confirm
 
 import pwncat
 from pwncat.modules import (
@@ -353,7 +354,6 @@ class EscalateChain(Result):
         pwncat.victim.update_user()
 
 
-@dataclasses.dataclass
 class EscalateResult(Result):
     """ The result of running an escalate module. This object contains
     all the enumerated techniques and provides an abstract way to employ
@@ -362,6 +362,14 @@ class EscalateResult(Result):
 
     techniques: Dict[str, List[Technique]]
     """ List of techniques available keyed by the user """
+
+    def __init__(self, techniques):
+
+        self.techniques: Dict[str, List[Technique]] = {}
+        for key, value in techniques:
+            self.techniques[key] = sorted(
+                techniques[key], key=lambda v: v.module.PRIORITY
+            )
 
     @property
     def category(self):
@@ -379,7 +387,7 @@ class EscalateResult(Result):
             for technique in techniques:
                 result.append(f"  - {technique}")
 
-            return "\n".join(result)
+        return "\n".join(result)
 
     def extend(self, result: "EscalateResult"):
         """ Extend this result with another escalation enumeration result.
@@ -388,9 +396,10 @@ class EscalateResult(Result):
 
         for key, value in result.techniques.items():
             if key not in self.techniques:
-                self.techniques[key] = value
+                self.techniques[key] = sorted(value, key=lambda v: v.module.PRIORITY)
             else:
                 self.techniques[key].extend(value)
+                self.techniques[key] = sorted(value, key=lambda v: v.module.PRIORITY)
 
     def add(self, technique: Technique):
         """ Add a new technique to this result object """
@@ -671,7 +680,7 @@ class EscalateResult(Result):
                         # This is important. Ask the user if they want to
                         # clobber the authorized keys
                         progress.stop()
-                        if rich.prompt.Confirm(
+                        if Confirm(
                             "could not read authorized keys; attempt to clobber user keys?"
                         ):
                             authkeys = []
@@ -804,6 +813,11 @@ class EscalateModule(BaseModule):
     # This allows us to use `yield Status()` to update the progress
     # while still returning a single value
     COLLAPSE_RESULT = True
+
+    PRIORITY = 100
+    """ The priority of this escalation module. Values < 0 are reserved.
+    Indicates the order in which techniques are executed when attempting
+    escalation. """
 
     def run(self, user, exec, read, write, shell, path, data, **kwargs):
         """ This method is not overriden by subclasses. Subclasses should

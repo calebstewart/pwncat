@@ -34,7 +34,7 @@ dependencies = [
     "python-dateutil==2.8.1",
     "pytz==2020.1",
     "requests==2.24.0",
-    "rich==3.3.2",
+    "rich",
     "six==1.15.0",
     "SQLAlchemy==1.3.18",
     "tabledata==1.1.2",

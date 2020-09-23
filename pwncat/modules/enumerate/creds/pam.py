@@ -26,6 +26,7 @@ class Module(EnumerateModule):
             "persist.gather", progress=self.progress, module="persist.pam_backdoor"
         ):
             pam = module
+            break
 
         if pam is None:
             # The pam persistence module isn't installed.

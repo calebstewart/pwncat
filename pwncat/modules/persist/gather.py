@@ -31,9 +31,14 @@ class InstalledModule(Result):
         """ Remove this module """
         self.module.run(remove=True, progress=progress, **self.persist.args)
 
-    def escalate(self, progress=None):
+    def escalate(self, user=None, progress=None):
         """ Escalate utilizing this persistence module """
-        self.module.run(escalate=True, progress=progress, **self.persist.args)
+
+        args = self.persist.args.copy()
+        if user is not None:
+            args["user"] = user
+
+        self.module.run(escalate=True, progress=progress, **args)
 
     def connect(self, user=None, progress=None):
 
@@ -98,6 +103,12 @@ class Module(BaseModule):
             query = query.filter_by(method=module)
 
         # Grab all the rows
+        # We also filter here for any other key-value arguments passed
+        # to the `run` call. We ensure the relevant key exists, and
+        # that it is equal to the specified value, unless the key is None.
+        # If a key is None in the database, we assume it can take on any
+        # value and utilize it as is. This is mainly for the `user` argument
+        # as some persistence methods apply to all users.
         modules = [
             InstalledModule(
                 persist=row,
@@ -106,7 +117,8 @@ class Module(BaseModule):
             for row in query.all()
             if all(
                 [
-                    key in row.args and row.args[key] == value
+                    key in row.args
+                    and (row.args[key] == value or row.args[key] is None)
                     for key, value in kwargs.items()
                 ]
             )
@@ -122,10 +134,15 @@ class Module(BaseModule):
             for module in modules:
                 yield Status(f"escalating w/ [cyan]{module.name}[/cyan]")
                 try:
-                    module.escalate(progress=self.progress)
+                    # User is a special case. It can be passed on because some modules
+                    # apply to all users, which means their `args` will contain `None`.
+                    if "user" in kwargs:
+                        module.escalate(user=kwargs["user"], progress=self.progress)
+                    else:
+                        module.escalate(progress=self.progress)
                     # Escalation succeeded!
                     return
-                except pwncat.modules.persist.PersistError:
+                except pwncat.modules.PersistError:
                     # Escalation failed
                     pass
 
