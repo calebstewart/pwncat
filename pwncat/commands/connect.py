@@ -16,7 +16,9 @@ from pwncat.commands.base import (
     StoreForAction,
     StoreConstOnce,
 )
-from pwncat.persist import PersistenceError
+
+# from pwncat.persist import PersistenceError
+from pwncat.modules.persist import PersistError
 
 
 class Command(CommandDefinition):
@@ -242,7 +244,7 @@ class Command(CommandDefinition):
                     .first()
                 )
                 if host is None:
-                    console.log(f"[red]error[/red]: {args.host}: not found in database")
+                    console.log(f"[red]error[/red]: {str(addr)}: not found in database")
                     return
                 host_hash = host.hash
             except ValueError:
@@ -251,20 +253,31 @@ class Command(CommandDefinition):
             # Reconnect to the given host
             try:
                 pwncat.victim.reconnect(host_hash, args.method, args.user)
-            except PersistenceError as exc:
+            except Exception as exc:
                 console.log(f"[red]error[/red]: {args.host}: {exc}")
                 return
         elif args.action == "list":
-            if pwncat.victim.session is not None:
-                for host in pwncat.victim.session.query(pwncat.db.Host):
-                    if len(host.persistence) == 0:
-                        continue
-                    console.print(
-                        f"[magenta]{host.ip}[/magenta] - [red]{host.distro}[/red] - [yellow]{host.hash}[/yellow]"
-                    )
-                    for p in host.persistence:
-                        console.print(
-                            f"  - [blue]{p.method}[/blue] as [green]{p.user if p.user else 'system'}[/green]"
-                        )
+            # Grab a list of installed persistence methods for all hosts
+            # persist.gather will retrieve entries for all hosts if no
+            # host is currently connected.
+            modules = list(pwncat.modules.run("persist.gather"))
+            # Create a mapping of host hash to host object and array of
+            # persistence methods
+            hosts = {
+                host.hash: (host, [])
+                for host in pwncat.victim.session.query(pwncat.db.Host).all()
+            }
+
+            for module in modules:
+                hosts[module.persist.host.hash][1].append(module)
+
+            for host_hash, (host, modules) in hosts.items():
+                console.print(
+                    f"[magenta]{host.ip}[/magenta] - "
+                    f"[red]{host.distro}[/red] - "
+                    f"[yellow]{host_hash}[/yellow]"
+                )
+                for module in modules:
+                    console.print(f"  - {str(module)}")
         else:
             console.log(f"[red]error[/red]: {args.action}: invalid action")

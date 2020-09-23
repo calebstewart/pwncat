@@ -2,7 +2,7 @@
 from typing import Dict, Callable, Any, List, Generator, BinaryIO, IO, Tuple
 from enum import Enum, Flag, auto
 from base64io import Base64IO
-import commentjson as json
+import rapidjson as json
 import shlex
 import os
 import io

@@ -38,8 +38,8 @@ class Module(EnumerateModule):
 
         try:
             with pwncat.victim.open(log_path, "r") as filp:
-                for lineno, line in enumerate(filp):
-                    line = line.strip()
+                for line in filp:
+                    line = line.rstrip("\n")
                     if line in observed:
                         continue
 
@@ -53,7 +53,7 @@ class Module(EnumerateModule):
                     observed.append(line)
 
                     yield "creds.password", PasswordData(
-                        password, log_path, lineno + 1, uid=pwncat.victim.users[user].id
+                        password, log_path, None, uid=pwncat.victim.users[user].id
                     )
         except (FileNotFoundError, PermissionError):
             pass

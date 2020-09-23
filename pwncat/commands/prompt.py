@@ -20,7 +20,7 @@ class Command(CommandDefinition):
             Complete.NONE,
             group="mutex",
             action="store_true",
-            help="Set a basic prompt with no color or automatic system information",
+            help="Set a basic prompt with no color or automatic system information. There _should_ be no reason to use that anymore (unless your local terminal has no ANSI support)",
         ),
         "--fancy,-f": Parameter(
             Complete.NONE,
@@ -33,13 +33,8 @@ class Command(CommandDefinition):
     def run(self, args):
 
         if args.fancy:
-            pwncat.victim.remote_prefix = "\\[\\033[01;31m\\](remote)\\[\\033[00m\\]"
-            pwncat.victim.remote_prompt = (
-                "\\[\\033[01;33m\\]\\u@\\h\\[\\033[00m\\]:\\["
-                "\\033[01;36m\\]\\w\\[\\033[00m\\]\\$ "
-            )
+            pwncat.victim.remote_prompt = """$(command printf "\\033[01;31m(remote)\\033[0m \\033[01;33m$(whoami)@$(hostname)\\033[0m:\\033[1;36m$PWD\\033[0m$ ")"""
         else:
-            pwncat.victim.remote_prefix = "(remote)"
-            pwncat.victim.remote_prompt = f"{pwncat.victim.host.ip}:$PWD\\$ "
+            pwncat.victim.remote_prompt = f"(remote) {pwncat.victim.host.ip}:$PWD\\$ "
 
         pwncat.victim.reset(hard=False)

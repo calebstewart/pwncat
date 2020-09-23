@@ -43,6 +43,7 @@ dependencies = [
     "typing-extensions==3.7.4.2",
     "urllib3==1.25.9",
     "wcwidth==0.1.9",
+    "python-rapidjson==0.9.1",
 ]
 
 dependency_links = [
@@ -54,6 +55,7 @@ dependency_links = [
 setup(
     name="pwncat",
     version="0.3.1",
+    python_requires='>=3.8',
     description="A fancy reverse and bind shell handler",
     author="Caleb Stewart",
     url="https://gitlab.com/calebstewart/pwncat",

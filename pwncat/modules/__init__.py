@@ -263,7 +263,7 @@ def reload(where: typing.Optional[typing.List[str]] = None):
         setattr(LOADED_MODULES[module_name], "name", module_name)
 
 
-def find(name: str, base=BaseModule):
+def find(name: str, base=BaseModule, ignore_platform: bool = False):
     """ Find a matching name, and return it. Must be an exact match. """
 
     if not LOADED_MODULES:
@@ -275,9 +275,14 @@ def find(name: str, base=BaseModule):
     # Grab the module
     module = LOADED_MODULES[name]
 
-    # Ensure the module matches this platform
-    if pwncat.victim.host.platform not in module.PLATFORM:
-        raise ModuleNotFoundError(f"{module.name}: incorrect platform")
+    if not ignore_platform:
+        if module.PLATFORM != Platform.NO_HOST and pwncat.victim.host is None:
+            raise ModuleNotFoundError(f"{module.name}: no connected victim")
+        elif (
+            module.PLATFORM != Platform.NO_HOST
+            and pwncat.victim.host.platform not in module.PLATFORM
+        ):
+            raise ModuleNotFoundError(f"{module.name}: incorrect platform")
 
     return module
 
@@ -289,12 +294,21 @@ def match(pattern: str, base=BaseModule):
         reload()
 
     for module_name, module in LOADED_MODULES.items():
-        if (
-            isinstance(module, base)
-            and pwncat.victim.host.platform in module.PLATFORM
-            and re.match(pattern, module_name)
+
+        # NOTE - this should be cleaned up. It's gross.
+        if not isinstance(module, base):
+            continue
+        if module.PLATFORM != Platform.NO_HOST and pwncat.victim.host is None:
+            continue
+        elif (
+            module.PLATFORM != Platform.NO_HOST
+            and pwncat.victim.host.platform not in module.PLATFORM
         ):
-            yield module
+            continue
+        if not re.match(pattern, module_name):
+            continue
+
+        yield module
 
 
 def run(pattern: str, **kwargs):
@@ -309,8 +323,12 @@ def run(pattern: str, **kwargs):
     # Grab the module
     module = LOADED_MODULES[pattern]
 
-    # Ensure the module matches this platform
-    if pwncat.victim.host.platform not in module.PLATFORM:
+    if module.PLATFORM != Platform.NO_HOST and pwncat.victim.host is None:
+        raise ModuleNotFoundError(f"{module.name}: no connected victim")
+    elif (
+        module.PLATFORM != Platform.NO_HOST
+        and pwncat.victim.host.platform not in module.PLATFORM
+    ):
         raise ModuleNotFoundError(f"{module.name}: incorrect platform")
 
     return module.run(**kwargs)

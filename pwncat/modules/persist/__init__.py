@@ -67,7 +67,13 @@ class PersistModule(BaseModule):
             default=False,
             help="Utilize this persistence module to escalate locally",
         ),
+        "connect": Argument(
+            Bool,
+            default=False,
+            help="Connect to a remote host with this module. Only valid from the connect command.",
+        ),
     }
+    COLLAPSE_RESULT = True
 
     def __init__(self):
         super(PersistModule, self).__init__()
@@ -78,7 +84,7 @@ class PersistModule(BaseModule):
                 "user"
             ].help = "Ignored for install/remove. Defaults to root for escalate."
 
-    def run(self, remove, escalate, **kwargs):
+    def run(self, remove, escalate, connect, **kwargs):
 
         if "user" not in kwargs:
             raise RuntimeError(f"{self.__class__} must take a user argument")
@@ -128,7 +134,18 @@ class PersistModule(BaseModule):
             # escalate from a privesc context.
             # pwncat.victim.state = State.RAW
             return
-        elif ident is None and (remove or escalate):
+        elif ident is not None and connect:
+            if requested_user is None:
+                kwargs["user"] = "root"
+            else:
+                kwargs["user"] = requested_user
+            result = self.connect(**kwargs)
+            if inspect.isgenerator(result):
+                yield from result
+            else:
+                yield result
+            return
+        elif ident is None and (remove or escalate or connect):
             raise PersistError(f"{self.name}: not installed with these arguments")
         elif ident is not None:
             yield Status(f"{self.name}: already installed with matching arguments")

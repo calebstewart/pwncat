@@ -88,11 +88,10 @@ class Command(CommandDefinition):
                         pwncat.db.Base.metadata.create_all(pwncat.victim.engine)
 
                         # Create the session_maker and default session
-                        if pwncat.victim.session is None:
-                            pwncat.victim.session_maker = sessionmaker(
-                                bind=pwncat.victim.engine
-                            )
-                            pwncat.victim.session = pwncat.victim.session_maker()
+                        pwncat.victim.session_maker = sessionmaker(
+                            bind=pwncat.victim.engine
+                        )
+                        pwncat.victim.session = pwncat.victim.session_maker()
                 except ValueError as exc:
                     console.log(f"[red]error[/red]: {exc}")
             elif args.variable is not None:

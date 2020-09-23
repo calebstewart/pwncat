@@ -6,7 +6,7 @@ import textwrap
 import time
 import os
 
-import rich.prompt
+# import rich.prompt
 
 import pwncat
 from pwncat.modules import (

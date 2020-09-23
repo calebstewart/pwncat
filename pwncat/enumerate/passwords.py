@@ -69,8 +69,18 @@ def enumerate() -> Generator[FactData, None, None]:
                 continue
             if len(line) < 3:
                 continue
+
+            # Grab the page
             path = line[0]
-            lineno = int(line[1])
+
+            try:
+                # Grab the line number
+                lineno = int(line[1])
+            except ValueError:
+                # Malformed line from grep, ignore it.
+                continue
+
+            # Grab the content
             content = ":".join(line[2:])
 
             password = None

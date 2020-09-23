@@ -23,6 +23,10 @@ class InstalledModule(Result):
     def name(self) -> str:
         return self.module.name
 
+    @property
+    def TYPE(self):
+        return self.module.TYPE
+
     def remove(self, progress=None):
         """ Remove this module """
         self.module.run(remove=True, progress=progress, **self.persist.args)
@@ -30,6 +34,21 @@ class InstalledModule(Result):
     def escalate(self, progress=None):
         """ Escalate utilizing this persistence module """
         self.module.run(escalate=True, progress=progress, **self.persist.args)
+
+    def connect(self, user=None, progress=None):
+
+        if user is None and self.persist.args["user"] is None:
+            user = "root"
+        elif (
+            self.module.TYPE.__class__.ALL_USERS not in self.module.TYPE
+            and user != self.persist.args["user"]
+        ):
+            user = self.persist.args["user"]
+
+        args = self.persist.args.copy()
+        args["user"] = user
+
+        return self.module.run(connect=True, progress=progress, **args)
 
     def __str__(self) -> str:
         result = f"[blue]{self.module.name}[/blue]("
@@ -63,20 +82,27 @@ class Module(BaseModule):
         "remove": Argument(Bool, default=False, help="Remove all matched modules"),
     }
     ALLOW_KWARGS = True
-    PLATFORM = pwncat.platform.Platform.ANY
+    PLATFORM = pwncat.platform.Platform.NO_HOST
 
     def run(self, module, escalate, remove, **kwargs):
         """ Execute this module """
 
-        query = pwncat.victim.session.query(pwncat.db.Persistence).filter_by(
-            host_id=pwncat.victim.host.id
-        )
+        if pwncat.victim.host is not None:
+            query = pwncat.victim.session.query(pwncat.db.Persistence).filter_by(
+                host_id=pwncat.victim.host.id
+            )
+        else:
+            query = pwncat.victim.session.query(pwncat.db.Persistence)
+
         if module is not None:
             query = query.filter_by(method=module)
 
         # Grab all the rows
         modules = [
-            InstalledModule(persist=row, module=pwncat.modules.find(row.method))
+            InstalledModule(
+                persist=row,
+                module=pwncat.modules.find(row.method, ignore_platform=True),
+            )
             for row in query.all()
             if all(
                 [

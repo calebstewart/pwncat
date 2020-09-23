@@ -37,6 +37,7 @@ from pwncat.gtfobins import GTFOBins, Capability, Stream
 from pwncat.remote import RemoteService
 from pwncat.tamper import TamperManager
 from pwncat.util import State, console
+from pwncat.modules.persist import PersistError, PersistType
 
 
 def remove_busybox_tamper():
@@ -113,12 +114,8 @@ class Victim:
         # Saved remote terminal state (for transition to/from raw mode)
         self.saved_term_state = None  # util.enter_raw_mode()
         # util.restore_terminal(self.saved_term_state, new_line=False)
-        # Prompt and prompt prefix
-        self.remote_prefix = "\\[\\033[01;31m\\](remote)\\[\\033[00m\\]"
-        self.remote_prompt = (
-            "\\[\\033[01;33m\\]\\u@\\h\\[\\033[00m\\]:\\["
-            "\\033[01;36m\\]\\w\\[\\033[00m\\]\\$ "
-        )
+        # Prompt
+        self.remote_prompt = """$(command printf "\\033[01;31m(remote)\\033[0m \\033[01;33m$(whoami)@$(hostname)\\033[0m:\\033[1;36m$PWD\\033[0m$ ")"""
         # Aliases for equivalent commands
         self.binary_aliases = {
             "python": [
@@ -163,6 +160,19 @@ class Victim:
         # and reloaded whenever returning from RAW mode.
         self.cached_user: str = None
 
+        # The db engine is created here, but likely wrong. This happens
+        # before a configuration script is loaded, so likely creates a
+        # in memory db. This needs to happen because other parts of the
+        # framework assume a db engine exists, and therefore needs this
+        # reference. Also, in the case a config isn't loaded this
+        # needs to happen.
+        self.engine = create_engine(self.config["db"], echo=False)
+        pwncat.db.Base.metadata.create_all(self.engine)
+
+        # Create the session_maker and default session
+        self.session_maker = sessionmaker(bind=self.engine)
+        self.session = self.session_maker()
+
     def reconnect(
         self, hostid: str, requested_method: str = None, requested_user: str = None
     ):
@@ -196,35 +206,29 @@ class Victim:
             raise persist.PersistenceError("{hostid}: invalid host hash")
 
         with Progress(
-            "[bold]reconnecting[/bold]: {task.fields[method]}",
-            BarColumn(bar_width=None),
-            "[progress.percentage]{task.percentage:>3.1f}%",
+            "[blue bold]reconnecting[/blue bold]",
+            "•",
+            "[cyan]{task.fields[module]}[cyan]",
+            "•",
+            "{task.fields[status]}",
+            transient=True,
+            console=console,
         ) as progress:
-            installed_methods = list(self.persist.installed)
-            task_id = progress.add_task(
-                "attempt", method="initializing", total=len(installed_methods)
-            )
-            for username, method in self.persist.installed:
-                progress.update(
-                    task_id, method=f"[cyan]{method.format(username)}[/cyan]"
-                )
-                if requested_method and requested_method != method.name:
+            task_id = progress.add_task("attempt", module="initializing", status="...",)
+            for module in pwncat.modules.run("persist.gather"):
+                if module.TYPE.__class__.REMOTE not in module.module.TYPE:
                     continue
-                if requested_user and (
-                    (requested_user != "root" and method.system)
-                    or (requested_user != username)
-                ):
-                    continue
+
+                progress.update(task_id, module=module.name, status="...")
                 try:
-                    sock = method.reconnect(username)
-                    progress.update(
-                        task_id, completed=len(installed_methods),
-                    )
+                    sock = module.connect(requested_user, progress=progress)
+                    progress.update(task_id, status="connected!")
                     break
-                except persist.PersistenceError:
+                except PersistError as exc:
+                    progress.update(str(exc))
                     continue
             else:
-                raise persist.PersistenceError("no working persistence methods found")
+                raise PersistError("no working persistence methods found")
 
         # Perform connection initialization for this new victim
         self.connect(sock)
@@ -370,48 +374,48 @@ class Victim:
 
             progress.update(task_id, status="prompt")
 
-            if self.shell == "/bin/sh":
-                progress.log(
-                    f"[yellow]warning[/yellow]: /bin/sh does not support colored prompts."
-                )
-                self.remote_prefix = "(remote)"
-                self.remote_prompt = f"{pwncat.victim.host.ip}:$PWD\\$ "
+            self.run(f"export PS1='{self.remote_prompt}'")
 
-            self.run(f"export PS1='{self.remote_prefix} {self.remote_prompt}'")
+            # This should be valid in any POSIX compliant shell
+            progress.update(task_id, status="checking for pty")
+            result = self.run("[ -t 1 ] && echo terminal")
 
-            progress.update(task_id, status="spawning pty", advance=1)
+            if b"terminal" not in result:
+                progress.update(task_id, status="spawning pty", advance=1)
 
-            # At this point, the system is functioning, but we don't have a raw terminal/
-            # pseudoterminal. Here, we attempt a couple methods of gaining a PTY.
-            method = None
-            method_cmd = None
+                # At this point, the system is functioning, but we don't have a raw terminal/
+                # pseudoterminal. Here, we attempt a couple methods of gaining a PTY.
+                method = None
+                method_cmd = None
 
-            if self.which("python") is not None:
-                method_cmd = Victim.OPEN_METHODS["python"].format(
-                    self.which("python"), self.shell
-                )
-                method = "python"
-            elif self.which("script") is not None:
-                result = self.run("script --version")
-                if b"linux" in result:
-                    method_cmd = f"exec script -qc {self.shell} /dev/null"
-                    method = "script (util-linux)"
+                if self.which("python") is not None:
+                    method_cmd = Victim.OPEN_METHODS["python"].format(
+                        self.which("python"), self.shell
+                    )
+                    method = "python"
+                elif self.which("script") is not None:
+                    result = self.run("script --version")
+                    if b"linux" in result:
+                        method_cmd = f"exec script -qc {self.shell} /dev/null"
+                        method = "script (util-linux)"
+                    else:
+                        method_cmd = f"exec script -q /dev/null {self.shell}"
+                        method = "script (probably bsd)"
+                    method = "script"
                 else:
-                    method_cmd = f"exec script -q /dev/null {self.shell}"
-                    method = "script (probably bsd)"
-                method = "script"
-            else:
-                progress.log("[red]error[/red]: no available pty methods!")
+                    progress.log("[red]error[/red]: no available pty methods!")
 
-            # Open the PTY
-            if not isinstance(self.client, paramiko.Channel) and method is not None:
-                self.run(method_cmd, wait=False)
+                # Open the PTY
+                if not isinstance(self.client, paramiko.Channel) and method is not None:
+                    self.run(method_cmd, wait=False)
+            else:
+                progress.update(task_id, status="pty already running", advance=1)
 
             progress.update(task_id, status="synchronizing prompt", advance=1)
 
             # This stuff won't carry through to the PTY, so we need to reset it again.
             self.run("unset PROMPT_COMMAND")
-            self.run(f"export PS1='{self.remote_prefix} {self.remote_prompt}'")
+            self.run(f"export PS1='{self.remote_prompt}'")
 
             # Make sure HISTFILE is unset in this PTY (it resets when a pty is
             # opened)
@@ -1853,7 +1857,7 @@ class Victim:
         self.has_cr = True
         self.has_echo = True
         self.run("echo")
-        self.run(f"export PS1='{self.remote_prefix} {self.remote_prompt}'")
+        self.run(f"export PS1='{self.remote_prompt}'")
 
     def flush_output(self, some=False):
         """
@@ -1923,7 +1927,7 @@ class Victim:
         self.run("unset HISTFILE; export HISTCONTROL=ignorespace")
         self.run("unset PROMPT_COMMAND")
         self.run("unalias -a")
-        self.run(f"export PS1='{self.remote_prefix} {self.remote_prompt}'")
+        self.run(f"export PS1='{self.remote_prompt}'")
         self.run(f"tput rmam")
 
     def recvuntil(self, needle: bytes, interp=False, timeout=None):

@@ -69,6 +69,21 @@ modules, we recommend you use the `develop` target vice the `install` target
 for `setup.py`. This allows changes to the local repository to immediately
 be observed with your installed package.
 
+### Paramiko
+
+When connecting to a host with SSH, `paramiko` is used to connect. Due to 
+paramiko not implementing the full socket interface, I forked paramiko and
+implemented the features to make it compatible with a built-in socket. I 
+submitted a pull request with `paramiko`. The pull request was accepted but
+has still not been merged. As a result, the `setup.py` script references 
+my custom fork of paramiko. Some users have had issues where python does
+not install the custom fork and instead installs standard paramiko. In this
+case, you will get an error telling you to install the custom fork of
+paramiko. I'm working on fixing the setup script to ensure the correct version
+is installed and in the long run would like to remove this dependency eventually.
+In the meantime, if the fix recommended by pwncat does not work, please 
+comment on issue [#60](https://github.com/calebstewart/pwncat/issues/60) for help.
+
 ## Docker Image
 
 The recommended installation method is a Python virtual environment. This
@@ -144,32 +159,6 @@ everything we can to account for them and hide them from the user. However, some
 slipped through the cracks and been observed in the wild. When this happens, `pwncat`
 will do whatever it can to preserve your terminal, but you may be greeted with some 
 peculiar output or command failures. 
-
-### Dash Support
-
-The Debian shell `dash` aims to be a very minimalistic shell. It's focus is not on user
-interface, but on running scripts quickly and correctly. As a result, some of the features
-we expect from an interactive shell simply don't work in `dash`. `pwncat` tries not to
-depend on a specific shell environment, so if you start your reverse or bind shell with
-`/bin/sh` or `/bin/dash`, then you may get a weird prompt. `dash` does not obey the
-terminal escape sequences which `pwncat` adds, so you may get a very long terminal like this:
-
-```shell script
-\[\033[01;31m\](remote)\[\033[00m\] \[\033[01;33m\]\u@\h\[\033[00m\]:\[\033[01;36m\]\w\[\033[00m\]$
-```
-
-Currently, the only workaround is to use the `prompt` command at the local `pwncat` prompt.
-The command allows you to modify the prompt which `pwncat` will automatically set whenever
-resetting the remote terminal. Two options are provided: "basic" and "fancy". The "fancy"
-prompt is the default which causes the above output in Dash. To switch to the basic prompt
-you can use the following command at the `pwncat` prompt:
-
-```shell script
-prompt --basic
-```
-
-While this is inconvenient, it does not affect the behaviour of `pwncat`. All `pwncat`
-features will continue to function properly no matter what your prompt looks like.
 
 ### BSD Support
 
