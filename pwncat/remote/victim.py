@@ -26,9 +26,6 @@ from rich.progress import (
 )
 
 import pwncat.db
-import pwncat.enumerate
-from pwncat import persist
-from pwncat import privesc
 from pwncat import util
 from pwncat.commands import CommandParser
 from pwncat.config import Config, KeyType
@@ -67,10 +64,6 @@ class Victim:
     :type command_parser: CommandParser
     :param tamper: the tamper module handling remote tamper registration
     :type tamper: TamperManager
-    :param privesc: the privilege escalation module
-    :type privesc: privesc.Finder
-    :param persist: the persistence module
-    :type persist: persist.Persistence
     :param engine: the SQLAlchemy database engine
     :type engine: Engine
     :param session: the global SQLAlchemy session
@@ -144,12 +137,6 @@ class Victim:
         self.client: Optional[socket.SocketType] = None
         # The shell we are running under on the remote host
         self.shell: str = "unknown"
-        # A privesc locator/manager
-        self.privesc: privesc.Finder = None
-        # Persistence manager
-        self.persist: persist.Persistence = persist.Persistence()
-        # The enumeration manager
-        self.enumerate: pwncat.enumerate.Enumerate = pwncat.enumerate.Enumerate()
         # Database engine
         self.engine: Engine = None
         # Database session
@@ -203,7 +190,7 @@ class Victim:
         # Load this host from the database
         self.host = self.session.query(pwncat.db.Host).filter_by(hash=hostid).first()
         if self.host is None:
-            raise persist.PersistenceError(f"invalid host hash")
+            raise PersistError(f"invalid host hash")
 
         with Progress(
             "[blue bold]reconnecting[/blue bold]",
@@ -424,10 +411,6 @@ class Victim:
 
             # Disable automatic margins, which fuck up the prompt
             self.run("tput rmam")
-
-            # Now that we have a stable connection, we can create our
-            # privesc finder object.
-            self.privesc = privesc.Finder()
 
             # Save our terminal state
             self.stty_saved = self.run("stty -g").decode("utf-8").strip()

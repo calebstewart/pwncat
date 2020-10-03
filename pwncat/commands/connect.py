@@ -197,16 +197,16 @@ class Command(CommandDefinition):
 
             try:
                 addr = ipaddress.ip_address(socket.gethostbyname(host))
-                host = (
+                row = (
                     pwncat.victim.session.query(pwncat.db.Host)
                     .filter_by(ip=str(addr))
                     .first()
                 )
-                if host is None:
+                if row is None:
                     console.log(f"{level}: {str(addr)}: not found in database")
                     host_hash = None
                 else:
-                    host_hash = host.hash
+                    host_hash = row.hash
             except ValueError:
                 host_hash = host
 

@@ -1,12 +1,18 @@
 # pwncat
 
-pwncat is a raw bind and reverse shell handler. It streamlines common red team 
-operations and all staging code is from your own attacker machine, not the target.
+pwncat is a post-exploitation platform for Linux targets. It started out as a
+wrapper around basic bind and reverse shells and has grown from there. It
+streamlines common red team operations while staging code from your attacker
+machine, not the target.
 
-After receiving a connection, **pwncat** will setup some
-common configurations when working with remote shells.
+pwncat intercepts the raw communication with a remote shell and allows the
+user to perform automated actions on the remote host including enumeration,
+persistence installation and even privilege escalation.
 
-- Unset the `HISTFILE` environment variable to disable command history
+After receiving a connection, pwncat will setup some common configurations
+for working with remote shells.
+
+- Disable history in the remote shell
 - Normalize shell prompt
 - Locate useful binaries (using `which`)
 - Attempt to spawn a pseudoterminal (pty) for a full interactive session
@@ -18,7 +24,7 @@ interact in a similar fashion to `ssh`.
 
 `pwncat` will also synchronize the remote pty settings (such as rows, columns,
 `TERM` environment variable) with your local settings to ensure the shell
-behaves correctly.
+behaves correctly with interactive applications such as `vim` or `nano`.
 
 John Hammond and I presented `pwncat` at GRIMMCon. Our presentation, which
 covers the usage as well as some of the backend API can be found on YouTube
@@ -26,6 +32,16 @@ covers the usage as well as some of the backend API can be found on YouTube
 
 pwncat [documentation] is being built out on Read the Docs. Head there for
 the latest usage and development documentation!
+
+## Modules
+
+Recently, the architecture of the pwncat framework was redesigned to
+encorporate a generic "module" structure. All functionality is now 
+implemented as modules. This includes enumeration, persistence and
+privilege escalation. Interacting with modules is similar to most other
+post-exploitation platforms. You can utilize the familiar `run`, `search`
+and `info` commands and enter module contexts with the `use` command.
+Refer to the documentation for more information.
 
 ## Install
 
@@ -49,14 +65,14 @@ Or, you can install after cloning the repository with:
 python setup.py install
 ```
 
-`pwncat` depends on a custom fork of both `prompt_toolkit` and `paramiko`. 
-The forks of these repositories simply added some small features which
-weren't accessible in published releases. Pull requests have been submitted
-upstream, but until they are (hopefully) merged, `pwncat` will continue to
-explicitly reference these forks. As a result, it is recommended to run
-`pwncat` from within a virtual environment in order to not pollute your
-system environment with the custom packages. To setup a virtual environment
-and install `pwncat`, you can use:
+`pwncat` depends on a custom fork of `paramiko`. I'm working on removing
+this dependency, but sadly my fork of paramiko was never merged upstream
+so currently that's where we stand. If `pip` decided not to install the
+fork (which happens sometimes), then you will get a message from pwncat
+stating that you have the wrong version with instructions for correcting
+the dependency failure.
+
+It is recommended to install pwncat from a virtual environment.
 
 ```shell script
 python3 -m venv pwncat-env
@@ -68,6 +84,47 @@ If you would like to develop custom privilege escalation or persistence
 modules, we recommend you use the `develop` target vice the `install` target
 for `setup.py`. This allows changes to the local repository to immediately
 be observed with your installed package.
+
+The setup script will install three binaries. They are all identical, but
+provide convenience aliases for pwncat. The three binaries are: `pwncat`,
+`pc` and `pcat`.
+
+### Connecting to a Victim
+
+The command line parameters for pwncat attempt to be flexible and accept 
+a variety of common connection syntax. Specifically, it will try to accept
+common netcat and ssh like syntax. The following are all valid:
+
+```sh
+# Connect to a bind shell
+pwncat connect://10.10.10.10:4444
+pwncat 10.10.10.10:4444
+pwncat 10.10.10.10 4444
+# Listen for reverse shell
+pwncat bind://0.0.0.0:4444
+pwncat 0.0.0.0:4444
+pwncat :4444
+pwncat -lp 4444
+# Connect via ssh
+pwncat ssh://user:password@10.10.10.10
+pwncat user@10.10.10.10
+pwncat user:password@10.10.10.10
+pwncat -i id_rsa user@10.10.10.10
+# SSH w/ non-standard port
+pwncat -p 2222 user@10.10.10.10
+pwncat user@10.10.10.10:2222
+# Reconnect utilizing installed persistence
+#   If reconnection failes and no protocol is specified,
+#   SSH is used as a fallback.
+pwncat reconnect://user@10.10.10.10
+pwncat reconnect://user@c228fc49e515628a0c13bdc4759a12bf
+pwncat user@10.10.10.10
+pwncat c228fc49e515628a0c13bdc4759a12bf
+pwncat 10.10.10.10
+```
+
+For more information on the syntax and argument handling, see the 
+help information with ``pwncat --help`` or visit the [documentation].
 
 ### Paramiko
 
@@ -102,7 +159,7 @@ is the `pwncat` binary. It can be used like so:
 
 ``` shell
 # Connect to a bind shell at 10.0.0.1:4444
-docker run -v "/some/directory":/work -t pwncat -C pwncatrc -c -H 10.0.0.1 -p 4444
+docker run -v "/some/directory":/work -t pwncat 10.0.0.1 4444
 ```
 
 In this example, only the files in `/some/directory` are exposed to the container.
@@ -134,9 +191,9 @@ away the underlying shell and connection method as much as possible, allowing
 commands and plugins to interact seamlessly with the remote host.
 
 You can learn more about interacting with `pwncat` and about the underlying framework
-in the [documentation]. If you have an idea for a
-new privilege escalation method or persistence method, please take a look at the
-API documentation specifically. Pull requests are welcome!
+in the [documentation]. If you have an idea for a new privilege escalation method
+or persistence method, please take a look at the API documentation specifically.
+Pull requests are welcome!
 
 ## Planned Features
 
@@ -148,8 +205,6 @@ more features will be added.
 * Aggression methods (spam randomness to terminals, flush firewall, etc.)
 * Meme methods (terminal-parrot, cowsay, wall, etc.)
 * Network methods (port forward, internet access through host, etc.)
-
-[documentation]: https://pwncat.readthedocs.io/en/latest
 
 ## Known Issues
 
@@ -174,3 +229,5 @@ If I find some time later down the road, I may try to stabilize `pwncat` on BSD,
 but for now my focus is on Linux-based distributions. If you'd like to
 contribute to making `pwncat` behave better on BSD, you are more then welcome to
 reach out or just fork the repo. As always, pull requests are welcome!
+
+[documentation]: https://pwncat.readthedocs.io/en/latest
