@@ -68,6 +68,10 @@ well. Pull requests are always welcome!
     installation.rst
     usage.rst
     configuration.rst
+    modules.rst
+    enum.rst
+    privesc.rst
+    persist.rst
     commands/index.rst
     api/index.rst
 

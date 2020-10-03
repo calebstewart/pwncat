@@ -45,97 +45,102 @@ configuration script as well as connecting via various methods to a remote victi
 If a connection is not established during this initial connect command (for example, if the victim
 cannot be contacted or the ``--help`` parameter was specified), ``pwncat`` will then exit. If a
 connection *is* established, ``pwncat`` will enter the main Raw mode loop and provide you with
-a shell. At the time of writing, the available ``pwncat`` arguments are:
+a shell.
 
-.. code-block::
-    :caption: pwncat argument help
+C2 Channels
+-----------
 
-    usage: pwncat [-h] [--exit] [--config CONFIG] [--listen] [--connect] [--ssh]
-                  [--reconnect] [--list] [--host HOST] [--port PORT] [--method METHOD]
-                  [--user USER] [--password PASSWORD] [--identity IDENTITY]
+``pwncat`` allows the use of a few different C2 channels when connecting to a victim. Originally, ``pwncat``
+wrapped a raw socket much like ``netcat`` with some extra features. As the framework was expanded, we have
+moved toward abstracting this command and control layer away from the core ``pwncat`` features to allow
+more ways of connection. Currently, only raw sockets and ``ssh`` are implemented. You can connect to a victim
+with three different C2 protocols: ``bind``, ``connect``, and ``ssh``. The first two act like netcat. These
+modes simply open a raw socket and assume there is a shell on the other end. In SSH mode, we legitimately
+authenticate to the victim host with provided credentials and utilize the SSH shell channel as our C2 channel.
 
-    Connect to a remote host via SSH, bind/reverse shells or previous persistence methods
-    installed during past sessions.
+``pwncat`` exposes these different C2 channel protocols via the ``protocol`` field of the connection string
+discussed below.
 
-    optional arguments:
-      -h, --help            show this help message and exit
-      --exit                Exit if not connection is made
-      --config CONFIG, -C CONFIG
-                            Path to a configuration script to execute prior to connecting
-      --listen, -l          Listen for an incoming reverse shell
-      --connect, -c         Connect to a remote bind shell
-      --ssh, -s             Connect to a remote ssh server
-      --reconnect, -r       Reconnect to the given host via a persistence method
-      --list                List remote hosts with persistence methods installed
-      --host HOST, -H HOST  Address to listen on or remote host to connect to. For
-                            reconnections, this can be a host hash
-      --port PORT, -p PORT  The port to listen on or connect to
-      --method METHOD, -m METHOD
-                            The method to user for reconnection
-      --user USER, -u USER  The user to reconnect as; if this is a system method, this
-                            parameter is ignored.
-      --password PASSWORD, -P PASSWORD
-                            The password for the specified user for SSH connections
-      --identity IDENTITY, -i IDENTITY
-                            The private key for authentication for SSH connections
+Connecting to a Victim
+----------------------
 
+Connecting to a victim is accomplished through a connection string. Connection strings are versatile ways
+to describe the parameters to a specific C2 Channel/Protocol. This looks something like:
+``[protocol://][user[:password]]@[host:][port]``
 
-Connection Methods
-------------------
+Each field in the connection string translates to a parameter passed to the C2 channel. Some channels don't
+require all the parameters. For example, a ``bind`` or ``connect`` channel doesn't required a username or
+a password.
 
-``pwncat`` is able to connect to a remote host in a few different ways. At it's core, ``pwncat`` communicates
-with a remote shell over a raw socket. This can be either a bind shell or a reverse shell from a remote victim
-host. ``pwncat`` also offerst the ability to connect to a remote victim over SSH with a known password or
-private key. When connecting via SSH, ``pwncat`` provides the same interface and capabilities as with a
-raw bind or reverse shell.
+If the ``protocol`` field is not specified, ``pwncat`` will attempt to figure out the correct protocol
+contextually. The following rules apply:
 
-The last connection method relies on a previous ``pwncat`` session with the victim. If you install a persistence
-method which support remote reconnection, ``pwncat`` can utilize this to initiate a new remote shell with the victim
-automatically. For example, if you installed authorized keys for a specific user, ``pwncat`` can utilize these to
-initiate another SSH session using your persistence. This allows you to easily reconnect in the event of a previous
-session being disconnected.
-
-Fully documentation on the methods and options for these connection methods can be found in the ``connect``
-documentation under the Command Index. A few examples of connections can be found below.
+- If only the host is provided, the protocol is assumed to be ``reconnect``
+- If a user and host are provided:
+  - If the ``--identity/-i`` parameter is not used, then ``reconnect`` is attempted.
+  - If no matching persistence methods are available, ``ssh`` is assumed.
+  - This allows simple reconnections while also supporting the ``ssh``-style syntax.
+- If no user is provided but a host and port are provided, assume protocol is ``connect``
+- If no user or host is provided (or host is ``0.0.0.0``), protocol is assumed to be ``bind``
+- If a second positional integer parameter is specified, the protocol is assumed to be ``connect``
+  - This is the ``netcat`` syntax seen in the below examples for the ``connect`` protocol.
+- If the ``-l`` parameter is used, the protocol is assumed to be ``bind``.
+  - This is the ``netcat`` syntax seen in the below examples for the ``bind`` protocol.
 
 Connecting to a victim bind shell
 ---------------------------------
 
 In this case, the victim is running a raw bind shell on an open port. The victim must be available at an
-address which is routable (e.g. not NAT'd). The ``--connect/-c`` mode provides this capability.
+address which is routable (e.g. not NAT'd). The ``connect`` protocol provides this capability.
 
 .. code-block:: bash
     :caption: Connecting to a bind shell at 1.1.1.1:4444
 
-    pwncat --connect -H 1.1.1.1 -p 4444
+    # netcat syntax
+    pwncat 192.168.1.1 4444
+    # Full connection string
+    pwncat connect://192.168.1.1:4444
+    # Connection string with assumed protocol
+    pwncat 192.168.1.1:4444
 
 Catching a victim reverse shell
 -------------------------------
 
 In this case, the victim was exploited in such a way that they open a connection to your attacking host
 on a specific port with a raw shell open on the other end. Your attacking host must be routable from the
-victim machine. This mode is accessed via the ``--listen/-l`` option for connect.
+victim machine. This mode is accessed via the ``bind`` protocol.
 
 .. code-block:: bash
     :caption: Catching a reverse shell
 
-    pwncat --listen -p 4444
+    # netcat syntax
+    pwncat -l 4444
+    # Full connection string
+    pwncat bind://0.0.0.0:4444
+    # Assumed protocol
+    pwncat 0.0.0.0:4444
+    # Assumed protocol, assumed bind address
+    pwncat :4444
 
 Connecting to a Remote SSH Server
 ---------------------------------
 
 If you were able to obtain a valid password or private key for a remote user, you can initiate a ``pwncat``
-session with the remote host over SSH. This mode is accessed via the ``--ssh/-s`` option for connect.
+session with the remote host over SSH. This mode is accessed via the ``ssh`` protocol. A note about
+protocol assumptions: if there is an installed persistence method for a given user, then specifying only
+a user and host will first try reconnecting via that persistence method. Afterwards, an ssh connection
+will be attempted. If you don't want this behavior, you should explicitly specify ``ssh://`` for your
+protocol.
 
 .. code-block:: bash
-    :caption: Connection to a remote SSH server w/ Password Auth
+    :caption: Connection to a remote SSH server
 
-    pwncat -s -H 1.1.1.1 -u root -p "r00t5P@ssw0rd"
-
-.. code-block:: bash
-    :caption: Connection to a remote SSH server w/ Public Key Auth
-
-    pwncat -s -H 1.1.1.1 -u root -i ./root-private-key
+    # SSH style syntax (assumed protocl, prompted for password)
+    pwncat root@192.168.1.1
+    # Full connection string with password
+    pwncat "ssh://root:r00t5P@ssw0rd@192.168.1.1"
+    # SSH style syntax w/ identity file
+    pwncat -i ./root_id_rsa root@192.168.1.1
 
 Reconnecting to a victim
 ------------------------
@@ -150,21 +155,30 @@ their associated persistence methods.
     :caption: Listing known host/persistence combinations
 
     pwncat -C data/pwncatrc --list
-    1.1.1.1 - "centos" - 999c434fe6bd7383f1a6cc10f877644d
+    192.168.1.1 - "centos" - 999c434fe6bd7383f1a6cc10f877644d
       - authorized_keys as root
 
 Each host is identified by a host hash as seen above. You can reconnect to a host by either specifying a host
 hash or an IP address. If multiple hosts share the same IP address, the first in the database will be selected
 if you specify an IP address. Host hashes are unique across hosts.
 
+Reconnecting is done through the ``reconnect`` protocol. If a user is not specified, the root is preferred. If
+not persistence method for root is available, then the first available user is selected. The password field of
+the connection string is used for the persistence module name you would like to use for reconnection. If no
+password is specified, then all modules are tried and the first to work is used.
+
 .. code-block:: bash
     :caption: Reconnecting to a known host
 
-    # Reconnect w/ host hash
-    pwncat -C data/pwncatrc --reconnect -H 999c434fe6bd7383f1a6cc10f877644d
-    # Reconnect to first host w/ matching IP
-    pwncat -C data/pwncatrc --reconnect -H 1.1.1.1
-
-Other options are available to specify methods or users to reconnect with. These options are covered in more detail
-in the ``connect`` documentation under the Command Index.
+    # Assumed protocol
+    pwncat 999c434fe6bd7383f1a6cc10f877644d
+    pwncat user@192.168.1.1
+    # Reconnect via a known host hash
+    pwncat reconnect://999c434fe6bd7383f1a6cc10f877644d
+    # Reconnect to first matching host with IP
+    pwncat reconnect://192.168.1.1
+    # Reconnect with specific user
+    pwncat "reconnect://root@999c434fe6bd7383f1a6cc10f877644d"
+    # Reconnect utilizing the authorized_keys persistence for user bob
+    pwncat reconnect://bob:authorized_key@999c434fe6bd7383f1a6cc10f877644d
 

@@ -26,9 +26,6 @@ from rich.progress import (
 )
 
 import pwncat.db
-import pwncat.enumerate
-from pwncat import persist
-from pwncat import privesc
 from pwncat import util
 from pwncat.commands import CommandParser
 from pwncat.config import Config, KeyType
@@ -37,6 +34,7 @@ from pwncat.gtfobins import GTFOBins, Capability, Stream
 from pwncat.remote import RemoteService
 from pwncat.tamper import TamperManager
 from pwncat.util import State, console
+from pwncat.modules.persist import PersistError, PersistType
 
 
 def remove_busybox_tamper():
@@ -66,10 +64,6 @@ class Victim:
     :type command_parser: CommandParser
     :param tamper: the tamper module handling remote tamper registration
     :type tamper: TamperManager
-    :param privesc: the privilege escalation module
-    :type privesc: privesc.Finder
-    :param persist: the persistence module
-    :type persist: persist.Persistence
     :param engine: the SQLAlchemy database engine
     :type engine: Engine
     :param session: the global SQLAlchemy session
@@ -143,12 +137,6 @@ class Victim:
         self.client: Optional[socket.SocketType] = None
         # The shell we are running under on the remote host
         self.shell: str = "unknown"
-        # A privesc locator/manager
-        self.privesc: privesc.Finder = None
-        # Persistence manager
-        self.persist: persist.Persistence = persist.Persistence()
-        # The enumeration manager
-        self.enumerate: pwncat.enumerate.Enumerate = pwncat.enumerate.Enumerate()
         # Database engine
         self.engine: Engine = None
         # Database session
@@ -158,6 +146,19 @@ class Victim:
         # The current user. This is cached while at the `pwncat` prompt
         # and reloaded whenever returning from RAW mode.
         self.cached_user: str = None
+
+        # The db engine is created here, but likely wrong. This happens
+        # before a configuration script is loaded, so likely creates a
+        # in memory db. This needs to happen because other parts of the
+        # framework assume a db engine exists, and therefore needs this
+        # reference. Also, in the case a config isn't loaded this
+        # needs to happen.
+        self.engine = create_engine(self.config["db"], echo=False)
+        pwncat.db.Base.metadata.create_all(self.engine)
+
+        # Create the session_maker and default session
+        self.session_maker = sessionmaker(bind=self.engine)
+        self.session = self.session_maker()
 
     def reconnect(
         self, hostid: str, requested_method: str = None, requested_user: str = None
@@ -189,38 +190,33 @@ class Victim:
         # Load this host from the database
         self.host = self.session.query(pwncat.db.Host).filter_by(hash=hostid).first()
         if self.host is None:
-            raise persist.PersistenceError("{hostid}: invalid host hash")
+            raise PersistError(f"invalid host hash")
 
         with Progress(
-            "[bold]reconnecting[/bold]: {task.fields[method]}",
-            BarColumn(bar_width=None),
-            "[progress.percentage]{task.percentage:>3.1f}%",
+            "[blue bold]reconnecting[/blue bold]",
+            "•",
+            "[cyan]{task.fields[module]}[cyan]",
+            "•",
+            "{task.fields[status]}",
+            transient=True,
+            console=console,
         ) as progress:
-            installed_methods = list(self.persist.installed)
-            task_id = progress.add_task(
-                "attempt", method="initializing", total=len(installed_methods)
-            )
-            for username, method in self.persist.installed:
-                progress.update(
-                    task_id, method=f"[cyan]{method.format(username)}[/cyan]"
-                )
-                if requested_method and requested_method != method.name:
+            task_id = progress.add_task("attempt", module="initializing", status="...",)
+            for module in pwncat.modules.run("persist.gather"):
+                if module.TYPE.__class__.REMOTE not in module.module.TYPE:
                     continue
-                if requested_user and (
-                    (requested_user != "root" and method.system)
-                    or (requested_user != username)
-                ):
-                    continue
+
+                progress.update(task_id, module=module.name, status="...")
                 try:
-                    sock = method.reconnect(username)
-                    progress.update(
-                        task_id, completed=len(installed_methods),
-                    )
+                    sock = module.connect(requested_user, progress=progress)
+                    progress.update(task_id, status="connected!")
+                    progress.log(f"connected via {module}")
                     break
-                except persist.PersistenceError:
+                except PersistError as exc:
+                    progress.update(str(exc))
                     continue
             else:
-                raise persist.PersistenceError("no working persistence methods found")
+                raise PersistError("no working persistence methods found")
 
         # Perform connection initialization for this new victim
         self.connect(sock)
@@ -267,6 +263,8 @@ class Victim:
             "[progress.percentage]{task.percentage:>3.1f}%",
             console=console,
             transient=True,
+            auto_refresh=True,
+            refresh_per_second=60,
         ) as progress:
 
             task_id = progress.add_task("initializing", total=7, status="hostname")
@@ -413,10 +411,6 @@ class Victim:
 
             # Disable automatic margins, which fuck up the prompt
             self.run("tput rmam")
-
-            # Now that we have a stable connection, we can create our
-            # privesc finder object.
-            self.privesc = privesc.Finder()
 
             # Save our terminal state
             self.stty_saved = self.run("stty -g").decode("utf-8").strip()
@@ -575,12 +569,23 @@ class Victim:
 
         console.log(f"busybox installed w/ {len(provides)} applets")
 
+    def reload_host(self):
+        """ Reload the host database object. This is needed after some clearing
+        operations such as clearing enumeration data. """
+
+        self.host = (
+            self.session.query(pwncat.db.Host).filter_by(id=self.host.id).first()
+        )
+
     def probe_host_details(self, progress: Progress, task_id):
         """
         Probe the remote host for details such as the installed init system, distribution
         architecture, etc. This information is stored in the database and only retrieved
         for new systems or if the database was removed.
         """
+
+        # Currently, we only support Linux
+        self.host.platform = pwncat.platform.Platform.LINUX
 
         # progress.update(task_id, status="init system")
         try:
@@ -1369,7 +1374,7 @@ class Victim:
             raise PermissionError
 
         with self.subprocess(
-            ["ls", "--color=never", "--all", "-1"], stderr="/dev/null", mode="r"
+            ["ls", "--color=never", "--all", "-1", path], stderr="/dev/null", mode="r"
         ) as pipe:
             for line in pipe:
                 line = line.strip().decode("utf-8")
@@ -1729,6 +1734,7 @@ class Victim:
         wait: bool = True,
         password: str = None,
         stream: bool = False,
+        send_password: bool = True,
         **kwargs,
     ):
         """
@@ -1761,6 +1767,8 @@ class Victim:
         if password is None:
             password = self.current_user.password
 
+        self.flush_output()
+
         if stream:
             pipe = self.subprocess(sudo_command, **kwargs)
         else:
@@ -1773,13 +1781,15 @@ class Victim:
             or output.endswith(b"password: ")
             or b"lecture" in output
         ):
-            if password is None:
+
+            if send_password and password is None:
                 self.client.send(util.CTRL_C)
                 raise PermissionError(f"{self.current_user.name}: no known password")
 
             self.flush_output()
 
-            self.client.send(password.encode("utf-8") + b"\n")
+            if send_password:
+                self.client.send(password.encode("utf-8") + b"\n")
 
             old_timeout = pwncat.victim.client.gettimeout()
             pwncat.victim.client.settimeout(5)
@@ -1790,11 +1800,14 @@ class Victim:
                 b"[sudo]" in output
                 or b"password for " in output
                 or b"sorry," in output
+                or b"Sorry," in output
                 or b"sudo: " in output
             ):
                 pwncat.victim.client.send(util.CTRL_C)
                 pwncat.victim.recvuntil(b"\n")
-                raise PermissionError(f"{self.current_user.name}: incorrect password")
+                raise PermissionError(
+                    f"{self.current_user.name}: incorrect password/permissions"
+                )
 
         if stream:
             return pipe

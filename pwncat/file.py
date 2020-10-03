@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-from io import RawIOBase
 import socket
 import time
+from io import RawIOBase
 from typing import Union
 
 import pwncat
@@ -15,7 +15,12 @@ class RemoteBinaryPipe(RawIOBase):
     reading or writing will be allowed. """
 
     def __init__(
-        self, mode: str, delim: bytes, binary: bool, exit_cmd: Union[bytes, str],
+        self,
+        mode: str,
+        delim: bytes,
+        binary: bool,
+        exit_cmd: Union[bytes, str],
+        length: int = None,
     ):
         if isinstance(exit_cmd, str):
             exit_cmd = exit_cmd.encode("utf-8")
@@ -29,6 +34,7 @@ class RemoteBinaryPipe(RawIOBase):
         self.exit_cmd: bytes = exit_cmd
         self.count = 0
         self.name = None
+        self.length = length
 
     def readable(self) -> bool:
         return True
@@ -60,6 +66,12 @@ class RemoteBinaryPipe(RawIOBase):
 
         if self.eof:
             return
+
+        if "w" in self.mode and self.length is not None and self.count < self.length:
+            # We **have** to finish writing or the shell won't come back in
+            # most cases. This block only normally executes when an exception
+            # auto-closes a file object.
+            self.write((self.length - self.count) * b"\x00")
 
         # Kill the last job. This should be us. We can only run as a job when we
         # don't request write support, because stdin is taken away from the
@@ -138,13 +150,20 @@ class RemoteBinaryPipe(RawIOBase):
 
         if self.eof:
             return None
+
+        if self.length is not None:
+            if (len(data) + self.count) > self.length:
+                data = data[: (self.length - self.count)]
+
         try:
             n = pwncat.victim.client.send(data)
         except (socket.timeout, BlockingIOError):
             n = 0
-
         if n == 0:
             return None
+
         self.count += n
+        if self.length is not None and self.count >= self.length:
+            self.on_eof()
 
         return n

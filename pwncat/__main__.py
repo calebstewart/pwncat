@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
+from io import TextIOWrapper
 import logging
 import selectors
 import shlex
 import sys
 import warnings
+import os
+from pathlib import Path
 import inspect
 
 from sqlalchemy import exc as sa_exc
@@ -35,6 +38,25 @@ def main():
         # Build the victim object
         pwncat.victim = Victim()
 
+        # Find the user configuration
+        config_path = (
+            Path(os.environ.get("XDG_CONFIG_HOME", "~/.config/"))
+            / "pwncat"
+            / "pwncatrc"
+        )
+        config_path = config_path.expanduser()
+
+        try:
+            # Read the config script
+            with config_path.open("r") as filp:
+                script = filp.read()
+
+            # Run the script
+            pwncat.victim.command_parser.eval(script, str(config_path))
+        except (FileNotFoundError, PermissionError):
+            # The config doesn't exist
+            pass
+
         # Arguments to `pwncat` are considered arguments to `connect`
         # We use the `prog_name` argument to make the help for "connect"
         # display "pwncat" in the usage. This is just a visual fix, and
@@ -45,7 +67,16 @@ def main():
 
         # Only continue if we successfully connected
         if not pwncat.victim.connected:
-            exit(0)
+            sys.exit(0)
+
+        # Make stdin unbuffered. Without doing this, some key sequences
+        # which are multi-byte don't get sent properly (e.g. up and left
+        # arrow keys)
+        sys.stdin = TextIOWrapper(
+            os.fdopen(sys.stdin.fileno(), "br", buffering=0),
+            write_through=True,
+            line_buffering=False,
+        )
 
         # Setup the selector to wait for data asynchronously from both streams
         selector = selectors.DefaultSelector()
@@ -63,7 +94,7 @@ def main():
             while not done:
                 for k, _ in selector.select():
                     if k.fileobj is sys.stdin:
-                        data = sys.stdin.buffer.read(1)
+                        data = sys.stdin.buffer.read(64)
                         pwncat.victim.process_input(data)
                     else:
                         data = pwncat.victim.recv()
@@ -85,7 +116,6 @@ def main():
                 pwncat.victim.session.commit()
             except InvalidRequestError:
                 pass
-                console.log("local terminal restored")
 
 
 if __name__ == "__main__":

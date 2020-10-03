@@ -4,31 +4,55 @@ Configuration
 .. toctree::
     :maxdepth: -1
 
-pwncat is configured using a script written in the same language as the local
-prompt. The script is specified with the ``--config/-c`` parameter of the pwncat
-command. All commands from the local prompt are available in the configuration
-file. Commands which interact with the remote host are restricted until a
-stable remote connection is established. Specifically, the following commands
-are allowed at any scope in the configuration file:
+``pwncat`` can load a configuration script from a few different locations.
+First, if a file named ``pwncatrc`` exists in ``$XDG_CONFIG_HOME/pwncat/``
+then it will be executed prior to any other configuration. Next, if no
+``--config/-c`` argument is provided, and a file in the current directory
+named ``pwncatrc`` exists, it will be executed. Lastly, if the
+``--config/-c`` argument is specified, ``pwncat`` will load and run the
+specified configuration script prior to establishing a connection.
 
-- set
-- bind
-- alias
-- shortcut
+The value of ``XDG_CONFIG_HOME`` depends on your environment but commonly
+defaults to ``~/.config``. The purpose of this configuration script is for
+global settings that you would like to persist across all instances of
+``pwncat``.
+
+The purpose of the explicit script (or implicit script in the current directory)
+is for you to specify settings which are specific to this connection or
+context. For example, you may have a different ``pwncatrc`` that specifies
+a specific database location in your analysis directory while a configuration
+exists in ``$XDG_CONFIG_HOME`` which loads custom modules. The database is
+specific to a single machine or network while the global configuration may
+apply to multiple machines, networks or engagements.
+
+The syntax of the ``pwncatrc`` script is the same as the local prompt within
+``pwncat``. This means you can generally use most commands that are available
+there with the exception of any command which requires a connection be established.
+For example, you cannot run enumeration or escalation modules (with the exception
+of on_load scripts). You can, however, set key bindings, load module classes,
+and set default configuration parameters.
 
 Configuration Parameters
 ------------------------
+
+Configuration parameters are modified with the ``set`` command. By default,
+parameters are modified in the local context. This is meaningless if you are
+not in a module context. Therefore, if you are setting global runtime parameters,
+you should use the ``--global/-g`` flag.
 
 To run commands and interact with the remote host upon successful connection,
 you can specify a script to run via the ``set`` command:
 
 .. code-block:: bash
 
-    set on_load {
+    set -g on_load {
         persist --install --method authorized_keys
     }
 
-Besides the on-load script, the following configuration values can be set:
+The script between the braces will be run as soon as a victim is connected and
+stable. Any command you can normally run from within ``pwncat`` is available.
+
+Besides the on-load script, the following global configuration values can be set:
 
 * lhost - your attacking ip from the perspective of the victim
 * prefix - the key used as a prefix for keyboard shortcuts
@@ -37,6 +61,10 @@ Besides the on-load script, the following configuration values can be set:
 * backdoor_pass - the password for the backdoor user
 * db - a SQLAlchemy connection string for the database to use
 * on_load - a script to run upon successful connection
+
+The ``set`` command is also used to set module arguments when with a module context.
+In this case, the ``--global/-g`` flag is not used, and the values are lost upon
+exiting the module context.
 
 User Credentials
 ----------------

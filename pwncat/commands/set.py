@@ -12,12 +12,25 @@ class Command(CommandDefinition):
     """ Set variable runtime variable parameters for pwncat """
 
     def get_config_variables(self):
-        return ["state"] + list(pwncat.victim.config.values) + list(pwncat.victim.users)
+        options = (
+            ["state"] + list(pwncat.victim.config.values) + list(pwncat.victim.users)
+        )
+
+        if pwncat.victim.config.module:
+            options.extend(pwncat.victim.config.module.ARGUMENTS.keys())
+
+        return options
 
     PROG = "set"
     ARGS = {
         "--password,-p": Parameter(
             Complete.NONE, action="store_true", help="set a user password",
+        ),
+        "--global,-g": Parameter(
+            Complete.NONE,
+            action="store_true",
+            help="Set a global configuration",
+            default=False,
         ),
         "variable": Parameter(
             Complete.CHOICES,
@@ -63,7 +76,9 @@ class Command(CommandDefinition):
                     console.log(f"[red]error[/red]: {args.value}: invalid state")
             elif args.variable is not None and args.value is not None:
                 try:
-                    pwncat.victim.config[args.variable] = args.value
+                    pwncat.victim.config.set(
+                        args.variable, args.value, getattr(args, "global")
+                    )
                     if args.variable == "db":
                         # We handle this specially to ensure the database is available
                         # as soon as this config is set
@@ -73,11 +88,10 @@ class Command(CommandDefinition):
                         pwncat.db.Base.metadata.create_all(pwncat.victim.engine)
 
                         # Create the session_maker and default session
-                        if pwncat.victim.session is None:
-                            pwncat.victim.session_maker = sessionmaker(
-                                bind=pwncat.victim.engine
-                            )
-                            pwncat.victim.session = pwncat.victim.session_maker()
+                        pwncat.victim.session_maker = sessionmaker(
+                            bind=pwncat.victim.engine
+                        )
+                        pwncat.victim.session = pwncat.victim.session_maker()
                 except ValueError as exc:
                     console.log(f"[red]error[/red]: {exc}")
             elif args.variable is not None:

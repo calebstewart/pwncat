@@ -207,6 +207,23 @@ class CommandParser:
 
         while self.running:
             try:
+
+                if pwncat.victim.config.module:
+                    self.prompt.message = [
+                        (
+                            "fg:ansiyellow bold",
+                            f"({pwncat.victim.config.module.name}) ",
+                        ),
+                        ("fg:ansimagenta bold", "pwncat"),
+                        ("", "$ "),
+                    ]
+                else:
+                    self.prompt.message = [
+                        ("fg:ansiyellow bold", "(local) "),
+                        ("fg:ansimagenta bold", "pwncat"),
+                        ("", "$ "),
+                    ]
+
                 line = self.prompt.prompt().strip()
 
                 if line == "":
@@ -223,6 +240,8 @@ class CommandParser:
                 # We have a connection! Go back to raw mode
                 pwncat.victim.state = State.RAW
                 self.running = False
+            except KeyboardInterrupt:
+                continue
             except (Exception, KeyboardInterrupt):
                 console.print_exception(width=None)
                 continue
@@ -500,10 +519,19 @@ class CommandCompleter(Completer):
                 this_completer = next_completer
                 next_completer = command[0]
 
+        # We are completing the first argument. This could be
+        # any option argument or the first positional argument.
+        # We need to merge them.
+        if not args and text.endswith(" ") and command[1]:
+            completer = command[1][0]
+            if isinstance(completer, tuple) and completer[0] == "choices":
+                completer = WordCompleter(completer[1], WORD=True)
+            next_completer = merge_completers([next_completer, completer])
+
         if isinstance(this_completer, tuple) and this_completer[0] == "choices":
-            this_completer = WordCompleter(this_completer[1])
+            this_completer = WordCompleter(this_completer[1], WORD=True)
         if isinstance(next_completer, tuple) and next_completer[0] == "choices":
-            next_completer = WordCompleter(next_completer[1])
+            next_completer = WordCompleter(next_completer[1], WORD=True)
 
         if text.endswith(" ") and next_completer is not None:
             yield from next_completer.get_completions(document, complete_event)
