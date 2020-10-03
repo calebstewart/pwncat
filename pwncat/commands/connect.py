@@ -64,6 +64,11 @@ class Command(CommandDefinition):
             Complete.NONE,
             help="Alternative port number argument supporting netcat-like syntax",
         ),
+        "--list": Parameter(
+            Complete.NONE,
+            action="store_true",
+            help="List all known hosts and their installed persistence",
+        ),
         "connection_string": Parameter(
             Complete.NONE,
             metavar="[protocol://][user[:password]@][host][:port]",
@@ -89,6 +94,47 @@ class Command(CommandDefinition):
         password = None
         host = None
         port = None
+        try_reconnect = False
+
+        if not args.config and os.path.exists("./pwncatrc"):
+            args.config = "./pwncatrc"
+        elif not args.config and os.path.exists("./data/pwncatrc"):
+            args.config = "./data/pwncatrc"
+
+        if args.config:
+            try:
+                # Load the configuration
+                with open(args.config, "r") as filp:
+                    pwncat.victim.command_parser.eval(filp.read(), args.config)
+            except OSError as exc:
+                console.log(f"[red]error[/red]: {exc}")
+                return
+
+        if args.list:
+            # Grab a list of installed persistence methods for all hosts
+            # persist.gather will retrieve entries for all hosts if no
+            # host is currently connected.
+            modules = list(pwncat.modules.run("persist.gather"))
+            # Create a mapping of host hash to host object and array of
+            # persistence methods
+            hosts = {
+                host.hash: (host, [])
+                for host in pwncat.victim.session.query(pwncat.db.Host).all()
+            }
+
+            for module in modules:
+                hosts[module.persist.host.hash][1].append(module)
+
+            for host_hash, (host, modules) in hosts.items():
+                console.print(
+                    f"[magenta]{host.ip}[/magenta] - "
+                    f"[red]{host.distro}[/red] - "
+                    f"[yellow]{host_hash}[/yellow]"
+                )
+                for module in modules:
+                    console.print(f"  - {str(module)}")
+
+            return
 
         if args.connection_string:
             m = self.CONNECTION_PATTERN.match(args.connection_string)
@@ -131,10 +177,12 @@ class Command(CommandDefinition):
                 protocol = "connect://"
             elif user is not None:
                 protocol = "ssh://"
+                try_reconnect = True
             elif host == "" or host == "0.0.0.0":
                 protocol = "bind://"
             else:
                 protocol = "connect://"
+                try_reconnect = True
 
         if protocol != "ssh://" and args.identity is not None:
             console.log(f"[red]error[/red]: --identity is only valid for ssh protocols")
@@ -144,19 +192,36 @@ class Command(CommandDefinition):
             console.log("connection [red]already active[/red]")
             return
 
-        if not args.config and os.path.exists("./pwncatrc"):
-            args.config = "./pwncatrc"
-        elif not args.config and os.path.exists("./data/pwncatrc"):
-            args.config = "./data/pwncatrc"
+        if protocol == "reconnect://" or try_reconnect:
+            level = "[yellow]warning[/yellow]" if try_reconnect else "[red]error[/red]"
 
-        if args.config:
             try:
-                # Load the configuration
-                with open(args.config, "r") as filp:
-                    pwncat.victim.command_parser.eval(filp.read(), args.config)
-            except OSError as exc:
-                console.log(f"[red]error[/red]: {exc}")
-                return
+                addr = ipaddress.ip_address(socket.gethostbyname(host))
+                host = (
+                    pwncat.victim.session.query(pwncat.db.Host)
+                    .filter_by(ip=str(addr))
+                    .first()
+                )
+                if host is None:
+                    console.log(f"{level}: {str(addr)}: not found in database")
+                    host_hash = None
+                else:
+                    host_hash = host.hash
+            except ValueError:
+                host_hash = host
+
+            # Reconnect to the given host
+            if host_hash is not None:
+                try:
+                    pwncat.victim.reconnect(host_hash, password, user)
+                    return
+                except Exception as exc:
+                    console.log(f"{level}: {host}: {exc}")
+
+        if protocol == "reconnect://" and not try_reconnect:
+            # This means reconnection failed, and we had an explicit
+            # reconnect protocol
+            return
 
         if protocol == "bind://":
             if not host or host == "":
@@ -223,7 +288,7 @@ class Command(CommandDefinition):
                 self.parser.error("you must specify a user")
 
             if not (password or args.identity):
-                self.parser.error("either a password or identity file is required")
+                password = prompt("Password: ", is_password=True)
 
             try:
                 # Connect to the remote host's ssh server
@@ -272,52 +337,5 @@ class Command(CommandDefinition):
 
             # Initialize the session!
             pwncat.victim.connect(chan)
-        elif protocol == "reconnect":
-            if not args.host:
-                self.parser.error("host address or hash is required for reconnection")
-
-            try:
-                addr = ipaddress.ip_address(args.host)
-                host = (
-                    pwncat.victim.session.query(pwncat.db.Host)
-                    .filter_by(ip=str(addr))
-                    .first()
-                )
-                if host is None:
-                    console.log(f"[red]error[/red]: {str(addr)}: not found in database")
-                    return
-                host_hash = host.hash
-            except ValueError:
-                host_hash = args.host
-
-            # Reconnect to the given host
-            try:
-                pwncat.victim.reconnect(host_hash, args.method, args.user)
-            except Exception as exc:
-                console.log(f"[red]error[/red]: {args.host}: {exc}")
-                return
-        elif protocol == "list":
-            # Grab a list of installed persistence methods for all hosts
-            # persist.gather will retrieve entries for all hosts if no
-            # host is currently connected.
-            modules = list(pwncat.modules.run("persist.gather"))
-            # Create a mapping of host hash to host object and array of
-            # persistence methods
-            hosts = {
-                host.hash: (host, [])
-                for host in pwncat.victim.session.query(pwncat.db.Host).all()
-            }
-
-            for module in modules:
-                hosts[module.persist.host.hash][1].append(module)
-
-            for host_hash, (host, modules) in hosts.items():
-                console.print(
-                    f"[magenta]{host.ip}[/magenta] - "
-                    f"[red]{host.distro}[/red] - "
-                    f"[yellow]{host_hash}[/yellow]"
-                )
-                for module in modules:
-                    console.print(f"  - {str(module)}")
         else:
             console.log(f"[red]error[/red]: {args.action}: invalid action")

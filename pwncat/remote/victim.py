@@ -203,7 +203,7 @@ class Victim:
         # Load this host from the database
         self.host = self.session.query(pwncat.db.Host).filter_by(hash=hostid).first()
         if self.host is None:
-            raise persist.PersistenceError("{hostid}: invalid host hash")
+            raise persist.PersistenceError(f"invalid host hash")
 
         with Progress(
             "[blue bold]reconnecting[/blue bold]",
