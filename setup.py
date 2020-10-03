@@ -61,7 +61,7 @@ setup(
     url="https://gitlab.com/calebstewart/pwncat",
     packages=find_packages(),
     package_data={"pwncat": ["data/*"]},
-    entry_points={"console_scripts": ["pwncat=pwncat.__main__:main"]},
+    entry_points={"console_scripts": ["pwncat=pwncat.__main__:main", "pc=pwncat.__main__:main"]},
     data_files=[],
     install_requires=dependencies,
     dependency_links=dependency_links,

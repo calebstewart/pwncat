@@ -13,10 +13,10 @@ class Command(CommandDefinition):
     """ View info about a module """
 
     def get_module_choices(self):
-        yield from [module.name for module in pwncat.modules.match(".*")]
+        yield from [module.name for module in pwncat.modules.match("*")]
 
     PROG = "search"
-    ARGS = {"module": Parameter(Complete.NONE, help="Regular Expression Pattern",)}
+    ARGS = {"module": Parameter(Complete.NONE, help="glob pattern",)}
 
     def run(self, args):
 

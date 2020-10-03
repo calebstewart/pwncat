@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import enum
 import inspect
+import socket
 
 import pwncat
 import pwncat.db
@@ -21,18 +22,20 @@ class PersistModule(BaseModule):
     Base class for all persistence modules.
 
     Persistence modules should inherit from this class, and implement
-    the `install`, `remove`, and `escalate` methods. All modules must
-    take a `user` argument. If the module is a "system" module, and
+    the ``install``, ``remove``, and ``escalate`` methods. All modules must
+    take a ``user`` argument. If the module is a "system" module, and
     can only be installed as root, then an error should be raised for
     any "user" that is not root.
 
     If you need your own arguments to a module, you can define your
     arguments like this:
 
-    ARGUMENTS = {
-        **PersistModule.ARGUMENTS,
-        "your_arg": Argument(str)
-    }
+    .. code-block:: python
+
+        ARGUMENTS = {
+            **PersistModule.ARGUMENTS,
+            "your_arg": Argument(str)
+        }
 
     All arguments **must** be picklable. They are stored in the database
     as a SQLAlchemy PickleType containing a dictionary of name-value
@@ -40,7 +43,10 @@ class PersistModule(BaseModule):
 
     """
 
-    TYPE = PersistType.LOCAL
+    TYPE: PersistType = PersistType.LOCAL
+    """ Defines where this persistence module is useful (either remote
+    connection or local escalation or both). This also identifies a
+    given persistence module as applying to "all users" """
     ARGUMENTS = {
         "user": Argument(str, help="The user to install persistence as"),
         "remove": Argument(
@@ -57,9 +63,12 @@ class PersistModule(BaseModule):
             help="Connect to a remote host with this module. Only valid from the connect command.",
         ),
     }
+    """ The default arguments for any persistence module. If other
+    arguments are specified in sub-classes, these must also be
+    included to ensure compatibility across persistence modules. """
     COLLAPSE_RESULT = True
-    # We should always try persistence before other methods.
-    PRIORITY = -1
+    """ The ``run`` method returns a single scalar value even though
+    it utilizes a generator to provide status updates. """
 
     def __init__(self):
         super(PersistModule, self).__init__()
@@ -71,6 +80,9 @@ class PersistModule(BaseModule):
             ].help = "Ignored for install/remove. Defaults to root for escalate."
 
     def run(self, remove, escalate, connect, **kwargs):
+        """ This method should not be overriden by subclasses. It handles all logic
+        for installation, escalation, connection, and removal. The standard interface
+        of this method allows abstract interactions across all persistence modules. """
 
         if "user" not in kwargs:
             raise RuntimeError(f"{self.__class__} must take a user argument")
@@ -156,17 +168,54 @@ class PersistModule(BaseModule):
         pwncat.victim.session.commit()
 
     def install(self, **kwargs):
-        """ Install this persistence module """
+        """
+        Install this persistence module on the victim host.
+
+        :param user: the user to install persistence as. In the case of ALL_USERS persistence, this should be ignored.
+        :type user: str
+        :param kwargs: Any custom arguments defined in your ``ARGUMENTS`` dictionary.
+        :raises PersistError: All errors must be PersistError or a subclass thereof.
+
+        """
         raise NotImplementedError
 
     def remove(self, **kwargs):
-        """ Remove this persistence module """
+        """
+        Remove this persistence module from the victim host.
+
+        :param user: the user to install persistence as. In the case of ALL_USERS persistence, this should be ignored.
+        :type user: str
+        :param kwargs: Any custom arguments defined in your ``ARGUMENTS`` dictionary.
+        :raises PersistError: All errors must be PersistError or a subclass thereof.
+
+        """
         raise NotImplementedError
 
     def escalate(self, **kwargs):
-        """ Perform local escalation with this persistence module """
+        """
+        Escalate locally from the current user to another user by
+        using this persistence module.
+
+        :param user: the user to install persistence as. In the case of ALL_USERS persistence, this should be ignored.
+        :type user: str
+        :param kwargs: Any custom arguments defined in your ``ARGUMENTS`` dictionary.
+        :raises PersistError: All errors must be PersistError or a subclass thereof.
+
+        """
         raise NotImplementedError
 
-    def connect(self, **kwargs):
-        """ Re-connect via this persistence module """
+    def connect(self, **kwargs) -> socket.SocketType:
+        """
+        Connect to a victim host by utilizing this persistence
+        module. The host address can be found in the ``pwncat.victim.host``
+        object.
+
+        :param user: the user to install persistence as. In the case of ALL_USERS persistence, this should be ignored.
+        :type user: str
+        :param kwargs: Any custom arguments defined in your ``ARGUMENTS`` dictionary.
+        :rtype: socket.SocketType
+        :return: An open channel to the victim
+        :raises PersistError: All errors must be PersistError or a subclass thereof.
+
+        """
         raise NotImplementedError

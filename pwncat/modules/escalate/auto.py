@@ -72,7 +72,7 @@ class Module(BaseModule):
         # Collect escalation options
         result = EscalateResult(techniques={})
         yield Status("gathering techniques")
-        for module in pwncat.modules.match(r"escalate\..*", base=EscalateModule):
+        for module in pwncat.modules.match(r"escalate.*", base=EscalateModule):
             try:
                 yield Status(f"gathering techniques from {module.name}")
                 result.extend(module.run(progress=self.progress))

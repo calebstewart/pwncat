@@ -23,7 +23,7 @@ class PersistenceTechnique(Technique):
 
         try:
             # Attempt to escalate
-            self.persist.escalate(user=self.user, progress=self.module.progress)
+            return self.persist.escalate(user=self.user, progress=self.module.progress)
         except PersistError as exc:
             raise EscalateError(str(exc))
 
@@ -33,6 +33,7 @@ class Module(EscalateModule):
     offer local escalation. """
 
     PLATFORM = Platform.ANY
+    PRIORITY = -1
 
     def enumerate(self):
 

@@ -13,7 +13,7 @@ class Command(CommandDefinition):
     """ View info about a module """
 
     def get_module_choices(self):
-        yield from [module.name for module in pwncat.modules.match(".*")]
+        yield from [module.name for module in pwncat.modules.match("*")]
 
     PROG = "info"
     ARGS = {

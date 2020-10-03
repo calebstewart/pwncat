@@ -56,7 +56,7 @@ class Module(pwncat.modules.BaseModule):
         ),
         "modules": pwncat.modules.Argument(
             pwncat.modules.List(str),
-            default=[".*"],
+            default=["*"],
             help="List of modules to run (default: all)",
         ),
         "types": pwncat.modules.Argument(

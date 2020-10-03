@@ -38,7 +38,7 @@ class InstalledModule(Result):
         if user is not None:
             args["user"] = user
 
-        self.module.run(escalate=True, progress=progress, **args)
+        return self.module.run(escalate=True, progress=progress, **args)
 
     def connect(self, user=None, progress=None):
 

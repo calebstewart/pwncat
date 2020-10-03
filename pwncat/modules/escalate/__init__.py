@@ -130,7 +130,8 @@ def euid_fix(technique_class):
     """
     Decorator for Technique classes which may end up with a RUID/EUID
     mismatch. This will check the resulting UID after to see
-    if the change was affective and attempt to fix it.
+    if the change was affective and attempt to fix it. If the fix fails,
+    then the resulting action is undone and an EscalateError is raised.
     """
 
     class Wrapper(technique_class):
@@ -173,12 +174,33 @@ class Technique:
     """ The module which provides these capabilities """
 
     def write(self, filepath: str, data: bytes):
+        """ Write the given data to the specified file as another user.
+
+        :param filepath: path to the target file
+        :type filepath: str
+        :param data: the data to write
+        :type data: bytes
+        """
         raise NotImplementedError
 
     def read(self, filepath: str):
+        """ Read the given file as the specified user
+
+        :param filepath: path to the target file
+        :type filepath: str
+        :return: A file-like object representing the remote file
+        :rtype: File-like
+        """
         raise NotImplementedError
 
     def exec(self, binary: str):
+        """ Execute a shell as the specified user.
+
+        :param binary: the shell to execute
+        :type binary: str
+        :return: A string which when sent over the socket exits this shell
+        :rtype: str
+        """
         raise NotImplementedError
 
     def __str__(self):
@@ -196,7 +218,18 @@ class Technique:
 
 
 class GTFOTechnique(Technique):
-    """ A technique which is based on a GTFO binary """
+    """ A technique which is based on a GTFO binary capability.
+    This is mainly used for sudo and setuid techniques, but could theoretically
+    be used for other techniques.
+
+    :param target_user: The user which this techniques allows access as
+    :type target_user: str
+    :param module: The module which generated this technique
+    :type module: EscalateModule
+    :param method: The GTFObins MethodWrapper
+    :type method: pwncat.gtfobins.MethodWrapper
+    :param kwargs: Arguments passed to the gtfobins ``build`` method.
+    """
 
     def __init__(
         self,
@@ -274,27 +307,51 @@ class GTFOTechnique(Technique):
 
 @dataclasses.dataclass
 class FileContentsResult(Result):
-    """ Result which contains the contents of a file """
+    """ Result which contains the contents of a file. This is the
+    result returned from an ``EscalateModule`` when the ``read``
+    parameter is true. It allows for the file to be used as a
+    stream programmatically, and also nicely formats the file data
+    if run from the prompt. """
 
     filepath: str
+    """ Path to the file which this data came from """
     pipe: RemoteBinaryPipe
+    """ Until it is read, this is a stream which will return
+    the file data from the victim. It should not be used directly,
+    and instead should be accessed through the ``stream`` property. """
     data: bytes = None
+    """ The data that was read from the file. It is buffered here
+    to allow multiple reads when the data is streamed back from the
+    remote host. It should not be accessed directly, instead use the
+    ``stream`` property to access a stream of data regardless of the
+    state of the underlying ``pipe`` object. """
 
     @property
     def category(self):
+        """
+        :meta private:
+        """
         return None
 
     @property
     def title(self):
+        """:meta private:"""
         return f"Contents of {self.filepath}"
 
     @property
     def description(self):
+        """:meta private:"""
         with self.stream:
             return self.stream.read().decode("utf-8")
 
     @property
     def stream(self):
+        """
+        Access the file data. This should be used to access the
+        data. The ``pipe`` and ``data`` properties should not
+        be used. This is a file-like object which contains the
+        raw file data.
+        """
         if self.pipe is not None:
             with self.pipe:
                 self.data = self.pipe.read()
@@ -305,7 +362,16 @@ class FileContentsResult(Result):
 
 @dataclasses.dataclass
 class EscalateChain(Result):
-    """ Chain of techniques used to escalate """
+    """ Chain of techniques used to escalate. When escalating
+    through multiple users, this allows ``pwncat`` to easily
+    track the different techniques and users that were traversed.
+    When ``exec`` is used, this object is returned instead of
+    the ``EscalateResult`` object.
+
+    It has methods to unwrap the escalations to return to the
+    original user if needed.
+
+    """
 
     user: str
     """ Initial user before escalation """
@@ -314,25 +380,29 @@ class EscalateChain(Result):
 
     @property
     def category(self):
+        """:meta private:"""
         return None
 
     @property
     def title(self):
+        """:meta private:"""
         return "Escalation Route"
 
     @property
     def description(self):
+        """:meta private:"""
         result = []
         for i, (technique, _) in enumerate(self.chain):
             result.append(f"{(i+1)*' '}[yellow]\u2ba1[/yellow] {technique}")
         return "\n".join(result)
 
     def add(self, technique: Technique, exit_cmd: str):
-        """ Add a link in the chain """
+        """ Add a link in this chain. """
         self.chain.append((technique, exit_cmd))
 
     def extend(self, chain: "EscalateChain"):
-        """ Extend this chain with another chain """
+        """ Extend this chain with another chain. The two chains
+        are concatenated. """
         self.chain.extend(chain.chain)
 
     def pop(self):
@@ -343,7 +413,9 @@ class EscalateChain(Result):
         pwncat.victim.update_user()
 
     def unwrap(self):
-        """ Exit each shell in the chain with the provided exit script """
+        """ Exit each shell in the chain with the provided exit script.
+        This should return the state of the remote shell to prior to
+        escalation."""
 
         # Go through the chain in reverse
         for technique, exit_cmd in self.chain[::-1]:
@@ -357,13 +429,19 @@ class EscalateChain(Result):
 class EscalateResult(Result):
     """ The result of running an escalate module. This object contains
     all the enumerated techniques and provides an abstract way to employ
-    the techniques to attempt privilege escalation.
+    the techniques to attempt privilege escalation. This is the meat and
+    bones of the automatic escalation logic, and shouldn't generally need
+    to be modified. It will put together basic techniques into a working
+    primitive.
+
+    :param techniques: List of techniques that were enumerated
+    :type techniques: Dict[str, List[Technique]]
     """
 
     techniques: Dict[str, List[Technique]]
     """ List of techniques available keyed by the user """
 
-    def __init__(self, techniques):
+    def __init__(self, techniques: Dict[str, List[Technique]]):
 
         self.techniques: Dict[str, List[Technique]] = {}
         for key, value in techniques:
@@ -373,14 +451,26 @@ class EscalateResult(Result):
 
     @property
     def category(self):
+        """ EscalateResults are uncategorized
+
+        :meta private:
+        """
         return None
 
     @property
     def title(self):
+        """ The title of the section when displayed on the terminal
+
+        :meta private:
+        """
         return "Escalation Techniques"
 
     @property
     def description(self):
+        """ Description of these results (list of techniques)
+
+        :meta private:
+        """
 
         result = []
         for user, techniques in self.techniques.items():
@@ -411,8 +501,22 @@ class EscalateResult(Result):
     def write(
         self, user: str, filepath: str, data: bytes, progress, no_exec: bool = False
     ):
-        """ Attempt to use all the techniques enumerated to write to a file
-        as the given user """
+        """
+        Attempt to use all the techniques enumerated to write to a file
+        as the given user
+
+        :param user: The user you would like to write a file as
+        :type user: str
+        :param filepath: The file you would like to write to
+        :type filepath: str
+        :param data: The data you would like to place in the file
+        :type data: bytes
+        :param progress: A rich Progress bar to update during escalation.
+        :param no_exec: When true, do not attempt exec to write the file.
+            This is needed when recursing automatically, and should normally
+            be left as false.
+        :type no_exec: bool
+        """
 
         if user not in self.techniques:
             raise EscalateError(f"file write as {user} not possible")
@@ -450,7 +554,19 @@ class EscalateResult(Result):
 
     def read(self, user: str, filepath: str, progress, no_exec: bool = False):
         """ Attempt to use all the techniques enumerated to read a file
-        as the given user """
+        as the given user. This method returns a file-like object capable
+        of reading the file.
+
+        :param user: The user to read the file as
+        :type user: str
+        :param filepath: Path to the file to read
+        :type filepath: str
+        :param progress: A rich Progress bar to update during escalation.
+        :param no_exec: When true, do not attempt exec to write the file.
+            This is needed when recursing automatically, and should normally
+            be left as false.
+        :type no_exec: bool
+        """
 
         if user not in self.techniques:
             raise EscalateError(f"file read as {user} not possible")
@@ -489,7 +605,7 @@ class EscalateResult(Result):
         except (PermissionError, FileNotFoundError):
             raise EscalateError(f"file read as {user} not possible")
 
-    def read_auth_keys(self, user: str, progress):
+    def _read_auth_keys(self, user: str, progress):
         """ Attempt to read the users authorized keys file. """
 
         for fact in pwncat.modules.run(
@@ -535,7 +651,7 @@ class EscalateResult(Result):
 
         return authkeys, authkeys_path
 
-    def leak_private_key(self, user: str, progress, auth_keys: List[str]):
+    def _leak_private_key(self, user: str, progress, auth_keys: List[str]):
         """ Attempt to leak a user's private key """
 
         privkey_names = ["id_rsa"]
@@ -573,7 +689,7 @@ class EscalateResult(Result):
 
         return None, None
 
-    def write_authorized_key(
+    def _write_authorized_key(
         self, user: str, pubkey: str, authkeys: List[str], authkeys_path: str, progress
     ):
         """ Attempt to Write the given public key to the user's authorized
@@ -598,7 +714,14 @@ class EscalateResult(Result):
 
     def exec(self, user: str, shell: str, progress):
         """ Attempt to use all the techniques enumerated to execute a
-        shell as the specified user """
+        shell as the specified user.
+
+        :param user: The user to execute a shell as
+        :type user: str
+        :param shell: The shell to execute
+        :type shell: str
+        :param progress: A rich Progress bar to update during escalation.
+        """
 
         original_user = pwncat.victim.current_user
         original_id = pwncat.victim.id
@@ -660,11 +783,11 @@ class EscalateResult(Result):
 
             # Read the user's authorized keys
             progress.update(task, status="attempting to read authorized keys")
-            authkeys, authkeys_path = self.read_auth_keys(user, progress)
+            authkeys, authkeys_path = self._read_auth_keys(user, progress)
 
             # Attempt to read private key
             progress.update(task, status="attempting to read private keys")
-            privkey, used_tech = self.leak_private_key(user, progress, authkeys)
+            privkey, used_tech = self._leak_private_key(user, progress, authkeys)
 
             # We couldn't read the private key
             if privkey is None:
@@ -691,7 +814,7 @@ class EscalateResult(Result):
                         progress.update(
                             task, status="attemping to write authorized keys"
                         )
-                        used_tech = self.write_authorized_key(
+                        used_tech = self._write_authorized_key(
                             user, pubkey, authkeys, authkeys_path, progress
                         )
                         if used_tech is None:
@@ -746,49 +869,19 @@ class EscalateResult(Result):
 
 
 class EscalateModule(BaseModule):
-    """ The base module for all escalation modules.
+    """ The base module for all escalation modules. This module
+    is responsible for enumerating ``Technique`` objects which
+    can be used to attempt various escalation actions.
 
-    I want using the escalate modules to look something like this:
+    With no arguments, a standard escalate module will return
+    an ``EscalateResult`` object which contains all techniques
+    enumerated and provides helper methods for programmatically
+    performing escalation and combining results from multiple
+    modules.
 
-    # Look for techniques but don't perform escalation
-    run escalate.auto user=root
-    # Escalate to root automatically (e.g. enumerate all modules)
-    run escalate.auto exec user=root shell=/bin/bash
-    # Write a file as another user
-    run escalate.auto write user=root path=/root/.ssh/authorized_keys content=~/.ssh/id_rsa.pub
-    # Read a file as another user
-    run escalate.auto read user=root path=/etc/shadow
-
-    That is all "auto" module stuff. However, each individual module
-    should have the same interface. Individual modules may require or
-    accept other arguments from the standard if needed. During auto
-    escalation, modules that require extra parameters which aren't
-    specified will be ignored. From a code perspective, I'd like
-    interaction with these modules to look like this:
-
-    # Retrieve a list of techniques from the module
-    escalate = pwncat.modules.run("escalate.sudo")
-    # This escalation result object has methods for performing
-    # escalation, but also conforms to the `Result` interface
-    # for easily displaying the results.
-    escalate.exec("root", shell="/bin/bash")
-
-    # The auto module can easily collect results from
-    # multiple modules in order to build a more comprehensive
-    # escalation primitive
-    escalate = EscalateResult(techniques={})
-    for module in modules:
-        escalate.extend(module.run(**kwargs))
-    escalate.exec("root", shell="/bin/bash")
-
-    As with persistence modules, if you need extra arguments for a
-    specialized escalation module, you should define your arguments like so:
-
-    ARGUMENTS = {
-        **EscalateModule.ARGUMENTS,
-        "custom_arg": Argument(str)
-    }
-
+    Alternatively, the ``exec``, ``write``, and ``read`` arguments
+    can be used to have the module automatically attempt the
+    respective operation basedo on the arguments passed.
     """
 
     ARGUMENTS = {
@@ -815,13 +908,13 @@ class EscalateModule(BaseModule):
     COLLAPSE_RESULT = True
 
     PRIORITY = 100
-    """ The priority of this escalation module. Values < 0 are reserved.
+    """ The priority of this escalation module. Values <= 0 are reserved.
     Indicates the order in which techniques are executed when attempting
-    escalation. """
+    escalation. Lower values execute first. """
 
     def run(self, user, exec, read, write, shell, path, data, **kwargs):
         """ This method is not overriden by subclasses. Subclasses should
-        override the `enumerate`, `write`, `read`, and `exec` methods.
+        should implement the ``enumerate`` method which yields techniques.
 
         Running a module results in an EnumerateResult object which can be
         formatted by the default `run` command or used to execute various
@@ -862,13 +955,14 @@ class EscalateModule(BaseModule):
         else:
             yield result
 
-    def enumerate(self, **kwargs):
-        """ Enumerate techniques for this module which can perform the
-        requested some of the requested capabilities. This should be
-        a generator, and yield individual techniques. Techniques are
-        self-contained objects which can perform the enumerated
-        capabilities. """
+    def enumerate(self, **kwargs) -> "Generator[Technique, None, None]":
+        """ Enumerate techniques for this module. Each technique must
+        implement at least one capability, and all techniques will be
+        used together to escalate privileges. Any custom arguments
+        are passed to this method through keyword arguments. None of
+        the default arguments are passed here.
 
+        """
         while False:
             yield None
 

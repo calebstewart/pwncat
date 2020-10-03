@@ -2,10 +2,11 @@
 import enum
 import inspect
 import pkgutil
-import re
 from dataclasses import dataclass
 import typing
 from typing import Any, Callable
+import fnmatch
+import functools
 
 from rich.progress import Progress
 
@@ -41,27 +42,24 @@ class ModuleFailed(Exception):
 
 
 class PersistError(ModuleFailed):
-    """ There was a problem performing a persistence action """
+    """ Raised when any PersistModule method fails. """
 
 
 class PersistType(enum.Flag):
     """
-    The type of persistence we are installing. Local persistence only
-    provides a method of persistence escalation from another user.
-    Remote persistence allows us to re-establish C2 after disconnecting.
-
-    Local persistence must implement the `escalate` method while remote
-    persistence must implement the `connect` method.
-
-    Persistence modules can be both Local and Remote (e.g. private key
-    persistence when a local `ssh` client is available). You can simply
-    bitwise OR these flags together to specify both.
-
+    Identifies the persistence module type flags. One or more flags
+    must be specified for a module.
     """
 
     LOCAL = enum.auto()
+    """ The persistence module implements the ``escalate`` method for
+    local privilege escalation. """
     REMOTE = enum.auto()
+    """ The persistence module implements the ``connect`` method for
+    remote connection. """
     ALL_USERS = enum.auto()
+    """ When installed, the persistence module allows access as any
+    user. """
 
 
 @dataclass
@@ -69,8 +67,14 @@ class Argument:
     """ Argument information for a module """
 
     type: Callable[[str], Any] = str
+    """ A callable which converts a string to the required type
+    This function should also return the passed value if it is
+    already of that type. """
     default: Any = NoValue
+    """ The default value if none is specified in ``run``. If this
+    is ``NoValue``, then the argument is required. """
     help: str = ""
+    """ The help text displayed in the ``info`` output. """
 
 
 def List(_type=str):
@@ -113,17 +117,21 @@ class Result:
 
     @property
     def category(self) -> str:
-        """ Return a "categry" of object. Categories will be grouped. """
+        """ Return a "categry" of object. Categories will be grouped.
+        If this returns None or is not defined, this result will be "uncategorized"
+        """
         return None
 
     @property
     def title(self) -> str:
-        """ Return a short-form description/title of the object """
+        """ Return a short-form description/title of the object. If not defined,
+        this defaults to the object converted to a string. """
         raise NotImplementedError
 
     @property
     def description(self) -> str:
-        """ Returns a long-form description """
+        """ Returns a long-form description. If not defined, the result is assumed
+        to not be a long-form result. """
         return None
 
     def is_long_form(self) -> bool:
@@ -141,12 +149,14 @@ class Result:
 
 class Status(str):
     """ A result which isn't actually returned, but simply updates
-    the progress bar. """
+    the progress bar. It is equivalent to a string, so this is valid:
+    ``yield Status("module status update")``"""
 
 
 def run_decorator(real_run):
     """ Decorate a run function to evaluate types """
 
+    @functools.wraps(real_run)
     def decorator(self, progress=None, **kwargs):
 
         if "exec" in kwargs:
@@ -236,36 +246,63 @@ class BaseModuleMeta(type):
 
 
 class BaseModule(metaclass=BaseModuleMeta):
-    """ Generic module class """
+    """ Generic module class. This class allows to easily create
+    new modules. Any new module must inherit from this class. The
+    run method is guaranteed to receive as key-word arguments any
+    arguments specified in the ``ARGUMENTS`` dictionary. """
 
     ARGUMENTS = {
         # "name": Argument(int, default="value"),
         # "name2": Argument(List(int), default=[1, 2, 3]),
     }
-    # Allow other kwargs parameters outside of what is specified by
-    # the arguments dictionary. This allows arbitrary arguments which
-    # are not type-checked to be passed. You should use `**kwargs` in
-    # your run method.
+    """ Arguments which can be provided to the ``run`` method.
+    This maps argument names to ``Argument`` instances describing
+    the type, default value, and requirements for an individual
+    argument.
+    """
     ALLOW_KWARGS = False
-    # If you want to use `yield Status(...)` to update the progress bar
-    # but only return one scalar value, setting this to true will collapse
-    # an array with only a single object to it's scalar value.
+    """ Allow other kwargs parameters outside of what is specified by
+    the arguments dictionary. This allows arbitrary arguments which
+    are not type-checked to be passed. You should use `**kwargs` in
+    your run method if this is set to True. """
     COLLAPSE_RESULT = False
-    # The platform which this module is for
-    PLATFORM = Platform.UNKNOWN
+    """ If you want to use `yield Status(...)` to update the progress bar
+    but only return one scalar value, setting this to true will collapse
+    an array with only a single object to it's scalar value. """
+    PLATFORM: Platform = Platform.UNKNOWN
+    """ The platform this module is compatibile with (can be multiple) """
 
     def __init__(self):
         self.progress = None
         # Filled in by reload
         self.name = None
 
-    def run(self, **kwargs):
-        """ Execute this module """
+    def run(self, progress=None, **kwargs):
+        """ The run method is called via keyword-arguments with all the
+        parameters specified in the ``ARGUMENTS`` dictionary. If ``ALLOW_KWARGS``
+        was True, then other keyword arguments may also be passed. Any
+        types specified in ``ARGUMENTS`` will already have been checked.
+
+        If there are any errors while processing a module, the module should
+        raise ``ModuleError`` or a subclass in order to enable ``pwncat`` to
+        automatically and gracefully handle a failed module execution.
+
+        :param progress: A python-rich Progress instance
+        :type progress: rich.progress.Progress
+        """
+
         raise NotImplementedError
 
 
 def reload(where: typing.Optional[typing.List[str]] = None):
-    """ Reload the modules """
+    """ Reload modules from the given directory. If no directory
+    is specified, then the default modules are reloaded. This
+    function will not remove or un-load any existing modules, but
+    may overwrite existing modules with conflicting names.
+
+    :param where: Directories which contain pwncat modules
+    :type where: List[str]
+    """
 
     # We need to load built-in modules first
     if not LOADED_MODULES and where is not None:
@@ -289,13 +326,28 @@ def reload(where: typing.Optional[typing.List[str]] = None):
 
 
 def find(name: str, base=BaseModule, ignore_platform: bool = False):
-    """ Find a matching name, and return it. Must be an exact match. """
+    """ Locate a module with this exact name. Optionally filter
+    modules based on their class type. By default, this will search
+    for any module implementing BaseModule which is applicable to
+    the current platform.
+
+    :param name: Name of the module to locate
+    :type name: str
+    :param base: Base class which the module must implement
+    :type base: type
+    :param ignore_platform: Whether to ignore the victim's platform in the search
+    :type ignore_platform: bool
+    :raises ModuleNotFoundError: Raised if the module does not exist or the platform/base class do not match.
+    """
 
     if not LOADED_MODULES:
         reload()
 
+    if name not in LOADED_MODULES:
+        raise ModuleNotFoundError(f"{name}: module not found")
+
     if not isinstance(LOADED_MODULES[name], base):
-        raise KeyError(name)
+        raise ModuleNotFoundError(f"{name}: incorrect base class")
 
     # Grab the module
     module = LOADED_MODULES[name]
@@ -313,7 +365,18 @@ def find(name: str, base=BaseModule, ignore_platform: bool = False):
 
 
 def match(pattern: str, base=BaseModule):
-    """ Find matching modules based on Regular Expression pattern """
+    """ Locate modules who's name matches the given glob pattern.
+    This function will only return modules which implement a subclass
+    of the given base class and which are applicable to the current
+    target's platform.
+
+    :param pattern: A Unix glob-like pattern for the module name
+    :type pattern: str
+    :param base: The base class for modules you are looking for (defaults to BaseModule)
+    :type base: type
+    :return: A generator yielding module objects which at least implement ``base``
+    :rtype: Generator[base, None, None]
+    """
 
     if not LOADED_MODULES:
         reload()
@@ -330,23 +393,33 @@ def match(pattern: str, base=BaseModule):
             and pwncat.victim.host.platform not in module.PLATFORM
         ):
             continue
-        if not re.match(pattern, module_name):
+        if not fnmatch.fnmatch(module_name, pattern):
             continue
 
         yield module
 
 
-def run(pattern: str, **kwargs):
-    """ Find a module with a matching name and return the results """
+def run(name: str, **kwargs):
+    """ Locate a module by name and execute it. The module can be of any
+    type and is guaranteed to match the current platform. If no module can
+    be found which matches those criteria, an exception is thrown.
+
+    :param name: The name of the module to run
+    :type name: str
+    :param kwargs: Keyword arguments for the module
+    :type kwargs: Dict[str, Any]
+    :returns: The result from the module's ``run`` method.
+    :raises ModuleNotFoundError: If no module with that name matches the required criteria
+    """
 
     if not LOADED_MODULES:
         reload()
 
-    if pattern not in LOADED_MODULES:
-        raise ModuleNotFoundError(f"invalid module name: {pattern}")
+    if name not in LOADED_MODULES:
+        raise ModuleNotFoundError(f"{name}: module not found")
 
     # Grab the module
-    module = LOADED_MODULES[pattern]
+    module = LOADED_MODULES[name]
 
     if module.PLATFORM != Platform.NO_HOST and pwncat.victim.host is None:
         raise ModuleNotFoundError(f"{module.name}: no connected victim")

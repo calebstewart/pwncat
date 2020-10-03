@@ -276,3 +276,38 @@ run escalate/list user=admin
 # List possibly valid escalation methods, ignoring the given modules
 run escalate/list ignore_module=["sudo"]
 ```
+
+## Better Progress Handling
+
+Currently, progress is handled in a syntactically interesting but possibly confusing way.
+I utilize Python generators to yield the results of iterative modules. The generators
+can also yield `Status` objects. These objects are filtered from the actual results of
+generators and used to only update the progress bar. This allows modules to provide updates
+without having to worry about the state or existence of a progress bar.
+
+The problem is that if these modules call other methods or functions, passing this
+capability on becomes problematic unless a `yield from` is used. The module wrapper currently
+uses some python magic to check if a method returns a generator and yield/return
+appropriately. I'd prefer to keep this kind of language-level code out of modules, so I'm
+considering changing this design. A global (or rather, victim-level) progress bar can be
+managed. Something like this:
+
+```python
+# Update the most recent task
+pwncat.victim.progress.status("Here's a status update")
+# Create a new task
+task = pwncat.victim.progress.task("module or action", category="goal")
+# Update a specific task
+pwncat.victim.progress.status("Here's a status update", task=task)
+```
+
+The progress bar itself will be managed by the `Victim` object. We can keep the standard
+now where iterative/generator based results are used to update a task, but also allows
+modules to directly call `pwncat.victim.progres.status`. This would do away with the `Status`
+class. Further, it allows the `module.run` method to return the raw result of the underlying 
+method allowing more flexibility in the return values of modules. It allows modules to have 
+asynchronous (generator) return values.
+
+This in turn may allow intermediate results to be displayed by the `run` command. Currently,
+the `run` command categorizes the results before displaying. It may be able to be adopted
+to asynchronously print results as the module runs.
