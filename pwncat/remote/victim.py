@@ -223,6 +223,7 @@ class Victim:
                 try:
                     sock = module.connect(requested_user, progress=progress)
                     progress.update(task_id, status="connected!")
+                    progress.log(f"connected via {module}")
                     break
                 except PersistError as exc:
                     progress.update(str(exc))
