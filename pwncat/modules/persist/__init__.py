@@ -156,6 +156,19 @@ class PersistModule(BaseModule):
         elif result is not None:
             yield result
 
+        self.register(kwargs)
+
+    def register(self, **kwargs):
+        """
+        Register a module as installed, even if it wasn't installed by
+        the bundled ``install`` method. This is mainly used during escalation
+        when a standard persistence method is installed manually through
+        escalation file read/write.
+        """
+
+        if "user" not in kwargs:
+            raise RuntimeError(f"{self.__class__} must take a user argument")
+
         # Register this persistence module in the database
         row = pwncat.db.Persistence(
             host_id=pwncat.victim.host.id,
