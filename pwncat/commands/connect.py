@@ -180,6 +180,9 @@ class Command(CommandDefinition):
                 try_reconnect = True
             elif host == "" or host == "0.0.0.0":
                 protocol = "bind://"
+            elif args.connection_string is None:
+                self.parser.print_help()
+                return
             else:
                 protocol = "connect://"
                 try_reconnect = True
