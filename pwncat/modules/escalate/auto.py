@@ -95,16 +95,7 @@ class Module(BaseModule):
                     return
                 elif read:
                     yield Status(f"attempting file read as {target_user}")
-                    filp = result.read(target_user, path, self.progress)
-                    original_close = filp.close
-
-                    # We need to call unwrap after reading the data
-                    def close_wrapper():
-                        original_close()
-                        whole_chain.unwrap()
-
-                    filp.close = close_wrapper
-
+                    filp, _ = result.read(target_user, path, self.progress)
                     yield FileContentsResult(path, filp)
                     return
                 else:
