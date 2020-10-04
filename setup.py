@@ -22,6 +22,7 @@ dependencies = [
     "mbstrdecoder==1.0.0",
     "msgfy==0.1.0",
     "netifaces==0.10.9",
+    "packaging==20.4",
     "paramiko==2.7.1",
     "pathvalidate==2.3.0",
     "pprintpp==0.4.0",
@@ -55,13 +56,15 @@ dependency_links = [
 setup(
     name="pwncat",
     version="0.3.1",
-    python_requires='>=3.8',
+    python_requires=">=3.8",
     description="A fancy reverse and bind shell handler",
     author="Caleb Stewart",
     url="https://gitlab.com/calebstewart/pwncat",
     packages=find_packages(),
     package_data={"pwncat": ["data/*"]},
-    entry_points={"console_scripts": ["pwncat=pwncat.__main__:main", "pc=pwncat.__main__:main"]},
+    entry_points={
+        "console_scripts": ["pwncat=pwncat.__main__:main", "pc=pwncat.__main__:main"]
+    },
     data_files=[],
     install_requires=dependencies,
     dependency_links=dependency_links,
