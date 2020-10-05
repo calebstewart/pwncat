@@ -36,6 +36,9 @@ class SudoVersion:
 
 
 class Module(EnumerateModule):
+    """
+    Retrieve the version of sudo on the remote host
+    """
 
     PROVIDES = ["software.sudo.version"]
     PLATFORM = Platform.LINUX

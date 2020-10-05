@@ -33,8 +33,7 @@ class DistroVersionData:
 
 class Module(EnumerateModule):
     """
-    Enumerate kernel/OS version information
-    :return:
+    Enumerate OS/Distribution version information
     """
 
     PROVIDES = ["system.distro"]

@@ -21,6 +21,11 @@ class ScreenVersion:
 
 
 class Module(EnumerateModule):
+    """
+    Locate installations of the ``screen`` tool. This is useful because
+    it may be vulnerable to a privilege escalation vulnerability depending
+    on it's version.
+    """
 
     PROVIDES = ["software.screen.version"]
     PLATFORM = Platform.LINUX

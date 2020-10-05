@@ -134,7 +134,9 @@ def LineParser(line):
 
 
 class Module(EnumerateModule):
-    """ Enumerate sudo privileges for the current user. """
+    """ Enumerate sudo privileges for the current user. If allowed,
+    this module will also enumerate sudo rules for other users. Normally,
+    root permissions are needed to read /etc/sudoers. """
 
     PROVIDES = ["software.sudo.rule"]
     PLATFORM = Platform.LINUX

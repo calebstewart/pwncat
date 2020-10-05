@@ -11,9 +11,8 @@ from pwncat.modules.enumerate.creds import PrivateKeyData
 class Module(EnumerateModule):
     """
     Search the victim file system for configuration files which may
-    contain passwords. This uses a regular expression based search
-    to abstractly extract things which look like variable assignments
-    within configuration files that look like passwords.
+    contain private keys. This uses a regular expression based search
+    to find files whose contents look like a SSH private key.
     """
 
     PROVIDES = ["creds.private_key"]

@@ -824,15 +824,7 @@ class EscalateResult(Result):
 
                 return EscalateChain(original_user.name, [(technique, exit_cmd)])
             except PermissionError:
-                # Remove the persistence method. It didn't work for some reason.
-                pwncat.modules.find("persist.passwd").run(
-                    remove=True,
-                    user="root",
-                    backdoor_user=username,
-                    backdoor_pass=password,
-                    shell=pwncat.victim.shell,
-                    progress=progress,
-                )
+                pass
         except EscalateError:
             pass
 
