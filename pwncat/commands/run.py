@@ -30,6 +30,9 @@ class Command(CommandDefinition):
         "--raw,-r": Parameter(
             Complete.NONE, action="store_true", help="Display raw results unformatted"
         ),
+        "--traceback,-t": Parameter(
+            Complete.NONE, action="store_true", help="Show traceback for module errors"
+        )
         "module": Parameter(
             Complete.CHOICES,
             nargs="?",
@@ -65,7 +68,10 @@ class Command(CommandDefinition):
             result = pwncat.modules.run(args.module, **config_values)
             pwncat.victim.config.back()
         except pwncat.modules.ModuleFailed as exc:
-            console.log(f"[red]error[/red]: module failed: {exc}")
+            if args.traceback:
+                console.print_exception()
+            else:
+                console.log(f"[red]error[/red]: module failed: {exc}")
             return
         except pwncat.modules.ModuleNotFound:
             console.log(f"[red]error[/red]: {args.module}: not found")
