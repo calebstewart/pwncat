@@ -78,7 +78,7 @@ class EnumerateModule(BaseModule):
         # Yield all the know facts which have already been enumerated
         existing_facts = (
             pwncat.victim.session.query(pwncat.db.Fact)
-            .filter_by(source=self.name)
+            .filter_by(source=self.name, host_id=pwncat.victim.host.id)
             .filter(pwncat.db.Fact.type != "marker")
         )
 
