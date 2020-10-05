@@ -43,7 +43,7 @@ class Module(EscalateModule):
             if persist.persist.user is None:
                 users = pwncat.victim.users.keys()
             else:
-                users = persist.persist.user
+                users = [persist.persist.user]
             for user in users:
                 yield PersistenceTechnique(self, user, persist)
 

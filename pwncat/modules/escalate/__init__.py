@@ -496,7 +496,9 @@ class EscalateResult(Result):
                 self.techniques[key] = sorted(value, key=lambda v: v.module.PRIORITY)
             else:
                 self.techniques[key].extend(value)
-                self.techniques[key] = sorted(value, key=lambda v: v.module.PRIORITY)
+                self.techniques[key] = sorted(
+                    self.techniques[key], key=lambda v: v.module.PRIORITY
+                )
 
     def add(self, technique: Technique):
         """ Add a new technique to this result object """

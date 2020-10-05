@@ -129,7 +129,7 @@ class Module(BaseModule):
                     result = EscalateResult(techniques={})
                     yield Status(f"success! gathering new techniques...")
                     for module in pwncat.modules.match(
-                        r"escalate\..*", base=EscalateModule
+                        r"escalate.*", base=EscalateModule
                     ):
                         try:
                             result.extend(module.run(progress=self.progress))
