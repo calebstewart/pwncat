@@ -1773,7 +1773,7 @@ class Victim:
             pipe = self.subprocess(sudo_command, **kwargs)
         else:
             sdelim, edelim = pwncat.victim.process(sudo_command, delim=True)
-
+        
         output = self.peek_output(some=True).lower()
         if (
             b"[sudo]" in output
@@ -1783,7 +1783,8 @@ class Victim:
         ):
 
             if send_password and password is None:
-                self.client.send(util.CTRL_C)
+                self.client.send(util.CTRL_C*2)
+                self.flush_output()
                 raise PermissionError(f"{self.current_user.name}: no known password")
 
             self.flush_output()
@@ -1791,23 +1792,28 @@ class Victim:
             if send_password:
                 self.client.send(password.encode("utf-8") + b"\n")
 
-            old_timeout = pwncat.victim.client.gettimeout()
-            pwncat.victim.client.settimeout(5)
-            output = pwncat.victim.peek_output(some=True)
-            pwncat.victim.client.settimeout(old_timeout)
+                old_timeout = pwncat.victim.client.gettimeout()
+                pwncat.victim.client.settimeout(5)
+                output = pwncat.victim.peek_output(some=True)
+                pwncat.victim.client.settimeout(old_timeout)
 
-            if (
-                b"[sudo]" in output
-                or b"password for " in output
-                or b"sorry," in output
-                or b"Sorry," in output
-                or b"sudo: " in output
-            ):
-                pwncat.victim.client.send(util.CTRL_C)
-                pwncat.victim.recvuntil(b"\n")
-                raise PermissionError(
-                    f"{self.current_user.name}: incorrect password/permissions"
-                )
+                if (
+                    b"[sudo]" in output
+                    or b"password for " in output
+                    or b"sorry," in output
+                    or b"Sorry," in output
+                    or b"sudo: " in output
+                ):
+                    pwncat.victim.client.send(util.CTRL_C)
+                    pwncat.victim.recvuntil(b"\n")
+                    raise PermissionError(
+                        f"{self.current_user.name}: incorrect password/permissions"
+                    )
+            else:
+                self.client.send(util.CTRL_C*2)
+                self.flush_output()
+                raise PermissionError(f"{self.current_user.name}: no known password")
+ 
 
         if stream:
             return pipe
