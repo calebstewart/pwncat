@@ -32,7 +32,7 @@ class Command(CommandDefinition):
         ),
         "--traceback,-t": Parameter(
             Complete.NONE, action="store_true", help="Show traceback for module errors"
-        )
+        ),
         "module": Parameter(
             Complete.CHOICES,
             nargs="?",
