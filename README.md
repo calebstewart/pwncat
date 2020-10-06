@@ -27,8 +27,9 @@ interact in a similar fashion to `ssh`.
 behaves correctly with interactive applications such as `vim` or `nano`.
 
 John Hammond and I presented `pwncat` at GRIMMCon. Our presentation, which
-covers the usage as well as some of the backend API can be found on YouTube
-[here](https://www.youtube.com/watch?v=CISzI9klRkw).
+can be found on YouTube [here](https://www.youtube.com/watch?v=CISzI9klRkw).
+This video demonstrates an early version of the API and interface. Please
+refer to the documentation for up to date usage and API documentation!
 
 pwncat [documentation] is being built out on Read the Docs. Head there for
 the latest usage and development documentation!
