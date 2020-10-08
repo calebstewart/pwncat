@@ -7,6 +7,7 @@ colorama==0.4.3
 commentjson==0.8.3
 commonmark==0.9.1
 cryptography==2.9.2
+cron-descriptor==1.2.24
 DataProperty==0.49.1
 idna==2.10
 lark-parser==0.7.8
