@@ -15,7 +15,7 @@ from pwncat.modules import BaseModule
 
 
 def key_type(value: str) -> bytes:
-    """ Converts a key name to a ansi keycode. The value can either be a single 
+    """ Converts a key name to a ansi keycode. The value can either be a single
     printable character or a named key from prompt_toolkit Keys """
     if len(value) == 1:
         return value.encode("utf-8")
