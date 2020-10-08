@@ -45,11 +45,11 @@ class Command(CommandDefinition):
 
     def run(self, args):
 
-        if args.module is None and pwncat.victim.config.module is None:
+        if args.module is None and pwncat.config.module is None:
             console.log("[red]error[/red]: no module specified")
             return
         elif args.module is None:
-            args.module = pwncat.victim.config.module.name
+            args.module = pwncat.config.module.name
 
         # Parse key=value pairs
         values = {}
@@ -60,13 +60,13 @@ class Command(CommandDefinition):
                 name, value = arg.split("=")
                 values[name] = value
 
-        # pwncat.victim.config.locals.update(values)
-        config_values = pwncat.victim.config.locals.copy()
+        # pwncat.config.locals.update(values)
+        config_values = pwncat.config.locals.copy()
         config_values.update(values)
 
         try:
             result = pwncat.modules.run(args.module, **config_values)
-            pwncat.victim.config.back()
+            pwncat.config.back()
         except pwncat.modules.ModuleFailed as exc:
             if args.traceback:
                 console.print_exception()

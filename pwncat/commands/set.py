@@ -13,11 +13,11 @@ class Command(CommandDefinition):
 
     def get_config_variables(self):
         options = (
-            ["state"] + list(pwncat.victim.config.values) + list(pwncat.victim.users)
+            ["state"] + list(pwncat.config.values) + list(pwncat.victim.users)
         )
 
-        if pwncat.victim.config.module:
-            options.extend(pwncat.victim.config.module.ARGUMENTS.keys())
+        if pwncat.config.module:
+            options.extend(pwncat.config.module.ARGUMENTS.keys())
 
         return options
 
@@ -76,14 +76,14 @@ class Command(CommandDefinition):
                     console.log(f"[red]error[/red]: {args.value}: invalid state")
             elif args.variable is not None and args.value is not None:
                 try:
-                    pwncat.victim.config.set(
+                    pwncat.config.set(
                         args.variable, args.value, getattr(args, "global")
                     )
                     if args.variable == "db":
                         # We handle this specially to ensure the database is available
                         # as soon as this config is set
                         pwncat.victim.engine = create_engine(
-                            pwncat.victim.config["db"], echo=False
+                            pwncat.config["db"], echo=False
                         )
                         pwncat.db.Base.metadata.create_all(pwncat.victim.engine)
 
@@ -95,13 +95,13 @@ class Command(CommandDefinition):
                 except ValueError as exc:
                     console.log(f"[red]error[/red]: {exc}")
             elif args.variable is not None:
-                value = pwncat.victim.config[args.variable]
+                value = pwncat.config[args.variable]
                 console.print(
                     f" [cyan]{args.variable}[/cyan] = [yellow]{repr(value)}[/yellow]"
                 )
             else:
-                for name in pwncat.victim.config:
-                    value = pwncat.victim.config[name]
+                for name in pwncat.config:
+                    value = pwncat.config[name]
                     console.print(
                         f" [cyan]{name}[/cyan] = [yellow]{repr(value)}[/yellow]"
                     )

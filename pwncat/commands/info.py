@@ -28,7 +28,7 @@ class Command(CommandDefinition):
 
     def run(self, args):
 
-        if not args.module and pwncat.victim.config.module is None:
+        if not args.module and pwncat.config.module is None:
             console.log("[red]error[/red]: no module specified")
             return
 
@@ -39,7 +39,7 @@ class Command(CommandDefinition):
                 console.log(f"[red]error[/red]: {args.module}: no such module")
                 return
         else:
-            module = pwncat.victim.config.module
+            module = pwncat.config.module
 
         console.print(
             f"[bold underline]Module [cyan]{module.name}[/cyan][/bold underline]"

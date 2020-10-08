@@ -73,7 +73,7 @@ class Module(PersistModule):
         # Ensure we read a public key
         if not pubkey:
             raise PersistError(
-                f"{pwncat.victim.config['privkey']+'.pub'}: empty public key"
+                f"{pwncat.config['privkey']+'.pub'}: empty public key"
             )
 
         # Add our public key

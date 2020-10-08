@@ -174,8 +174,8 @@ def run_decorator(real_run):
             elif not self.ALLOW_KWARGS:
                 raise InvalidArgument(key)
         for key in self.ARGUMENTS:
-            if key not in kwargs and key in pwncat.victim.config:
-                kwargs[key] = pwncat.victim.config[key]
+            if key not in kwargs and key in pwncat.config:
+                kwargs[key] = pwncat.config[key]
             elif key not in kwargs and self.ARGUMENTS[key].default is not NoValue:
                 kwargs[key] = self.ARGUMENTS[key].default
             elif key not in kwargs and self.ARGUMENTS[key].default is NoValue:

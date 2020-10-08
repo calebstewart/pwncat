@@ -30,4 +30,4 @@ class Command(CommandDefinition):
             console.log(f"[red]error[/red]: {args.module}: invalid module name")
             return
 
-        pwncat.victim.config.use(module)
+        pwncat.config.use(module)

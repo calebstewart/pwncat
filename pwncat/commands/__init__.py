@@ -171,7 +171,7 @@ class CommandParser:
     def loaded(self, value: bool):
         assert value == True
         self.loading_complete = True
-        self.eval(pwncat.victim.config["on_load"], "on_load")
+        self.eval(pwncat.config["on_load"], "on_load")
 
     def eval(self, source: str, name: str = "<script>"):
         """ Evaluate the given source file. This will execute the given string
@@ -208,11 +208,11 @@ class CommandParser:
         while self.running:
             try:
 
-                if pwncat.victim.config.module:
+                if pwncat.config.module:
                     self.prompt.message = [
                         (
                             "fg:ansiyellow bold",
-                            f"({pwncat.victim.config.module.name}) ",
+                            f"({pwncat.config.module.name}) ",
                         ),
                         ("fg:ansimagenta bold", "pwncat"),
                         ("", "$ "),
