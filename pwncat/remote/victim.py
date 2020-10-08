@@ -100,8 +100,6 @@ class Victim:
         setting the local terminal to raw. It also maintains the state to open a
         local terminal if requested and exit raw mode. """
 
-        # Configuration storage for this victim
-        self.config = Config()
         # Current user input state
         self._state = None
         # Saved remote terminal state (for transition to/from raw mode)
@@ -153,7 +151,7 @@ class Victim:
         # framework assume a db engine exists, and therefore needs this
         # reference. Also, in the case a config isn't loaded this
         # needs to happen.
-        self.engine = create_engine(self.config["db"], echo=False)
+        self.engine = create_engine(pwncat.config["db"], echo=False)
         pwncat.db.Base.metadata.create_all(self.engine)
 
         # Create the session_maker and default session
@@ -180,7 +178,7 @@ class Victim:
 
         # Create the database engine, and then create the schema
         # if needed.
-        self.engine = create_engine(self.config["db"], echo=False)
+        self.engine = create_engine(pwncat.config["db"], echo=False)
         pwncat.db.Base.metadata.create_all(self.engine)
 
         # Create the session_maker and default session
@@ -240,7 +238,7 @@ class Victim:
         # Create the database engine, and then create the schema
         # if needed.
         if self.engine is None:
-            self.engine = create_engine(self.config["db"], echo=False)
+            self.engine = create_engine(pwncat.config["db"], echo=False)
             pwncat.db.Base.metadata.create_all(self.engine)
 
             # Create the session_maker and default session
@@ -703,11 +701,11 @@ class Victim:
         """
 
         if self.has_prefix:
-            if data == self.config["prefix"].value:
+            if data == pwncat.config["prefix"].value:
                 self.client.send(data)
             else:
                 try:
-                    binding = self.config.binding(data)
+                    binding = pwncat.config.binding(data)
 
                     # Pass is a special case that can be used at the beginning of a
                     # command.
@@ -731,7 +729,7 @@ class Victim:
                 except KeyError:
                     pass
             self.has_prefix = False
-        elif data == self.config["prefix"].value:
+        elif data == pwncat.config["prefix"].value:
             self.has_prefix = True
         elif data == KeyType("c-d").value:
             # Don't allow exiting the remote prompt with C-d
@@ -859,7 +857,7 @@ class Victim:
             ldflags = []
 
         try:
-            cross = self.config["cross"]
+            cross = pwncat.config["cross"]
         except KeyError:
             cross = None
 
@@ -1773,7 +1771,7 @@ class Victim:
             pipe = self.subprocess(sudo_command, **kwargs)
         else:
             sdelim, edelim = pwncat.victim.process(sudo_command, delim=True)
-        
+
         output = self.peek_output(some=True).lower()
         if (
             b"[sudo]" in output
@@ -1783,7 +1781,7 @@ class Victim:
         ):
 
             if send_password and password is None:
-                self.client.send(util.CTRL_C*2)
+                self.client.send(util.CTRL_C * 2)
                 self.flush_output()
                 raise PermissionError(f"{self.current_user.name}: no known password")
 
@@ -1810,10 +1808,9 @@ class Victim:
                         f"{self.current_user.name}: incorrect password/permissions"
                     )
             else:
-                self.client.send(util.CTRL_C*2)
+                self.client.send(util.CTRL_C * 2)
                 self.flush_output()
                 raise PermissionError(f"{self.current_user.name}: no known password")
- 
 
         if stream:
             return pipe
