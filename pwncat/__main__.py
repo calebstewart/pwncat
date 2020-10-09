@@ -16,6 +16,7 @@ from paramiko.buffered_pipe import BufferedPipe
 import pwncat
 from pwncat.util import console
 from pwncat.remote import Victim
+from pwncat.db import get_session
 
 
 def main():
@@ -113,7 +114,7 @@ def main():
             pwncat.victim.restore_local_term()
             try:
                 # Make sure everything was committed
-                pwncat.victim.session.commit()
+                get_session().commit()
             except InvalidRequestError:
                 pass
 

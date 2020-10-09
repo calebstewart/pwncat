@@ -6,6 +6,7 @@ from colorama import Fore
 
 import pwncat
 from pwncat.util import Access
+from pwncat.db import get_session
 
 
 class Action(Enum):
@@ -113,9 +114,9 @@ class LambdaTamper(Tamper):
 
 class TamperManager:
     """ TamperManager not only provides some automated ability to tamper with
-    properties of the remote system, but also a tracker for all modifications 
+    properties of the remote system, but also a tracker for all modifications
     on the remote system with the ability to remove previous changes. Other modules
-    can register system changes with `PtyHandler.tamper` in order to allow the 
+    can register system changes with `PtyHandler.tamper` in order to allow the
     user to get a wholistic view of all modifications of the remote system, and
     attempt revert all modifications automatically. """
 
@@ -147,7 +148,7 @@ class TamperManager:
         serialized = pickle.dumps(tamper)
         tracker = pwncat.db.Tamper(name=str(tamper), data=serialized)
         pwncat.victim.host.tampers.append(tracker)
-        pwncat.victim.session.commit()
+        get_session().commit()
 
     def custom(self, name: str, revert: Optional[Callable] = None):
         tamper = LambdaTamper(name, revert)
@@ -176,10 +177,8 @@ class TamperManager:
         It removes the tracking for this tamper. """
 
         tracker = (
-            pwncat.victim.session.query(pwncat.db.Tamper)
-            .filter_by(name=str(tamper))
-            .first()
+            get_session().query(pwncat.db.Tamper).filter_by(name=str(tamper)).first()
         )
         if tracker is not None:
-            pwncat.victim.session.delete(tracker)
-            pwncat.victim.session.commit()
+            get_session().delete(tracker)
+            get_session().commit()

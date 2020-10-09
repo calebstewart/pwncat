@@ -35,6 +35,7 @@ from pwncat.remote import RemoteService
 from pwncat.tamper import TamperManager
 from pwncat.util import State, console
 from pwncat.modules.persist import PersistError, PersistType
+from pwncat.db import get_session
 
 
 def remove_busybox_tamper():
@@ -135,28 +136,11 @@ class Victim:
         self.client: Optional[socket.SocketType] = None
         # The shell we are running under on the remote host
         self.shell: str = "unknown"
-        # Database engine
-        self.engine: Engine = None
-        # Database session
-        self.session: Session = None
         # The host object as seen by the database
         self.host: pwncat.db.Host = None
         # The current user. This is cached while at the `pwncat` prompt
         # and reloaded whenever returning from RAW mode.
         self.cached_user: str = None
-
-        # The db engine is created here, but likely wrong. This happens
-        # before a configuration script is loaded, so likely creates a
-        # in memory db. This needs to happen because other parts of the
-        # framework assume a db engine exists, and therefore needs this
-        # reference. Also, in the case a config isn't loaded this
-        # needs to happen.
-        self.engine = create_engine(pwncat.config["db"], echo=False)
-        pwncat.db.Base.metadata.create_all(self.engine)
-
-        # Create the session_maker and default session
-        self.session_maker = sessionmaker(bind=self.engine)
-        self.session = self.session_maker()
 
     def reconnect(
         self, hostid: str, requested_method: str = None, requested_user: str = None
@@ -176,17 +160,8 @@ class Victim:
             will be tried.
         """
 
-        # Create the database engine, and then create the schema
-        # if needed.
-        self.engine = create_engine(pwncat.config["db"], echo=False)
-        pwncat.db.Base.metadata.create_all(self.engine)
-
-        # Create the session_maker and default session
-        self.session_maker = sessionmaker(bind=self.engine)
-        self.session = self.session_maker()
-
         # Load this host from the database
-        self.host = self.session.query(pwncat.db.Host).filter_by(hash=hostid).first()
+        self.host = get_session().query(pwncat.db.Host).filter_by(hash=hostid).first()
         if self.host is None:
             raise PersistError(f"invalid host hash")
 
@@ -234,17 +209,6 @@ class Victim:
         :type client: socket.SocketType
         :return: None
         """
-
-        # Create the database engine, and then create the schema
-        # if needed.
-        if self.engine is None:
-            self.engine = create_engine(pwncat.config["db"], echo=False)
-            pwncat.db.Base.metadata.create_all(self.engine)
-
-            # Create the session_maker and default session
-            if self.session is None:
-                self.session_maker = sessionmaker(bind=self.engine)
-                self.session = self.session_maker()
 
         # Initialize the socket connection
         self.client = client
@@ -315,7 +279,7 @@ class Victim:
 
             # Lookup the remote host in our database. If it's not there, create an entry
             self.host = (
-                self.session.query(pwncat.db.Host).filter_by(hash=host_hash).first()
+                get_session().query(pwncat.db.Host).filter_by(hash=host_hash).first()
             )
             if self.host is None:
                 progress.log(f"new host w/ hash [cyan]{host_hash}[/cyan]")
@@ -324,9 +288,9 @@ class Victim:
                 # Probe for system information
                 self.probe_host_details(progress, task_id)
                 # Add the host to the session
-                self.session.add(self.host)
+                get_session().add(self.host)
                 # Commit what we know
-                self.session.commit()
+                get_session().commit()
 
             # Save the remote host IP address
             self.host.ip = self.client.getpeername()[0]
@@ -554,16 +518,17 @@ class Victim:
         # Replace anything we provide in our binary cache with the busybox version
         for name in provides:
             binary = (
-                self.session.query(pwncat.db.Binary)
+                get_session()
+                .query(pwncat.db.Binary)
                 .filter_by(host_id=self.host.id, name=name)
                 .first()
             )
             if binary is not None:
-                self.session.delete(binary)
+                get_session().delete(binary)
             binary = pwncat.db.Binary(name=name, path=f"{busybox_remote_path} {name}")
             self.host.binaries.append(binary)
 
-        self.session.commit()
+        get_session().commit()
 
         console.log(f"busybox installed w/ {len(provides)} applets")
 
@@ -572,7 +537,7 @@ class Victim:
         operations such as clearing enumeration data. """
 
         self.host = (
-            self.session.query(pwncat.db.Host).filter_by(id=self.host.id).first()
+            get_session().query(pwncat.db.Host).filter_by(id=self.host.id).first()
         )
 
     def probe_host_details(self, progress: Progress, task_id):
@@ -633,7 +598,7 @@ class Victim:
 
         for binary in self.host.binaries:
             if self.host.busybox in binary.path:
-                self.session.delete(binary)
+                get_session().delete(binary)
 
         # Did we upload a copy of busybox or was it already installed?
         if self.host.busybox_uploaded:
@@ -663,7 +628,8 @@ class Victim:
         """
 
         binary = (
-            self.session.query(pwncat.db.Binary)
+            get_session()
+            .query(pwncat.db.Binary)
             .filter_by(name=name, host_id=self.host.id)
             .first()
         )
@@ -2067,7 +2033,8 @@ class Victim:
                     continue
                 line = line.strip().split(":")
                 user = (
-                    self.session.query(pwncat.db.User)
+                    get_session()
+                    .query(pwncat.db.User)
                     .filter_by(host_id=self.host.id, id=int(line[2]), name=line[0])
                     .first()
                 )
@@ -2086,7 +2053,7 @@ class Victim:
         # Remove users that don't exist anymore
         for user in self.host.users:
             if user.name not in current_users:
-                self.session.delete(user)
+                get_session().delete(user)
                 self.host.users.remove(user)
 
         with self.open("/etc/group", "r") as filp:
@@ -2097,7 +2064,8 @@ class Victim:
 
                 line = line.split(":")
                 group = (
-                    self.session.query(pwncat.db.Group)
+                    get_session()
+                    .query(pwncat.db.Group)
                     .filter_by(host_id=self.host.id, id=int(line[2]))
                     .first()
                 )
@@ -2111,7 +2079,8 @@ class Victim:
 
                 for username in line[3].split(","):
                     user = (
-                        self.session.query(pwncat.db.User)
+                        get_session()
+                        .query(pwncat.db.User)
                         .filter_by(host_id=self.host.id, name=username)
                         .first()
                     )
@@ -2131,7 +2100,8 @@ class Victim:
                         continue
 
                     user = (
-                        self.session.query(pwncat.db.User)
+                        get_session()
+                        .query(pwncat.db.User)
                         .filter_by(host_id=self.host.id, name=entries[0])
                         .first()
                     )
@@ -2146,7 +2116,7 @@ class Victim:
 
         # Reload the host object
         self.host = (
-            self.session.query(pwncat.db.Host).filter_by(id=self.host.id).first()
+            get_session().query(pwncat.db.Host).filter_by(id=self.host.id).first()
         )
 
         return self.users

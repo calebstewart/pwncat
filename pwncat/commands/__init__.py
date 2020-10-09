@@ -24,9 +24,14 @@ from prompt_toolkit.history import InMemoryHistory, History
 from typing import Dict, Any, List, Iterable
 from colorama import Fore
 from enum import Enum, auto
+from io import TextIOWrapper
 import argparse
 import pkgutil
 import shlex
+import sys
+import fcntl
+import termios
+import tty
 import os
 import re
 
@@ -36,6 +41,7 @@ import pwncat
 import pwncat.db
 from pwncat.commands.base import CommandDefinition, Complete
 from pwncat.util import State, console
+from pwncat.db import get_session
 
 
 def resolve_blocks(source: str):
@@ -101,7 +107,8 @@ class DatabaseHistory(History):
     def load_history_strings(self) -> Iterable[str]:
         """ Load the history from the database """
         for history in (
-            pwncat.victim.session.query(pwncat.db.History)
+            get_session()
+            .query(pwncat.db.History)
             .order_by(pwncat.db.History.id.desc())
             .all()
         ):
@@ -110,12 +117,15 @@ class DatabaseHistory(History):
     def store_string(self, string: str) -> None:
         """ Store a command in the database """
         history = pwncat.db.History(host_id=pwncat.victim.host.id, command=string)
-        pwncat.victim.session.add(history)
+        get_session().add(history)
 
 
 class CommandParser:
     """ Handles dynamically loading command classes, parsing input, and
-    dispatching commands. """
+    dispatching commands. This class effectively has complete control over
+    the terminal whenever in an interactive pwncat session. It will change
+    termios modes for the control tty at will in order to support raw vs
+    command mode. """
 
     def __init__(self):
         """ We need to dynamically load commands from pwncat.commands """
@@ -134,6 +144,10 @@ class CommandParser:
         self.loading_complete = False
         self.aliases: Dict[str, CommandDefinition] = {}
         self.shortcuts: Dict[str, CommandDefinition] = {}
+        self.found_prefix: bool = False
+        # Saved terminal state to support switching between raw and normal
+        # mode.
+        self.saved_term_state = None
 
     def setup_prompt(self):
         """ This needs to happen after __init__ when the database is fully
@@ -210,10 +224,7 @@ class CommandParser:
 
                 if pwncat.config.module:
                     self.prompt.message = [
-                        (
-                            "fg:ansiyellow bold",
-                            f"({pwncat.config.module.name}) ",
-                        ),
+                        ("fg:ansiyellow bold", f"({pwncat.config.module.name}) ",),
                         ("fg:ansimagenta bold", "pwncat"),
                         ("", "$ "),
                     ]
@@ -314,6 +325,113 @@ class CommandParser:
         except SystemExit:
             # The arguments were incorrect
             return
+
+    def parse_prefix(self, channel, data: bytes):
+        """ Parse data received from the user when in pwncat's raw mode.
+        This will intercept key presses from the user and interpret the
+        prefix and any bound keyboard shortcuts. It also sends any data
+        without a prefix to the remote channel.
+
+        :param data: input data from user
+        :type data: bytes
+        """
+
+        buffer = b""
+
+        for c in data:
+            if not self.found_prefix and c != pwncat.config["prefix"].value:
+                buffer += c
+                continue
+            elif not self.found_prefix and c == pwncat.config["prefix"].value:
+                self.found_prefix = True
+                channel.send(buffer)
+                buffer = b""
+                continue
+            elif self.found_prefix:
+                try:
+                    binding = pwncat.config.binding(c)
+                    if binding.strip() == "pass":
+                        buffer += c
+                    else:
+                        # Restore the normal terminal
+                        self.restore_term()
+
+                        # Run the binding script
+                        self.eval(binding, "<binding>")
+
+                        # Drain any channel output
+                        channel.drain()
+                        channel.send(b"\n")
+
+                        # Go back to a raw terminal
+                        self.raw_mode()
+                except KeyError:
+                    pass
+                self.found_prefix = False
+
+        # Flush any remaining raw data bound for the victim
+        channel.send(buffer)
+
+    def raw_mode(self):
+        """ Save the current terminal state and enter raw mode.
+        If the terminal is already in raw mode, this function
+        does nothing. """
+
+        if self.saved_term_state is not None:
+            return
+
+        # Ensure we don't have any weird buffering issues
+        sys.stdout.flush()
+
+        # Python doesn't provide a way to use setvbuf, so we reopen stdout
+        # and specify no buffering. Duplicating stdin allows the user to press C-d
+        # at the local prompt, and still be able to return to the remote prompt.
+        try:
+            os.dup2(sys.stdin.fileno(), sys.stdout.fileno())
+        except OSError:
+            pass
+        sys.stdout = TextIOWrapper(
+            os.fdopen(os.dup(sys.stdin.fileno()), "bw", buffering=0),
+            write_through=True,
+            line_buffering=False,
+        )
+
+        # Grab and duplicate current attributes
+        fild = sys.stdin.fileno()
+        old = termios.tcgetattr(fild)
+        new = termios.tcgetattr(fild)
+
+        # Remove ECHO from lflag and ensure we won't block
+        new[3] &= ~(termios.ECHO | termios.ICANON)
+        new[6][termios.VMIN] = 0
+        new[6][termios.VTIME] = 0
+        termios.tcsetattr(fild, termios.TCSADRAIN, new)
+
+        # Set raw mode
+        tty.setraw(sys.stdin)
+
+        orig_fl = fcntl.fcntl(sys.stdin, fcntl.F_GETFL)
+        fcntl.fcntl(sys.stdin, fcntl.F_SETFL, orig_fl)
+
+        self.saved_term_state = old, orig_fl
+
+    def restore_term(self, new_line=True):
+        """ Restores the normal terminal settings. This does nothing if the
+        terminal is not currently in raw mode. """
+
+        if self.saved_term_state is None:
+            return
+
+        termios.tcsetattr(
+            sys.stdin.fileno(), termios.TCSADRAIN, self.saved_term_state[0]
+        )
+        # tty.setcbreak(sys.stdin)
+        fcntl.fcntl(sys.stdin, fcntl.F_SETFL, self.saved_term_state[1])
+
+        if new_line:
+            sys.stdout.write("\n")
+
+        self.saved_term_state = None
 
 
 class CommandLexer(RegexLexer):
@@ -537,3 +655,9 @@ class CommandCompleter(Completer):
             yield from next_completer.get_completions(document, complete_event)
         elif this_completer is not None:
             yield from this_completer.get_completions(document, complete_event)
+
+
+# Here, we allocate the global parser object and initialize in-memory
+# settings
+parser: CommandParser = CommandParser()
+parser.setup_prompt()

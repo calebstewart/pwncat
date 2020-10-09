@@ -13,6 +13,7 @@ import pwncat.modules
 from pwncat import util
 from pwncat.util import console
 from pwncat.modules.enumerate import EnumerateModule
+from pwncat.db import get_session
 
 
 def strip_markup(styled_text: str) -> str:
@@ -86,7 +87,7 @@ class Module(pwncat.modules.BaseModule):
             for module in modules:
                 yield pwncat.modules.Status(module.name)
                 module.run(progress=self.progress, clear=True)
-            pwncat.victim.session.commit()
+            get_session().commit()
             pwncat.victim.reload_host()
             return
 

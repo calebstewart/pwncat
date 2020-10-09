@@ -21,6 +21,7 @@ from pwncat.commands.base import (
 
 # from pwncat.persist import PersistenceError
 from pwncat.modules.persist import PersistError
+from pwncat.db import get_session
 
 
 class Command(CommandDefinition):
@@ -119,7 +120,7 @@ class Command(CommandDefinition):
             # persistence methods
             hosts = {
                 host.hash: (host, [])
-                for host in pwncat.victim.session.query(pwncat.db.Host).all()
+                for host in get_session().query(pwncat.db.Host).all()
             }
 
             for module in modules:
@@ -201,9 +202,7 @@ class Command(CommandDefinition):
             try:
                 addr = ipaddress.ip_address(socket.gethostbyname(host))
                 row = (
-                    pwncat.victim.session.query(pwncat.db.Host)
-                    .filter_by(ip=str(addr))
-                    .first()
+                    get_session().query(pwncat.db.Host).filter_by(ip=str(addr)).first()
                 )
                 if row is None:
                     console.log(f"{level}: {str(addr)}: not found in database")

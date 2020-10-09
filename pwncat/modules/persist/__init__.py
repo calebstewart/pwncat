@@ -15,6 +15,7 @@ from pwncat.modules import (
     PersistError,
     PersistType,
 )
+from pwncat.db import get_session
 
 
 class PersistModule(BaseModule):
@@ -95,7 +96,8 @@ class PersistModule(BaseModule):
 
         # Check if this module has been installed with the same arguments before
         ident = (
-            pwncat.victim.session.query(pwncat.db.Persistence.id)
+            get_session()
+            .query(pwncat.db.Persistence.id)
             .filter_by(host_id=pwncat.victim.host.id, method=self.name, args=kwargs)
             .scalar()
         )
@@ -110,7 +112,7 @@ class PersistModule(BaseModule):
                 yield result
 
             # Remove from the database
-            pwncat.victim.session.query(pwncat.db.Persistence).filter_by(
+            get_session().query(pwncat.db.Persistence).filter_by(
                 host_id=pwncat.victim.host.id, method=self.name, args=kwargs
             ).delete(synchronize_session=False)
             return
@@ -178,7 +180,7 @@ class PersistModule(BaseModule):
         )
         pwncat.victim.host.persistence.append(row)
 
-        pwncat.victim.session.commit()
+        get_session().commit()
 
     def install(self, **kwargs):
         """

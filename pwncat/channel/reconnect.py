@@ -22,7 +22,7 @@ class Reconnect(Channel):
             host = "0.0.0.0"
 
         if port is None:
-            raise ChannelError(f"no port specified")
+            raise ChannelError("no port specified")
 
         with Progress(
             f"bound to [blue]{host}[/blue]:[cyan]{port}[/cyan]",

@@ -11,6 +11,7 @@ from pwncat.commands.base import (
     StoreForAction,
 )
 from pwncat.util import console
+from pwncat.db import get_session
 
 
 class Command(CommandDefinition):
@@ -71,9 +72,13 @@ class Command(CommandDefinition):
                 return
 
             # Find all binaries which are provided by busybox
-            provides = pwncat.victim.session.query(pwncat.db.Binary).filter(
-                pwncat.db.Binary.path.contains(pwncat.victim.host.busybox),
-                pwncat.db.Binary.host_id == pwncat.victim.host.id,
+            provides = (
+                get_session()
+                .query(pwncat.db.Binary)
+                .filter(
+                    pwncat.db.Binary.path.contains(pwncat.victim.host.busybox),
+                    pwncat.db.Binary.host_id == pwncat.victim.host.id,
+                )
             )
 
             for binary in provides:
@@ -88,7 +93,8 @@ class Command(CommandDefinition):
 
             # Find all binaries which are provided from busybox
             nprovides = (
-                pwncat.victim.session.query(pwncat.db.Binary)
+                get_session()
+                .query(pwncat.db.Binary)
                 .filter(
                     pwncat.db.Binary.path.contains(pwncat.victim.host.busybox),
                     pwncat.db.Binary.host_id == pwncat.victim.host.id,

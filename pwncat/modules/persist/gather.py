@@ -5,6 +5,7 @@ import pwncat
 from pwncat.util import console
 from pwncat.modules import BaseModule, Argument, Status, Bool, Result
 import pwncat.modules.persist
+from pwncat.db import get_session
 
 
 @dataclasses.dataclass
@@ -93,11 +94,13 @@ class Module(BaseModule):
         """ Execute this module """
 
         if pwncat.victim.host is not None:
-            query = pwncat.victim.session.query(pwncat.db.Persistence).filter_by(
-                host_id=pwncat.victim.host.id
+            query = (
+                get_session()
+                .query(pwncat.db.Persistence)
+                .filter_by(host_id=pwncat.victim.host.id)
             )
         else:
-            query = pwncat.victim.session.query(pwncat.db.Persistence)
+            query = get_session().query(pwncat.db.Persistence)
 
         if module is not None:
             query = query.filter_by(method=module)

@@ -6,15 +6,14 @@ from sqlalchemy.orm import sessionmaker
 import pwncat
 from pwncat.commands.base import CommandDefinition, Complete, Parameter
 from pwncat.util import console, State
+from pwncat.db import get_session, reset_engine
 
 
 class Command(CommandDefinition):
     """ Set variable runtime variable parameters for pwncat """
 
     def get_config_variables(self):
-        options = (
-            ["state"] + list(pwncat.config.values) + list(pwncat.victim.users)
-        )
+        options = ["state"] + list(pwncat.config.values) + list(pwncat.victim.users)
 
         if pwncat.config.module:
             options.extend(pwncat.config.module.ARGUMENTS.keys())
@@ -82,16 +81,14 @@ class Command(CommandDefinition):
                     if args.variable == "db":
                         # We handle this specially to ensure the database is available
                         # as soon as this config is set
-                        pwncat.victim.engine = create_engine(
-                            pwncat.config["db"], echo=False
-                        )
-                        pwncat.db.Base.metadata.create_all(pwncat.victim.engine)
-
-                        # Create the session_maker and default session
-                        pwncat.victim.session_maker = sessionmaker(
-                            bind=pwncat.victim.engine
-                        )
-                        pwncat.victim.session = pwncat.victim.session_maker()
+                        reset_engine()
+                        if pwncat.victim.host is not None:
+                            pwncat.victim.host = (
+                                get_session()
+                                .query(pwncat.db.Host)
+                                .filter_by(id=pwncat.victim.host.id)
+                                .scalar()
+                            )
                 except ValueError as exc:
                     console.log(f"[red]error[/red]: {exc}")
             elif args.variable is not None:

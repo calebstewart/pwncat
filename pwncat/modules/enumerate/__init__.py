@@ -8,6 +8,7 @@ import sqlalchemy
 import pwncat
 from pwncat.platform import Platform
 from pwncat.modules import BaseModule, Status, Argument, List
+from pwncat.db import get_session
 
 
 class Schedule(Enum):
@@ -61,14 +62,17 @@ class EnumerateModule(BaseModule):
 
         if clear:
             # Delete enumerated facts
-            query = pwncat.victim.session.query(pwncat.db.Fact).filter_by(
-                source=self.name, host_id=pwncat.victim.host.id
+            query = (
+                get_session()
+                .query(pwncat.db.Fact)
+                .filter_by(source=self.name, host_id=pwncat.victim.host.id)
             )
             query.delete(synchronize_session=False)
             # Delete our marker
             if self.SCHEDULE != Schedule.ALWAYS:
                 query = (
-                    pwncat.victim.session.query(pwncat.db.Fact)
+                    get_session()
+                    .query(pwncat.db.Fact)
                     .filter_by(host_id=pwncat.victim.host.id, type="marker")
                     .filter(pwncat.db.Fact.source.startswith(self.name))
                 )
@@ -77,7 +81,8 @@ class EnumerateModule(BaseModule):
 
         # Yield all the know facts which have already been enumerated
         existing_facts = (
-            pwncat.victim.session.query(pwncat.db.Fact)
+            get_session()
+            .query(pwncat.db.Fact)
             .filter_by(source=self.name, host_id=pwncat.victim.host.id)
             .filter(pwncat.db.Fact.type != "marker")
         )
@@ -92,7 +97,8 @@ class EnumerateModule(BaseModule):
 
         if self.SCHEDULE != Schedule.ALWAYS:
             exists = (
-                pwncat.victim.session.query(pwncat.db.Fact.id)
+                get_session()
+                .query(pwncat.db.Fact.id)
                 .filter_by(
                     host_id=pwncat.victim.host.id, type="marker", source=marker_name
                 )
@@ -114,11 +120,11 @@ class EnumerateModule(BaseModule):
                 host_id=pwncat.victim.host.id, type=typ, data=data, source=self.name
             )
             try:
-                pwncat.victim.session.add(row)
+                get_session().add(row)
                 pwncat.victim.host.facts.append(row)
-                pwncat.victim.session.commit()
+                get_session().commit()
             except sqlalchemy.exc.IntegrityError:
-                pwncat.victim.session.rollback()
+                get_session().rollback()
                 yield Status(data)
                 continue
 
@@ -140,7 +146,7 @@ class EnumerateModule(BaseModule):
                 source=marker_name,
                 data=None,
             )
-            pwncat.victim.session.add(row)
+            get_session().add(row)
             pwncat.victim.host.facts.append(row)
 
     def enumerate(self):
