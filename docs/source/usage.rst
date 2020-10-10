@@ -135,7 +135,7 @@ protocol.
 .. code-block:: bash
     :caption: Connection to a remote SSH server
 
-    # SSH style syntax (assumed protocl, prompted for password)
+    # SSH style syntax (assumed protocol, prompted for password)
     pwncat root@192.168.1.1
     # Full connection string with password
     pwncat "ssh://root:r00t5P@ssw0rd@192.168.1.1"
