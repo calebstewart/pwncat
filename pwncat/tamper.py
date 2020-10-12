@@ -158,6 +158,11 @@ class TamperManager:
         for tracker in pwncat.victim.host.tampers:
             yield pickle.loads(tracker.data)
 
+    def filter(self, base=Tamper):
+        for tamper in self:
+            if isinstance(tamper, base):
+                yield tamper
+
     def __len__(self):
         return len(pwncat.victim.host.tampers)
 

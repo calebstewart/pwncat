@@ -1,15 +1,15 @@
 # Set your remote hosts file
-set lhost "127.0.0.1"
+set -g lhost "127.0.0.1"
 # Set your command prefix
-set prefix c-k
+set -g prefix c-k
 # Set the default private key to use for privilege escalation
-set privkey "data/pwncat" 
+set -g privkey "data/pwncat" 
 # Set the pwncat backdoor user and password
-set backdoor_user "pwncat"
-set backdoor_pass "pwncat"
-set db "sqlite:///pwncat.sqlite"
+set -g backdoor_user "pwncat"
+set -g backdoor_pass "pwncat"
+set -g db "sqlite:///pwncat.sqlite"
 
-set on_load {
+set -g on_load {
 	# Run a command upon a stable connection
 	# privesc -l
 }

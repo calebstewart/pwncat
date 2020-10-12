@@ -22,6 +22,7 @@ dependencies = [
     "mbstrdecoder==1.0.0",
     "msgfy==0.1.0",
     "netifaces==0.10.9",
+    "packaging==20.4",
     "paramiko==2.7.1",
     "pathvalidate==2.3.0",
     "pprintpp==0.4.0",
@@ -34,7 +35,7 @@ dependencies = [
     "python-dateutil==2.8.1",
     "pytz==2020.1",
     "requests==2.24.0",
-    "rich==3.3.2",
+    "rich",
     "six==1.15.0",
     "SQLAlchemy==1.3.18",
     "tabledata==1.1.2",
@@ -43,6 +44,7 @@ dependencies = [
     "typing-extensions==3.7.4.2",
     "urllib3==1.25.9",
     "wcwidth==0.1.9",
+    "python-rapidjson==0.9.1",
 ]
 
 dependency_links = [
@@ -50,16 +52,36 @@ dependency_links = [
     "https://github.com/JohnHammond/base64io-python/tarball/master#egg=base64io",
 ]
 
+# Read the requirements
+with open("requirements.txt") as filp:
+    dependencies = [
+        line.strip() for line in filp.readlines() if not line.startswith("#")
+    ]
+
+# Build dependency links for entries that need them
+# This works for "git+https://github.com/user/package" refs
+dependency_links = [dep for dep in dependencies if dep.startswith("git+")]
+for i, dep in enumerate(dependency_links):
+    link = dep.split("git+")[1]
+    name = dep.split("/")[-1]
+    dependency_links[i] = f"{link}/tarball/master#egg={name}"
+
+# Strip out git+ links from dependencies
+dependencies = [dep for dep in dependencies if not dep.startswith("git+")]
+
 # Setup
 setup(
     name="pwncat",
     version="0.3.1",
+    python_requires=">=3.8",
     description="A fancy reverse and bind shell handler",
     author="Caleb Stewart",
     url="https://gitlab.com/calebstewart/pwncat",
     packages=find_packages(),
     package_data={"pwncat": ["data/*"]},
-    entry_points={"console_scripts": ["pwncat=pwncat.__main__:main"]},
+    entry_points={
+        "console_scripts": ["pwncat=pwncat.__main__:main", "pc=pwncat.__main__:main"]
+    },
     data_files=[],
     install_requires=dependencies,
     dependency_links=dependency_links,

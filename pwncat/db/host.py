@@ -3,6 +3,7 @@ from sqlalchemy import Column, Integer, String, Enum, Boolean
 from sqlalchemy.orm import relationship
 
 from pwncat import util
+from pwncat.platform import Platform
 from pwncat.db.base import Base
 
 
@@ -14,6 +15,8 @@ class Host(Base):
     id = Column(Integer, primary_key=True)
     # A unique hash identifying this host
     hash = Column(String)
+    # The platform this host is running
+    platform = Column(Enum(Platform))
     # The IP address we observed on the last connection
     # to this host
     ip = Column(String)

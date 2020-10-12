@@ -282,7 +282,7 @@ def enter_raw_mode():
     tty.setraw(sys.stdin)
 
     orig_fl = fcntl.fcntl(sys.stdin, fcntl.F_GETFL)
-    fcntl.fcntl(sys.stdin, fcntl.F_SETFL, orig_fl | os.O_NONBLOCK)
+    fcntl.fcntl(sys.stdin, fcntl.F_SETFL, orig_fl)
 
     return old, orig_fl
 

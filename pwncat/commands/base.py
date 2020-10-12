@@ -218,7 +218,9 @@ class CommandDefinition:
         # Create the parser object
         if self.ARGS is not None:
             self.parser = argparse.ArgumentParser(
-                prog=self.PROG, description=self.__doc__
+                prog=self.PROG,
+                description=self.__doc__,
+                formatter_class=argparse.RawDescriptionHelpFormatter,
             )
             self.build_parser(self.parser, self.ARGS, self.GROUPS)
         else:

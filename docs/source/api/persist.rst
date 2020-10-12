@@ -1,78 +1,105 @@
-Persistence Methods
+Persistence Modules
 ===================
 
-Persistence methods are implemented through an abstract ``PersistenceMethod`` base class which defines methods
-for installing and removing various persistence methods. The persistence module and associated base classes
-are defined in the ``pwncat/persist/__init__.py`` script.
+Persistence modules are simply ``pwncat`` modules which inherit from the
+``PersistModule`` base class. The ``PersistModule`` base class takes care
+of the ``run`` method. The ``install`` and ``remove`` methods must be
+implemented in all persistence modules. Depending on the type, at least
+one of ``connect`` and ``escalate`` must be implemented.
 
-Persistence methods are loaded using the ``pkgutil`` python module automatically from the ``pwncat/persist``
-subdirectory. Any module implementing a ``Method`` class which inherits from the ``PersistenceMethod``
-base class will be imported as an available persistence method.
+Unlike a base module, persistence modules should raise the ``PersistError``
+class when a module fails.
 
-Implementing Persistence Methods
---------------------------------
+``pwncat/modules/persist/passwd.py`` is a good example of a persistence
+module if you'd like to review a working module.
 
-A persistence method is implemented by creating a new script under the ``pwncat/persist`` directory
-which implements a ``Method`` class. This class must inherit from the ``PersistenceMethod`` base
-class and implement the ``install`` and ``remove`` functions.
+The ``install``, ``remove``, and ``escalate`` methods should be generators
+which yield status updates during operation. Status updates should be of
+the type ``pwncat.modules.Status`` which is a subclass of ``str``. Any other
+values will be ignored.
 
-A privilege escalation method also defines a few properties as class variables which govern how
-the method is utilized by ``pwncat``. The ``system`` variable is a boolean defining whether this
-persistence method allows access only as ``root`` or is installed on a per-user basis. If this
-item is true, all ``user`` options in further methods are ignored.
+Persistence Types
+-----------------
 
-The ``name`` variable is used to create user-readable formatted strings representing this persistence
-method. Lastly, the ``local`` variable is a boolean defining whether the persistence method allows
-local escalation to the specified user.
+Persistence types are defined by the ``TYPE`` module class property. This
+property is a ``PersistType`` flags instance. There are three possible
+persistence types as documented below. This field describes how an installed
+module can be used. At least one of the listed types must be specified.
 
-Three methods can be overridden within the ``PersistenceMethod`` base class. The first is the ``install``
-method. This method takes a ``user`` parameter (if not a system method), and should install persistence
-as the specified user. If there is a problem or error during installation, ``PersistenceError`` should
-be raised with a description of the error.
 
-Next, the ``remove`` method must be implemented to undo the actions of the ``install`` method. It takes
-the same ``user`` argument, and upon error should also raise ``PersistenceError``.
+Custom Arguments
+----------------
 
-Lastly, the ``escalate`` method is only required if ``local`` is true. It should leverage this
-persistence method to gain access shell access as the specified user (again, user should be ignored
-for system methods). This is used as a shortcut in the implementation of the ``privesc`` command
-to utilize local persistence methods to escalate to different users.
+Custom arguments can be specified in the same way as a base module: the
+``ARGUMENTS`` class property. The only difference is that you must include
+the base persistence arguments in addition to new arguments. Every
+persistence module takes the following arguments: "user", "remove", "escalate"
+and "connect".
 
-Locating and Installing Persistence Methods
--------------------------------------------
+If custom arguments are used, the persistence module cannot be automatically
+invoked by privilege escalation. This is not required, but you should be
+aware during implementation/testing.
 
-If you would like to programmatically install, remove or locate privilege escalation methods,
-you can use the ``pwncat.victim.persist`` module. This module provides a generic interface
-to enumerate available methods, list installed methods, and locate methods by name.
+In addition to the ``user`` argument, all custom arguments are passed to
+all module methods as keyword arguments with the same name as in the
+``ARGUMENTS`` class property. The ``remove``, ``escalate`` and ``connect``
+arguments are only received and processed by the the ``run`` method.
 
-The ``install`` method takes a method name and an optional user. This will locate the identified
-method and call it's ``install`` routine. If installation is successful, it will register the
-method in the database as installed and also register a corresponding tamper object to track
-the installation. If the method does not exist or failed to install, a ``PersistenceError``
-exception is raised.
+Simple Example Module
+---------------------
 
-The ``register`` method takes the same parameters as the ``install`` method. It will register the
-specified method as being installed but not perform the installation routine. This is useful
-when a module installs a persistence method in a non-standard way and needs to register this
-installation with the framework. For example, the ``privesc`` module may install SSH authorized
-keys via a privesc file writer. If this happens, it will register this persistence with the ``persist``
-module for tracking.
+This serves as a baseline persistence module. It doesn't do anything, but
+show the structure of a working module.
 
-The ``remove`` is the inverse of the ``install`` method, and will completely remove the given
-persistence method.
+.. code-block:: python
 
-To find a persistence method by name, you can use the ``find`` method which returns an iterator
-of known persistence methods. The  ``persist`` module is also an iterator which will yield all
-known persistence methods.
+    class Module(PersistModule):
+        """ This docstring will be used as the information from the ``info``
+        command. """
 
-The Persistence Module Class
+        # PersistType.LOCAL requires the ``escalate`` method
+        # PersistType.REMOTE requires the ``connect`` method
+        TYPE = PersistType.LOCAL | PersistType.REMOTE
+        # If no custom arguments are needed, this can be ommitted
+        # completely.
+        ARGUMENTS = {
+            **PersistModule.ARGUMENTS,
+            "custom_arg": Argument(str),
+        }
+
+        def install(self, user, custom_arg):
+            """ Install the module on the victim """
+
+            yield Status("Update the progress bar by yielding Status objects")
+
+        def remove(self, user, custom_arg):
+            """ Remove any modifications from the remote victim """
+
+            yield Status("You can also update the progress bar here")
+
+        def escalate(self, user, custom_arg):
+            """ Locally escalate privileges with this module """
+
+            yield Status("Update the status information")
+            return "exit command used to leave this new shell"
+
+        def connect(self, user, custom_arg):
+            """ Connect to the victim at pwncat.victim.host.ip """
+
+            # Return a socket-like object connected to the victim shell
+            return socket.create_connection(pwncat.victim.host.ip)
+
+
+Helper Classes
+--------------
+
+.. autoclass:: pwncat.modules.persist.PersistError
+
+.. autoclass:: pwncat.modules.persist.PersistType
+   :members:
+
+Persistence Module Reference
 ----------------------------
 
-.. autoclass:: pwncat.persist.Persistence
-    :members:
-
-The Base Persistence Method Class
----------------------------------
-
-.. autoclass:: pwncat.persist.PersistenceMethod
-    :members:
+.. autoclass:: pwncat.modules.persist.PersistModule
+   :members:

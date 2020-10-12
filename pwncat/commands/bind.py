@@ -29,10 +29,10 @@ class Command(CommandDefinition):
 
     def run(self, args):
         if args.key is None:
-            for key, binding in pwncat.victim.config.bindings.items():
+            for key, binding in pwncat.config.bindings.items():
                 console.print(f" [cyan]{key}[/cyan] = [yellow]{repr(binding)}[/yellow]")
         elif args.key is not None and args.script is None:
-            if args.key in pwncat.victim.config.bindings:
-                del pwncat.victim.config.bindings[args.key]
+            if args.key in pwncat.config.bindings:
+                del pwncat.config.bindings[args.key]
         else:
-            pwncat.victim.config.bindings[args.key] = args.script
+            pwncat.config.bindings[args.key] = args.script

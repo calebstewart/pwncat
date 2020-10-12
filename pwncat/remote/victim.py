@@ -26,9 +26,6 @@ from rich.progress import (
 )
 
 import pwncat.db
-import pwncat.enumerate
-from pwncat import persist
-from pwncat import privesc
 from pwncat import util
 from pwncat.commands import CommandParser
 from pwncat.config import Config, KeyType
@@ -37,6 +34,7 @@ from pwncat.gtfobins import GTFOBins, Capability, Stream
 from pwncat.remote import RemoteService
 from pwncat.tamper import TamperManager
 from pwncat.util import State, console
+from pwncat.modules.persist import PersistError, PersistType
 
 
 def remove_busybox_tamper():
@@ -66,10 +64,6 @@ class Victim:
     :type command_parser: CommandParser
     :param tamper: the tamper module handling remote tamper registration
     :type tamper: TamperManager
-    :param privesc: the privilege escalation module
-    :type privesc: privesc.Finder
-    :param persist: the persistence module
-    :type persist: persist.Persistence
     :param engine: the SQLAlchemy database engine
     :type engine: Engine
     :param session: the global SQLAlchemy session
@@ -106,19 +100,13 @@ class Victim:
         setting the local terminal to raw. It also maintains the state to open a
         local terminal if requested and exit raw mode. """
 
-        # Configuration storage for this victim
-        self.config = Config()
         # Current user input state
         self._state = None
         # Saved remote terminal state (for transition to/from raw mode)
         self.saved_term_state = None  # util.enter_raw_mode()
         # util.restore_terminal(self.saved_term_state, new_line=False)
-        # Prompt and prompt prefix
-        self.remote_prefix = "\\[\\033[01;31m\\](remote)\\[\\033[00m\\]"
-        self.remote_prompt = (
-            "\\[\\033[01;33m\\]\\u@\\h\\[\\033[00m\\]:\\["
-            "\\033[01;36m\\]\\w\\[\\033[00m\\]\\$ "
-        )
+        # Prompt
+        self.remote_prompt = """$(command printf "\\033[01;31m(remote)\\033[0m \\033[01;33m$(whoami)@$(hostname)\\033[0m:\\033[1;36m$PWD\\033[0m$ ")"""
         # Aliases for equivalent commands
         self.binary_aliases = {
             "python": [
@@ -147,12 +135,6 @@ class Victim:
         self.client: Optional[socket.SocketType] = None
         # The shell we are running under on the remote host
         self.shell: str = "unknown"
-        # A privesc locator/manager
-        self.privesc: privesc.Finder = None
-        # Persistence manager
-        self.persist: persist.Persistence = persist.Persistence()
-        # The enumeration manager
-        self.enumerate: pwncat.enumerate.Enumerate = pwncat.enumerate.Enumerate()
         # Database engine
         self.engine: Engine = None
         # Database session
@@ -162,6 +144,19 @@ class Victim:
         # The current user. This is cached while at the `pwncat` prompt
         # and reloaded whenever returning from RAW mode.
         self.cached_user: str = None
+
+        # The db engine is created here, but likely wrong. This happens
+        # before a configuration script is loaded, so likely creates a
+        # in memory db. This needs to happen because other parts of the
+        # framework assume a db engine exists, and therefore needs this
+        # reference. Also, in the case a config isn't loaded this
+        # needs to happen.
+        self.engine = create_engine(pwncat.config["db"], echo=False)
+        pwncat.db.Base.metadata.create_all(self.engine)
+
+        # Create the session_maker and default session
+        self.session_maker = sessionmaker(bind=self.engine)
+        self.session = self.session_maker()
 
     def reconnect(
         self, hostid: str, requested_method: str = None, requested_user: str = None
@@ -183,7 +178,7 @@ class Victim:
 
         # Create the database engine, and then create the schema
         # if needed.
-        self.engine = create_engine(self.config["db"], echo=False)
+        self.engine = create_engine(pwncat.config["db"], echo=False)
         pwncat.db.Base.metadata.create_all(self.engine)
 
         # Create the session_maker and default session
@@ -193,38 +188,33 @@ class Victim:
         # Load this host from the database
         self.host = self.session.query(pwncat.db.Host).filter_by(hash=hostid).first()
         if self.host is None:
-            raise persist.PersistenceError("{hostid}: invalid host hash")
+            raise PersistError(f"invalid host hash")
 
         with Progress(
-            "[bold]reconnecting[/bold]: {task.fields[method]}",
-            BarColumn(bar_width=None),
-            "[progress.percentage]{task.percentage:>3.1f}%",
+            "[blue bold]reconnecting[/blue bold]",
+            "•",
+            "[cyan]{task.fields[module]}[cyan]",
+            "•",
+            "{task.fields[status]}",
+            transient=True,
+            console=console,
         ) as progress:
-            installed_methods = list(self.persist.installed)
-            task_id = progress.add_task(
-                "attempt", method="initializing", total=len(installed_methods)
-            )
-            for username, method in self.persist.installed:
-                progress.update(
-                    task_id, method=f"[cyan]{method.format(username)}[/cyan]"
-                )
-                if requested_method and requested_method != method.name:
+            task_id = progress.add_task("attempt", module="initializing", status="...",)
+            for module in pwncat.modules.run("persist.gather"):
+                if module.TYPE.__class__.REMOTE not in module.module.TYPE:
                     continue
-                if requested_user and (
-                    (requested_user != "root" and method.system)
-                    or (requested_user != username)
-                ):
-                    continue
+
+                progress.update(task_id, module=module.name, status="...")
                 try:
-                    sock = method.reconnect(username)
-                    progress.update(
-                        task_id, completed=len(installed_methods),
-                    )
+                    sock = module.connect(requested_user, progress=progress)
+                    progress.update(task_id, status="connected!")
+                    progress.log(f"connected via {module}")
                     break
-                except persist.PersistenceError:
+                except PersistError as exc:
+                    progress.update(str(exc))
                     continue
             else:
-                raise persist.PersistenceError("no working persistence methods found")
+                raise PersistError("no working persistence methods found")
 
         # Perform connection initialization for this new victim
         self.connect(sock)
@@ -248,7 +238,7 @@ class Victim:
         # Create the database engine, and then create the schema
         # if needed.
         if self.engine is None:
-            self.engine = create_engine(self.config["db"], echo=False)
+            self.engine = create_engine(pwncat.config["db"], echo=False)
             pwncat.db.Base.metadata.create_all(self.engine)
 
             # Create the session_maker and default session
@@ -271,6 +261,8 @@ class Victim:
             "[progress.percentage]{task.percentage:>3.1f}%",
             console=console,
             transient=True,
+            auto_refresh=True,
+            refresh_per_second=60,
         ) as progress:
 
             task_id = progress.add_task("initializing", total=7, status="hostname")
@@ -343,12 +335,11 @@ class Victim:
             # the history objects
             self.command_parser.setup_prompt()
 
-            progress.update(task_id, status="history and prompt", advance=1)
+            progress.update(task_id, status="history", advance=1)
 
             # Ensure history is disabled
             self.run("unset HISTFILE; export HISTCONTROL=ignorespace")
             self.run("unset PROMPT_COMMAND")
-            self.run(f"export PS1='{self.remote_prefix} {self.remote_prompt}'")
 
             progress.update(task_id, status="running shell", advance=1)
 
@@ -367,39 +358,50 @@ class Victim:
                 )
                 self.shell = self.which("sh")
 
-            progress.update(task_id, status="spawning pty", advance=1)
+            progress.update(task_id, status="prompt")
 
-            # At this point, the system is functioning, but we don't have a raw terminal/
-            # pseudoterminal. Here, we attempt a couple methods of gaining a PTY.
-            method = None
-            method_cmd = None
+            self.run(f"export PS1='{self.remote_prompt}'")
 
-            if self.which("python") is not None:
-                method_cmd = Victim.OPEN_METHODS["python"].format(
-                    self.which("python"), self.shell
-                )
-                method = "python"
-            elif self.which("script") is not None:
-                result = self.run("script --version")
-                if b"linux" in result:
-                    method_cmd = f"exec script -qc {self.shell} /dev/null"
-                    method = "script (util-linux)"
+            # This should be valid in any POSIX compliant shell
+            progress.update(task_id, status="checking for pty")
+            result = self.run("[ -t 1 ] && echo terminal")
+
+            if b"terminal" not in result:
+                progress.update(task_id, status="spawning pty", advance=1)
+
+                # At this point, the system is functioning, but we don't have a raw terminal/
+                # pseudoterminal. Here, we attempt a couple methods of gaining a PTY.
+                method = None
+                method_cmd = None
+
+                if self.which("python") is not None:
+                    method_cmd = Victim.OPEN_METHODS["python"].format(
+                        self.which("python"), self.shell
+                    )
+                    method = "python"
+                elif self.which("script") is not None:
+                    result = self.run("script --version")
+                    if b"linux" in result:
+                        method_cmd = f"exec script -qc {self.shell} /dev/null"
+                        method = "script (util-linux)"
+                    else:
+                        method_cmd = f"exec script -q /dev/null {self.shell}"
+                        method = "script (probably bsd)"
+                    method = "script"
                 else:
-                    method_cmd = f"exec script -q /dev/null {self.shell}"
-                    method = "script (probably bsd)"
-                method = "script"
-            else:
-                progress.log("[red]error[/red]: no available pty methods!")
+                    progress.log("[red]error[/red]: no available pty methods!")
 
-            # Open the PTY
-            if not isinstance(self.client, paramiko.Channel) and method is not None:
-                self.run(method_cmd, wait=False)
+                # Open the PTY
+                if not isinstance(self.client, paramiko.Channel) and method is not None:
+                    self.run(method_cmd, wait=False)
+            else:
+                progress.update(task_id, status="pty already running", advance=1)
 
             progress.update(task_id, status="synchronizing prompt", advance=1)
 
             # This stuff won't carry through to the PTY, so we need to reset it again.
             self.run("unset PROMPT_COMMAND")
-            self.run(f"export PS1='{self.remote_prefix} {self.remote_prompt}'")
+            self.run(f"export PS1='{self.remote_prompt}'")
 
             # Make sure HISTFILE is unset in this PTY (it resets when a pty is
             # opened)
@@ -407,10 +409,6 @@ class Victim:
 
             # Disable automatic margins, which fuck up the prompt
             self.run("tput rmam")
-
-            # Now that we have a stable connection, we can create our
-            # privesc finder object.
-            self.privesc = privesc.Finder()
 
             # Save our terminal state
             self.stty_saved = self.run("stty -g").decode("utf-8").strip()
@@ -569,12 +567,23 @@ class Victim:
 
         console.log(f"busybox installed w/ {len(provides)} applets")
 
+    def reload_host(self):
+        """ Reload the host database object. This is needed after some clearing
+        operations such as clearing enumeration data. """
+
+        self.host = (
+            self.session.query(pwncat.db.Host).filter_by(id=self.host.id).first()
+        )
+
     def probe_host_details(self, progress: Progress, task_id):
         """
         Probe the remote host for details such as the installed init system, distribution
         architecture, etc. This information is stored in the database and only retrieved
         for new systems or if the database was removed.
         """
+
+        # Currently, we only support Linux
+        self.host.platform = pwncat.platform.Platform.LINUX
 
         # progress.update(task_id, status="init system")
         try:
@@ -692,11 +701,11 @@ class Victim:
         """
 
         if self.has_prefix:
-            if data == self.config["prefix"].value:
+            if data == pwncat.config["prefix"].value:
                 self.client.send(data)
             else:
                 try:
-                    binding = self.config.binding(data)
+                    binding = pwncat.config.binding(data)
 
                     # Pass is a special case that can be used at the beginning of a
                     # command.
@@ -720,7 +729,7 @@ class Victim:
                 except KeyError:
                     pass
             self.has_prefix = False
-        elif data == self.config["prefix"].value:
+        elif data == pwncat.config["prefix"].value:
             self.has_prefix = True
         elif data == KeyType("c-d").value:
             # Don't allow exiting the remote prompt with C-d
@@ -730,8 +739,8 @@ class Victim:
         else:
             self.client.send(data)
 
-    def recv(self) -> bytes:
-        return self.client.recv(4096)
+    def recv(self, count=4096) -> bytes:
+        return self.client.recv(count)
 
     @property
     def state(self) -> State:
@@ -848,7 +857,7 @@ class Victim:
             ldflags = []
 
         try:
-            cross = self.config["cross"]
+            cross = pwncat.config["cross"]
         except KeyError:
             cross = None
 
@@ -1363,7 +1372,7 @@ class Victim:
             raise PermissionError
 
         with self.subprocess(
-            ["ls", "--color=never", "--all", "-1"], stderr="/dev/null", mode="r"
+            ["ls", "--color=never", "--all", "-1", path], stderr="/dev/null", mode="r"
         ) as pipe:
             for line in pipe:
                 line = line.strip().decode("utf-8")
@@ -1723,6 +1732,7 @@ class Victim:
         wait: bool = True,
         password: str = None,
         stream: bool = False,
+        send_password: bool = True,
         **kwargs,
     ):
         """
@@ -1755,6 +1765,8 @@ class Victim:
         if password is None:
             password = self.current_user.password
 
+        self.flush_output()
+
         if stream:
             pipe = self.subprocess(sudo_command, **kwargs)
         else:
@@ -1767,28 +1779,38 @@ class Victim:
             or output.endswith(b"password: ")
             or b"lecture" in output
         ):
-            if password is None:
-                self.client.send(util.CTRL_C)
+
+            if send_password and password is None:
+                self.client.send(util.CTRL_C * 2)
+                self.flush_output()
                 raise PermissionError(f"{self.current_user.name}: no known password")
 
             self.flush_output()
 
-            self.client.send(password.encode("utf-8") + b"\n")
+            if send_password:
+                self.client.send(password.encode("utf-8") + b"\n")
 
-            old_timeout = pwncat.victim.client.gettimeout()
-            pwncat.victim.client.settimeout(5)
-            output = pwncat.victim.peek_output(some=True)
-            pwncat.victim.client.settimeout(old_timeout)
+                old_timeout = pwncat.victim.client.gettimeout()
+                pwncat.victim.client.settimeout(5)
+                output = pwncat.victim.peek_output(some=True)
+                pwncat.victim.client.settimeout(old_timeout)
 
-            if (
-                b"[sudo]" in output
-                or b"password for " in output
-                or b"sorry," in output
-                or b"sudo: " in output
-            ):
-                pwncat.victim.client.send(util.CTRL_C)
-                pwncat.victim.recvuntil(b"\n")
-                raise PermissionError(f"{self.current_user.name}: incorrect password")
+                if (
+                    b"[sudo]" in output
+                    or b"password for " in output
+                    or b"sorry," in output
+                    or b"Sorry," in output
+                    or b"sudo: " in output
+                ):
+                    pwncat.victim.client.send(util.CTRL_C)
+                    pwncat.victim.recvuntil(b"\n")
+                    raise PermissionError(
+                        f"{self.current_user.name}: incorrect password/permissions"
+                    )
+            else:
+                self.client.send(util.CTRL_C * 2)
+                self.flush_output()
+                raise PermissionError(f"{self.current_user.name}: no known password")
 
         if stream:
             return pipe
@@ -1822,7 +1844,7 @@ class Victim:
         self.has_cr = True
         self.has_echo = True
         self.run("echo")
-        self.run(f"export PS1='{self.remote_prefix} {self.remote_prompt}'")
+        self.run(f"export PS1='{self.remote_prompt}'")
 
     def flush_output(self, some=False):
         """
@@ -1892,7 +1914,7 @@ class Victim:
         self.run("unset HISTFILE; export HISTCONTROL=ignorespace")
         self.run("unset PROMPT_COMMAND")
         self.run("unalias -a")
-        self.run(f"export PS1='{self.remote_prefix} {self.remote_prompt}'")
+        self.run(f"export PS1='{self.remote_prompt}'")
         self.run(f"tput rmam")
 
     def recvuntil(self, needle: bytes, interp=False, timeout=None):

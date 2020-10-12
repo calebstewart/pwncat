@@ -14,6 +14,10 @@ RUN set -eux \
 RUN set -eux \
 	&& python3 -m ensurepip
 
+# Ensure pip is up to date
+RUN set -eux \
+	&& python3 -m pip install -U pip setuptools wheel
+
 # Copy pwncat source
 COPY . /pwncat
 

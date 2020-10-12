@@ -3,9 +3,10 @@ from sqlalchemy import Column, Integer, ForeignKey, PickleType, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from pwncat.db.base import Base
+from pwncat.modules import Result
 
 
-class Fact(Base):
+class Fact(Base, Result):
     """ Store enumerated facts. The pwncat.enumerate.Fact objects are pickled and
     stored in the "data" column. The enumerator is arbitrary, but allows for
     organizations based on the source enumerator. """
@@ -21,3 +22,15 @@ class Fact(Base):
     __table_args__ = (
         UniqueConstraint("type", "data", "host_id", name="_type_data_uc"),
     )
+
+    @property
+    def category(self) -> str:
+        return f"{self.type}"
+
+    @property
+    def title(self) -> str:
+        return str(self.data)
+
+    @property
+    def description(self) -> str:
+        return getattr(self.data, "description", None)

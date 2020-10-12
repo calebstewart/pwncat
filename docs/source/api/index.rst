@@ -11,7 +11,9 @@ prompt commands or more complicated privilege escalation or persistence methods.
     :caption: Contents
 
     commandparser.rst
+    modules.rst
     privesc.rst
     persist.rst
+    enumeration.rst
     victim.rst
     gtfobins.rst
