@@ -156,7 +156,7 @@ class PersistModule(BaseModule):
         elif result is not None:
             yield result
 
-        self.register(kwargs)
+        self.register(**kwargs)
 
     def register(self, **kwargs):
         """
