@@ -14,8 +14,43 @@ from pwncat.modules import (
     ModuleFailed,
     PersistError,
     PersistType,
+    ArgumentFormatError,
 )
 from pwncat.db import get_session
+
+
+def host_type(ident: str) -> pwncat.db.Host:
+    if isinstance(ident, pwncat.db.Host):
+        return ident
+
+    if ident is None and pwncat.victim is None:
+        raise ArgumentFormatError("invalid host")
+    elif ident is None:
+        return pwncat.victim.host
+
+    try:
+        host = get_session().query(pwncat.db.Host).filter_by(id=int(ident)).first()
+    except ValueError:
+        host = None
+
+    if host is None:
+        host = get_session().query(pwncat.db.Host).filter_by(ip=ident).first()
+
+    if host is None:
+        try:
+            host = (
+                get_session()
+                .query(pwncat.db.Host)
+                .filter_by(ip=socket.gethostbyname(ident))
+                .first()
+            )
+        except socket.gaierror:
+            host = None
+
+    if host is None:
+        raise ArgumentFormatError("invalid host")
+
+    return host
 
 
 class PersistModule(BaseModule):
@@ -49,6 +84,10 @@ class PersistModule(BaseModule):
     connection or local escalation or both). This also identifies a
     given persistence module as applying to "all users" """
     ARGUMENTS = {
+        "host": Argument(
+            host_type,
+            help="Host ID, IP address, Hostname or Host object (default: current)",
+        ),
         "user": Argument(str, help="The user to install persistence as"),
         "remove": Argument(
             Bool, default=False, help="Remove an installed module with these parameters"
@@ -80,13 +119,21 @@ class PersistModule(BaseModule):
                 "user"
             ].help = "Ignored for install/remove. Defaults to root for escalate."
 
-    def run(self, remove, escalate, connect, **kwargs):
+    def run(self, remove, escalate, connect, host, **kwargs):
         """ This method should not be overriden by subclasses. It handles all logic
         for installation, escalation, connection, and removal. The standard interface
         of this method allows abstract interactions across all persistence modules. """
 
         if "user" not in kwargs:
             raise RuntimeError(f"{self.__class__} must take a user argument")
+
+        if pwncat.victim is not None and connect:
+            raise PersistError("cannot connect when a session is active")
+
+        if not connect and pwncat.victim.host.id != host.id:
+            raise PersistError(
+                "cannot modify persistence of host without an active session"
+            )
 
         # We need to clear the user for ALL_USERS modules,
         # but it may be needed for escalate.
@@ -95,15 +142,15 @@ class PersistModule(BaseModule):
             kwargs["user"] = None
 
         # Check if this module has been installed with the same arguments before
-        ident = (
+        row = (
             get_session()
-            .query(pwncat.db.Persistence.id)
-            .filter_by(host_id=pwncat.victim.host.id, method=self.name, args=kwargs)
-            .scalar()
+            .query(pwncat.db.Persistence)
+            .filter_by(host_id=host.id, method=self.name, args=kwargs)
+            .first()
         )
 
         # Remove this module
-        if ident is not None and remove:
+        if row is not None and remove:
             # Run module-specific cleanup
             result = self.remove(**kwargs)
             if inspect.isgenerator(result):
@@ -116,7 +163,7 @@ class PersistModule(BaseModule):
                 host_id=pwncat.victim.host.id, method=self.name, args=kwargs
             ).delete(synchronize_session=False)
             return
-        elif ident is not None and escalate:
+        elif row is not None and escalate:
             # This only happens for ALL_USERS, so we assume they want root.
             if requested_user is None:
                 kwargs["user"] = "root"
@@ -134,20 +181,20 @@ class PersistModule(BaseModule):
             # escalate from a privesc context.
             # pwncat.victim.state = State.RAW
             return
-        elif ident is not None and connect:
+        elif row is not None and connect:
             if requested_user is None:
                 kwargs["user"] = "root"
             else:
                 kwargs["user"] = requested_user
-            result = self.connect(**kwargs)
+            result = self.connect(host, **kwargs)
             if inspect.isgenerator(result):
                 yield from result
             else:
                 yield result
             return
-        elif ident is None and (remove or escalate or connect):
+        elif row is None and (remove or escalate or connect):
             raise PersistError(f"{self.name}: not installed with these arguments")
-        elif ident is not None:
+        elif row is not None:
             yield Status(f"{self.name}: already installed with matching arguments")
             return
 
@@ -219,12 +266,14 @@ class PersistModule(BaseModule):
         """
         raise NotImplementedError
 
-    def connect(self, **kwargs) -> socket.SocketType:
+    def connect(self, host, **kwargs) -> socket.SocketType:
         """
         Connect to a victim host by utilizing this persistence
         module. The host address can be found in the ``pwncat.victim.host``
         object.
 
+        :param host: the host to connect to
+        :type host: pwncat.db.Host
         :param user: the user to install persistence as. In the case of ALL_USERS persistence, this should be ignored.
         :type user: str
         :param kwargs: Any custom arguments defined in your ``ARGUMENTS`` dictionary.

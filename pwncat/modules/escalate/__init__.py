@@ -897,7 +897,7 @@ class EscalateResult(Result):
                     privkey_path = filp.name
 
                 # Ensure we track this new file
-                tamper = pwncat.victim.tamper.created_file(privkey_path)
+                tamper = pwncat.tamper.created_file(privkey_path)
                 # SSH needs strict permissions
                 progress.update(task, status="fixing private key permissions")
                 pwncat.victim.run(f"chmod 600 {privkey_path}")
@@ -914,7 +914,7 @@ class EscalateResult(Result):
                 # exception
                 if b"good" not in output:
                     tamper.revert()
-                    pwncat.victim.tamper.remove(tamper)
+                    pwncat.tamper.remove(tamper)
                     raise EscalateError("ssh private key failed")
 
                 # The test worked! Run the real escalate command

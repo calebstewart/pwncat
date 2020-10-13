@@ -15,8 +15,10 @@ from .config import Config
 from .commands import parser
 from .util import console
 from .db import get_session
+from .tamper import TamperManager
 
 config: Config = Config()
+tamper: TamperManager = TamperManager()
 
 
 def interactive(platform):

@@ -99,12 +99,12 @@ class Module(PersistModule):
         # Reload the user database
         pwncat.victim.reload_users()
 
-    def connect(self, user, backdoor_user, backdoor_pass, shell):
+    def connect(self, host: pwncat.db.Host, user, backdoor_user, backdoor_pass, shell):
 
         try:
             yield Status("connecting to host")
             # Connect to the remote host's ssh server
-            sock = socket.create_connection((pwncat.victim.host.ip, 22))
+            sock = socket.create_connection((host.ip, 22))
         except Exception as exc:
             raise PersistError(str(exc))
 

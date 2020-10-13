@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import time
 from typing import Optional, Type
+from io import RawIOBase
 
 CHANNEL_TYPES = {}
 
@@ -21,13 +22,76 @@ class ChannelTimeout(Exception):
         self.data: bytes = data
 
 
+class ChannelFile(RawIOBase):
+    """
+    Wrap a channel in a file-like object. Mainly used for process IO by
+    the platform wrappers. It enables platforms to quickly create a file-like
+    object which is bounded by a delimeter and can be returned to the user
+    safely.
+    """
+
+    def __init__(
+        self,
+        channel: "Channel",
+        mode: str,
+        sof: Optional[bytes] = None,
+        eof: Optional[bytes] = None,
+        text: Optional[bool] = False,
+        encoding: str = "utf-8",
+        on_close=None,
+    ):
+        self.channel = channel
+        self.mode = mode
+        self.sof_marker = sof
+        self.eof_marker = eof
+        self.on_close = on_close
+        self.eof = False
+
+        if not text:
+            self.mode += "b"
+
+        # Ignored if text == False, but saved none the less
+        self.encoding = encoding
+
+    def readable(self) -> bool:
+        return "r" in self.mode
+
+    def writable(self) -> bool:
+        return "w" in self.mode
+
+    def on_eof(self):
+        """ Executed whenever EOF is found """
+
+        if self.eof:
+            return
+
+        self.eof = True
+
+        if self.on_close is not None:
+            self.on_close(self)
+
+    def close(self):
+
+        if self.eof:
+            return
+
+        self.on_eof()
+
+
 class Channel:
     """
     Abstract interation with a remote victim. This class acts similarly to a
     socket object. In the common cases, it simply wraps a socket object.
     """
 
-    def __init__(self, host: str, port: int, user: str, password: str, **kwargs):
+    def __init__(
+        self,
+        host: str,
+        port: int = None,
+        user: str = None,
+        password: str = None,
+        **kwargs,
+    ):
         self.host: str = host
         self.port: int = port
         self.user: str = user
@@ -126,6 +190,59 @@ class Channel:
 
         return data
 
+    def drain(self, some: bool = False):
+        """ Drain any incoming data from the remote host. In general
+        this is implemented by reading data until a timeout occurs,
+        however implementations may differ by the type of channel.
+        The received data is discarded and never buffered.
+
+        If ``some`` is True, then this method should ignore timeouts
+        until at least one byte of data is received. This is used when
+        we know that some data should be sent, and we want to drain
+        it from the buffer before continuing.
+
+        :param some: whether to wait for at least one byte of data
+        :type some: bool
+        :return: a boolean indicating whether the file is at EOF
+        :rtype: bool
+        """
+
+    def makefile(
+        self,
+        mode: str,
+        sof: Optional[bytes] = None,
+        eof: Optional[bytes] = None,
+        text: bool = False,
+        encoding: Optional[str] = "utf-8",
+    ):
+        """
+        Create a file-like object which acts on this channel. If the mode is
+        "r", and ``sof`` and ``eof`` are specified, the file will return data
+        following a line containing only ``sof`` and up to a line containing only
+        ``eof``. In "w" mode, the file has no bounds and will never hit ``eof``.
+
+        If ``text`` is true, a text-mode file object will be returned which decodes
+        the output with the specified encoding. The default encoding is utf-8.
+
+        :param mode: a mode string similar to open
+        :type mode: str
+        :param sof: a string of bytes which indicate the start of file
+        :type sof: bytes
+        :param eof: a string of bytes which indicate the end of file
+        :type eof: bytes
+        :param text: whether to produce a text-mode file-like object
+        :type text: bool
+        :param encoding: the encoding used when creating a text-mode file
+        :type encoding: str
+        :return: A file-like object suitable for the specified mode
+        :rtype: Union[BinaryIO, TextIO]
+        :raises:
+          ValueError: both "r" and "w" were specified or invalid characters were found in mode
+        """
+
+        if mode != "r" and mode != "w":
+            raise ValueError(f"{mode}: invalid mode")
+
 
 def register(name: str, channel_class):
     """
@@ -153,11 +270,54 @@ def find(name: str) -> Type[Channel]:
     return CHANNEL_TYPES[name]
 
 
+def create(protocol: Optional[str] = None, **kwargs):
+    """
+    Create a new channel with the class provided by a registered channel
+    protocol. Some assumptions are made if the protocol is not specified.
+    For example, if no username or password are specified, then either
+    bind or connect protocols are assumed. If a username is specified,
+    the ssh protocol is assumed. In any case, with no protocol, a reconnect
+    is attempted first.
+
+    :param protocol: the name of the register channel protocol (e.g. ssh, bind,
+      connect)
+    :type protocol: Optional[str]
+    :return: A newly connected channel
+    :rtype: Channel
+    :raises:
+      ChannelError: if the victim cannot be reached via the specified
+        protocol
+    """
+
+    if protocol is None:
+        protocols = ["reconnect"]
+
+        if "user" in kwargs:
+            protocols.append("ssh")
+        else:
+            if "host" not in kwargs or kwargs["host"] == "0.0.0.0":
+                protocols.append("bind")
+            else:
+                protocols.append("connect")
+    else:
+        protocols = [protocol]
+
+    for prot in protocols:
+        try:
+            channel = find(prot)(**kwargs)
+            return channel
+        except ChannelError:
+            if len(protocols) == 1 or prot != "reconnect":
+                raise
+
+
 # Import default channel types and register them
 from pwncat.channel.bind import Bind
 from pwncat.channel.connect import Connect
 from pwncat.channel.ssh import Ssh
+from pwncat.channel.reconnect import Reconnect
 
 register("bind", Bind)
 register("connect", Connect)
 register("ssh", Ssh)
+register("reconnect", Reconnect)

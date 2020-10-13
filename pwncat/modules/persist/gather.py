@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import dataclasses
+import socket
 
 import pwncat
 from pwncat.util import console
@@ -81,6 +82,9 @@ class Module(BaseModule):
     """
 
     ARGUMENTS = {
+        "host": Argument(
+            str, default=None, help="The hostname, IP or host hash to lookup"
+        ),
         "module": Argument(str, default=None, help="Module name to look for"),
         "escalate": Argument(
             Bool, default=False, help="Utilize matched modules for escalation"
@@ -90,17 +94,30 @@ class Module(BaseModule):
     ALLOW_KWARGS = True
     PLATFORM = pwncat.platform.Platform.NO_HOST
 
-    def run(self, module, escalate, remove, **kwargs):
+    def run(self, host, module, escalate, remove, **kwargs):
         """ Execute this module """
 
-        if pwncat.victim.host is not None:
-            query = (
-                get_session()
-                .query(pwncat.db.Persistence)
-                .filter_by(host_id=pwncat.victim.host.id)
-            )
-        else:
-            query = get_session().query(pwncat.db.Persistence)
+        query = get_session().query(pwncat.db.Persistence)
+
+        if host is not None:
+            row = get_session().query(pwncat.db.Host).filter_by(hash=host).first()
+            if row is None:
+                row = get_session().query(pwncat.db.Host).filter_by(ip=host).first()
+            if row is None:
+                try:
+                    row = (
+                        get_session()
+                        .query(pwncat.db.Host)
+                        .filter_by(ip=socket.gethostbyname(host))
+                        .first()
+                    )
+                except socket.gaierror:
+                    row = None
+            if row is None:
+                return
+            query = query.filter_by(host_id=row.id)
+        elif pwncat.victim is not None:
+            query = query.filter_by(host_id=pwncat.victim.host.id)
 
         if module is not None:
             query = query.filter_by(method=module)

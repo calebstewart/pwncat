@@ -53,7 +53,7 @@ def main():
                 script = filp.read()
 
             # Run the script
-            pwncat.victim.command_parser.eval(script, str(config_path))
+            pwncat.parser.eval(script, str(config_path))
         except (FileNotFoundError, PermissionError):
             # The config doesn't exist
             pass
@@ -62,7 +62,7 @@ def main():
         # We use the `prog_name` argument to make the help for "connect"
         # display "pwncat" in the usage. This is just a visual fix, and
         # isn't used anywhere else.
-        pwncat.victim.command_parser.dispatch_line(
+        pwncat.parser.dispatch_line(
             shlex.join(["connect"] + sys.argv[1:]), prog_name="pwncat"
         )
 

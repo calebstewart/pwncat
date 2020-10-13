@@ -15,8 +15,8 @@ class Bind(Channel):
     connection is a shell from the victim.
     """
 
-    def __init__(self, host: str, port: int, user: str, password: str, **kwargs):
-        super().__init__(host, port, user, password)
+    def __init__(self, host: str, port: int, **kwargs):
+        super().__init__(host, port, **kwargs)
 
         if not host or host == "":
             host = "0.0.0.0"

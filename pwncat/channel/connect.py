@@ -15,8 +15,8 @@ class Connect(Channel):
     connection is a shell from the victim.
     """
 
-    def __init__(self, host: str, port: int, user: str, password: str, **kwargs):
-        super().__init__(host, port, user, password)
+    def __init__(self, host: str, port: int, **kwargs):
+        super().__init__(host, port, **kwargs)
 
         if not host:
             raise ChannelError("no host address provided")
@@ -65,21 +65,6 @@ class Connect(Channel):
         """
 
         return self.client.recv(count)
-
-    def recvuntil(self, needle: bytes) -> bytes:
-        """ Receive data until the specified string of bytes is bytes
-        is found. The needle is not stripped from the data. """
-
-        data = b""
-
-        # We read one byte at a time so we don't overshoot the goal
-        while not data.endswith(needle):
-            next_byte = self.recv(1)
-
-            if next_byte is not None:
-                data += next_byte
-
-        return data
 
     def peek(self, count: Optional[int] = None):
         """ Receive data from the remote shell and leave

@@ -106,7 +106,7 @@ class Command(CommandDefinition):
             try:
                 # Load the configuration
                 with open(args.config, "r") as filp:
-                    pwncat.victim.command_parser.eval(filp.read(), args.config)
+                    pwncat.parser.eval(filp.read(), args.config)
             except OSError as exc:
                 console.log(f"[red]error[/red]: {exc}")
                 return

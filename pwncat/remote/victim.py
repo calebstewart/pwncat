@@ -32,7 +32,6 @@ from pwncat.config import Config, KeyType
 from pwncat.file import RemoteBinaryPipe
 from pwncat.gtfobins import GTFOBins, Capability, Stream
 from pwncat.remote import RemoteService
-from pwncat.tamper import TamperManager
 from pwncat.util import State, console
 from pwncat.modules.persist import PersistError, PersistType
 from pwncat.db import get_session
@@ -127,11 +126,6 @@ class Victim:
         )
         # Whether the user has pressed the defined prefix
         self.has_prefix = False
-        # Parser for local command input
-        self.command_parser: CommandParser = CommandParser()
-        self.command_parser.setup_prompt()
-        # Victim system tamper tracker
-        self.tamper: TamperManager = TamperManager()
         # The client socket
         self.client: Optional[socket.SocketType] = None
         # The shell we are running under on the remote host
@@ -297,7 +291,7 @@ class Victim:
 
             # We initialize this here, because it needs the database to initialize
             # the history objects
-            self.command_parser.setup_prompt()
+            pwncat.parser.setup_prompt()
 
             progress.update(task_id, status="history", advance=1)
 
@@ -379,10 +373,10 @@ class Victim:
 
             # The session is fully setup now. This unlocks other
             # commands in the command parser, which were blocked before.
-            self.command_parser.loaded = True
+            pwncat.parser.loaded = True
 
             # Synchronize the terminals
-            self.command_parser.dispatch_line("sync --quiet")
+            pwncat.parser.dispatch_line("sync --quiet")
 
             # Ensure we are in a good working directory
             self.chdir("/")
@@ -466,7 +460,7 @@ class Victim:
             self.run(f"chmod +x {shlex.quote(busybox_remote_path)}")
 
             # Custom tamper to remove busybox and stop tracking it here
-            self.tamper.custom(
+            pwncat.tamper.custom(
                 (
                     f"[red]installed[/red] [green]busybox[/green] "
                     f"to [cyan]{busybox_remote_path}[/cyan]"
@@ -608,7 +602,7 @@ class Victim:
                 console.log(
                     f"[red]error[/red]: [cyan]rm[/cyan] not found; adding tamper for {self.host.busybox}"
                 )
-                self.tamper.created_file(self.host.busybox)
+                pwncat.tamper.created_file(self.host.busybox)
 
             self.host.busybox = None
             self.host.busybox_uploaded = False
@@ -686,7 +680,7 @@ class Victim:
                         self.update_user()
 
                         # Evaluate the script
-                        self.command_parser.eval(binding, "<binding>")
+                        pwncat.parser.eval(binding, "<binding>")
 
                         self.flush_output()
                         self.client.send(b"\n")
@@ -736,7 +730,7 @@ class Victim:
             self.client.send(b"\n")
             console.log("pwncat is ready 🐈")
             self.saved_term_state = util.enter_raw_mode()
-            self.command_parser.running = False
+            pwncat.parser.running = False
             self._state = value
             return
         if value == State.COMMAND:
@@ -761,7 +755,7 @@ class Victim:
             self.update_user()
             # Setting the state to local command mode does not return until
             # command processing is complete.
-            self.command_parser.run()
+            pwncat.parser.run()
             return
         if value == State.SINGLE:
             # Go back to normal mode
@@ -773,7 +767,7 @@ class Victim:
             self.update_user()
             # Setting the state to local command mode does not return until
             # command processing is complete.
-            self.command_parser.run_single()
+            pwncat.parser.run_single()
 
             # Go back to raw mode
             self.flush_output()

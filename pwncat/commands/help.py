@@ -11,8 +11,8 @@ class Command(CommandDefinition):
     """ List known commands and print their associated help documentation. """
 
     def get_command_names(self):
-        if pwncat.victim and pwncat.victim.command_parser:
-            return [c.PROG for c in pwncat.victim.command_parser.commands]
+        if pwncat.victim and pwncat.parser:
+            return [c.PROG for c in pwncat.parser.commands]
         return []
 
     PROG = "help"
@@ -21,7 +21,7 @@ class Command(CommandDefinition):
 
     def run(self, args):
         if args.topic:
-            for command in pwncat.victim.command_parser.commands:
+            for command in pwncat.parser.commands:
                 if command.PROG == args.topic:
                     if command.parser is not None:
                         command.parser.print_help()
@@ -29,5 +29,5 @@ class Command(CommandDefinition):
                         console.print(textwrap.dedent(command.__doc__).strip())
                     break
         else:
-            for command in pwncat.victim.command_parser.commands:
+            for command in pwncat.parser.commands:
                 console.print(f" - {command.PROG}")

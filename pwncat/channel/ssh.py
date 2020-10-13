@@ -19,9 +19,9 @@ class Ssh(Channel):
     def __init__(
         self,
         host: str,
-        port: int,
         user: str,
-        password: str,
+        port: int = 22,
+        password: str = None,
         identity: str = None,
         **kwargs,
     ):
@@ -117,20 +117,5 @@ class Ssh(Channel):
             data = b""
 
         data += self.client.recv(count - len(data))
-
-        return data
-
-    def recvuntil(self, needle: bytes) -> bytes:
-        """ Receive data until the specified string of bytes is bytes
-        is found. The needle is not stripped from the data. """
-
-        data = b""
-
-        # We read one byte at a time so we don't overshoot the goal
-        while not data.endswith(needle):
-            next_byte = self.recv(1)
-
-            if next_byte is not None:
-                data += next_byte
 
         return data

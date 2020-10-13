@@ -16,7 +16,7 @@ PIPE = 1
 """ Retrieve data via a Pipe """
 
 
-class PopenBase:
+class Popen:
     """ Base class for Popen objects defining the interface.
     Individual platforms will subclass this object to implement
     the correct logic. This is an abstract class. """
@@ -96,70 +96,3 @@ class PopenBase:
 
     def kill(self):
         """ Kills the child """
-
-
-def Popen(*args, **kwargs) -> PopenBase:
-    """ Wrapper to create a new popen object. Deligates to
-    the current victim's platform ``popen`` method. """
-
-    return pwncat.victim.popen(*args, **kwargs)
-
-
-def run(
-    args,
-    stdin=None,
-    input=None,
-    stdout=None,
-    stderr=None,
-    capture_output=False,
-    shell=False,
-    cwd=None,
-    timeout=None,
-    check=False,
-    encoding=None,
-    errors=None,
-    text=None,
-    env=None,
-    universal_newlines=None,
-    **other_popen_kwargs
-):
-    """ Run the command described by `args`. Wait for command to complete
-    and then return a CompletedProcess instance.
-
-    The arguments are the same as the `Popen` constructor with ``capture_output``,
-    ``timeout``, and ``check`` added.
-    """
-
-    # Ensure we capture standard output and standard error
-    if capture_output:
-        stdout = PIPE
-        stderr = PIPE
-
-    # Execute the process
-    proc = Popen(
-        args=args,
-        stdin=stdin,
-        input=input,
-        stdout=stdout,
-        stderr=stderr,
-        shell=shell,
-        cwd=cwd,
-        encoding=encoding,
-        errors=errors,
-        text=text,
-        env=env,
-        universal_newlines=universal_newlines,
-        **other_popen_kwargs
-    )
-
-    # Send input/receive output
-    stdout_data, stderr_data = proc.communicate(input, timeout)
-
-    # Build the completed process object
-    completed_proc = CompletedProcess(args, proc.returncode, stdout_data, stderr_data)
-
-    # Check the result
-    if check:
-        completed_proc.check_returncode()
-
-    return completed_proc

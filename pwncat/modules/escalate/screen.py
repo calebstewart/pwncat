@@ -39,7 +39,7 @@ class ScreenTechnique(Technique):
         except pwncat.util.CompilationError as exc:
             raise EscalateError(f"compilation failed: {exc}")
 
-        rootshell_tamper = pwncat.victim.tamper.created_file(rootshell)
+        rootshell_tamper = pwncat.tamper.created_file(rootshell)
 
         # Write the library
         libhack_source = textwrap.dedent(
@@ -64,7 +64,7 @@ class ScreenTechnique(Technique):
                 ldflags=["-ldl"],
             )
         except pwncat.util.CompilationError:
-            pwncat.victim.tamper.remove(rootshell_tamper)
+            pwncat.tamper.remove(rootshell_tamper)
             raise EscalateError("compilation failed: {exc}")
 
         # Switch to /etc but save our previous directory so we can return to it
@@ -96,7 +96,7 @@ class ScreenTechnique(Technique):
             pwncat.victim.chdir(old_cwd)
 
             # Ensure the files are removed
-            pwncat.victim.tamper.remove(rootshell_tamper)
+            pwncat.tamper.remove(rootshell_tamper)
 
             raise EscalateError("failed to create root shell")
 

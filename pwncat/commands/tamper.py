@@ -53,16 +53,16 @@ class Command(CommandDefinition):
 
         if args.action == "revert":
             if args.all:
-                tampers = list(pwncat.victim.tamper)
+                tampers = list(pwncat.tamper)
             else:
                 try:
-                    tampers = [pwncat.victim.tamper[args.tamper]]
+                    tampers = [pwncat.tamper[args.tamper]]
                 except KeyError:
                     console.log("[red]error[/red]: invalid tamper id")
                     return
             self.revert(tampers)
         else:
-            for ident, tamper in enumerate(pwncat.victim.tamper):
+            for ident, tamper in enumerate(pwncat.tamper):
                 console.print(f" [cyan]{ident}[/cyan] - {tamper}")
 
     def revert(self, tampers: List[Tamper]):
@@ -81,7 +81,7 @@ class Command(CommandDefinition):
                 try:
                     progress.update(task, tamper=str(tamper))
                     tamper.revert()
-                    pwncat.victim.tamper.remove(tamper)
+                    pwncat.tamper.remove(tamper)
                 except RevertFailed as exc:
                     progress.log(f"[yellow]warning[/yellow]: revert failed: {exc}")
                 progress.update(task, advance=1)

@@ -16,9 +16,9 @@ class Command(CommandDefinition):
 
     def run(self, args):
 
-        for command in pwncat.victim.command_parser.commands:
+        for command in pwncat.parser.commands:
             if command.PROG == args.command:
-                pwncat.victim.command_parser.shortcuts[args.prefix] = command
+                pwncat.parser.shortcuts[args.prefix] = command
                 return
 
         self.parser.error(f"{args.command}: no such command")

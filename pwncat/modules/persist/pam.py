@@ -159,7 +159,7 @@ class Module(PersistModule):
                 except (PermissionError, FileNotFoundError):
                     continue
 
-            pwncat.victim.tamper.created_file(log)
+            pwncat.tamper.created_file(log)
 
     def remove(self, **unused):
         """ Remove this module """
@@ -227,13 +227,15 @@ class Module(PersistModule):
         except PermissionError:
             raise PersistError("Escalation failed. Is selinux enabled?")
 
-    def connect(self, user: str, password: str, log: str) -> socket.SocketType:
+    def connect(
+        self, host: pwncat.db.Host, user: str, password: str, log: str
+    ) -> socket.SocketType:
         """ Connect to the victim with this module """
 
         try:
             yield Status("connecting to host")
             # Connect to the remote host's ssh server
-            sock = socket.create_connection((pwncat.victim.host.ip, 22))
+            sock = socket.create_connection((host.ip, 22))
         except Exception as exc:
             raise PersistError(str(exc))
 
