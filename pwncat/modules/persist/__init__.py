@@ -17,6 +17,12 @@ from pwncat.modules import (
 )
 
 
+def str_or_none(v):
+    if v is None:
+        return v
+    return str(v)
+
+
 class PersistModule(BaseModule):
     """
     Base class for all persistence modules.
@@ -78,6 +84,7 @@ class PersistModule(BaseModule):
             self.ARGUMENTS[
                 "user"
             ].help = "Ignored for install/remove. Defaults to root for escalate."
+            self.ARGUMENTS["user"].type = str_or_none
 
     def run(self, remove, escalate, connect, **kwargs):
         """ This method should not be overriden by subclasses. It handles all logic
@@ -156,7 +163,7 @@ class PersistModule(BaseModule):
         elif result is not None:
             yield result
 
-        self.register(kwargs)
+        self.register(**kwargs)
 
     def register(self, **kwargs):
         """

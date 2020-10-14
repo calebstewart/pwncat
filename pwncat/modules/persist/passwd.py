@@ -63,9 +63,6 @@ class Module(PersistModule):
     def remove(self, user, backdoor_user, backdoor_pass, shell):
         """ Remove this module """
 
-        if user != "root":
-            raise PersistError("only root persistence is possible")
-
         # Hash the password
         hashed = crypt.crypt(backdoor_pass)
 
