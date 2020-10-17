@@ -64,6 +64,14 @@ class Popen:
     terminated yet.
     """
 
+    def __init__(self):
+        self.pid = None
+        self.returncode = None
+        self.args = None
+        self.stderr = None
+        self.stdout = None
+        self.stdin = None
+
     def poll(self) -> Optional[int]:
         """ Check if the child process has terminated. Set and return
         ``returncode`` attribute. Otherwise, returns None. """

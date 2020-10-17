@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 import socket
+import errno
+import fcntl
+import os
 from typing import Optional
 
 from rich.progress import BarColumn, Progress
 
-from pwncat.channel import Channel, ChannelError
+from pwncat.channel import Channel, ChannelError, ChannelClosed
 
 
 class Connect(Channel):
@@ -42,6 +45,10 @@ class Connect(Channel):
         self.client = client
         self.address = (host, port)
 
+        # Ensure we are non-blocking
+        self.client.setblocking(False)
+        fcntl.fcntl(self.client, fcntl.F_SETFL, os.O_NONBLOCK)
+
     def send(self, data: bytes):
         """ Send data to the remote shell. This is a blocking call
         that only returns after all data is sent. """
@@ -64,7 +71,20 @@ class Connect(Channel):
         :rtype: bytes
         """
 
-        return self.client.recv(count)
+        if self.peek_buffer:
+            data = self.peek_buffer[:count]
+            self.peek_buffer = self.peek_buffer[len(data) :]
+            count -= len(data)
+        else:
+            data = b""
+
+        try:
+            return data + self.client.recv(count)
+        except socket.error as exc:
+            if exc.args[0] == errno.EAGAIN or exc.args[0] == errno.EWOULDBLOCK:
+                return data
+
+            raise ChannelClosed() from exc
 
     def peek(self, count: Optional[int] = None):
         """ Receive data from the remote shell and leave
@@ -81,4 +101,16 @@ class Connect(Channel):
         :rtype: bytes
         """
 
-        return self.client.recv(count, socket.MSG_PEEK)
+        if self.peek_buffer:
+            data = self.peek_buffer[:count]
+            count -= len(data)
+        else:
+            data = b""
+
+        try:
+            return data + self.client.recv(count)
+        except socket.error as exc:
+            if exc.args[0] == errno.EAGAIN or exc.args[0] == errno.EWOULDBLOCK:
+                return data
+
+            raise ChannelClosed() from exc

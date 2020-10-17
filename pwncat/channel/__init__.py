@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import time
-from typing import Optional, Type
-from io import RawIOBase
+from typing import Optional, Type, Union
+from io import RawIOBase, BufferedReader, BufferedWriter, DEFAULT_BUFFER_SIZE
 
 CHANNEL_TYPES = {}
 
@@ -10,7 +10,11 @@ class ChannelError(Exception):
     """ Raised when a channel fails to connect """
 
 
-class ChannelTimeout(Exception):
+class ChannelClosed(ChannelError):
+    """ A channel was closed unexpectedly during communication """
+
+
+class ChannelTimeout(ChannelError):
     """ Raised when a read times out.
 
     :param data: the data read before the timeout occurred
@@ -44,6 +48,7 @@ class ChannelFile(RawIOBase):
         self.mode = mode
         self.sof_marker = sof
         self.eof_marker = eof
+        self.found_sof = False
         self.on_close = on_close
         self.eof = False
 
@@ -53,14 +58,17 @@ class ChannelFile(RawIOBase):
         # Ignored if text == False, but saved none the less
         self.encoding = encoding
 
+        if self.sof_marker is not None and "r" in self.mode:
+            self.channel.recvuntil(self.sof_marker)
+            self.found_sof = True
+
     def readable(self) -> bool:
         return "r" in self.mode
 
     def writable(self) -> bool:
         return "w" in self.mode
 
-    def on_eof(self):
-        """ Executed whenever EOF is found """
+    def close(self):
 
         if self.eof:
             return
@@ -70,12 +78,90 @@ class ChannelFile(RawIOBase):
         if self.on_close is not None:
             self.on_close(self)
 
-    def close(self):
+    def readall(self):
+        """ Read all data until EOF """
+
+        data = b""
+
+        while not self.eof:
+            new_data = self.read(4096)
+            if new_data is None:
+                continue
+            data += new_data
+
+        return data
+
+    def readinto(self, b: Union[memoryview, bytearray]):
+
+        # If we already hit EOF, don't read anymore
+        if self.eof:
+            return 0
+
+        # Check the type of the argument, and grab the relevant part
+        obj = b.obj if isinstance(b, memoryview) else b
+
+        try:
+            n = self.channel.recvinto(b)
+        except NotImplementedError:
+            # recvinto was not implemented, fallback recv
+            data = self.channel.recv(len(b))
+            b[: len(data)] = data
+            n = len(data)
+
+        obj = bytes(b[:n])
+
+        # Check for explicit EOF in this block
+        if self.eof_marker in obj:
+            # Remove the marker from the output data
+            # and unreceive any data not bound for us
+            new_n = obj.find(self.eof_marker)
+            if (n - new_n) > len(self.eof_marker):
+                # We read more than the EOF marker, replace it in the buffer
+                self.channel.unrecv(obj[new_n + len(self.eof_marker) :])
+
+            # Ensure further reads don't work
+            self.close()
+
+            return new_n
+
+        # Check for EOF split across blocks
+        for i in range(1, len(self.eof_marker)):
+            # See if a piece of the delimeter is at the end of this block
+            piece = self.eof_marker[:i]
+
+            if obj[-i:] == piece:
+                # Peek enough bytes from the buffer to see if the rest of the
+                # EOF marker is there.
+                rest = self.channel.peek(len(self.eof_marker) - len(piece))
+
+                # Are the next bytes we would read the last of the EOF marker?
+                if (piece + rest) == self.eof_marker:
+                    # Receive the rest of the marker
+                    self.channel.recv(len(rest))
+                    # Adjust the number of bytes read
+                    n -= len(piece)
+                    # Mark the stream as closed
+                    self.close()
+                    return n
+
+        if n == 0:
+            return None
+
+        return n
+
+    def write(self, data: bytes):
 
         if self.eof:
-            return
+            return 0
 
-        self.on_eof()
+        try:
+            n = self.channel.send(data)
+        except (BlockingIOError):
+            n = 0
+        if n == 0:
+            return None
+
+        return n
 
 
 class Channel:
@@ -122,6 +208,7 @@ class Channel:
         :return: the data that was received
         :rtype: bytes
         """
+        return b""
 
     def recvuntil(self, needle: bytes, timeout: Optional[float] = None) -> bytes:
         """ Receive data until the specified string of bytes is bytes
@@ -190,6 +277,23 @@ class Channel:
 
         return data
 
+    def unrecv(self, data: bytes):
+        """
+        Place the given bytes on a buffer to be returned next by recv.
+        If you do not implement a custom ``peek``, you can use the builtin
+        implementation. If the ``peek_buffer`` is not used, then you must
+        implement this logic yourself.
+        """
+
+        # This makes the next recv return this data first
+        self.peek_buffer = data + self.peek_buffer
+
+    def recvinto(self, *args, **kwargs):
+        """
+        Base method simply raises a NotImplementedError
+        """
+        raise NotImplementedError
+
     def drain(self, some: bool = False):
         """ Drain any incoming data from the remote host. In general
         this is implemented by reading data until a timeout occurs,
@@ -210,19 +314,15 @@ class Channel:
     def makefile(
         self,
         mode: str,
+        bufsize: int = -1,
         sof: Optional[bytes] = None,
         eof: Optional[bytes] = None,
-        text: bool = False,
-        encoding: Optional[str] = "utf-8",
     ):
         """
         Create a file-like object which acts on this channel. If the mode is
         "r", and ``sof`` and ``eof`` are specified, the file will return data
         following a line containing only ``sof`` and up to a line containing only
         ``eof``. In "w" mode, the file has no bounds and will never hit ``eof``.
-
-        If ``text`` is true, a text-mode file object will be returned which decodes
-        the output with the specified encoding. The default encoding is utf-8.
 
         :param mode: a mode string similar to open
         :type mode: str
@@ -242,6 +342,16 @@ class Channel:
 
         if mode != "r" and mode != "w":
             raise ValueError(f"{mode}: invalid mode")
+
+        raw_io = ChannelFile(self, mode, sof, eof)
+
+        if bufsize < 0 or bufsize is None:
+            bufsize = DEFAULT_BUFFER_SIZE
+
+        if mode == "r":
+            return BufferedReader(raw_io, buffer_size=bufsize)
+        else:
+            return BufferedWriter(raw_io, buffer_size=bufsize)
 
 
 def register(name: str, channel_class):
@@ -290,7 +400,7 @@ def create(protocol: Optional[str] = None, **kwargs):
     """
 
     if protocol is None:
-        protocols = ["reconnect"]
+        protocols = []  # ["reconnect"]
 
         if "user" in kwargs:
             protocols.append("ssh")
@@ -320,4 +430,4 @@ from pwncat.channel.reconnect import Reconnect
 register("bind", Bind)
 register("connect", Connect)
 register("ssh", Ssh)
-register("reconnect", Reconnect)
+# register("reconnect", Reconnect)

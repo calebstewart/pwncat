@@ -5,13 +5,13 @@ import pkgutil
 from dataclasses import dataclass
 import typing
 from typing import Any, Callable
+import typing
 import fnmatch
 import functools
 
 from rich.progress import Progress
 
 import pwncat
-from pwncat.platform import Platform
 from pwncat.util import console
 
 LOADED_MODULES = {}
@@ -269,7 +269,7 @@ class BaseModule(metaclass=BaseModuleMeta):
     """ If you want to use `yield Status(...)` to update the progress bar
     but only return one scalar value, setting this to true will collapse
     an array with only a single object to it's scalar value. """
-    PLATFORM: Platform = Platform.UNKNOWN
+    PLATFORM: typing.List[typing.Type["pwncat.platform.Platform"]] = []
     """ The platform this module is compatibile with (can be multiple) """
 
     def __init__(self):
