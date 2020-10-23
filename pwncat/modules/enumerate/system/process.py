@@ -4,7 +4,7 @@ import dataclasses
 import shlex
 
 import pwncat
-from pwncat.platform import Platform
+from pwncat.platform.linux import Linux
 from pwncat.modules.enumerate import EnumerateModule, Schedule
 
 
@@ -57,7 +57,7 @@ class Module(EnumerateModule):
     """
 
     PROVIDES = ["system.process"]
-    PLATFORM = Platform.LINUX
+    PLATFORM = [Linux]
     SCHEDULE = Schedule.ONCE
 
     def enumerate(self):

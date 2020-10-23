@@ -12,7 +12,7 @@ class Module(BaseModule):
             str, default=None, help="Path a to file to write a markdown report"
         )
     }
-    PLATFORM = pwncat.modules.Platform.ANY
+    PLATFORM = None
 
     def run(self, output):
         return pwncat.modules.run(

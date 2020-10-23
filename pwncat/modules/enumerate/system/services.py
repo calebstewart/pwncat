@@ -3,7 +3,7 @@ import dataclasses
 
 from pwncat.modules.enumerate import EnumerateModule, Schedule
 import pwncat
-from pwncat.platform import Platform
+from pwncat.platform.linux import Linux
 from pwncat.util import Init
 
 
@@ -45,7 +45,7 @@ class Module(EnumerateModule):
     """ Enumerate systemd services on the victim """
 
     PROVIDES = ["system.service"]
-    PLATFORM = Platform.LINUX
+    PLATFORM = [Linux]
     SCHEDULE = Schedule.ONCE
 
     def enumerate(self):

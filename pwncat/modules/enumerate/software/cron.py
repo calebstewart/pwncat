@@ -4,7 +4,7 @@ import os
 import re
 
 import pwncat
-from pwncat.platform import Platform
+from pwncat.platform.linux import Linux
 from pwncat.modules import Status
 from pwncat.modules.enumerate import EnumerateModule, Schedule
 
@@ -81,7 +81,7 @@ class Module(EnumerateModule):
     """
 
     PROVIDES = ["software.cron.entry"]
-    PLATFORM = Platform.LINUX
+    PLATFORM = [Linux]
     SCHEDULE = Schedule.PER_USER
 
     def enumerate(self):

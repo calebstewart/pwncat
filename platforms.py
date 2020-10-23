@@ -8,7 +8,9 @@ import os
 try:
     # Open a connection to a linux platform
     # This will automatically open a new channel with the specified arguments.
-    target = pwncat.platform.create("linux", host="pwncat-centos-testing", port=4444)
+    target = pwncat.platform.create(
+        "linux", log="./commands.log", host="pwncat-centos-testing", port=4444
+    )
 except pwncat.channel.ChannelError as exc:
     console.log(f"[red]error[/red]: platform.create: {exc}")
 
@@ -19,32 +21,41 @@ try:
 except pwncat.channel.ChannelError as exc:
     console.log(f"[red]error[/red]: get_pty: {exc}")
 
-# Generate random data
-count = 8192
-data = os.urandom(count)
-sum = hashlib.md5(data).hexdigest()
+host_hash = target.get_host_hash()
+console.log(f"host hash: {host_hash}")
 
-console.log(f"writing {count}-bytes of random data to /tmp/write-test")
-console.log(f"data hashsum: {sum}")
+with target.open("/tmp/another", "w") as filp:
+    filp.write("hello world!")
 
-# Open the file and write the data
-with target.open("/tmp/write-test", "w") as filp:
-    filp.write(data)
+with target.open("/tmp/another") as filp:
+    console.print(filp.read())
 
-console.log("reading /tmp/write-test and checking hashsum")
-
-# Read the file back
-with target.open("/tmp/write-test", "r") as filp:
-    data = filp.read()
-
-# Calculate the hash sum of the data we read back
-new_sum = hashlib.md5(data).hexdigest()
-
-console.log(f"hashsum of read data: {new_sum}")
-
-# Ensure they match
-if sum != new_sum:
-    console.log("[red]error[/red]: hash mismatch!")
+# # Generate random data
+# count = 8192
+# data = os.urandom(count)
+# sum = hashlib.md5(data).hexdigest()
+#
+# console.log(f"writing {count}-bytes of random data to /tmp/write-test")
+# console.log(f"data hashsum: {sum}")
+#
+# # Open the file and write the data
+# with target.open("/tmp/write-test", "w") as filp:
+#     filp.write(data)
+#
+# console.log("reading /tmp/write-test and checking hashsum")
+#
+# # Read the file back
+# with target.open("/tmp/write-test", "r") as filp:
+#     data = filp.read()
+#
+# # Calculate the hash sum of the data we read back
+# new_sum = hashlib.md5(data).hexdigest()
+#
+# console.log(f"hashsum of read data: {new_sum}")
+#
+# # Ensure they match
+# if sum != new_sum:
+#     console.log("[red]error[/red]: hash mismatch!")
 
 # print(
 #     target.Popen(

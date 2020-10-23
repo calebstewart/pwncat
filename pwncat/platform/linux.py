@@ -2,15 +2,19 @@
 from typing import Generator, List, Union, BinaryIO, Optional
 from subprocess import CalledProcessError, TimeoutExpired
 from io import TextIOWrapper, BufferedIOBase, UnsupportedOperation
+import pathlib
+import pkg_resources
 import hashlib
 import time
 import shlex
+import os
 
 import pwncat
 import pwncat.channel
 import pwncat.subprocess
 from pwncat import util
-from pwncat.platform import Platform, Path
+from pwncat.gtfobins import GTFOBins, Capability, Stream, MissingBinary
+from pwncat.platform import Platform, PlatformError, Path
 
 
 class PopenLinux(pwncat.subprocess.Popen):
@@ -176,10 +180,11 @@ class LinuxReader(BufferedIOBase):
     remote file.
     """
 
-    def __init__(self, popen):
+    def __init__(self, popen, on_close=None):
         super().__init__()
 
         self.popen = popen
+        self.on_close = on_close
 
     def readable(self):
         if self.popen is None:
@@ -250,6 +255,9 @@ class LinuxReader(BufferedIOBase):
         if self.popen is None:
             raise UnsupportedOperation("reader is detached")
 
+        if self.on_close is not None:
+            self.on_close(self)
+
         try:
             self.popen.wait(timeout=0.1)
         except TimeoutError:
@@ -295,12 +303,13 @@ class LinuxWriter(BufferedIOBase):
         0x7F,
     ]
 
-    def __init__(self, popen):
+    def __init__(self, popen, on_close=None):
         super().__init__()
 
         self.popen = popen
         self.last_byte = None
         self.since_newline = 0
+        self.on_close = on_close
 
     def readable(self):
         return False
@@ -366,6 +375,9 @@ class LinuxWriter(BufferedIOBase):
         self.flush()
         self.popen.stdin.flush()
 
+        if self.on_close is not None:
+            self.on_close(self)
+
         # We don't want to send CTRL-D if the process already
         # exited, so we do a poll first
         if self.popen.poll() is not None:
@@ -390,6 +402,140 @@ class LinuxWriter(BufferedIOBase):
         self.detach()
 
 
+class LinuxPath(pathlib.PurePosixPath):
+    """ Implementation of a concrete path based on the
+    pathlib.PurePosixPath class. This implements most of the
+    methods provided by concrete paths within the pathlib.Path
+    class. """
+
+    def __init__(self, target: "Linux", *pathsegments):
+        super().__init__(*pathsegments)
+
+        self._target = target
+
+    def stat(self) -> os.stat_result:
+        """ Run `stat` on the path and return a stat result """
+
+    def chmod(self, mode: int):
+        """ Execute `chmod` on the remote file to change permissions """
+
+    def exists(self) -> bool:
+        """ Return true if the specified path exists on the remote system """
+
+    def expanduser(self) -> "LinuxPath":
+        """ Return a new path object with ~ and ~user expanded """
+
+    def glob(self, pattern: str) -> Generator["LinuxPath", None, None]:
+        """ Glob the given relative pattern in the directory represented
+        by this path, yielding all matching files (of any kind) """
+
+    def group(self) -> str:
+        """ Returns the name of the group owning the file. KeyError is raised
+        if the file's GID isn't found in the system database. """
+
+    def is_dir(self) -> bool:
+        """ Returns True if the path points to a directory (or a symbolic link
+        pointing to a directory). False if it points to another kind of file. """
+
+    def is_file(self) -> bool:
+        """ Returns True if the path points to a regular file """
+
+    def is_mount(self) -> bool:
+        """ Returns True if the path is a mount point. """
+
+    def is_symlink(self) -> bool:
+        """ Returns True if the path points to a symbolic link, False otherwise """
+
+    def is_socket(self) -> bool:
+        """ Returns True if the path points to a Unix socket """
+
+    def is_fifo(self) -> bool:
+        """ Returns True if the path points to a FIFO """
+
+    def is_block_device(self) -> bool:
+        """ Returns True if the path points to a block device """
+
+    def is_char_device(self) -> bool:
+        """ Returns True if the path points to a character device """
+
+    def iterdir(self) -> bool:
+        """ When the path points to a directory, yield path objects of the
+        directory contents. """
+
+    def lchmod(self, mode: int):
+        """ Modify a symbolic link's mode (same as chmod for non-symbolic links) """
+
+    def lstat(self) -> os.stat_result:
+        """ Same as stat except operate on the symbolic link file itself rather
+        than the file it points to. """
+
+    def mkdir(self, mode: int = 0o777, parents: bool = False, exist_ok: bool = False):
+        """ Create a new directory at this given path. """
+
+    def open(
+        self,
+        mode: str = "r",
+        buffering: int = -1,
+        encoding: str = None,
+        errors: str = None,
+        newline: str = None,
+    ):
+        """ Open the file pointed to by the path, like Platform.open """
+
+    def owner(self) -> str:
+        """ Return the name of the user owning the file. KeyError is raised if
+        the file's uid is not found in the System database """
+
+    def read_bytes(self) -> bytes:
+        """ Return the binary contents of the pointed-to file as a bytes object """
+
+    def read_text(self, encoding: str = None, errors: str = None) -> str:
+        """ Return the decoded contents of the pointed-to file as a string """
+
+    def readlink(self) -> "LinuxPath":
+        """ Return the path to which the symbolic link points """
+
+    def rename(self, target) -> "LinuxPath":
+        """ Rename the file or directory to the given target (str or Path). """
+
+    def replace(self, target) -> "LinuxPath":
+        """ Sawme as `rename` for Linux """
+
+    def resolve(self, strict: bool = False):
+        """ Resolve the current path into an absolute path """
+
+    def rglob(self, pattern: str) -> Generator["LinuxPath", None, None]:
+        """ This is like calling Path.glob() with "**/" added to in the front
+        of the given relative pattern """
+
+    def rmdir(self):
+        """ Remove this directory. The directory must be empty. """
+
+    def samefile(self, otherpath: "LinuxPath"):
+        """ Return whether this path points to the same file as other_path
+        which can be either a Path object or a string. """
+
+    def symlink_to(self, target, target_is_directory: bool = False):
+        """ Make this path a symbolic link to target. """
+
+    def touch(self, mode: int = 0o666, exist_ok: bool = True):
+        """ Createa file at this path. If the file already exists, function
+        succeeds if exist_ok is true (and it's modification time is updated).
+        Otherwise FileExistsError is raised. """
+
+    def unlink(self, missing_ok: bool = False):
+        """ Remove the file or symbolic link. """
+
+    def link_to(self, target):
+        """ Create a hard link pointing to a path named target """
+
+    def write_bytes(self, data: bytes):
+        """ Open the file pointed to in bytes mode and write data to it. """
+
+    def write_text(self, data: str, encoding: str = None, errors: str = None):
+        """ Open the file pointed to in text mode, and write data to it. """
+
+
 class Linux(Platform):
     """
     Concrete platform class abstracting interaction with a GNU/Linux remote
@@ -397,14 +543,24 @@ class Linux(Platform):
     information on the implemented methods and interface definition.
     """
 
-    def __init__(self, channel: pwncat.channel.Channel):
-        super().__init__(channel)
+    def __init__(self, session, channel: pwncat.channel.Channel, log: str = None):
+        super().__init__(session, channel, log)
+
+        # Name of this platform. This stored in the database and used
+        # to match modules to this platform.
+        self.name = "linux"
 
         # This causes an stty to be sent.
         # If we aren't in a pty, it doesn't matter.
         # if we are, we need this stty to properly handle process IO
         self._interactive = True
         self.interactive = False
+
+        # Load a GTFOBins database to assist in common operations
+        # without relying on specific binaries being available.
+        self.gtfo = GTFOBins(
+            pkg_resources.resource_filename("pwncat", "data/gtfobins.json"), self.which
+        )
 
         p = self.Popen("[ -t 1 ]")
         if p.wait() == 0:
@@ -420,39 +576,41 @@ class Linux(Platform):
         if self.has_pty:
             return
 
-        script_path = None  # self.which("script")
-        if script_path is not None:
-            self.channel.send(
-                f"""exec {script_path} -qc /bin/sh /dev/null 2>&1\n""".encode("utf-8")
+        pty_command = None
+
+        if pty_command is None:
+            script_path = self.which("script")
+            if script_path is not None:
+                pty_command = f""" exec {script_path} -qc /bin/sh /dev/null 2>&1\n"""
+
+        if pty_command is None:
+            python_path = self.which(
+                [
+                    "python",
+                    "python2",
+                    "python2.7",
+                    "python3",
+                    "python3.6",
+                    "python3.8",
+                    "python3.9",
+                ]
             )
-            self._interactive = True
+            if python_path is not None:
+                pty_command = f"""exec {python_path} -c "import pty; pty.spawn('/bin/sh')" 2>&1\n"""
+
+        if pty_command is not None:
+            self.logger.info(pty_command.rstrip("\n"))
+            self.channel.send(pty_command.encode("utf-8"))
+
             self.has_pty = True
-            self.interactive = False
+
+            # Preserve interactivity
+            if not self.interactive:
+                self._interactive = True
+                self.interactive = False
             return
 
-        python_path = self.which(
-            [
-                "python",
-                "python2",
-                "python2.7",
-                "python3",
-                "python3.6",
-                "python3.8",
-                "python3.9",
-            ]
-        )
-        if python_path is not None:
-            self.channel.send(
-                f"""exec {python_path} -c "import pty; pty.spawn('/bin/sh')" 2>&1\n""".encode(
-                    "utf-8"
-                )
-            )
-            self._interactive = True
-            self.has_pty = True
-            self.interactive = False
-            return
-
-        raise pwncat.channel.ChannelError("no avialable pty methods")
+        raise PlatformError("no avialable pty methods")
 
     def get_host_hash(self) -> str:
         """
@@ -466,18 +624,25 @@ class Linux(Platform):
         """
 
         try:
-            result = self.run("hostname -f", shell=True, text=True, encoding="utf-8")
+            result = self.run(
+                "hostname -f", shell=True, check=True, text=True, encoding="utf-8"
+            )
             hostname = result.stdout.strip()
         except CalledProcessError:
             hostname = self.channel.getpeername()[0]
 
         try:
-            result = self.run("ifconfig -a", shell=True, text=True, encoding="utf-8")
+            result = self.run(
+                "ifconfig -a", shell=True, check=True, text=True, encoding="utf-8"
+            )
             ifconfig = result.stdout.strip().lower()
 
             for line in ifconfig.split("\n"):
                 if "hwaddr" in line and "00:00:00:00:00:00" not in line:
                     mac = line.split("hwaddr ")[1].split("\n")[0].strip()
+                    break
+                if "ether " in line and "00:00:00:00:00:00" not in line:
+                    mac = line.split("ether ")[1].split(" ")[0]
                     break
             else:
                 mac = None
@@ -485,7 +650,7 @@ class Linux(Platform):
             # Attempt to use the `ip` command instead
             try:
                 result = self.run(
-                    "ip link show", shell=True, text=True, encoding="utf-8"
+                    "ip link show", shell=True, check=True, text=True, encoding="utf-8"
                 )
                 ip_out = result.stdout.strip().lower()
                 for line in ip_out.split("\n"):
@@ -512,7 +677,7 @@ class Linux(Platform):
           does not exist, or you do not have execute permissions.
         """
 
-    def which(self, name: str) -> str:
+    def which(self, name: str, quote: bool = False) -> str:
         """
         Locate the specified binary on the remote host. Normally, this is done through
         the local `which` command on the remote host (for unix-like hosts), but can be
@@ -548,6 +713,9 @@ class Linux(Platform):
 
         if stdout == "":
             return None
+
+        if quote:
+            return shlex.quote(stdout)
 
         return stdout
 
@@ -592,6 +760,7 @@ class Linux(Platform):
         text=None,
         errors=None,
         env=None,
+        bootstrap_input=None,
         **other_popen_kwargs,
     ) -> pwncat.subprocess.Popen:
         """
@@ -603,7 +772,7 @@ class Linux(Platform):
         """
 
         if self.interactive:
-            raise pwncat.channel.ChannelError(
+            raise PlatformError(
                 "cannot open non-interactive process in interactive mode"
             )
 
@@ -660,19 +829,22 @@ class Linux(Platform):
 
         commands = []
         commands.append(" export PS1=")
-        commands.append("set +m")
-
         commands.append(
             f"echo; echo {start_delim}; {command}; R=$?; echo {end_delim}; echo $R; echo {code_delim}"
         )
-
-        commands.append("set -m")
 
         # Build the final command
         command = ";".join(commands).encode("utf-8")
 
         # Send the command
         self.channel.send(command + b"\n")
+
+        # Send bootstraping input if provided
+        if bootstrap_input is not None:
+            self.channel.send(bootstrap_input)
+
+        # Log the command
+        self.logger.info(command.decode("utf-8"))
 
         return PopenLinux(
             self,
@@ -688,7 +860,7 @@ class Linux(Platform):
             code_delim.encode("utf-8") + b"\n",
         )
 
-    def path(self, path: Optional[str] = None) -> Path:
+    def Path(self, path: Optional[str] = None) -> Path:
         """
         Takes the given string and returns a concrete path for this host.
         This path object conforms to the "concrete path" definition of the
@@ -716,7 +888,15 @@ class Linux(Platform):
           NotADirectoryError: the specified path is not a directory
         """
 
-    def open(self, path: Union[str, Path], mode: str):
+    def open(
+        self,
+        path: Union[str, Path],
+        mode: str = "r",
+        buffering: int = -1,
+        encoding: str = "utf-8",
+        errors: str = None,
+        newline: str = None,
+    ):
         """
         Open a remote file for reading or writing. Normally, only one of read or
         write modes are allowed for a remote file, but this may change with
@@ -736,23 +916,98 @@ class Linux(Platform):
           IsADirectoryError: the specified path refers to a directory
         """
 
+        # Ensure no invalid overlap of modes
+        if "r" in mode and "w" in mode:
+            raise PlatformError("mixed read/write streams are not supported")
+
+        # Ensure all mode properties are valid
+        for char in mode:
+            if char not in "rwb":
+                raise PlatformError(f"{char}: unknown file mode")
+
+        # Save this just in case we are opening a text-mode stream
+        line_buffering = buffering == -1 or buffering == 1
+
+        # For text-mode files, use default buffering for the underlying binary
+        # stream.
+        if "b" not in mode:
+            buffering = -1
+
         if "w" in mode:
+
+            for method in self.gtfo.iter_methods(
+                caps=Capability.WRITE, stream=Stream.PRINT | Stream.RAW
+            ):
+                try:
+                    payload, input_data, exit_cmd = method.build(
+                        lfile=path, suid=True, length=1000000
+                    )
+                    break
+                except MissingBinary:
+                    pass
+            else:
+                raise PlatformError("no available gtfobins writiers")
+
             popen = self.Popen(
-                ["dd", f"of={path}", "bs=1024"], stdin=pwncat.subprocess.PIPE,
+                payload,
+                shell=True,
+                stdin=pwncat.subprocess.PIPE,
+                bufsize=buffering,
+                bootstrap_input=input_data.encode("utf-8"),
             )
 
-            return LinuxWriter(popen)
+            stream = LinuxWriter(
+                popen,
+                on_close=lambda filp: filp.popen.platform.channel.send(
+                    exit_cmd.encode("utf-8")
+                ),
+            )
         else:
+            for method in self.gtfo.iter_methods(
+                caps=Capability.READ, stream=Stream.PRINT | Stream.RAW
+            ):
+                try:
+                    payload, input_data, exit_cmd = method.build(
+                        lfile=path, suid=True, length=1000000
+                    )
+                    break
+                except MissingBinary:
+                    pass
+            else:
+                raise PlatformError("no available gtfobins writiers")
+
             popen = self.Popen(
-                ["dd", f"if={path}", "bs=1024"],
-                stderr=pwncat.subprocess.DEVNULL,
-                stdout=pwncat.subprocess.PIPE,
+                payload,
+                shell=True,
+                stdin=pwncat.subprocess.PIPE,
+                bufsize=buffering,
+                bootstrap_input=input_data.encode("utf-8"),
             )
 
-            return LinuxReader(popen)
+            stream = LinuxReader(
+                popen,
+                on_close=lambda filp: filp.popen.platform.channel.send(
+                    exit_cmd.encode("utf-8")
+                ),
+            )
+
+        if "b" not in mode:
+            stream = TextIOWrapper(
+                stream,
+                encoding=encoding,
+                errors=errors,
+                newline=newline,
+                write_through=True,
+                line_buffering=line_buffering,
+            )
+
+        return stream
 
     def tempfile(
-        self, mode: str, length: Optional[int] = None, suffix: Optional[str] = None
+        self,
+        mode: str = "r",
+        length: Optional[int] = None,
+        suffix: Optional[str] = None,
     ):
         """
         Create a temporary file on the remote host and open it with the specified mode.
@@ -828,8 +1083,12 @@ class Linux(Platform):
             return
 
         if not value:
-            self.channel.send(b"""stty -echo nl lnext ^V\n""")
+            command = " stty -echo nl lnext ^V\n"
+            self.logger.info(command.rstrip("\n"))
+            self.channel.send(command.encode("utf-8"))
         else:
-            self.channel.send(b"""stty sane\n""")
+            command = " stty sane\n"
+            self.logger.info(command.rstrip("\n"))
+            self.channel.send(command.encode("utf-8"))
 
         self._interactive = value

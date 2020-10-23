@@ -4,7 +4,7 @@ import re
 
 from pwncat.modules.enumerate import EnumerateModule, Schedule
 import pwncat
-from pwncat.platform import Platform
+from pwncat.platform.linux import Linux
 
 
 @dataclasses.dataclass
@@ -41,7 +41,7 @@ class Module(EnumerateModule):
     """
 
     PROVIDES = ["software.sudo.version"]
-    PLATFORM = Platform.LINUX
+    PLATFORM = [Linux]
     SCHEDULE = Schedule.ONCE
 
     def enumerate(self):

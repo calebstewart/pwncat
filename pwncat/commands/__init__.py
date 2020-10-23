@@ -659,5 +659,6 @@ class CommandCompleter(Completer):
 
 # Here, we allocate the global parser object and initialize in-memory
 # settings
-parser: CommandParser = CommandParser()
-parser.setup_prompt()
+parser = None
+# parser: CommandParser = CommandParser()
+# parser.setup_prompt()

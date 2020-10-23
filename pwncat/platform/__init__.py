@@ -2,6 +2,8 @@
 from typing import List, Optional, Generator, Union, BinaryIO, Type
 import enum
 import pathlib
+import logging
+import logging.handlers
 
 import pwncat
 import pwncat.subprocess
@@ -11,6 +13,10 @@ PLATFORM_TYPES = {}
 """ A dictionary of platform names mapping to their class
 objects. This drives the ``pwncat.platform.create`` factory
 function. """
+
+
+class PlatformError(Exception):
+    """ Generic platform error. """
 
 
 class Path(pathlib.PurePath):
@@ -32,8 +38,25 @@ class Platform:
 
     """
 
-    def __init__(self, channel: "pwncat.channel.Channel"):
+    def __init__(
+        self,
+        session: "pwncat.manager.Session",
+        channel: "pwncat.channel.Channel",
+        log: str = None,
+    ):
+        self.session = session
         self.channel = channel
+        self.logger = logging.getLogger(str(channel))
+        self.logger.setLevel(logging.DEBUG)
+        self.name = "unknown"
+
+        # output log to a file
+        if log is not None:
+            handler = logging.handlers.RotatingFileHandler(
+                log, maxBytes=1024 * 1024 * 100, backupCount=5
+            )
+            handler.setFormatter(logging.Formatter("%(asctime)s - %(message)s"))
+            self.logger.addHandler(handler)
 
     def listdir(self, path=None) -> Generator[str, None, None]:
         """ List the contents of a directory. If ``path`` is None,
@@ -71,6 +94,17 @@ class Platform:
         :raises: FileNotFoundError: the requested binary does not exist on this host
         """
 
+    def _do_which(self, name: str) -> Optional[str]:
+        """
+        This is stub method which must be implemented by the platform. It is
+        guaranteed to request to results directly from the victim whereas the
+        `which` method will query the database first for cached items. It
+        should not be invoked directly, but will be indirectly invoked when
+        needed by `which`
+        """
+
+        raise NotImplementedError(f"{str(self)}: no `which` implementation")
+
     def compile(
         self,
         sources: List[Union[str, BinaryIO]],
@@ -99,24 +133,20 @@ class Platform:
         :type ldflags: List[str]
         """
 
-    def popen(
+    def Popen(
         self,
         args,
         stdin=None,
-        input=None,
         stdout=None,
         stderr=None,
-        capture_output=False,
         shell=False,
         cwd=None,
-        timeout=None,
-        check=False,
         encoding=None,
         errors=None,
         text=None,
         env=None,
         universal_newlines=None,
-        **other_popen_kwargs
+        **other_popen_kwargs,
     ) -> pwncat.subprocess.Popen:
         """
         Execute a process on the remote host with an interface similar to
@@ -143,12 +173,44 @@ class Platform:
         text=None,
         env=None,
         universal_newlines=None,
-        **other_popen_kwargs
+        **other_popen_kwargs,
     ) -> pwncat.subprocess.Popen:
         """
         Run the given command utilizing the ``self.popen`` method and
         return a ``pwncat.subprocess.CompletedProcess`` instance.
         """
+
+        if capture_output:
+            stdout = pwncat.subprocess.PIPE
+            stderr = pwncat.subprocess.PIPE
+
+        if input is not None:
+            stdin = pwncat.subprocess.PIPE
+
+        p = self.Popen(
+            args,
+            stdin=stdin,
+            stdout=stdout,
+            stderr=stderr,
+            shell=shell,
+            cwd=cwd,
+            encoding=encoding,
+            text=text,
+            errors=errors,
+            env=env,
+            **other_popen_kwargs,
+        )
+
+        stdout, stderr = p.communicate(input=input, timeout=timeout)
+
+        completed_proc = pwncat.subprocess.CompletedProcess(
+            args, p.returncode, stdout, stderr
+        )
+
+        if check:
+            completed_proc.check_returncode()
+
+        return completed_proc
 
     def path(self, path: Optional[str] = None) -> Path:
         """
@@ -243,7 +305,7 @@ class Platform:
         command: Union[str, List[str]],
         user: Optional[str] = None,
         group: Optional[str] = None,
-        **popen_kwargs
+        **popen_kwargs,
     ):
         """
         Run the specified command as the specified user and group. On unix-like systems
@@ -303,7 +365,12 @@ def find(name: str) -> Type[Platform]:
     return PLATFORM_TYPES[name]
 
 
-def create(platform: str, channel: Optional[pwncat.channel.Channel] = None, **kwargs):
+def create(
+    platform: str,
+    log: str = None,
+    channel: Optional[pwncat.channel.Channel] = None,
+    **kwargs,
+):
     """
     Create a new platform object with a registered platform type.
     If no channel is specified, then this will attempt to utilize
@@ -326,7 +393,7 @@ def create(platform: str, channel: Optional[pwncat.channel.Channel] = None, **kw
     if channel is None:
         channel = pwncat.channel.create(**kwargs)
 
-    return find(platform)(channel)
+    return find(platform)(channel, log)
 
 
 from pwncat.platform.linux import Linux

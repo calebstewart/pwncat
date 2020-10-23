@@ -3,7 +3,7 @@ import os
 
 import pwncat
 from pwncat.util import Access
-from pwncat.platform import Platform
+from pwncat.platform.linux import Linux
 from pwncat.modules.enumerate import EnumerateModule, Schedule
 
 
@@ -15,7 +15,7 @@ class Module(EnumerateModule):
 
     PROVIDES = ["system.writable_path"]
     SCHEDULE = Schedule.PER_USER
-    PLATFORM = Platform.LINUX
+    PLATFORM = [Linux]
 
     def enumerate(self):
 

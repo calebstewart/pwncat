@@ -25,6 +25,10 @@ class ModuleNotFound(Exception):
     """ The specified module was not found """
 
 
+class IncorrectPlatformError(Exception):
+    """ The requested module didn't match the current platform """
+
+
 class ArgumentFormatError(Exception):
     """ Format of one of the arguments was incorrect """
 

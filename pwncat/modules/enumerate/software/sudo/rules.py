@@ -4,7 +4,7 @@ import re
 from typing import Generator, Optional, List
 
 import pwncat
-from pwncat.platform import Platform
+from pwncat.platform.linux import Linux
 from pwncat import util
 from pwncat.modules.enumerate import EnumerateModule, Schedule
 
@@ -139,7 +139,7 @@ class Module(EnumerateModule):
     root permissions are needed to read /etc/sudoers. """
 
     PROVIDES = ["software.sudo.rule"]
-    PLATFORM = Platform.LINUX
+    PLATFORM = [Linux]
     SCHEDULE = Schedule.PER_USER
 
     def enumerate(self):

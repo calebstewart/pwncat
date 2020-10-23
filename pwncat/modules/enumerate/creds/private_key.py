@@ -2,7 +2,7 @@
 from Crypto.PublicKey import RSA
 
 import pwncat
-from pwncat.platform import Platform
+from pwncat.platform.linux import Linux
 from pwncat.modules import Status
 from pwncat.modules.enumerate import EnumerateModule, Schedule
 from pwncat.modules.enumerate.creds import PrivateKeyData
@@ -16,7 +16,7 @@ class Module(EnumerateModule):
     """
 
     PROVIDES = ["creds.private_key"]
-    PLATFORM = Platform.LINUX
+    PLATFORM = [Linux]
     SCHEDULE = Schedule.PER_USER
 
     def enumerate(self):

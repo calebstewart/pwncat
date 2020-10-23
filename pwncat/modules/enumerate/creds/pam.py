@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import pwncat
-from pwncat.platform import Platform
+from pwncat.platform.linux import Linux
 from pwncat.modules.enumerate import EnumerateModule, Schedule
 from pwncat.modules.enumerate.creds import PasswordData
 from pwncat.modules.persist.gather import InstalledModule
@@ -15,7 +15,7 @@ class Module(EnumerateModule):
     all passwords we have collected.
     """
 
-    PLATFORM = Platform.LINUX
+    PLATFORM = [Linux]
     SCHEDULE = Schedule.ALWAYS
     PROVIDES = ["creds.password"]
 

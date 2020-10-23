@@ -2,7 +2,7 @@
 
 import pwncat
 from pwncat.modules import Status
-from pwncat.platform import Platform
+from pwncat.platform.linux import Linux
 from pwncat.gtfobins import Capability
 from pwncat.modules.persist import PersistError, PersistType
 from pwncat.modules.persist.gather import InstalledModule
@@ -32,7 +32,7 @@ class Module(EscalateModule):
     """ This module will enumerate all installed persistence methods which
     offer local escalation. """
 
-    PLATFORM = Platform.ANY
+    PLATFORM = None
     PRIORITY = -1
 
     def enumerate(self):

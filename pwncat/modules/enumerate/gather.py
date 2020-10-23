@@ -69,7 +69,7 @@ class Module(pwncat.modules.BaseModule):
             bool, default=False, help="Clear the cached results of all matching modules"
         ),
     }
-    PLATFORM = pwncat.platform.Platform.ANY
+    PLATFORM = None
 
     def run(self, output, modules, types, clear):
         """ Perform a enumeration of the given moduels and save the output """

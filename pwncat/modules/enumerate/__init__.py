@@ -6,7 +6,7 @@ import time
 import sqlalchemy
 
 import pwncat
-from pwncat.platform import Platform
+from pwncat.platform.linux import Linux
 from pwncat.modules import BaseModule, Status, Argument, List
 from pwncat.db import get_session
 
@@ -26,7 +26,7 @@ class EnumerateModule(BaseModule):
     # This should be set by the sub-classes to know where to find
     # different types of enumeration data
     PROVIDES = []
-    PLATFORM = Platform.LINUX
+    PLATFORM = [Linux]
 
     # Defines how often to run this enumeration. The default is to
     # only run once per system/target.

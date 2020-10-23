@@ -54,7 +54,7 @@ class Module(EscalateModule):
     Utilize known passwords to execute commands as other users.
     """
 
-    PLATFORM = pwncat.platform.Platform.LINUX
+    PLATFORM = [pwncat.platform.linux.Linux]
 
     def enumerate(self):
         """ Enumerate SUID binaries """

@@ -17,7 +17,7 @@ class Module(EscalateModule):
     payloads for binaries with excessive permissions.
     """
 
-    PLATFORM = pwncat.platform.Platform.LINUX
+    PLATFORM = [pwncat.platform.linux.Linux]
 
     def enumerate(self):
         """ Enumerate SUDO permissions """

@@ -3,7 +3,7 @@ from typing import List
 import dataclasses
 
 import pwncat
-from pwncat.platform import Platform
+from pwncat.platform.linux import Linux
 from pwncat import util
 from pwncat.modules.enumerate import EnumerateModule, Schedule
 
@@ -37,7 +37,7 @@ class Module(EnumerateModule):
     """
 
     PROVIDES = ["system.distro"]
-    PLATFORM = Platform.LINUX
+    PLATFORM = [Linux]
 
     def enumerate(self):
 

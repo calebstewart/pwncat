@@ -9,7 +9,7 @@ from prompt_toolkit import prompt
 import pwncat
 import pwncat.tamper
 from pwncat.util import Access
-from pwncat.platform import Platform
+from pwncat.platform.linux import Linux
 from pwncat.modules import Argument, PersistType, PersistError
 from pwncat.modules.persist import PersistModule
 
@@ -23,7 +23,7 @@ class Module(PersistModule):
 
     # We can escalate locally with `ssh localhost`
     TYPE = PersistType.LOCAL | PersistType.REMOTE
-    PLATFORM = Platform.LINUX
+    PLATFORM = [Linux]
     ARGUMENTS = {
         **PersistModule.ARGUMENTS,
         "backdoor_key": Argument(

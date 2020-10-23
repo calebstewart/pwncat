@@ -11,7 +11,7 @@ import paramiko
 
 import pwncat
 from pwncat.util import CompilationError, Access
-from pwncat.platform import Platform
+from pwncat.platform.linux import Linux
 from pwncat.modules import Argument, Status, PersistError, PersistType
 from pwncat.modules.persist import PersistModule
 
@@ -28,7 +28,7 @@ class Module(PersistModule):
     """
 
     TYPE = PersistType.LOCAL | PersistType.REMOTE | PersistType.ALL_USERS
-    PLATFORM = Platform.LINUX
+    PLATFORM = [Linux]
     ARGUMENTS = {
         **PersistModule.ARGUMENTS,
         "password": Argument(str, help="The password to use for the backdoor"),

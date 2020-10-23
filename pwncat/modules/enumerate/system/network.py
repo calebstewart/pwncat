@@ -2,7 +2,7 @@
 import dataclasses
 
 import pwncat
-from pwncat.platform import Platform
+from pwncat.platform.linux import Linux
 from pwncat.modules.enumerate import EnumerateModule, Schedule
 
 
@@ -22,7 +22,7 @@ class Module(EnumerateModule):
     and return their name and IP address.
     """
 
-    PLATFORM = Platform.LINUX
+    PLATFORM = [Linux]
     SCHEDULE = Schedule.ONCE
     PROVIDES = ["system.network.interface"]
 

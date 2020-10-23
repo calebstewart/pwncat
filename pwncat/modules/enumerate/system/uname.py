@@ -5,7 +5,7 @@ import pkg_resources
 import json
 
 import pwncat
-from pwncat.platform import Platform
+from pwncat.platform.linux import Linux
 from pwncat import util
 from pwncat.modules.enumerate import EnumerateModule, Schedule
 
@@ -98,7 +98,7 @@ class Module(EnumerateModule):
         "system.arch",
         "system.kernel.vuln",
     ]
-    PLATFORM = Platform.LINUX
+    PLATFORM = [Linux]
     SCHEDULE = Schedule.ONCE
 
     def enumerate(self):

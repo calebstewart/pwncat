@@ -3,7 +3,7 @@ import os
 import re
 
 import pwncat
-from pwncat.platform import Platform
+from pwncat.platform.linux import Linux
 from pwncat.modules.enumerate import EnumerateModule, Schedule
 from pwncat.modules.enumerate.creds import PasswordData
 
@@ -17,7 +17,7 @@ class Module(EnumerateModule):
     """
 
     PROVIDES = ["creds.password"]
-    PLATFORM = Platform.LINUX
+    PLATFORM = [Linux]
     SCHEDULE = Schedule.PER_USER
 
     def enumerate(self):

@@ -92,7 +92,7 @@ class Module(BaseModule):
         "remove": Argument(Bool, default=False, help="Remove all matched modules"),
     }
     ALLOW_KWARGS = True
-    PLATFORM = pwncat.platform.Platform.NO_HOST
+    PLATFORM = None
 
     def run(self, host, module, escalate, remove, **kwargs):
         """ Execute this module """
