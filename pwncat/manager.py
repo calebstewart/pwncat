@@ -116,7 +116,11 @@ class Session:
 
     @property
     def db(self):
-        """ Retrieve a database session """
+        """ Retrieve a database session
+
+        I'm not sure if this is the best way to handle database sessions.
+
+        """
 
         new_session = self._db_session is None
 
