@@ -51,7 +51,8 @@ class Session:
 
         # Initialize the host reference
         self.hash = self.platform.get_host_hash()
-        self.host = self.db.query(pwncat.db.Host).filter_by(hash=self.hash).first()
+        with self.db as session:
+            self.host = session.query(pwncat.db.Host).filter_by(hash=self.hash).first()
         if self.host is None:
             self.register_new_host()
 
@@ -61,7 +62,9 @@ class Session:
 
         # Create a new host object and add it to the database
         self.host = pwncat.db.Host(hash=self.hash, platform=self.platform.name)
-        self.db.add(self.host)
+
+        with self.db as session:
+            session.add(self.host)
 
     def get(self, name, default=None):
         """ Get the value of a configuration item """
@@ -115,6 +118,7 @@ class Session:
         self.manager.target.progress.log(*args, **kwargs)
 
     @property
+    @contextlib.contextmanager
     def db(self):
         """ Retrieve a database session
 
@@ -127,7 +131,7 @@ class Session:
         try:
             if new_session:
                 self._db_session = self.manager.create_db_session()
-            return self._db_session
+            yield self._db_session
         finally:
             if new_session:
                 session = self._db_session
@@ -153,7 +157,7 @@ class Session:
                 self._progress.start()
             # Create the new task
             task = self._progress.add_task(*args, **kwargs)
-            return task
+            yield task
         finally:
             if task is not None:
                 # Delete the task
@@ -184,6 +188,7 @@ class Manager:
         self.modules: Dict[str, pwncat.modules.BaseModule] = {}
         self.engine = None
         self.SessionBuilder = None
+        self._target = None
 
         # Load standard modules
         self.load_modules(*pwncat.modules.__path__)
@@ -285,5 +290,7 @@ class Manager:
 
         session = Session(self, platform, channel, **kwargs)
         self.sessions.append(session)
+
+        self.target = session
 
         return session
