@@ -562,11 +562,20 @@ class Linux(Platform):
             pkg_resources.resource_filename("pwncat", "data/gtfobins.json"), self.which
         )
 
+        # Ensure history is disabled
+        self.disable_history()
+
         p = self.Popen("[ -t 1 ]")
         if p.wait() == 0:
             self.has_pty = True
         else:
             self.has_pty = False
+
+    def disable_history(self):
+        """ Disable shell history """
+
+        # Ensure history is not tracked
+        self.run("unset HISTFILE; export HISTCONTROL=ignorespace; unset PROMPT_COMMAND")
 
     def get_pty(self):
         """ Spawn a PTY in the current shell. If a PTY is already running
@@ -608,6 +617,10 @@ class Linux(Platform):
             if not self.interactive:
                 self._interactive = True
                 self.interactive = False
+
+            # When starting a pty, history is sometimes re-enabled
+            self.disable_history()
+
             return
 
         raise PlatformError("no avialable pty methods")
@@ -623,44 +636,58 @@ class Linux(Platform):
         :rtype: str
         """
 
-        try:
-            result = self.run(
-                "hostname -f", shell=True, check=True, text=True, encoding="utf-8"
-            )
-            hostname = result.stdout.strip()
-        except CalledProcessError:
-            hostname = self.channel.getpeername()[0]
-
-        try:
-            result = self.run(
-                "ifconfig -a", shell=True, check=True, text=True, encoding="utf-8"
-            )
-            ifconfig = result.stdout.strip().lower()
-
-            for line in ifconfig.split("\n"):
-                if "hwaddr" in line and "00:00:00:00:00:00" not in line:
-                    mac = line.split("hwaddr ")[1].split("\n")[0].strip()
-                    break
-                if "ether " in line and "00:00:00:00:00:00" not in line:
-                    mac = line.split("ether ")[1].split(" ")[0]
-                    break
-            else:
-                mac = None
-        except CalledProcessError:
-            # Attempt to use the `ip` command instead
+        with self.session.task("calculating host hash") as task:
             try:
-                result = self.run(
-                    "ip link show", shell=True, check=True, text=True, encoding="utf-8"
+                self.session.update_task(
+                    task, status="retrieving hostname (hostname -f)"
                 )
-                ip_out = result.stdout.strip().lower()
-                for line in ip_out.split("\n"):
-                    if "link/ether" in line and "00:00:00:00:00:00" not in line:
-                        mac = line.split("link/ether ")[1].split(" ")[0]
+                result = self.run(
+                    "hostname -f", shell=True, check=True, text=True, encoding="utf-8"
+                )
+                hostname = result.stdout.strip()
+            except CalledProcessError:
+                hostname = self.channel.getpeername()[0]
+
+            try:
+                self.session.update_task(
+                    task, status="retrieving mac addresses (ifconfig)"
+                )
+                result = self.run(
+                    "ifconfig -a", shell=True, check=True, text=True, encoding="utf-8"
+                )
+                ifconfig = result.stdout.strip().lower()
+
+                for line in ifconfig.split("\n"):
+                    if "hwaddr" in line and "00:00:00:00:00:00" not in line:
+                        mac = line.split("hwaddr ")[1].split("\n")[0].strip()
+                        break
+                    if "ether " in line and "00:00:00:00:00:00" not in line:
+                        mac = line.split("ether ")[1].split(" ")[0]
                         break
                 else:
                     mac = None
             except CalledProcessError:
-                mac = None
+                # Attempt to use the `ip` command instead
+                try:
+                    self.session.update_task(
+                        task, status="retrieving mac addresses (ip link show)"
+                    )
+                    result = self.run(
+                        "ip link show",
+                        shell=True,
+                        check=True,
+                        text=True,
+                        encoding="utf-8",
+                    )
+                    ip_out = result.stdout.strip().lower()
+                    for line in ip_out.split("\n"):
+                        if "link/ether" in line and "00:00:00:00:00:00" not in line:
+                            mac = line.split("link/ether ")[1].split(" ")[0]
+                            break
+                    else:
+                        mac = None
+                except CalledProcessError:
+                    mac = None
 
         # In some (unlikely) cases, `mac` may be None, so we use `str` here.
         identifier = hostname + str(mac)

@@ -41,7 +41,7 @@ import pwncat
 import pwncat.db
 from pwncat.commands.base import CommandDefinition, Complete
 from pwncat.util import State, console
-from pwncat.db import get_session
+from pwncat.channel import ChannelClosed
 
 
 def resolve_blocks(source: str):
@@ -104,20 +104,27 @@ def resolve_blocks(source: str):
 class DatabaseHistory(History):
     """ Yield history from the host entry in the database """
 
+    def __init__(self, manager):
+        super().__init__()
+        self.manager = manager
+
     def load_history_strings(self) -> Iterable[str]:
         """ Load the history from the database """
-        for history in (
-            get_session()
-            .query(pwncat.db.History)
-            .order_by(pwncat.db.History.id.desc())
-            .all()
-        ):
-            yield history.command
+
+        with self.manager.new_db_session() as session:
+            for history in (
+                session.query(pwncat.db.History)
+                .order_by(pwncat.db.History.id.desc())
+                .all()
+            ):
+                yield history.command
 
     def store_string(self, string: str) -> None:
         """ Store a command in the database """
-        history = pwncat.db.History(host_id=pwncat.victim.host.id, command=string)
-        get_session().add(history)
+        history = pwncat.db.History(command=string)
+
+        with self.manager.new_db_session() as session:
+            session.add(history)
 
 
 class CommandParser:
@@ -127,16 +134,17 @@ class CommandParser:
     termios modes for the control tty at will in order to support raw vs
     command mode. """
 
-    def __init__(self):
+    def __init__(self, manager: "pwncat.manager.Manager"):
         """ We need to dynamically load commands from pwncat.commands """
 
+        self.manager = manager
         self.commands: List["CommandDefinition"] = []
 
         for loader, module_name, is_pkg in pkgutil.walk_packages(__path__):
             if module_name == "base":
                 continue
             self.commands.append(
-                loader.find_module(module_name).load_module(module_name).Command()
+                loader.find_module(module_name).load_module(module_name).Command(self)
             )
 
         self.prompt: PromptSession = None
@@ -153,12 +161,8 @@ class CommandParser:
         """ This needs to happen after __init__ when the database is fully
         initialized. """
 
-        if pwncat.victim is not None and pwncat.victim.host is not None:
-            history = DatabaseHistory()
-        else:
-            history = InMemoryHistory()
-
-        completer = CommandCompleter(self.commands)
+        history = DatabaseHistory(self.manager)
+        completer = CommandCompleter(self.manager, self.commands)
         lexer = PygmentsLexer(CommandLexer.build(self.commands))
         style = style_from_pygments_cls(get_style_by_name("monokai"))
         auto_suggest = AutoSuggestFromHistory()
@@ -177,28 +181,20 @@ class CommandParser:
             history=history,
         )
 
-    @property
-    def loaded(self):
-        return self.loading_complete
-
-    @loaded.setter
-    def loaded(self, value: bool):
-        assert value == True
-        self.loading_complete = True
-        self.eval(pwncat.config["on_load"], "on_load")
-
     def eval(self, source: str, name: str = "<script>"):
         """ Evaluate the given source file. This will execute the given string
         as a script of commands. Syntax is the same except that commands may
         be separated by semicolons, comments are accepted as following a "#" and
         multiline strings are supported with '"{' and '}"' as delimeters. """
 
-        in_multiline_string = False
-        lineno = 1
-
         for command in resolve_blocks(source):
             try:
                 self.dispatch_line(command)
+            except ChannelClosed as exc:
+                # A channel was unexpectedly closed
+                self.manager.log(f"[red]warning[/red]: {exc.channel}: channel closed")
+                # Ensure any existing sessions are cleaned from the manager
+                exc.cleanup(self.manager)
             except Exception as exc:
                 console.log(
                     f"[red]error[/red]: [cyan]{name}[/cyan]: [yellow]{command}[/yellow]: {str(exc)}"
@@ -206,6 +202,9 @@ class CommandParser:
                 break
 
     def run_single(self):
+
+        if self.prompt is None:
+            self.setup_prompt()
 
         try:
             line = self.prompt.prompt().strip()
@@ -217,14 +216,20 @@ class CommandParser:
 
     def run(self):
 
-        self.running = True
+        if self.prompt is None:
+            self.setup_prompt()
 
-        while self.running:
+        running = True
+
+        while running:
             try:
 
-                if pwncat.config.module:
+                if self.manager.config.module:
                     self.prompt.message = [
-                        ("fg:ansiyellow bold", f"({pwncat.config.module.name}) ",),
+                        (
+                            "fg:ansiyellow bold",
+                            f"({self.manager.config.module.name}) ",
+                        ),
                         ("fg:ansimagenta bold", "pwncat"),
                         ("", "$ "),
                     ]
@@ -245,21 +250,19 @@ class CommandParser:
             # badly written command from completely killing our remote
             # connection.
             except EOFError:
-                # We don't have a connection yet, just exit
-                if pwncat.victim is None or pwncat.victim.client is None:
-                    break
-                # We have a connection! Go back to raw mode
-                pwncat.victim.state = State.RAW
-                self.running = False
+                # C-d was pressed. Assume we want to exit the prompt.
+                running = False
             except KeyboardInterrupt:
+                # Normal C-c from a shell just clears the current prompt
                 continue
+            except ChannelClosed as exc:
+                # A channel was unexpectedly closed
+                self.manager.log(f"[red]warning[/red]: {exc.channel}: channel closed")
+                # Ensure any existing sessions are cleaned from the manager
+                exc.cleanup(self.manager)
             except (Exception, KeyboardInterrupt):
                 console.print_exception(width=None)
                 continue
-
-    #             except KeyboardInterrupt:
-    #                 console.log("Keyboard Interrupt")
-    #                 continue
 
     def dispatch_line(self, line: str, prog_name: str = None):
         """ Parse the given line of command input and dispatch a command """
@@ -273,7 +276,7 @@ class CommandParser:
             # Spit the line with shell rules
             argv = shlex.split(line)
         except ValueError as e:
-            console.log(f"[red]error[/red]: {e.args[0]}")
+            self.manager.log(f"[red]error[/red]: {e.args[0]}")
             return
 
         if argv[0][0] in self.shortcuts:
@@ -291,12 +294,12 @@ class CommandParser:
                 if argv[0] in self.aliases:
                     command = self.aliases[argv[0]]
                 else:
-                    console.log(f"[red]error[/red]: {argv[0]}: unknown command")
+                    self.manager.log(f"[red]error[/red]: {argv[0]}: unknown command")
                     return
 
-            if not self.loading_complete and not command.LOCAL:
-                console.log(
-                    f"[red]error[/red]: {argv[0]}: non-local command use before connection"
+            if self.manager.target is None and not command.LOCAL:
+                self.manager.log(
+                    f"[red]error[/red]: {argv[0]}: active session required"
                 )
                 return
 
@@ -317,7 +320,7 @@ class CommandParser:
                 args = line
 
             # Run the command
-            command.run(args)
+            command.run(self.manager, args)
 
             if prog_name:
                 command.parser.prog = prog_name
@@ -481,7 +484,14 @@ class CommandLexer(RegexLexer):
 class RemotePathCompleter(Completer):
     """ Complete remote file names/paths """
 
+    def __init__(self, manager: "pwncat.manager.Manager", *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.manager = manager
+
     def get_completions(self, document: Document, complete_event: CompleteEvent):
+
+        if self.manager.target is None:
+            return
 
         before = document.text_before_cursor.split()[-1]
         path, partial_name = os.path.split(before)
@@ -489,11 +499,7 @@ class RemotePathCompleter(Completer):
         if path == "":
             path = "."
 
-        pipe = pwncat.victim.subprocess(
-            f"ls -1 -a --color=never {shlex.quote(path)}", "r"
-        )
-
-        for name in pipe:
+        for name in self.manager.target.listdir(path):
             name = name.decode("utf-8").strip()
             if name.startswith(partial_name):
                 yield Completion(
@@ -530,12 +536,14 @@ class LocalPathCompleter(Completer):
 class CommandCompleter(Completer):
     """ Complete commands from a given list of commands """
 
-    def __init__(self, commands: List["CommandDefinition"]):
+    def __init__(
+        self, manager: "pwncat.manager.Manager", commands: List["CommandDefinition"]
+    ):
         """ Construct a new command completer """
 
         self.layers = {}
         local_file_completer = LocalPathCompleter()
-        remote_file_completer = RemotePathCompleter()
+        remote_file_completer = RemotePathCompleter(manager)
 
         for command in commands:
             self.layers[command.PROG] = [None, [], {}]

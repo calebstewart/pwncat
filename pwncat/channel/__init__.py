@@ -9,9 +9,28 @@ CHANNEL_TYPES = {}
 class ChannelError(Exception):
     """ Raised when a channel fails to connect """
 
+    def __init__(self, ch, msg="generic channel failure"):
+        super().__init__(msg)
+        self.channel = ch
+
 
 class ChannelClosed(ChannelError):
     """ A channel was closed unexpectedly during communication """
+
+    def __init__(self, ch):
+        super().__init__(ch, "channel unexpectedly closed")
+
+    def cleanup(self, manager: "pwncat.manager.Manager"):
+        """ Cleanup this channel from the manager """
+
+        # If we don't have a session, there's nothing to do
+        session = manager.find_session_by_channel(self.channel)
+        if session is None:
+            return
+
+        # Session takes care of removing itself from the manager
+        # and unsetting `manager.target` if needed.
+        session.died()
 
 
 class ChannelTimeout(ChannelError):
@@ -21,8 +40,8 @@ class ChannelTimeout(ChannelError):
     :type data: bytes
     """
 
-    def __init__(self, data: bytes):
-        super().__init__("channel recieve timed out")
+    def __init__(self, ch, data: bytes):
+        super().__init__(ch, "channel recieve timed out")
         self.data: bytes = data
 
 
@@ -184,6 +203,25 @@ class Channel:
         self.password: str = password
 
         self.peek_buffer: bytes = b""
+
+    @property
+    def connected(self):
+        """ Check if this channel is connected. This should return
+        false prior to an established connection, and may return
+        true prior to the ``connect`` method being called for some
+        channel types. """
+
+    def connect(self):
+        """ Utilize the parameters provided at initialization to
+        connect to the remote host. This is mainly used for channels
+        which listen for a connection. In that case, `__init__` creates
+        the listener while connect actually establishes a connection.
+        For direct connection-type channels, all logic can be implemented
+        in the constructor.
+
+        This method is called when creating a platform around this channel
+        to instantiate the session.
+        """
 
     def send(self, data: bytes):
         """ Send data to the remote shell. This is a blocking call
@@ -352,6 +390,15 @@ class Channel:
             return BufferedReader(raw_io, buffer_size=bufsize)
         else:
             return BufferedWriter(raw_io, buffer_size=bufsize)
+
+    def close(self):
+        """ Close this channel. This method should do nothing if
+        the ``connected`` property returns False. """
+
+    def __str__(self):
+        """ Get a representation of this channel """
+
+        return f"[cyan]{self.address[0]}[/cyan]:[blue]{self.address[1]}[/blue]"
 
 
 def register(name: str, channel_class):

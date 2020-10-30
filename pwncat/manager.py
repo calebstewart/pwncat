@@ -11,8 +11,11 @@ import rich.progress
 
 import pwncat.db
 import pwncat.modules
+from pwncat.util import console
 from pwncat.platform import Platform
 from pwncat.channel import Channel
+from pwncat.config import Config
+from pwncat.commands import CommandParser
 
 
 class Session:
@@ -24,30 +27,36 @@ class Session:
         manager,
         platform: Union[str, Platform],
         channel: Optional[Channel] = None,
-        **kwargs
+        **kwargs,
     ):
         self.manager = manager
+        self.background = None
+        self._db_session = None
+
+        # If necessary, build a new platform object
+        if isinstance(platform, Platform):
+            self.platform = platform
+        else:
+            # If necessary, build a new channel
+            if channel is None:
+                channel = pwncat.channel.create(**kwargs)
+
+            self.platform = pwncat.platform.find(platform)(
+                self, channel, self.config.get("log", None)
+            )
+
         self._progress = rich.progress.Progress(
-            str(platform),
+            str(self.platform),
             "•",
             "{task.description}",
             "•",
             "{task.fields[status]}",
             transient=True,
         )
-        self.config = {}
-        self.background = None
-        self._db_session = None
 
-        if isinstance(platform, Platform):
-            self.platform = platform
-        else:
-            if channel is None:
-                channel = pwncat.channel.create(**kwargs)
-
-            self.platform = pwncat.platform.find(platform)(
-                self, channel, self.get("log")
-            )
+        # Register this session with the manager
+        self.manager.sessions.append(self)
+        self.manager.target = self
 
         # Initialize the host reference
         self.hash = self.platform.get_host_hash()
@@ -55,6 +64,15 @@ class Session:
             self.host = session.query(pwncat.db.Host).filter_by(hash=self.hash).first()
         if self.host is None:
             self.register_new_host()
+        else:
+            self.log("loaded known host from db")
+
+    @property
+    def config(self):
+        """ Get the configuration object for this manager. This
+        is simply a wrapper for session.manager.config to make
+        accessing configuration a little easier. """
+        return self.manager.config
 
     def register_new_host(self):
         """ Register a new host in the database. This assumes the
@@ -66,18 +84,7 @@ class Session:
         with self.db as session:
             session.add(self.host)
 
-    def get(self, name, default=None):
-        """ Get the value of a configuration item """
-
-        if name not in self.config:
-            return self.manager.get(name, default)
-
-        return self.config[name]
-
-    def set(self, name, value):
-        """ Set the value of a configuration item """
-
-        self.config[name] = value
+        self.log("registered new host w/ db")
 
     def run(self, module: str, **kwargs):
         """ Run a module on this session """
@@ -115,7 +122,7 @@ class Session:
         progress instance to log without messing up progress output
         from other sessions, if we aren't active. """
 
-        self.manager.target.progress.log(*args, **kwargs)
+        self.manager.log(f"{self.platform}:", *args, **kwargs)
 
     @property
     @contextlib.contextmanager
@@ -133,7 +140,7 @@ class Session:
                 self._db_session = self.manager.create_db_session()
             yield self._db_session
         finally:
-            if new_session:
+            if new_session and self._db_session is not None:
                 session = self._db_session
                 self._db_session = None
                 session.close()
@@ -182,13 +189,14 @@ class Manager:
     sessions, and executing modules.
     """
 
-    def __init__(self, config: str):
-        self.config = {}
+    def __init__(self, config: str = "./pwncatrc"):
+        self.config = Config()
         self.sessions: List[Session] = []
         self.modules: Dict[str, pwncat.modules.BaseModule] = {}
         self.engine = None
         self.SessionBuilder = None
         self._target = None
+        self.parser = CommandParser(self)
 
         # Load standard modules
         self.load_modules(*pwncat.modules.__path__)
@@ -208,32 +216,60 @@ class Manager:
         if os.path.isdir(modules_dir):
             self.load_modules(modules_dir)
 
+        # Load global configuration script, if available
+        try:
+            with open("/etc/pwncat/pwncatrc") as filp:
+                self.parser.eval(filp.read(), "/etc/pwncat/pwncatrc")
+        except (FileNotFoundError, PermissionError):
+            pass
+
+        # Load user configuration script
+        user_rc = os.path.join(data_home, "pwncatrc")
+        try:
+            with open(user_rc) as filp:
+                self.parser.eval(filp.read(), user_rc)
+        except (FileNotFoundError, PermissionError):
+            pass
+
+        # Load local configuration script
+        try:
+            with open(config) as filp:
+                self.parser.eval(filp.read(), config)
+        except (FileNotFoundError, PermissionError):
+            pass
+
+    def open_database(self):
+        """ Create the internal engine and session builder
+        for this manager based on the configured database """
+
+        if self.sessions and self.engine is not None:
+            raise RuntimeError("cannot change database after sessions are established")
+
+        self.engine = create_engine(self.config["db"])
+        pwncat.db.Base.metadata.create_all(self.engine)
+        self.SessionBuilder = sessionmaker(bind=self.engine)
+
     def create_db_session(self):
         """ Create a new SQLAlchemy database session and return it """
 
         # Initialize a fallback database if needed
         if self.engine is None:
-            self.set("db", "sqlite:///:memory:")
+            self.config.set("db", "sqlite:///:memory:", glob=True)
+            self.open_database()
 
         return self.SessionBuilder()
 
-    def set(self, key, value):
-        """ Set a configuration item in the global manager """
+    @contextlib.contextmanager
+    def new_db_session(self):
+        """ Track a database session in a context manager """
 
-        self.config[key] = value
+        session = None
 
-        if key == "db":
-            # This is dangerous for background modules
-            if self.engine is not None:
-                self.engine.dispose()
-            self.engine = create_engine(value)
-            pwncat.db.Base.metadata.create_all(self.engine)
-            self.SessionBuilder = sessionmaker(bind=self.engine)
-
-    def get(self, key, default=None):
-        """ Retrieve the value of a configuration item """
-
-        return self.config.get(key, default)
+        try:
+            session = self.create_db_session()
+            yield session
+        finally:
+            pass
 
     def load_modules(self, *paths):
         """ Dynamically load modules from the specified paths
@@ -257,6 +293,14 @@ class Manager:
             # Store it's name so we know it later
             setattr(self.modules[module_name], "name", module_name)
 
+    def log(self, *args, **kwargs):
+        """ Output a log entry """
+
+        if self.target is not None:
+            self.target._progress.log(*args, **kwargs)
+        else:
+            console.log(*args, **kwargs)
+
     @property
     def target(self) -> Session:
         """ Retrieve the currently focused target """
@@ -268,14 +312,13 @@ class Manager:
             raise ValueError("invalid target")
         self._target = value
 
-    def run(self, module: str, **kwargs):
-        """ Execute a module on the currently active target """
-
-    def find_module(self, pattern: str):
-        """ Enumerate modules applicable to the current target """
-
     def interactive(self):
         """ Start interactive prompt """
+
+        # This needs to be a full main loop with raw-mode support
+        # eventually, but I want to get the command parser working for
+        # now. The raw mode is the easy part.
+        self.parser.run()
 
     def create_session(self, platform: str, channel: Channel = None, **kwargs):
         """
@@ -289,8 +332,4 @@ class Manager:
         """
 
         session = Session(self, platform, channel, **kwargs)
-        self.sessions.append(session)
-
-        self.target = session
-
         return session

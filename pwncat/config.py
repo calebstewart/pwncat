@@ -104,6 +104,14 @@ class Config:
 
         self.locals[name] = self.module.ARGUMENTS[name].type(value)
 
+    def get(self, name: str, default=None):
+        """ get a value """
+
+        try:
+            return self[name]
+        except KeyError:
+            return default
+
     def use(self, module: BaseModule):
         """ Use the specified module. This clears the current
         locals configuration. """

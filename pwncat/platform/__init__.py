@@ -44,6 +44,11 @@ class Platform:
         channel: "pwncat.channel.Channel",
         log: str = None,
     ):
+
+        # This will throw a ChannelError if we can't complete the
+        # connection, so we do it first.
+        channel.connect()
+
         self.session = session
         self.channel = channel
         self.logger = logging.getLogger(str(channel))
@@ -57,6 +62,9 @@ class Platform:
             )
             handler.setFormatter(logging.Formatter("%(asctime)s - %(message)s"))
             self.logger.addHandler(handler)
+
+    def __str__(self):
+        return str(self.channel)
 
     def listdir(self, path=None) -> Generator[str, None, None]:
         """ List the contents of a directory. If ``path`` is None,

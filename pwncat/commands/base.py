@@ -211,9 +211,11 @@ class CommandDefinition:
     #     ),
     # }
 
-    def __init__(self):
+    def __init__(self, manager: "pwncat.manager.Manager"):
         """ Initialize a new command instance. Parse the local arguments array
         into an argparse object. """
+
+        self.manager = manager
 
         # Create the parser object
         if self.ARGS is not None:
@@ -226,11 +228,13 @@ class CommandDefinition:
         else:
             self.parser = None
 
-    def run(self, args):
+    def run(self, manager: "pwncat.manager.Manager", args):
         """
         This is the "main" for your new command. This should perform the action
         represented by your command.
-        
+
+        :param manager: the manager to operate on
+        :type manager: pwncat.manager.Manager
         :param args: the argparse Namespace containing your parsed arguments
         """
         raise NotImplementedError

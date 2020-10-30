@@ -13,10 +13,14 @@ class Command(CommandDefinition):
     """ Set variable runtime variable parameters for pwncat """
 
     def get_config_variables(self):
-        options = ["state"] + list(pwncat.config.values) + list(pwncat.victim.users)
+        options = (
+            ["state"]
+            + list(self.manager.config.values)
+            + list(self.manager.victim.users)
+        )
 
         if pwncat.config.module:
-            options.extend(pwncat.config.module.ARGUMENTS.keys())
+            options.extend(self.manager.config.module.ARGUMENTS.keys())
 
         return options
 
@@ -44,7 +48,7 @@ class Command(CommandDefinition):
     }
     LOCAL = True
 
-    def run(self, args):
+    def run(self, manager, args):
         if args.password:
             if args.variable is None:
                 found = False
@@ -64,18 +68,11 @@ class Command(CommandDefinition):
                 )
                 pwncat.victim.users[args.variable].password = args.value
         else:
-            if (
-                args.variable is not None
-                and args.variable == "state"
-                and args.value is not None
-            ):
+            if args.variable is not None and args.value is not None:
                 try:
-                    pwncat.victim.state = State._member_map_[args.value.upper()]
-                except KeyError:
-                    console.log(f"[red]error[/red]: {args.value}: invalid state")
-            elif args.variable is not None and args.value is not None:
-                try:
-                    pwncat.config.set(
+                    if manager.sessions and args.variable == "db":
+                        raise ValueError("cannot change database with running session")
+                    manager.config.set(
                         args.variable, args.value, getattr(args, "global")
                     )
                     if args.variable == "db":
