@@ -17,7 +17,6 @@ from .util import console
 from .db import get_session
 from .tamper import TamperManager
 
-config: Config = Config()
 tamper: TamperManager = TamperManager()
 
 

@@ -84,7 +84,7 @@ class Connect(Channel):
             if exc.args[0] == errno.EAGAIN or exc.args[0] == errno.EWOULDBLOCK:
                 return data
 
-            raise ChannelClosed() from exc
+            raise ChannelClosed(self) from exc
 
     def peek(self, count: Optional[int] = None):
         """ Receive data from the remote shell and leave
@@ -113,4 +113,7 @@ class Connect(Channel):
             if exc.args[0] == errno.EAGAIN or exc.args[0] == errno.EWOULDBLOCK:
                 return data
 
-            raise ChannelClosed() from exc
+            raise ChannelClosed(self) from exc
+
+    def fileno(self):
+        return self.client.fileno()

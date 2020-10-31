@@ -61,6 +61,11 @@ class Command(CommandDefinition):
             action="store_true",
             help="Enable the `bind` protocol (supports netcat-like syntax)",
         ),
+        "--platform,-m": Parameter(
+            Complete.NONE,
+            help="Name of the platform to use (default: linux)",
+            default="linux",
+        ),
         "--port,-p": Parameter(
             Complete.NONE,
             help="Alternative port number argument supporting netcat-like syntax",
@@ -88,7 +93,7 @@ class Command(CommandDefinition):
         r"""^(?P<protocol>[-a-zA-Z0-9_]*://)?((?P<user>[^:@]*)?(?P<password>:(\\@|[^@])*)?@)?(?P<host>[^:]*)?(?P<port>:[0-9]*)?$"""
     )
 
-    def run(self, args):
+    def run(self, manager: "pwncat.manager.Manager", args):
 
         protocol = None
         user = None
@@ -106,7 +111,7 @@ class Command(CommandDefinition):
             try:
                 # Load the configuration
                 with open(args.config, "r") as filp:
-                    pwncat.parser.eval(filp.read(), args.config)
+                    manager.parser.eval(filp.read(), args.config)
             except OSError as exc:
                 console.log(f"[red]error[/red]: {exc}")
                 return
@@ -170,174 +175,16 @@ class Command(CommandDefinition):
                 console.log(f"[red]error[/red]: {port}: invalid port number")
                 return
 
-        # Attempt to assume a protocol based on context
-        if protocol is None:
-            if args.listen:
-                protocol = "bind://"
-            elif args.port is not None:
-                protocol = "connect://"
-            elif user is not None:
-                protocol = "ssh://"
-                try_reconnect = True
-            elif host == "" or host == "0.0.0.0":
-                protocol = "bind://"
-            elif args.connection_string is None:
-                self.parser.print_help()
-                return
-            else:
-                protocol = "connect://"
-                try_reconnect = True
-
         if protocol != "ssh://" and args.identity is not None:
             console.log(f"[red]error[/red]: --identity is only valid for ssh protocols")
             return
 
-        if pwncat.victim.client is not None:
-            console.log("connection [red]already active[/red]")
-            return
-
-        if protocol == "reconnect://" or try_reconnect:
-            level = "[yellow]warning[/yellow]" if try_reconnect else "[red]error[/red]"
-
-            try:
-                addr = ipaddress.ip_address(socket.gethostbyname(host))
-                row = (
-                    get_session().query(pwncat.db.Host).filter_by(ip=str(addr)).first()
-                )
-                if row is None:
-                    console.log(f"{level}: {str(addr)}: not found in database")
-                    host_hash = None
-                else:
-                    host_hash = row.hash
-            except ValueError:
-                host_hash = host
-
-            # Reconnect to the given host
-            if host_hash is not None:
-                try:
-                    pwncat.victim.reconnect(host_hash, password, user)
-                    return
-                except Exception as exc:
-                    console.log(f"{level}: {host}: {exc}")
-
-        if protocol == "reconnect://" and not try_reconnect:
-            # This means reconnection failed, and we had an explicit
-            # reconnect protocol
-            return
-
-        if protocol == "bind://":
-            if not host or host == "":
-                host = "0.0.0.0"
-
-            if port is None:
-                console.log(f"[red]error[/red]: no port specified")
-                return
-
-            with Progress(
-                f"bound to [blue]{host}[/blue]:[cyan]{port}[/cyan]",
-                BarColumn(bar_width=None),
-                transient=True,
-            ) as progress:
-                task_id = progress.add_task("listening", total=1, start=False)
-                # Create the socket server
-                server = socket.create_server((host, port), reuse_port=True)
-
-                try:
-                    # Wait for a connection
-                    (client, address) = server.accept()
-                except KeyboardInterrupt:
-                    progress.update(task_id, visible=False)
-                    progress.log("[red]aborting[/red] listener")
-                    return
-
-                progress.update(task_id, visible=False)
-                progress.log(
-                    f"[green]received[/green] connection from [blue]{address[0]}[/blue]:[cyan]{address[1]}[/cyan]"
-                )
-
-            pwncat.victim.connect(client)
-        elif protocol == "connect://":
-            if not host:
-                console.log("[red]error[/red]: no host address provided")
-                return
-
-            if port is None:
-                console.log(f"[red]error[/red]: no port specified")
-                return
-
-            with Progress(
-                f"connecting to [blue]{host}[/blue]:[cyan]{port}[/cyan]",
-                BarColumn(bar_width=None),
-                transient=True,
-            ) as progress:
-                task_id = progress.add_task("connecting", total=1, start=False)
-                # Connect to the remote host
-                client = socket.create_connection((host, port))
-
-                progress.update(task_id, visible=False)
-                progress.log(
-                    f"connection to "
-                    f"[blue]{host}[/blue]:[cyan]{port}[/cyan] [green]established[/green]"
-                )
-
-            pwncat.victim.connect(client)
-        elif protocol == "ssh://":
-
-            if port is None:
-                port = 22
-
-            if not user or user is None:
-                self.parser.error("you must specify a user")
-
-            if not (password or args.identity):
-                password = prompt("Password: ", is_password=True)
-
-            try:
-                # Connect to the remote host's ssh server
-                sock = socket.create_connection((host, port))
-            except Exception as exc:
-                console.log(f"[red]error[/red]: {str(exc)}")
-                return
-
-            # Create a paramiko SSH transport layer around the socket
-            t = paramiko.Transport(sock)
-            try:
-                t.start_client()
-            except paramiko.SSHException:
-                sock.close()
-                console.log("[red]error[/red]: ssh negotiation failed")
-                return
-
-            if args.identity:
-                try:
-                    # Load the private key for the user
-                    key = paramiko.RSAKey.from_private_key_file(args.identity)
-                except:
-                    password = prompt("RSA Private Key Passphrase: ", is_password=True)
-                    key = paramiko.RSAKey.from_private_key_file(args.identity, password)
-
-                # Attempt authentication
-                try:
-                    t.auth_publickey(user, key)
-                except paramiko.ssh_exception.AuthenticationException as exc:
-                    console.log(f"[red]error[/red]: authentication failed: {exc}")
-            else:
-                try:
-                    t.auth_password(user, password)
-                except paramiko.ssh_exception.AuthenticationException as exc:
-                    console.log(f"[red]error[/red]: authentication failed: {exc}")
-
-            if not t.is_authenticated():
-                t.close()
-                sock.close()
-                return
-
-            # Open an interactive session
-            chan = t.open_session()
-            chan.get_pty()
-            chan.invoke_shell()
-
-            # Initialize the session!
-            pwncat.victim.connect(chan)
-        else:
-            console.log(f"[red]error[/red]: {args.action}: invalid action")
+        manager.create_session(
+            platform=args.platform,
+            protocol=protocol,
+            user=user,
+            password=password,
+            host=host,
+            port=port,
+            identity=args.identity,
+        )

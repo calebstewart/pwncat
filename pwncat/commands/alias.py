@@ -11,7 +11,7 @@ class Command(CommandDefinition):
     alias if it exists. """
 
     def get_command_names(self):
-        return [c.PROG for c in pwncat.parser.commands]
+        return [c.PROG for c in self.manager.parser.commands]
 
     PROG = "alias"
     ARGS = {
@@ -26,18 +26,16 @@ class Command(CommandDefinition):
     }
     LOCAL = True
 
-    def run(self, args):
+    def run(self, manager, args):
         if args.alias is None:
-            for name, command in pwncat.parser.aliases.items():
+            for name, command in manager.parser.aliases.items():
                 console.print(
                     f" [cyan]{name}[/cyan] \u2192 [yellow]{command.PROG}[/yellow]"
                 )
         elif args.command is not None:
             # This is safe because of "choices" in the argparser
-            pwncat.parser.aliases[args.alias] = [
-                c
-                for c in pwncat.parser.commands
-                if c.PROG == args.command
+            manager.parser.aliases[args.alias] = [
+                c for c in manager.parser.commands if c.PROG == args.command
             ][0]
         else:
-            del pwncat.parser.aliases[args.alias]
+            del manager.parser.aliases[args.alias]

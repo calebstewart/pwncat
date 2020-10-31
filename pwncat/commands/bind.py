@@ -27,12 +27,12 @@ class Command(CommandDefinition):
     }
     LOCAL = True
 
-    def run(self, args):
+    def run(self, manager, args):
         if args.key is None:
-            for key, binding in pwncat.config.bindings.items():
+            for key, binding in manager.config.bindings.items():
                 console.print(f" [cyan]{key}[/cyan] = [yellow]{repr(binding)}[/yellow]")
         elif args.key is not None and args.script is None:
-            if args.key in pwncat.config.bindings:
-                del pwncat.config.bindings[args.key]
+            if args.key in manager.config.bindings:
+                del manager.config.bindings[args.key]
         else:
-            pwncat.config.bindings[args.key] = args.script
+            manager.config.bindings[args.key] = args.script

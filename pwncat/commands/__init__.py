@@ -2,7 +2,7 @@
 import traceback
 from typing import TextIO, Type
 from prompt_toolkit import PromptSession, ANSI
-from prompt_toolkit.shortcuts import ProgressBar
+from prompt_toolkit.shortcuts import ProgressBar, confirm
 from prompt_toolkit.completion import (
     Completer,
     PathCompleter,
@@ -16,8 +16,11 @@ from pygments.lexer import RegexLexer, bygroups, include
 from pygments.token import *
 from pygments.style import Style
 from prompt_toolkit.styles.pygments import style_from_pygments_cls
+from prompt_toolkit.styles import merge_styles, Style
 from prompt_toolkit.lexers import PygmentsLexer
 from prompt_toolkit.document import Document
+from prompt_toolkit.application.current import get_app
+from prompt_toolkit.key_binding import KeyBindings
 from pygments.styles import get_style_by_name
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.history import InMemoryHistory, History
@@ -25,6 +28,7 @@ from typing import Dict, Any, List, Iterable
 from colorama import Fore
 from enum import Enum, auto
 from io import TextIOWrapper
+import rich.text
 import argparse
 import pkgutil
 import shlex
@@ -144,7 +148,9 @@ class CommandParser:
             if module_name == "base":
                 continue
             self.commands.append(
-                loader.find_module(module_name).load_module(module_name).Command(self)
+                loader.find_module(module_name)
+                .load_module(module_name)
+                .Command(manager)
             )
 
         self.prompt: PromptSession = None
@@ -166,6 +172,13 @@ class CommandParser:
         lexer = PygmentsLexer(CommandLexer.build(self.commands))
         style = style_from_pygments_cls(get_style_by_name("monokai"))
         auto_suggest = AutoSuggestFromHistory()
+        bindings = KeyBindings()
+
+        @bindings.add("c-q")
+        def _(event):
+            """ Exit interactive mode """
+
+            get_app().exit(exception=pwncat.manager.InteractiveExit())
 
         self.prompt = PromptSession(
             [
@@ -175,11 +188,45 @@ class CommandParser:
             ],
             completer=completer,
             lexer=lexer,
-            style=style,
+            style=merge_styles(
+                [style, Style.from_dict({"bottom-toolbar": "#333333 bg:#ffffff"})]
+            ),
             auto_suggest=auto_suggest,
             complete_while_typing=False,
             history=history,
+            bottom_toolbar=self._render_toolbar,
+            key_bindings=bindings,
         )
+
+    def _render_toolbar(self):
+        """ Render the formatted text for the bottom toolbar """
+
+        if self.manager.target is None:
+            markup_result = "Active Session: [red]None[/red]"
+        else:
+            markup_result = f"Active Session: {self.manager.target.platform}"
+
+        # Convert rich-style markup to prompt_toolkit formatted text
+        text = rich.text.Text.from_markup(markup_result)
+        segments = list(text.render(console))
+        rendered = []
+
+        # Here we take each segment's stile, invert the color and render the
+        # segment text. This is because the bottom toolbar has it's colors
+        # inverted.
+        for i in range(len(segments)):
+            style = segments[i].style.copy()
+            temp = style.color
+            style._color = segments[i].style.bgcolor
+            style._bgcolor = temp
+            rendered.append(style.render(segments[i].text))
+
+        # Join the rendered segments to ANSI escape sequences.
+        # This format can be parsed by prompt_toolkit formatted text.
+        ansi_result = "".join(rendered)
+
+        # Produce prompt_toolkit formatted text from the ANSI escaped string
+        return ANSI(ansi_result)
 
     def eval(self, source: str, name: str = "<script>"):
         """ Evaluate the given source file. This will execute the given string
@@ -260,6 +307,10 @@ class CommandParser:
                 self.manager.log(f"[red]warning[/red]: {exc.channel}: channel closed")
                 # Ensure any existing sessions are cleaned from the manager
                 exc.cleanup(self.manager)
+            except pwncat.manager.InteractiveExit:
+                # We don't want this caught below, so we catch it here
+                # then re-raise it to be caught by the interactive method
+                raise
             except (Exception, KeyboardInterrupt):
                 console.print_exception(width=None)
                 continue

@@ -449,7 +449,7 @@ def create(protocol: Optional[str] = None, **kwargs):
     if protocol is None:
         protocols = []  # ["reconnect"]
 
-        if "user" in kwargs:
+        if "user" in kwargs and kwargs["user"] is not None:
             protocols.append("ssh")
         else:
             if "host" not in kwargs or kwargs["host"] == "0.0.0.0":

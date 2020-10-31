@@ -1110,11 +1110,29 @@ class Linux(Platform):
             return
 
         if not value:
-            command = " stty -echo nl lnext ^V\n"
+            command = " ; ".join([" stty -echo nl lnext ^V", "export PS1="]) + "\n"
             self.logger.info(command.rstrip("\n"))
             self.channel.send(command.encode("utf-8"))
         else:
-            command = " stty sane\n"
+
+            # Going interactive requires a pty
+            self.get_pty()
+
+            # Get local terminal information
+            TERM = os.environ.get("TERM", "xterm")
+            columns, rows = os.get_terminal_size(0)
+
+            command = (
+                " ; ".join(
+                    [
+                        " stty sane",
+                        f" stty rows {rows} columns {columns}",
+                        f" export TERM='{TERM}'",
+                        """export PS1='$(command printf "\\033[01;31m(remote)\\033[0m \\033[01;33m$(whoami)@$(hostname)\\033[0m:\\033[1;36m$PWD\\033[0m$ ")'""",
+                    ]
+                )
+                + "\n"
+            )
             self.logger.info(command.rstrip("\n"))
             self.channel.send(command.encode("utf-8"))
 

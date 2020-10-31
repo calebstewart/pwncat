@@ -16,10 +16,10 @@ class Command(CommandDefinition):
         options = (
             ["state"]
             + list(self.manager.config.values)
-            + list(self.manager.victim.users)
+            # + list(self.manager.victim.users)
         )
 
-        if pwncat.config.module:
+        if self.manager.config.module:
             options.extend(self.manager.config.module.ARGUMENTS.keys())
 
         return options
@@ -76,26 +76,18 @@ class Command(CommandDefinition):
                         args.variable, args.value, getattr(args, "global")
                     )
                     if args.variable == "db":
-                        # We handle this specially to ensure the database is available
-                        # as soon as this config is set
-                        reset_engine()
-                        if pwncat.victim.host is not None:
-                            pwncat.victim.host = (
-                                get_session()
-                                .query(pwncat.db.Host)
-                                .filter_by(id=pwncat.victim.host.id)
-                                .scalar()
-                            )
+                        # Ensure the database is re-opened, if it was already
+                        manager.open_database()
                 except ValueError as exc:
                     console.log(f"[red]error[/red]: {exc}")
             elif args.variable is not None:
-                value = pwncat.config[args.variable]
+                value = manager.config[args.variable]
                 console.print(
                     f" [cyan]{args.variable}[/cyan] = [yellow]{repr(value)}[/yellow]"
                 )
             else:
-                for name in pwncat.config:
-                    value = pwncat.config[name]
+                for name in manager.config:
+                    value = manager.config[name]
                     console.print(
                         f" [cyan]{name}[/cyan] = [yellow]{repr(value)}[/yellow]"
                     )

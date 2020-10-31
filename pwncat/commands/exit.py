@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import pwncat
 from pwncat.util import console
 from pwncat.commands.base import CommandDefinition, Complete, Parameter
 
@@ -19,12 +20,5 @@ class Command(CommandDefinition):
     }
     LOCAL = True
 
-    def run(self, args):
-
-        # Ensure we confirmed we want to exit
-        if not args.yes:
-            console.log("[red]error[/red]: exit not confirmed (use '--yes')")
-            return
-
-        # Get outa here!
-        raise EOFError
+    def run(self, manager, args):
+        raise pwncat.manager.InteractiveExit

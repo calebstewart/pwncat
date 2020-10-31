@@ -14,11 +14,11 @@ class Command(CommandDefinition):
     }
     LOCAL = True
 
-    def run(self, args):
+    def run(self, manager, args):
 
-        for command in pwncat.parser.commands:
+        for command in manager.parser.commands:
             if command.PROG == args.command:
-                pwncat.parser.shortcuts[args.prefix] = command
+                manager.parser.shortcuts[args.prefix] = command
                 return
 
         self.parser.error(f"{args.command}: no such command")
