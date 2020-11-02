@@ -142,6 +142,23 @@ is installed and in the long run would like to remove this dependency eventually
 In the meantime, if the fix recommended by pwncat does not work, please 
 comment on issue [#60](https://github.com/calebstewart/pwncat/issues/60) for help.
 
+### base64io
+
+Although not common, there has been an issue with the `setup.py` script not
+installing the `base64io` module. I believe this is similar to the `paramiko`
+issue described above, and can be fixed in the same/similar way. If you get 
+a message that the `base64io` module is not installed, you can install it
+manually with:
+
+```sh
+pip install git+https://github.com/JohnHammond/base64io-python
+```
+
+If this does not resolve the issue or you have further problems, please let
+me know on the same issue as `paramiko` (#60 above). Just like paramiko, I
+plan to remove this dependency in an upcoming release, so this will ideally
+go away in the near future.
+
 ## Docker Image
 
 The recommended installation method is a Python virtual environment. This
