@@ -106,7 +106,7 @@ class Victim:
         self.saved_term_state = None  # util.enter_raw_mode()
         # util.restore_terminal(self.saved_term_state, new_line=False)
         # Prompt
-        self.remote_prompt = """$(command printf "\\033[01;31m(remote)\\033[0m \\033[01;33m$(whoami)@$(hostname)\\033[0m:\\033[1;36m$PWD\\033[0m$ ")"""
+        self.remote_prompt = """$(command printf "\\[\\033[01;31m\\](remote)\\[\\033[0m\\] \\[\\033[01;33m\\]$(whoami)@$(hostname)\\[\\033[0m\\]:\\[\\033[1;36m\\]$PWD\\[\\033[0m\\]$ ")"""
         # Aliases for equivalent commands
         self.binary_aliases = {
             "python": [
@@ -2035,7 +2035,10 @@ class Victim:
                         id_properties["groups"] = groups
                     else:
                         p = value.split("(")
-                        id_properties[key] = {"id": int(p[0]), "name": p[1].split(")")[0]}
+                        id_properties[key] = {
+                            "id": int(p[0]),
+                            "name": p[1].split(")")[0],
+                        }
 
                 if "euid" not in id_properties:
                     id_properties["euid"] = id_properties["uid"]
@@ -2051,7 +2054,7 @@ class Victim:
             except (KeyError, ValueError):
                 # The output was messed up. We'll try again
                 pass
-        
+
         raise RuntimeError("The id command is returning weird results. Aborting.")
 
     def reload_users(self):
