@@ -340,5 +340,12 @@ class Command(CommandDefinition):
 
             # Initialize the session!
             pwncat.victim.connect(chan)
+
+            if user in pwncat.victim.users and password is not None:
+                console.log(f"storing user password")
+                pwncat.victim.users[user].password = password
+            else:
+                console.log("user not found in database; not storing password")
+
         else:
             console.log(f"[red]error[/red]: {args.action}: invalid action")
