@@ -4,6 +4,9 @@ import enum
 import pathlib
 import logging
 import logging.handlers
+import fnmatch
+import stat
+import os
 
 import pwncat
 import pwncat.subprocess
@@ -19,13 +22,273 @@ class PlatformError(Exception):
     """ Generic platform error. """
 
 
-class Path(pathlib.PurePath):
+class Path:
     """
     A Concrete-Path. An instance of this class is bound to a
     specific victim, and supports all semantics of a standard
     pathlib concrete Path with the exception of `Path.home` and
     `Path.cwd`.
     """
+
+    _target: "Platform"
+    _stat: os.stat_result
+    _lstat: os.stat_result
+    parts = []
+
+    def stat(self) -> os.stat_result:
+        """ Run `stat` on the path and return a stat result """
+
+        if self._stat is not None:
+            return self._stat
+
+        self._stat = self._target.stat(str(self))
+
+        return self._stat
+
+    def chmod(self, mode: int):
+        """ Execute `chmod` on the remote file to change permissions """
+
+        self._target.chmod(str(self), mode)
+
+    def exists(self) -> bool:
+        """ Return true if the specified path exists on the remote system """
+
+        try:
+            self.stat()
+            return True
+        except FileNotFoundError:
+            return False
+
+    def expanduser(self) -> "Path":
+        """ Return a new path object with ~ and ~user expanded """
+
+        if not self.parts[0].startswith("~"):
+            return self.__class__(self)
+
+        if self.parts[0] == "~":
+            return self.__class__(
+                self._target.find_user(self._target.whoami()).homedir, *self.parts[1:]
+            )
+        else:
+            return self.__class__(
+                self._target.find_user(self.parts[0][1:]).homedir, *self.parts[1:]
+            )
+
+    def glob(self, pattern: str) -> Generator["Path", None, None]:
+        """ Glob the given relative pattern in the directory represented
+        by this path, yielding all matching files (of any kind) """
+
+        for name in self._target.listdir(str(self)):
+            if fnmatch.fnmatch(name, pattern):
+                yield self / name
+
+    def group(self) -> str:
+        """ Returns the name of the group owning the file. KeyError is raised
+        if the file's GID isn't found in the system database. """
+
+        return self._target.find_group(id=self.stat().st_gid).name
+
+    def is_dir(self) -> bool:
+        """ Returns True if the path points to a directory (or a symbolic link
+        pointing to a directory). False if it points to another kind of file.
+        """
+
+        try:
+            return stat.S_ISDIR(self.stat().st_mode)
+        except (FileNotFoundError, PermissionError):
+            return False
+
+    def is_file(self) -> bool:
+        """ Returns True if the path points to a regular file """
+
+        try:
+            return stat.S_ISREG(self.stat().st_mode)
+        except (FileNotFoundError, PermissionError):
+            return False
+
+    def is_mount(self) -> bool:
+        """ Returns True if the path is a mount point. """
+
+    def is_symlink(self) -> bool:
+        """ Returns True if the path points to a symbolic link, False otherwise """
+
+        try:
+            return stat.S_ISLNK(self.stat().st_mode)
+        except (FileNotFoundError, PermissionError):
+            return False
+
+    def is_socket(self) -> bool:
+        """ Returns True if the path points to a Unix socket """
+
+        try:
+            return stat.S_ISSOCK(self.stat().st_mode)
+        except (FileNotFoundError, PermissionError):
+            return False
+
+    def is_fifo(self) -> bool:
+        """ Returns True if the path points to a FIFO """
+
+        try:
+            return stat.S_ISFIFO(self.stat().st_mode)
+        except (FileNotFoundError, PermissionError):
+            return False
+
+    def is_block_device(self) -> bool:
+        """ Returns True if the path points to a block device """
+
+        try:
+            return stat.S_ISBLK(self.stat().st_mode)
+        except (FileNotFoundError, PermissionError):
+            return False
+
+    def is_char_device(self) -> bool:
+        """ Returns True if the path points to a character device """
+
+        try:
+            return stat.S_ISCHR(self.stat().st_mode)
+        except (FileNotFoundError, PermissionError):
+            return False
+
+    def iterdir(self) -> bool:
+        """ When the path points to a directory, yield path objects of the
+        directory contents. """
+
+        if not self.is_dir():
+            raise NotADirectoryError
+
+        for name in self._target.listdir(str(self)):
+            if name == "." or name == "..":
+                continue
+            yield self.__class__(*self.parts, name)
+
+    def lchmod(self, mode: int):
+        """ Modify a symbolic link's mode (same as chmod for non-symbolic links) """
+
+        self._target.chmod(str(self), mode, link=True)
+
+    def lstat(self) -> os.stat_result:
+        """ Same as stat except operate on the symbolic link file itself rather
+        than the file it points to. """
+
+        if self._lstat is not None:
+            return self._lstat
+
+        self._lstat = self._target.lstat(str(self))
+
+        return self._lstat
+
+    def mkdir(self, mode: int = 0o777, parents: bool = False, exist_ok: bool = False):
+        """ Create a new directory at this given path. """
+
+    def open(
+        self,
+        mode: str = "r",
+        buffering: int = -1,
+        encoding: str = None,
+        errors: str = None,
+        newline: str = None,
+    ):
+        """ Open the file pointed to by the path, like Platform.open """
+
+        return self._target.open(
+            self,
+            mode=mode,
+            buffering=buffering,
+            encoding=encoding,
+            errors=errors,
+            newline=newline,
+        )
+
+    def owner(self) -> str:
+        """ Return the name of the user owning the file. KeyError is raised if
+        the file's uid is not found in the System database """
+
+        return self._target.find_user(id=self.stat().st_uid).name
+
+    def read_bytes(self) -> bytes:
+        """ Return the binary contents of the pointed-to file as a bytes object """
+
+        with self.open("rb") as filp:
+            return filp.read()
+
+    def read_text(self, encoding: str = None, errors: str = None) -> str:
+        """ Return the decoded contents of the pointed-to file as a string """
+
+        with self.open("r", encoding=encoding, errors=errors) as filp:
+            return filp.read()
+
+    def readlink(self) -> "Path":
+        """ Return the path to which the symbolic link points """
+
+        return self._target.readlink(str(self))
+
+    def rename(self, target) -> "Path":
+        """ Rename the file or directory to the given target (str or Path). """
+
+    def replace(self, target) -> "Path":
+        """ Sawme as `rename` for Linux """
+
+    def resolve(self, strict: bool = False):
+        """ Resolve the current path into an absolute path """
+
+        return self.__class__(self._target.abspath(str(self)))
+
+    def rglob(self, pattern: str) -> Generator["Path", None, None]:
+        """ This is like calling Path.glob() with "**/" added to in the front
+        of the given relative pattern """
+
+        return self.glob("**/" + pattern)
+
+    def rmdir(self):
+        """ Remove this directory. The directory must be empty. """
+
+    def samefile(self, otherpath: "Path"):
+        """ Return whether this path points to the same file as other_path
+        which can be either a Path object or a string. """
+
+        if not isinstance(otherpath, Path):
+            otherpath = self.__class__(otherpath)
+
+        stat1 = self.stat()
+        stat2 = otherpath.stat()
+
+        return os.path.samestat(stat1, stat2)
+
+    def symlink_to(self, target, target_is_directory: bool = False):
+        """ Make this path a symbolic link to target. """
+
+    def touch(self, mode: int = 0o666, exist_ok: bool = True):
+        """ Createa file at this path. If the file already exists, function
+        succeeds if exist_ok is true (and it's modification time is updated).
+        Otherwise FileExistsError is raised. """
+
+        existed = self.exists()
+
+        if not exist_ok and existed:
+            raise FileExistsError(str(self))
+
+        self._target.touch(str(self))
+
+        if not existed:
+            self.chmod(mode)
+
+    def unlink(self, missing_ok: bool = False):
+        """ Remove the file or symbolic link. """
+
+    def link_to(self, target):
+        """ Create a hard link pointing to a path named target """
+
+    def write_bytes(self, data: bytes):
+        """ Open the file pointed to in bytes mode and write data to it. """
+
+        with self.open("wb") as filp:
+            filp.write(data)
+
+    def write_text(self, data: str, encoding: str = None, errors: str = None):
+        """ Open the file pointed to in text mode, and write data to it. """
+
+        with self.open("w", encoding=encoding, errors=errors) as filp:
+            filp.write(data)
 
 
 class Platform:
@@ -63,8 +326,153 @@ class Platform:
             handler.setFormatter(logging.Formatter("%(asctime)s - %(message)s"))
             self.logger.addHandler(handler)
 
+        base_path = self.PATH_TYPE
+        target = self
+
+        class RemotePath(base_path, Path):
+
+            _target = target
+            _stat = None
+
+            def __init__(self, *args):
+                base_path.__init__(*args)
+
+        self.PATH_TYPE = RemotePath
+
     def __str__(self):
         return str(self.channel)
+
+    def reload_users(self):
+        """ Reload the user and group cache. This is automatically called
+        if the cache hasn't been built yet, but may be called manually
+        if you know the users have changed. This method is also called
+        if a lookup for a specific user or group ID fails. """
+
+        raise NotImplementedError(f"{self.name} did not implement reload_users")
+
+    def iter_users(self) -> Generator["pwncat.db.User", None, None]:
+        """ Iterate over all users on the remote system """
+
+        with self.session.db as db:
+            users = db.query(pwncat.db.User).filter_by(host_id=self.session.host).all()
+
+            if users is None:
+                self.reload_users()
+
+                users = (
+                    db.query(pwncat.db.User).filter_by(host_id=self.session.host).all()
+                )
+
+            if users is not None:
+                for user in users:
+                    _ = user.groups
+                    yield user
+
+        return
+
+    def find_user(
+        self,
+        name: Optional[str] = None,
+        id: Optional[int] = None,
+        _recurse: bool = True,
+    ) -> "pwncat.db.User":
+        """ Locate a user by name or UID. If the user/group cache has not
+        been built, then reload_users is automatically called. If the
+        lookup fails, reload_users is called automatically to ensure that
+        there has not been a user/group update remotely. If the user
+        still cannot be found, a KeyError is raised. """
+
+        with self.session.db as db:
+            user = db.query(pwncat.db.User).filter_by(host_id=self.session.host)
+
+            if name is not None:
+                user = user.filter_by(name=name)
+            if id is not None:
+                user = user.filter_by(id=id)
+
+            user = user.first()
+            if user is None and _recurse:
+                self.reload_users()
+                return self.find_user(name=name, id=id, _recurse=False)
+            elif user is None:
+                raise KeyError
+
+            return user
+
+    def iter_groups(self) -> Generator["pwncat.db.Group", None, None]:
+        """ Iterate over all groups on the remote system """
+
+        with self.session.db as db:
+            groups = (
+                db.query(pwncat.db.Group).filter_by(host_id=self.session.host).all()
+            )
+
+            if groups is None:
+                self.reload_users()
+
+                groups = (
+                    db.query(pwncat.db.Group).filter_by(host_id=self.session.host).all()
+                )
+
+            if groups is not None:
+                for group in groups:
+                    _ = group.members
+                    yield group
+
+        return
+
+    def find_group(
+        self,
+        name: Optional[str] = None,
+        id: Optional[int] = None,
+        _recurse: bool = True,
+    ) -> "pwncat.db.Group":
+        """ Locate a group by name or GID. If the user/group cache has not
+        been built, then reload_users is automatically called. If the
+        lookup fails, reload_users is called automatically to ensure that
+        there has not been a user/group update remotely. If the group
+        still cannot be found, a KeyError is raised. """
+
+        with self.session.db as db:
+            group = db.query(pwncat.db.Group).filter_by(host_id=self.session.host)
+
+            if name is not None:
+                group = group.filter_by(name=name)
+            if id is not None:
+                group = group.filter_by(id=id)
+
+            group = group.first()
+            if group is None and _recurse:
+                self.reload_users()
+                return self.find_group(name=name, id=id, _recurse=False)
+            elif group is None:
+                raise KeyError
+
+            return group
+
+    def stat(self, path: str) -> os.stat_result:
+        """ Run stat on a path on the remote system and return a stat result
+        This is mainly used by the concrete Path type to fill in a majority
+        of it's methods. If the specified path does not exist or cannot be
+        accessed, a FileNotFoundError or PermissionError is raised respectively
+        """
+
+    def lstat(self, path: str) -> os.stat_result:
+        """ Run stat on the symbolic link and return a stat result object.
+        This has the same semantics as the `stat` method. """
+
+    def abspath(self, path: str) -> str:
+        """ Attempt to resolve a path to an absolute path """
+
+    def readlink(self, path: str):
+        """ Attempt to read the target of a link """
+
+    def current_user(self):
+        """ Retrieve a user object for the current user """
+
+    def whoami(self):
+        """ Retrieve's only name of the current user (may be faster depending
+        on platform) """
 
     def listdir(self, path=None) -> Generator[str, None, None]:
         """ List the contents of a directory. If ``path`` is None,
@@ -220,7 +628,7 @@ class Platform:
 
         return completed_proc
 
-    def path(self, path: Optional[str] = None) -> Path:
+    def Path(self, path: Optional[str] = None) -> Path:
         """
         Takes the given string and returns a concrete path for this host.
         This path object conforms to the "concrete path" definition of the
@@ -234,6 +642,8 @@ class Platform:
         :return: a concrete path object
         :rtype: Path
         """
+
+        return self.PATH_TYPE(path)
 
     def chdir(self, path: Union[str, Path]):
         """

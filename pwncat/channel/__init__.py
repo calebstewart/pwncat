@@ -173,14 +173,11 @@ class ChannelFile(RawIOBase):
         if self.eof:
             return 0
 
-        try:
-            n = self.channel.send(data)
-        except (BlockingIOError):
-            n = 0
-        if n == 0:
-            return None
+        written = 0
+        while written < len(data):
+            written += self.channel.send(data)
 
-        return n
+        return written
 
 
 class Channel:

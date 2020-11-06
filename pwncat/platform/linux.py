@@ -412,9 +412,15 @@ class LinuxPath(pathlib.PurePosixPath):
         super().__init__(*pathsegments)
 
         self._target = target
+        self._stat = None
 
     def stat(self) -> os.stat_result:
         """ Run `stat` on the path and return a stat result """
+
+        if self._stat is not None:
+            return self._stat
+
+        return self._target.stat(str(self))
 
     def chmod(self, mode: int):
         """ Execute `chmod` on the remote file to change permissions """
@@ -435,7 +441,8 @@ class LinuxPath(pathlib.PurePosixPath):
 
     def is_dir(self) -> bool:
         """ Returns True if the path points to a directory (or a symbolic link
-        pointing to a directory). False if it points to another kind of file. """
+        pointing to a directory). False if it points to another kind of file.
+        """
 
     def is_file(self) -> bool:
         """ Returns True if the path points to a regular file """
@@ -542,6 +549,8 @@ class Linux(Platform):
     host. See the base class (``pwncat.platform.Platform``) for more
     information on the implemented methods and interface definition.
     """
+
+    PATH_TYPE = pathlib.PurePosixPath
 
     def __init__(self, session, channel: pwncat.channel.Channel, log: str = None):
         super().__init__(session, channel, log)
@@ -703,6 +712,19 @@ class Linux(Platform):
         :raise FileNotFoundError: When the requested directory is not a directory,
           does not exist, or you do not have execute permissions.
         """
+
+        try:
+            p = self.run(
+                ["ls", "--all", "-1", path],
+                encoding="utf-8",
+                capture_output=True,
+                check=True,
+            )
+        except CalledProcessError:
+            return
+
+        for name in p.stdout.split("\n"):
+            yield name
 
     def which(self, name: str, quote: bool = False) -> str:
         """
@@ -886,21 +908,6 @@ class Linux(Platform):
             end_delim.encode("utf-8") + b"\n",
             code_delim.encode("utf-8") + b"\n",
         )
-
-    def Path(self, path: Optional[str] = None) -> Path:
-        """
-        Takes the given string and returns a concrete path for this host.
-        This path object conforms to the "concrete path" definition of the
-        standard python ``pathlib`` library. Generally speaking, it is a
-        subclass of ``pathlib.PurePath`` which implements the concrete
-        features by being bound to this specific victim. If no path is
-        specified, a path representing the current directory is returned.
-
-        :param path: a relative or absolute path path
-        :type path: str
-        :return: a concrete path object
-        :rtype: pwncat.platform.Path
-        """
 
     def chdir(self, path: Union[str, Path]):
         """
@@ -1137,3 +1144,199 @@ class Linux(Platform):
             self.channel.send(command.encode("utf-8"))
 
         self._interactive = value
+
+    def whoami(self):
+        """ Get the name of the current user """
+
+        return self.run(
+            ["whoami"], capture_output=True, check=True, encoding="utf-8"
+        ).stdout.rstrip("\n")
+
+    def reload_users(self):
+        """ Reload users from the remote host and cache them in the database """
+
+        with self.session.db as db:
+            # Delete existing users from the database
+            db.query(pwncat.db.User).filter_by(host_id=self.session.host).delete()
+            db.query(pwncat.db.Group).filter_by(host_id=self.session.host).delete()
+            db.commit()
+
+        with self.open("/etc/passwd") as filp:
+            etc_passwd = filp.readlines()
+
+        with self.open("/etc/group") as filp:
+            etc_group = filp.readlines()
+
+        with self.session.db as db:
+            users = {}
+
+            for user_line in etc_passwd:
+                name, password, uid, gid, description, home, shell = user_line.rstrip(
+                    "\n"
+                ).split(":")
+                user = pwncat.db.User(
+                    host_id=self.session.host,
+                    id=uid,
+                    gid=gid,
+                    name=name,
+                    homedir=home,
+                    shell=shell,
+                    fullname=description,
+                )
+
+                # Some users have a hash here, but they shouldn't
+                if password != "x":
+                    user.hash = password
+
+                # Track for group creation
+                users[name] = user
+
+                # Add to the database
+                db.add(user)
+
+            for group_line in etc_group:
+                name, _, id, *members = group_line.rstrip("\n").split(":")
+                members = ":".join(members).split(",")
+
+                # Build the group
+                group = pwncat.db.Group(host_id=self.session.host, id=id, name=name)
+                for name in members:
+                    if name in users:
+                        group.members.append(users[name])
+
+                db.add(group)
+
+            db.commit()
+
+    def _parse_stat(self, result: str) -> os.stat_result:
+        """ Parse the output of a stat command """
+
+        # Reverse the string. The filename may have a space in it, so we do this
+        # to properly parse it.
+        result = result.rstrip("\n")[::-1]
+        fields = [field[::-1] for field in result.split(" ")]
+
+        # Field order:
+        #  0  optimal I/O transfer size
+        #  1  time of file birth
+        #  2  time of last status change
+        #  3  time of last data modification
+        #  4  time of last access
+        #  5  minor device type (hex)
+        #  6  major device type (hex)
+        #  7  number of hard links
+        #  8  inode number
+        #  9  device number (hex)
+        #  10 group id of owner
+        #  11 user id of owner
+        #  12 raw mode (hex)
+        #  13 number of blocks allocated
+        #  14 total size in bytes
+
+        stat = os.stat_result(
+            tuple(
+                [
+                    int(fields[12], 16),
+                    int(fields[8]),
+                    int(fields[9], 16),
+                    int(fields[7]),
+                    int(fields[11]),
+                    int(fields[10]),
+                    int(fields[14]),
+                    int(fields[4]),
+                    int(fields[3]),
+                    int(fields[2]),
+                    int(fields[13]),
+                    int(fields[1]),
+                ]
+            )
+        )
+
+        return stat
+
+    def stat(self, path: str) -> os.stat_result:
+        """ Perform the equivalent of the stat syscall on
+        the remote host """
+
+        try:
+            result = self.run(
+                [
+                    "stat",
+                    "-L",
+                    "-c",
+                    "%n %s %b %f %u %g %D %i %h %t %T %X %Y %Z %W %o",
+                    path,
+                ],
+                capture_output=True,
+                encoding="utf-8",
+                check=True,
+            )
+        except CalledProcessError as exc:
+            raise FileNotFoundError(path) from exc
+
+        return self._parse_stat(result.stdout)
+
+    def lstat(self, path: str) -> os.stat_result:
+        """ Perform the equivalent of the lstat syscall """
+
+        try:
+            result = self.run(
+                [
+                    "stat",
+                    "-c",
+                    "%n %s %b %f %u %g %D %i %h %t %T %X %Y %Z %W %o",
+                    path,
+                ],
+                capture_output=True,
+                encoding="utf-8",
+                check=True,
+            )
+        except CalledProcessError as exc:
+            raise FileNotFoundError(path) from exc
+
+        return self._parse_stat(result.stdout)
+
+    def abspath(self, path: str) -> str:
+        """ Attempt to resolve a path to an absolute path """
+
+        try:
+            result = self.run(
+                ["realpath", path], capture_output=True, text=True, check=True
+            )
+            return result.stdout.rstrip("\n")
+        except CalledProcessError as exc:
+            raise FileNotFoundError(path) from exc
+
+    def readlink(self, path: str):
+        """ Attempt to read the target of a link """
+
+        try:
+            self.lstat(path)
+            result = self.run(
+                ["readlink", path], capture_output=True, text=True, check=True
+            )
+            return result.stdout.rstrip("\n")
+        except CalledProcessError as exc:
+            raise OSError(f"Invalid argument: '{path}'") from exc
+
+    def umask(self, mask: int = None):
+        """ Set or retrieve the current umask value """
+
+        if mask is None:
+            return int(self.run(["umask"], capture_output=True, text=True).stdout, 8)
+
+        self.run(["umask", oct(mask)[2:]])
+        return mask
+
+    def touch(self, path: str):
+        """ Update a file modification time and possibly create it """
+
+        self.run(["touch", path])
+
+    def chmod(self, path: str, mode: int, link: bool = False):
+        """ Update the file permissions """
+
+        if link:
+            self.run(["chmod", "-h", oct(mode)[2:], path])
+        else:
+            self.run(["chmod", oct(mode)[2:], path])

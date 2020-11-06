@@ -21,8 +21,14 @@ class Group(Base):
     host = relationship("Host", back_populates="groups")
     name = Column(String)
     members = relationship(
-        "User", back_populates="groups", secondary=SecondaryGroupAssociation
+        "User",
+        back_populates="groups",
+        secondary=SecondaryGroupAssociation,
+        lazy="selectin",
     )
+
+    def __repr__(self):
+        return f"""Group(gid={self.id}, name={repr(self.name)}), members={repr(",".join(m.name for m in self.members))})"""
 
 
 class User(Base):
@@ -32,7 +38,7 @@ class User(Base):
     # The users UID
     id = Column(Integer, primary_key=True)
     host_id = Column(Integer, ForeignKey("host.id"), primary_key=True)
-    host = relationship("Host", back_populates="users")
+    host = relationship("Host", back_populates="users", lazy="selectin")
     # The users GID
     gid = Column(Integer, ForeignKey("groups.id"))
     # The actual DB Group object representing that group
@@ -51,7 +57,10 @@ class User(Base):
     shell = Column(String)
     # The user's secondary groups
     groups = relationship(
-        "Group", back_populates="members", secondary=SecondaryGroupAssociation
+        "Group",
+        back_populates="members",
+        secondary=SecondaryGroupAssociation,
+        lazy="selectin",
     )
 
     def __repr__(self):

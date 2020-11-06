@@ -6,18 +6,13 @@ from pwncat.commands.base import CommandDefinition, Complete, Parameter
 
 class Command(CommandDefinition):
     """
-    Exit pwncat. You must provide the "--yes" parameter.
-    This prevents accidental closing of your remote session.
+    Exit the interactive prompt. If sessions are active, you will
+    be prompted to confirm. This shouldn't be run from a configuration
+    script.
     """
 
     PROG = "exit"
-    ARGS = {
-        "--yes,-y": Parameter(
-            Complete.NONE,
-            action="store_true",
-            help="Confirm you would like to close pwncat",
-        )
-    }
+    ARGS = {}
     LOCAL = True
 
     def run(self, manager, args):

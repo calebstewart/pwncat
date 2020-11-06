@@ -75,11 +75,14 @@ class Session:
         # Initialize the host reference
         self.hash = self.platform.get_host_hash()
         with self.db as session:
-            self.host = session.query(pwncat.db.Host).filter_by(hash=self.hash).first()
-        if self.host is None:
+            host = session.query(pwncat.db.Host).filter_by(hash=self.hash).first()
+        if host is None:
             self.register_new_host()
         else:
+            self.host = host.id
             self.log("loaded known host from db")
+
+        self.platform.get_pty()
 
     @property
     def config(self):
@@ -93,10 +96,13 @@ class Session:
         hash has already been stored in ``self.hash`` """
 
         # Create a new host object and add it to the database
-        self.host = pwncat.db.Host(hash=self.hash, platform=self.platform.name)
+        host = pwncat.db.Host(hash=self.hash, platform=self.platform.name)
 
         with self.db as session:
-            session.add(self.host)
+            session.add(host)
+            session.commit()
+
+        self.host = host.id
 
         self.log("registered new host w/ db")
 
@@ -147,17 +153,12 @@ class Session:
 
         """
 
-        new_session = self._db_session is None
-
         try:
-            if new_session:
+            if self._db_session is None:
                 self._db_session = self.manager.create_db_session()
             yield self._db_session
         finally:
-            if new_session and self._db_session is not None:
-                session = self._db_session
-                self._db_session = None
-                session.close()
+            self._db_session.commit()
 
     @contextlib.contextmanager
     def task(self, *args, **kwargs):
@@ -193,6 +194,16 @@ class Session:
         """ Update an active task """
 
         self._progress.update(task, *args, **kwargs)
+
+    def died(self):
+
+        if self not in self.manager.sessions:
+            return
+
+        self.manager.sessions.remove(self)
+
+        if self.manager.target == self:
+            self.manager.target = None
 
 
 class Manager:
@@ -324,7 +335,7 @@ class Manager:
 
     @target.setter
     def target(self, value: Session):
-        if value not in self.sessions:
+        if value is not None and value not in self.sessions:
             raise ValueError("invalid target")
         self._target = value
 
@@ -395,15 +406,14 @@ class Manager:
                             )
                         else:
                             data = self.target.platform.channel.recv(4096)
-                            if data is None or len(data) == 0:
-                                done = True
-                                break
                             sys.stdout.buffer.write(data)
             except RawModeExit:
                 pwncat.util.restore_terminal(term_state)
             except ChannelClosed:
                 pwncat.util.restore_terminal(term_state)
-                self.log(f"[yellow]warning[/yellow]: {self.target}: connection reset")
+                self.log(
+                    f"[yellow]warning[/yellow]: {self.target.platform}: connection reset"
+                )
                 self.target.died()
             except Exception:
                 pwncat.util.restore_terminal(term_state)

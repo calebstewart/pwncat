@@ -53,7 +53,15 @@ class Connect(Channel):
         """ Send data to the remote shell. This is a blocking call
         that only returns after all data is sent. """
 
-        self.client.sendall(data)
+        try:
+            written = 0
+            while written < len(data):
+                try:
+                    written += self.client.send(data[written:])
+                except BlockingIOError:
+                    pass
+        except BrokenPipeError as exc:
+            raise ChannelClosed(self) from exc
 
         return len(data)
 

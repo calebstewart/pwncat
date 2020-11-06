@@ -242,6 +242,10 @@ class CommandParser:
                 self.manager.log(f"[red]warning[/red]: {exc.channel}: channel closed")
                 # Ensure any existing sessions are cleaned from the manager
                 exc.cleanup(self.manager)
+            except pwncat.manager.InteractiveExit:
+                # Within a script, `exit` means to exit the script, not the
+                # interpreter
+                break
             except Exception as exc:
                 console.log(
                     f"[red]error[/red]: [cyan]{name}[/cyan]: [yellow]{command}[/yellow]: {str(exc)}"
@@ -255,11 +259,9 @@ class CommandParser:
 
         try:
             line = self.prompt.prompt().strip()
-        except (EOFError, OSError, KeyboardInterrupt):
-            pass
-        else:
-            if line != "":
-                self.dispatch_line(line)
+            self.dispatch_line(line)
+        except (EOFError, OSError, KeyboardInterrupt, pwncat.manager.InteractiveExit):
+            return
 
     def run(self):
 
@@ -550,8 +552,7 @@ class RemotePathCompleter(Completer):
         if path == "":
             path = "."
 
-        for name in self.manager.target.listdir(path):
-            name = name.decode("utf-8").strip()
+        for name in self.manager.target.platform.listdir(path):
             if name.startswith(partial_name):
                 yield Completion(
                     name,
