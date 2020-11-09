@@ -161,7 +161,7 @@ def run_decorator(real_run):
     """ Decorate a run function to evaluate types """
 
     @functools.wraps(real_run)
-    def decorator(self, progress=None, **kwargs):
+    def decorator(self, session, progress=None, **kwargs):
 
         if "exec" in kwargs:
             has_exec = True
@@ -189,7 +189,7 @@ def run_decorator(real_run):
         self.progress = progress
 
         # Return the result
-        result_object = real_run(self, **kwargs)
+        result_object = real_run(self, session, **kwargs)
 
         if inspect.isgenerator(result_object):
 
@@ -281,7 +281,7 @@ class BaseModule(metaclass=BaseModuleMeta):
         # Filled in by reload
         self.name = None
 
-    def run(self, progress=None, **kwargs):
+    def run(self, session, progress=None, **kwargs):
         """ The run method is called via keyword-arguments with all the
         parameters specified in the ``ARGUMENTS`` dictionary. If ``ALLOW_KWARGS``
         was True, then other keyword arguments may also be passed. Any

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from typing import List, Optional, Generator, Union, BinaryIO, Type
+from subprocess import CalledProcessError
 import enum
 import pathlib
 import logging
@@ -109,6 +110,11 @@ class Path:
     def is_mount(self) -> bool:
         """ Returns True if the path is a mount point. """
 
+        if self.parent.stat().st_dev != self.stat().st_dev:
+            return True
+
+        return False
+
     def is_symlink(self) -> bool:
         """ Returns True if the path points to a symbolic link, False otherwise """
 
@@ -180,6 +186,14 @@ class Path:
     def mkdir(self, mode: int = 0o777, parents: bool = False, exist_ok: bool = False):
         """ Create a new directory at this given path. """
 
+        if not exist_ok and self.exists():
+            raise FileExistsError(str(self))
+
+        if self.exists() and not self.is_dir():
+            raise FileExistsError(str(self))
+
+        self._target.mkdir(str(self), mode=mode, parents=parents)
+
     def open(
         self,
         mode: str = "r",
@@ -225,8 +239,17 @@ class Path:
     def rename(self, target) -> "Path":
         """ Rename the file or directory to the given target (str or Path). """
 
+        self._target.rename(str(self), str(target))
+
+        if not isinstance(target, self.__class__):
+            return self.__class__(target)
+
+        return target
+
     def replace(self, target) -> "Path":
-        """ Sawme as `rename` for Linux """
+        """ Same as `rename` for Linux """
+
+        return self.rename(target)
 
     def resolve(self, strict: bool = False):
         """ Resolve the current path into an absolute path """
@@ -242,6 +265,11 @@ class Path:
     def rmdir(self):
         """ Remove this directory. The directory must be empty. """
 
+        if not self.is_dir():
+            raise NotADirectoryError(str(self))
+
+        self._target.rmdir(str(self))
+
     def samefile(self, otherpath: "Path"):
         """ Return whether this path points to the same file as other_path
         which can be either a Path object or a string. """
@@ -256,6 +284,20 @@ class Path:
 
     def symlink_to(self, target, target_is_directory: bool = False):
         """ Make this path a symbolic link to target. """
+
+        if not isinstance(target, self.__class__):
+            target = self.__class__(target)
+
+        if not target.exists():
+            raise FileNotFoundError(str(target))
+
+        if self.exists():
+            raise FileExistsError(str(self))
+
+        try:
+            self._target.symlink_to(str(target), str(self))
+        except CalledProcessError as exc:
+            raise OSError(exc.stdout) from exc
 
     def touch(self, mode: int = 0o666, exist_ok: bool = True):
         """ Createa file at this path. If the file already exists, function
@@ -275,8 +317,34 @@ class Path:
     def unlink(self, missing_ok: bool = False):
         """ Remove the file or symbolic link. """
 
+        if not missing_ok and not self.exists():
+            raise FileNotFoundError(str(self))
+
+        try:
+            self._target.unlink(str(self))
+        except FileNotFoundError as exc:
+            # In this case, we couldn't distinguish between errors
+            # so, we distinguish here based on stat results
+            if self.is_dir():
+                raise OSError(f"Directory not empty: {str(self)}") from exc
+            raise
+
     def link_to(self, target):
         """ Create a hard link pointing to a path named target """
+
+        if not isinstance(target, self.__class__):
+            target = self.__class__(target)
+
+        if not target.exists():
+            raise FileNotFoundError(str(target))
+
+        if self.exists():
+            raise FileExistsError(str(self))
+
+        try:
+            self._target.link_to(str(target), str(self))
+        except CalledProcessError as exc:
+            raise OSError(exc.stdout) from exc
 
     def write_bytes(self, data: bytes):
         """ Open the file pointed to in bytes mode and write data to it. """
