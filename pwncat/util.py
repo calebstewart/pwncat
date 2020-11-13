@@ -66,6 +66,10 @@ class Init(Enum):
     SYSV = auto()
 
 
+class CommandSystemExit(Exception):
+    """ A command has requested that we exit pwncat (mostly used for exit command) """
+
+
 class CompilationError(Exception):
     """
     Indicates that compilation failed on either the local or remote host.

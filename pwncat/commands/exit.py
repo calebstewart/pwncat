@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import pwncat
 from pwncat.util import console
 from pwncat.commands.base import CommandDefinition, Complete, Parameter
 
@@ -27,4 +28,4 @@ class Command(CommandDefinition):
             return
 
         # Get outa here!
-        raise EOFError
+        raise pwncat.util.CommandSystemExit

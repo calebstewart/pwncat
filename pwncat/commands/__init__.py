@@ -210,10 +210,7 @@ class CommandParser:
 
                 if pwncat.config.module:
                     self.prompt.message = [
-                        (
-                            "fg:ansiyellow bold",
-                            f"({pwncat.config.module.name}) ",
-                        ),
+                        ("fg:ansiyellow bold", f"({pwncat.config.module.name}) ",),
                         ("fg:ansimagenta bold", "pwncat"),
                         ("", "$ "),
                     ]
@@ -233,6 +230,8 @@ class CommandParser:
             # We used to catch only KeyboardException, but this prevents a
             # badly written command from completely killing our remote
             # connection.
+            except pwncat.util.CommandSystemExit:
+                raise
             except EOFError:
                 # We don't have a connection yet, just exit
                 if pwncat.victim is None or pwncat.victim.client is None:
