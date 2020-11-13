@@ -36,6 +36,28 @@ class Path:
     _lstat: os.stat_result
     parts = []
 
+    def writable(self) -> bool:
+        """ This is non-standard, but is useful """
+
+        user = self._target.current_user()
+        mode = self.stat().st_mode
+        uid = self.stat().st_uid
+        gid = self.stat().st_gid
+
+        if uid == user.id and (mode & stat.S_IWUSR):
+            return True
+        elif user.group.id == gid and (mode & stat.S_IWGRP):
+            return True
+        else:
+            for group in user.groups:
+                if group.id == gid and (mode & stat.S_IWGRP):
+                    return True
+            else:
+                if mode & stat.S_IWOTH:
+                    return True
+
+        return False
+
     def stat(self) -> os.stat_result:
         """ Run `stat` on the path and return a stat result """
 
@@ -410,6 +432,9 @@ class Platform:
     def __str__(self):
         return str(self.channel)
 
+    def getenv(self, name: str):
+        """ Get the value of an environment variable """
+
     def reload_users(self):
         """ Reload the user and group cache. This is automatically called
         if the cache hasn't been built yet, but may be called manually
@@ -466,6 +491,11 @@ class Platform:
                 raise KeyError
 
             return user
+
+    def current_user(self):
+        """ Retrieve a user object for the current user """
+
+        return self.find_user(name=self.whoami())
 
     def iter_groups(self) -> Generator["pwncat.db.Group", None, None]:
         """ Iterate over all groups on the remote system """
@@ -534,9 +564,6 @@ class Platform:
 
     def readlink(self, path: str):
         """ Attempt to read the target of a link """
-
-    def current_user(self):
-        """ Retrieve a user object for the current user """
 
     def whoami(self):
         """ Retrieve's only name of the current user (may be faster depending

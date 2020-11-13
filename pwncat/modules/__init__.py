@@ -163,23 +163,18 @@ def run_decorator(real_run):
     @functools.wraps(real_run)
     def decorator(self, session, progress=None, **kwargs):
 
-        if "exec" in kwargs:
-            has_exec = True
-        else:
-            has_exec = False
-
         # Validate arguments
         for key in kwargs:
             if key in self.ARGUMENTS:
                 try:
                     kwargs[key] = self.ARGUMENTS[key].type(kwargs[key])
-                except ValueError:
-                    raise ArgumentFormatError(key)
+                except ValueError as exc:
+                    raise ArgumentFormatError(key) from exc
             elif not self.ALLOW_KWARGS:
                 raise InvalidArgument(key)
         for key in self.ARGUMENTS:
-            if key not in kwargs and key in pwncat.config:
-                kwargs[key] = pwncat.config[key]
+            if key not in kwargs and key in session.config:
+                kwargs[key] = session.config[key]
             elif key not in kwargs and self.ARGUMENTS[key].default is not NoValue:
                 kwargs[key] = self.ARGUMENTS[key].default
             elif key not in kwargs and self.ARGUMENTS[key].default is NoValue:
@@ -192,28 +187,11 @@ def run_decorator(real_run):
         result_object = real_run(self, session, **kwargs)
 
         if inspect.isgenerator(result_object):
-
-            try:
-                if progress is None:
-                    # We weren't given a progress instance, so start one ourselves
-                    self.progress = Progress(
-                        "collecting results",
-                        "•",
-                        "[yellow]{task.fields[module]}",
-                        "•",
-                        "[cyan]{task.fields[status]}",
-                        transient=True,
-                        console=console,
-                    )
-                    self.progress.start()
-
-                # Added a task to this progress bar
-                task = self.progress.add_task("", module=self.name, status="...")
-
+            with session.task(description=self.name, status="...") as task:
                 # Collect results
                 results = []
                 for item in result_object:
-                    self.progress.update(task, status=str(item))
+                    session.update_task(task, status=str(item))
                     if not isinstance(item, Status):
                         results.append(item)
 
@@ -221,18 +199,6 @@ def run_decorator(real_run):
                     return results[0]
 
                 return results
-            finally:
-                if progress is None:
-                    # If we are the last task/this is our progress bar,
-                    # we don't hide ourselves. This makes the progress bar
-                    # empty, and "transient" ends up remove an extra line in
-                    # the terminal.
-                    self.progress.stop()
-                else:
-                    # This task is done, hide it.
-                    self.progress.update(
-                        task, completed=True, visible=False, status="complete"
-                    )
         else:
             return result_object
 
@@ -296,141 +262,3 @@ class BaseModule(metaclass=BaseModuleMeta):
         """
 
         raise NotImplementedError
-
-
-def reload(where: typing.Optional[typing.List[str]] = None):
-    """ Reload modules from the given directory. If no directory
-    is specified, then the default modules are reloaded. This
-    function will not remove or un-load any existing modules, but
-    may overwrite existing modules with conflicting names.
-
-    :param where: Directories which contain pwncat modules
-    :type where: List[str]
-    """
-
-    # We need to load built-in modules first
-    if not LOADED_MODULES and where is not None:
-        reload()
-
-    # If no paths were specified, load built-ins
-    if where is None:
-        where = __path__
-
-    for loader, module_name, _ in pkgutil.walk_packages(where, prefix=__name__ + "."):
-        module = loader.find_module(module_name).load_module(module_name)
-
-        if getattr(module, "Module", None) is None:
-            continue
-
-        module_name = module_name.split(__name__ + ".")[1]
-
-        LOADED_MODULES[module_name] = module.Module()
-
-        setattr(LOADED_MODULES[module_name], "name", module_name)
-
-
-def find(name: str, base=BaseModule, ignore_platform: bool = False):
-    """ Locate a module with this exact name. Optionally filter
-    modules based on their class type. By default, this will search
-    for any module implementing BaseModule which is applicable to
-    the current platform.
-
-    :param name: Name of the module to locate
-    :type name: str
-    :param base: Base class which the module must implement
-    :type base: type
-    :param ignore_platform: Whether to ignore the victim's platform in the search
-    :type ignore_platform: bool
-    :raises ModuleNotFoundError: Raised if the module does not exist or the platform/base class do not match.
-    """
-
-    if not LOADED_MODULES:
-        reload()
-
-    if name not in LOADED_MODULES:
-        raise ModuleNotFoundError(f"{name}: module not found")
-
-    if not isinstance(LOADED_MODULES[name], base):
-        raise ModuleNotFoundError(f"{name}: incorrect base class")
-
-    # Grab the module
-    module = LOADED_MODULES[name]
-
-    if not ignore_platform:
-        if module.PLATFORM != Platform.NO_HOST and pwncat.victim.host is None:
-            raise ModuleNotFoundError(f"{module.name}: no connected victim")
-        elif (
-            module.PLATFORM != Platform.NO_HOST
-            and pwncat.victim.host.platform not in module.PLATFORM
-        ):
-            raise ModuleNotFoundError(f"{module.name}: incorrect platform")
-
-    return module
-
-
-def match(pattern: str, base=BaseModule):
-    """ Locate modules who's name matches the given glob pattern.
-    This function will only return modules which implement a subclass
-    of the given base class and which are applicable to the current
-    target's platform.
-
-    :param pattern: A Unix glob-like pattern for the module name
-    :type pattern: str
-    :param base: The base class for modules you are looking for (defaults to BaseModule)
-    :type base: type
-    :return: A generator yielding module objects which at least implement ``base``
-    :rtype: Generator[base, None, None]
-    """
-
-    if not LOADED_MODULES:
-        reload()
-
-    for module_name, module in LOADED_MODULES.items():
-
-        # NOTE - this should be cleaned up. It's gross.
-        if not isinstance(module, base):
-            continue
-        if module.PLATFORM != Platform.NO_HOST and pwncat.victim.host is None:
-            continue
-        elif (
-            module.PLATFORM != Platform.NO_HOST
-            and pwncat.victim.host.platform not in module.PLATFORM
-        ):
-            continue
-        if not fnmatch.fnmatch(module_name, pattern):
-            continue
-
-        yield module
-
-
-def run(name: str, **kwargs):
-    """ Locate a module by name and execute it. The module can be of any
-    type and is guaranteed to match the current platform. If no module can
-    be found which matches those criteria, an exception is thrown.
-
-    :param name: The name of the module to run
-    :type name: str
-    :param kwargs: Keyword arguments for the module
-    :type kwargs: Dict[str, Any]
-    :returns: The result from the module's ``run`` method.
-    :raises ModuleNotFoundError: If no module with that name matches the required criteria
-    """
-
-    if not LOADED_MODULES:
-        reload()
-
-    if name not in LOADED_MODULES:
-        raise ModuleNotFoundError(f"{name}: module not found")
-
-    # Grab the module
-    module = LOADED_MODULES[name]
-
-    if module.PLATFORM != Platform.NO_HOST and pwncat.victim.host is None:
-        raise ModuleNotFoundError(f"{module.name}: no connected victim")
-    elif (
-        module.PLATFORM != Platform.NO_HOST
-        and pwncat.victim.host.platform not in module.PLATFORM
-    ):
-        raise ModuleNotFoundError(f"{module.name}: incorrect platform")
-
-    return module.run(**kwargs)

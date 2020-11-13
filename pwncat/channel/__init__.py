@@ -118,14 +118,16 @@ class ChannelFile(RawIOBase):
 
         # Check the type of the argument, and grab the relevant part
         obj = b.obj if isinstance(b, memoryview) else b
+        n = 0
 
-        try:
-            n = self.channel.recvinto(b)
-        except NotImplementedError:
-            # recvinto was not implemented, fallback recv
-            data = self.channel.recv(len(b))
-            b[: len(data)] = data
-            n = len(data)
+        while n == 0:
+            try:
+                n = self.channel.recvinto(b)
+            except NotImplementedError:
+                # recvinto was not implemented, fallback recv
+                data = self.channel.recv(len(b))
+                b[: len(data)] = data
+                n = len(data)
 
         obj = bytes(b[:n])
 

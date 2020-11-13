@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import stat
 
 import pwncat
 from pwncat.util import Access
@@ -17,30 +18,21 @@ class Module(EnumerateModule):
     SCHEDULE = Schedule.PER_USER
     PLATFORM = [Linux]
 
-    def enumerate(self):
+    def enumerate(self, session):
 
-        for path in pwncat.victim.getenv("PATH").split(":"):
-            access = pwncat.victim.access(path)
-            if (Access.DIRECTORY | Access.WRITE) in access:
-                yield "misc.writable_path", path
-            elif (
-                Access.EXISTS not in access
-                and (Access.PARENT_EXIST | Access.PARENT_WRITE) in access
-            ):
-                yield "misc.writable_path", path
-            elif access == Access.NONE:
-                # This means the parent directory doesn't exist. Check up the chain to see if
-                # We can create this chain of directories
-                dirpath = os.path.dirname(path)
-                access = pwncat.victim.access(dirpath)
-                # Find the first item that either exists or it's parent does
-                while access == Access.NONE:
-                    dirpath = os.path.dirname(dirpath)
-                    access = pwncat.victim.access(dirpath)
-                # This item exists. Is it a directory and can we write to it?
-                if (Access.DIRECTORY | Access.WRITE) in access:
-                    yield "misc.writable_path", path
-                elif (
-                    Access.PARENT_EXIST | Access.PARENT_WRITE
-                ) in access and Access.EXISTS not in access:
-                    yield "misc.writable_path", path
+        user = session.platform.current_user()
+
+        for path in session.platform.getenv("PATH").split(":"):
+
+            # Ignore empty components
+            if path == "":
+                continue
+
+            # Find the first item up the path that exists
+            path = session.platform.Path(path)
+            while not path.exists():
+                path = path.parent
+
+            # See if we have write permission
+            if path.is_dir() and path.writable():
+                yield "misc.writable_path", str(path.resolve())

@@ -71,7 +71,7 @@ class Module(pwncat.modules.BaseModule):
     }
     PLATFORM = None
 
-    def run(self, output, modules, types, clear):
+    def run(self, session, output, modules, types, clear):
         """ Perform a enumeration of the given moduels and save the output """
 
         module_names = modules
@@ -80,15 +80,13 @@ class Module(pwncat.modules.BaseModule):
         modules = set()
         for name in module_names:
             modules = modules | set(
-                pwncat.modules.match(f"enumerate.{name}", base=EnumerateModule)
+                list(session.find_module(f"enumerate.{name}", base=EnumerateModule))
             )
 
         if clear:
             for module in modules:
                 yield pwncat.modules.Status(module.name)
-                module.run(progress=self.progress, clear=True)
-            get_session().commit()
-            pwncat.victim.reload_host()
+                module.run(clear=True)
             return
 
         # Enumerate all facts
@@ -115,7 +113,7 @@ class Module(pwncat.modules.BaseModule):
             yield pwncat.modules.Status(module.name)
 
             # Iterate over facts from the sub-module with our progress manager
-            for item in module.run(progress=self.progress, types=types):
+            for item in module.run(session, types=types):
                 if output is None:
                     yield item
                 elif item.type not in facts:
@@ -133,7 +131,10 @@ class Module(pwncat.modules.BaseModule):
 
         with output as filp:
 
-            filp.write(f"# {pwncat.victim.host.ip} - Enumeration Report\n\n")
+            with session.db as db:
+                host = db.query(pwncat.db.Host).filter_by(id=session.host).first()
+
+            filp.write(f"# {host.ip} - Enumeration Report\n\n")
             filp.write("Enumerated Types:\n")
             for typ in facts:
                 filp.write(f"- {typ}\n")

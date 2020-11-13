@@ -26,7 +26,7 @@ class EnumerateModule(BaseModule):
     # This should be set by the sub-classes to know where to find
     # different types of enumeration data
     PROVIDES = []
-    PLATFORM = [Linux]
+    PLATFORM = []
 
     # Defines how often to run this enumeration. The default is to
     # only run once per system/target.
@@ -48,7 +48,7 @@ class EnumerateModule(BaseModule):
         ),
     }
 
-    def run(self, types, clear):
+    def run(self, session, types, clear):
         """ Locate all facts this module provides.
 
         Sub-classes should not override this method. Instead, use the
@@ -58,98 +58,88 @@ class EnumerateModule(BaseModule):
 
         marker_name = self.name
         if self.SCHEDULE == Schedule.PER_USER:
-            marker_name += f".{pwncat.victim.current_user.id}"
+            marker_name += f".{session.platform.current_user().id}"
 
-        if clear:
-            # Delete enumerated facts
-            query = (
-                get_session()
-                .query(pwncat.db.Fact)
-                .filter_by(source=self.name, host_id=pwncat.victim.host.id)
-            )
-            query.delete(synchronize_session=False)
-            # Delete our marker
-            if self.SCHEDULE != Schedule.ALWAYS:
-                query = (
-                    get_session()
-                    .query(pwncat.db.Fact)
-                    .filter_by(host_id=pwncat.victim.host.id, type="marker")
-                    .filter(pwncat.db.Fact.source.startswith(self.name))
+        with session.db as db:
+
+            if clear:
+                # Delete enumerated facts
+                query = db.query(pwncat.db.Fact).filter_by(
+                    source=self.name, host_id=session.host
                 )
                 query.delete(synchronize_session=False)
-            return
-
-        # Yield all the know facts which have already been enumerated
-        existing_facts = (
-            get_session()
-            .query(pwncat.db.Fact)
-            .filter_by(source=self.name, host_id=pwncat.victim.host.id)
-            .filter(pwncat.db.Fact.type != "marker")
-        )
-
-        if types:
-            for fact in existing_facts.all():
-                for typ in types:
-                    if fnmatch.fnmatch(fact.type, typ):
-                        yield fact
-        else:
-            yield from existing_facts.all()
-
-        if self.SCHEDULE != Schedule.ALWAYS:
-            exists = (
-                get_session()
-                .query(pwncat.db.Fact.id)
-                .filter_by(
-                    host_id=pwncat.victim.host.id, type="marker", source=marker_name
-                )
-                .scalar()
-                is not None
-            )
-            if exists:
+                # Delete our marker
+                if self.SCHEDULE != Schedule.ALWAYS:
+                    query = (
+                        db.query(pwncat.db.Fact)
+                        .filter_by(host_id=session.host, type="marker")
+                        .filter(pwncat.db.Fact.source.startswith(self.name))
+                    )
+                    query.delete(synchronize_session=False)
                 return
 
-        # Get any new facts
-        for item in self.enumerate():
-            if isinstance(item, Status):
-                yield item
-                continue
-
-            typ, data = item
-
-            row = pwncat.db.Fact(
-                host_id=pwncat.victim.host.id, type=typ, data=data, source=self.name
+            # Yield all the know facts which have already been enumerated
+            existing_facts = (
+                db.query(pwncat.db.Fact)
+                .filter_by(source=self.name, host_id=session.host)
+                .filter(pwncat.db.Fact.type != "marker")
             )
-            try:
-                get_session().add(row)
-                pwncat.victim.host.facts.append(row)
-                get_session().commit()
-            except sqlalchemy.exc.IntegrityError:
-                get_session().rollback()
-                yield Status(data)
-                continue
 
-            # Don't yield the actual fact if we didn't ask for this type
             if types:
-                for typ in types:
-                    if fnmatch.fnmatch(row.type, typ):
-                        yield row
-                    else:
-                        yield Status(data)
+                for fact in existing_facts.all():
+                    for typ in types:
+                        if fnmatch.fnmatch(fact.type, typ):
+                            yield fact
             else:
-                yield row
+                yield from existing_facts.all()
 
-        # Add the marker if needed
-        if self.SCHEDULE != Schedule.ALWAYS:
-            row = pwncat.db.Fact(
-                host_id=pwncat.victim.host.id,
-                type="marker",
-                source=marker_name,
-                data=None,
-            )
-            get_session().add(row)
-            pwncat.victim.host.facts.append(row)
+            if self.SCHEDULE != Schedule.ALWAYS:
+                exists = (
+                    db.query(pwncat.db.Fact.id)
+                    .filter_by(host_id=session.host, type="marker", source=marker_name)
+                    .scalar()
+                    is not None
+                )
+                if exists:
+                    return
 
-    def enumerate(self):
+            # Get any new facts
+            for item in self.enumerate(session):
+                if isinstance(item, Status):
+                    yield item
+                    continue
+
+                typ, data = item
+
+                row = pwncat.db.Fact(
+                    host_id=session.host, type=typ, data=data, source=self.name
+                )
+                try:
+                    db.add(row)
+                    db.commit()
+                except sqlalchemy.exc.IntegrityError:
+                    db.rollback()
+                    yield Status(data)
+                    continue
+
+                # Don't yield the actual fact if we didn't ask for this type
+                if types:
+                    for typ in types:
+                        if fnmatch.fnmatch(row.type, typ):
+                            yield row
+                        else:
+                            yield Status(data)
+                else:
+                    yield row
+
+            # Add the marker if needed
+            if self.SCHEDULE != Schedule.ALWAYS:
+                row = pwncat.db.Fact(
+                    host_id=session.host, type="marker", source=marker_name, data=None,
+                )
+                db.add(row)
+
+    def enumerate(self, session):
         """ Defined by sub-classes to do the actual enumeration of
         facts. """
 

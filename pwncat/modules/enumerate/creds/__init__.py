@@ -14,7 +14,7 @@ class PasswordData:
     password: str
     filepath: str
     lineno: int
-    uid: int = None
+    user: "pwncat.db.User"
 
     def __str__(self):
         if self.password is not None:
@@ -28,8 +28,8 @@ class PasswordData:
         return result
 
     @property
-    def user(self):
-        return pwncat.victim.find_user_by_id(self.uid) if self.uid is not None else None
+    def uid(self):
+        return self.user.id
 
 
 @dataclasses.dataclass
@@ -37,7 +37,7 @@ class PrivateKeyData:
     """ A private key found on the remote file system or known
     to be applicable to this system in some way. """
 
-    uid: int
+    user: "pwncat.db.User"
     """ The user we believe the private key belongs to """
     path: str
     """ The path to the private key on the remote host """
@@ -58,5 +58,5 @@ class PrivateKeyData:
         return self.content
 
     @property
-    def user(self):
-        return pwncat.victim.find_user_by_id(self.uid)
+    def uid(self) -> int:
+        return self.user.id

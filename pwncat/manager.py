@@ -120,7 +120,7 @@ class Session:
 
         return self.manager.modules[module].run(self, **kwargs)
 
-    def find_module(self, pattern: str, base=None):
+    def find_module(self, pattern: str, base=None, exact: bool = False):
         """ Locate a module by a glob pattern. This is an generator
         which may yield multiple modules that match the pattern and
         base class. """
@@ -134,7 +134,13 @@ class Session:
                 and type(self.platform) not in module.PLATFORM
             ):
                 continue
-            if fnmatch.fnmatch(name, pattern) and isinstance(module, base):
+            if (
+                not exact
+                and fnmatch.fnmatch(name, pattern)
+                and isinstance(module, base)
+            ):
+                yield module
+            elif exact and name == pattern and isinstance(module, base):
                 yield module
 
     def log(self, *args, **kwargs):
@@ -158,7 +164,10 @@ class Session:
                 self._db_session = self.manager.create_db_session()
             yield self._db_session
         finally:
-            self._db_session.commit()
+            try:
+                self._db_session.commit()
+            except:
+                pass
 
     @contextlib.contextmanager
     def task(self, *args, **kwargs):
@@ -273,7 +282,7 @@ class Manager:
 
         self.engine = create_engine(self.config["db"])
         pwncat.db.Base.metadata.create_all(self.engine)
-        self.SessionBuilder = sessionmaker(bind=self.engine)
+        self.SessionBuilder = sessionmaker(bind=self.engine, expire_on_commit=False)
         self.parser = CommandParser(self)
 
     def create_db_session(self):

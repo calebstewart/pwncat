@@ -87,7 +87,14 @@ class PopenLinux(pwncat.subprocess.Popen):
         # Drain buffer, don't wait for more data. The user didn't ask
         # for the data with `stdout=PIPE`, so we can safely ignore it.
         # This returns true if we hit EOF
-        if self.stdout_raw.peek(len(self.end_delim)) == b"" and self.stdout_raw.raw.eof:
+        try:
+            if (
+                self.stdout_raw.peek(len(self.end_delim)) == b""
+                and self.stdout_raw.raw.eof
+            ):
+                self._receive_returncode()
+                return self.returncode
+        except ValueError:
             self._receive_returncode()
             return self.returncode
 
@@ -626,6 +633,16 @@ class Linux(Platform):
             return shlex.quote(stdout)
 
         return stdout
+
+    def getenv(self, name: str):
+
+        try:
+            proc = self.run(
+                ["echo", f"${name}"], capture_output=True, text=True, check=True
+            )
+            return proc.stdout.rstrip("\n")
+        except CalledProcessError:
+            return ""
 
     def compile(
         self,
