@@ -407,6 +407,7 @@ class Platform:
         self.logger = logging.getLogger(str(channel))
         self.logger.setLevel(logging.DEBUG)
         self.name = "unknown"
+        self._current_user = None
 
         # output log to a file
         if log is not None:
@@ -492,10 +493,20 @@ class Platform:
 
             return user
 
+    def update_user(self):
+        """ Force an update of the current user the next time it is requested. """
+
+        self._current_user = None
+
     def current_user(self):
         """ Retrieve a user object for the current user """
 
-        return self.find_user(name=self.whoami())
+        if self._current_user is not None:
+            return self._current_user
+
+        self._current_user = self.find_user(name=self.whoami())
+
+        return self._current_user
 
     def iter_groups(self) -> Generator["pwncat.db.Group", None, None]:
         """ Iterate over all groups on the remote system """
@@ -828,20 +839,6 @@ class Platform:
         sent from the database. If a password is not available, the process is killed
         and a PermissionError is raised. If the password is incorrect, a PermissionError
         is also raised.
-        """
-
-    @property
-    def interactive(self) -> bool:
-        """
-        Indicates whether the remote victim shell is currently in a state suitable for
-        user-interactivity. Setting this property to True will ensure that a suitable
-        shell prompt is set, echoing is one, etc.
-        """
-
-    @interactive.setter
-    def interactive(self, value: bool):
-        """
-        Enable or disable interactivity for this victim.
         """
 
 

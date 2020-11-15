@@ -5,15 +5,12 @@ from subprocess import (
     SubprocessError,
     TimeoutExpired,
     CalledProcessError,
+    DEVNULL,
+    PIPE,
 )
 import io
 
 import pwncat
-
-DEVNULL = 0
-""" Redirect to/from /dev/null or equivalent """
-PIPE = 1
-""" Retrieve data via a Pipe """
 
 
 class Popen:

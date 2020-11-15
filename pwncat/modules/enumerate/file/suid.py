@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
+import subprocess
 import dataclasses
 
 import pwncat
 from pwncat.platform.linux import Linux
 from pwncat import util
+from pwncat.modules import Status
 from pwncat.modules.enumerate import EnumerateModule, Schedule
 
 
@@ -15,7 +17,7 @@ class Binary:
 
     path: str
     """ The path to the binary """
-    uid: int
+    owner: "pwncat.db.User"
     """ The owner of the binary """
 
     def __str__(self):
@@ -23,8 +25,8 @@ class Binary:
         return f"[cyan]{self.path}[/cyan] owned by [{color}]{self.owner.name}[/{color}]"
 
     @property
-    def owner(self):
-        return pwncat.victim.find_user_by_id(self.uid)
+    def uid(self):
+        return self.owner.id
 
 
 class Module(EnumerateModule):
@@ -34,18 +36,26 @@ class Module(EnumerateModule):
     PLATFORM = [Linux]
     SCHEDULE = Schedule.PER_USER
 
-    def enumerate(self):
+    def enumerate(self, session: "pwncat.manager.Session"):
 
         # Spawn a find command to locate the setuid binaries
-        with pwncat.victim.subprocess(
+        proc = session.platform.Popen(
             ["find", "/", "-perm", "-4000", "-printf", "%U %p\\n"],
-            stderr="/dev/null",
-            mode="r",
-            no_job=True,
-        ) as stream:
+            stderr=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            text=True,
+        )
+
+        facts = []
+        with proc.stdout as stream:
             for path in stream:
                 # Parse out owner ID and path
-                path = path.strip().decode("utf-8").split(" ")
+                path = path.strip().split(" ")
                 uid, path = int(path[0]), " ".join(path[1:])
 
-                yield "file.suid", Binary(path, uid)
+                facts.append(Binary(path, uid))
+                yield Status(path)
+
+        for fact in facts:
+            fact.owner = session.platform.find_user(id=fact.owner)
+            yield "file.suid", fact

@@ -2,6 +2,7 @@
 from typing import Generator, List, Union, BinaryIO, Optional
 from subprocess import CalledProcessError, TimeoutExpired
 from io import TextIOWrapper, BufferedIOBase, UnsupportedOperation
+import subprocess
 import pathlib
 import pkg_resources
 import hashlib
@@ -75,6 +76,19 @@ class PopenLinux(pwncat.subprocess.Popen):
                 self.stdin = TextIOWrapper(
                     self.stdin, encoding=encoding, errors=errors, write_through=True
                 )
+
+    def detach(self):
+
+        # Indicate the process is complete
+        self.returncode = 0
+
+        # Close file descriptors to prevent further interaction
+        if self.stdout is not None:
+            self.stdout.close()
+        if self.stdin is not None:
+            self.stdin.close()
+        if self.stdout_raw is not None:
+            self.stdout_raw.close()
 
     def poll(self):
 
@@ -956,11 +970,54 @@ class Linux(Platform):
           PermissionError: the provided password was incorrect
         """
 
+        # We need a pty to call `su`
+        self.get_pty()
+
+        if password is None and self.current_user().id != 0:
+            password = self.find_user(name=user).password
+
+        if self.current_user().id != 0 and password is None:
+            raise PermissionError("no password provided")
+
+        # Run `su`
+        proc = self.Popen(
+            ["su", user], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True
+        )
+
+        # Assume we don't need a password if we are root
+        if self.current_user().id != 0:
+
+            # Send the password
+            proc.stdin.write(password + "\n")
+            proc.stdin.flush()
+
+            # Retrieve the response (this may take some time if wrong)
+            result = proc.stdout.readline().lower()
+
+            if result == "password: \n":
+                result = proc.stdout.readline().lower()
+
+            # Check for keywords indicating failure
+            if "fail" in result or "incorrect" in result:
+
+                try:
+                    # The call failed, wait for the result
+                    proc.wait(timeout=5)
+                except TimeoutError:
+                    proc.kill()
+                    proc.wait()
+
+                # Raise an error. The password was incorrect
+                raise PermissionError("incorrect password")
+
+        proc.detach()
+
     def sudo(
         self,
         command: Union[str, List[str]],
         user: Optional[str] = None,
         group: Optional[str] = None,
+        password: Optional[str] = None,
         **popen_kwargs,
     ):
         """

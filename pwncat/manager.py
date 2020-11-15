@@ -233,6 +233,11 @@ class Manager:
         self.parser = CommandParser(self)
         self.interactive_running = False
 
+        # This is needed because pwntools captures the terminal...
+        # there's no way officially to undo it, so this is a nasty
+        # hack. You can't use pwntools output after creating a manager.
+        self._patch_pwntools()
+
         # Load standard modules
         self.load_modules(*pwncat.modules.__path__)
 
@@ -347,6 +352,28 @@ class Manager:
         if value is not None and value not in self.sessions:
             raise ValueError("invalid target")
         self._target = value
+
+    def _patch_pwntools(self):
+        """ This method patches stdout and stdin and sys.exchook
+        back to their original contents temporarily in order to
+        interact properly with pwntools. You must complete all
+        pwntools progress items before calling this. It attempts to
+        remove all the hooks placed into stdio by pwntools. """
+
+        pwnlib = None
+
+        # We only run this if pwnlib is loaded
+        if "pwnlib" in sys.modules:
+            pwnlib = sys.modules["pwnlib"]
+
+        if pwnlib is None or not pwnlib.term.term_mode:
+            return
+
+        sys.stdout = sys.stdout._fd
+        sys.stdin = sys.stdin._fd
+        # I don't know how to get the old hook back...
+        sys.excepthook = lambda _, __, ___: None
+        pwnlib.term.term_mode = False
 
     def interactive(self):
         """ Start interactive prompt """

@@ -17,9 +17,9 @@ class FileCapabilityData:
     """ List of strings representing the capabilities (e.g. "cap_net_raw+ep") """
 
     def __str__(self):
-        line = f"[cyan]{self.path}[/cyan] -> [["
+        line = f"[cyan]{self.path}[/cyan] -> ["
         line += ",".join(f"[blue]{c}[/blue]" for c in self.caps)
-        line += "]]"
+        line += "]"
         return line
 
 
@@ -29,17 +29,21 @@ class Module(EnumerateModule):
     PROVIDES = ["file.caps"]
     PLATFORM = [Linux]
 
-    def enumerate(self):
+    def enumerate(self, session):
 
         # Spawn a find command to locate the setuid binaries
-        with pwncat.victim.subprocess(
-            ["getcap", "-r", "/"], stderr="/dev/null", mode="r", no_job=True,
-        ) as stream:
+        proc = session.platform.Popen(
+            ["getcap", "-r", "/"],
+            stderr=pwncat.subprocess.DEVNULL,
+            stdout=pwncat.subprocess.PIPE,
+            text=True,
+        )
+
+        # Process the standard output from the command
+        with proc.stdout as stream:
             for path in stream:
-                # Parse out owner ID and path
-                path, caps = [
-                    x.strip() for x in path.strip().decode("utf-8").split(" = ")
-                ]
+                # Parse out path and capability list
+                path, caps = [x.strip() for x in path.strip().split(" = ")]
                 caps = caps.split(",")
 
                 yield "file.caps", FileCapabilityData(path, caps)

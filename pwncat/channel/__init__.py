@@ -468,11 +468,13 @@ def create(protocol: Optional[str] = None, **kwargs):
 
 
 # Import default channel types and register them
+from pwncat.channel.socket import Socket
 from pwncat.channel.bind import Bind
 from pwncat.channel.connect import Connect
 from pwncat.channel.ssh import Ssh
 from pwncat.channel.reconnect import Reconnect
 
+register("socket", Socket)
 register("bind", Bind)
 register("connect", Connect)
 register("ssh", Ssh)
