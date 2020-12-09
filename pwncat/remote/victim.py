@@ -106,7 +106,7 @@ class Victim:
         self.saved_term_state = None  # util.enter_raw_mode()
         # util.restore_terminal(self.saved_term_state, new_line=False)
         # Prompt
-        self.remote_prompt = """$(command printf "\\033[01;31m(remote)\\033[0m \\033[01;33m$(whoami)@$(hostname)\\033[0m:\\033[1;36m$PWD\\033[0m$ ")"""
+        self.remote_prompt = """$(command printf "\\[\\033[01;31m\\](remote)\\[\\033[0m\\] \\[\\033[01;33m\\]$(whoami)@$(hostname)\\[\\033[0m\\]:\\[\\033[1;36m\\]$PWD\\[\\033[0m\\]$ ")"""
         # Aliases for equivalent commands
         self.binary_aliases = {
             "python": [
@@ -2014,38 +2014,48 @@ class Victim:
         :return: Dict[str,Any]
         """
 
-        id_output = self.run("id").decode("utf-8")
+        for _ in range(5):
+            try:
+                id_output = self.run("id").decode("utf-8")
+                pieces = id_output.split(" ")
+                props = {}
+                for p in pieces:
+                    segments = p.split("=")
+                    props[segments[0]] = segments[1]
 
-        pieces = id_output.split(" ")
-        props = {}
-        for p in pieces:
-            segments = p.split("=")
-            props[segments[0]] = segments[1]
+                id_properties = {}
+                for key, value in props.items():
+                    if key == "context":
+                        id_properties["context"] = value.split(":")
+                    elif key == "groups":
+                        groups = []
+                        for group in value.split(","):
+                            p = group.split("(")
+                            groups.append({"id": int(p[0]), "name": p[1].split(")")[0]})
+                        id_properties["groups"] = groups
+                    else:
+                        p = value.split("(")
+                        id_properties[key] = {
+                            "id": int(p[0]),
+                            "name": p[1].split(")")[0],
+                        }
 
-        id_properties = {}
-        for key, value in props.items():
-            if key == "context":
-                id_properties["context"] = value.split(":")
-            elif key == "groups":
-                groups = []
-                for group in value.split(","):
-                    p = group.split("(")
-                    groups.append({"id": int(p[0]), "name": p[1].split(")")[0]})
-                id_properties["groups"] = groups
-            else:
-                p = value.split("(")
-                id_properties[key] = {"id": int(p[0]), "name": p[1].split(")")[0]}
+                if "euid" not in id_properties:
+                    id_properties["euid"] = id_properties["uid"]
 
-        if "euid" not in id_properties:
-            id_properties["euid"] = id_properties["uid"]
+                if "egid" not in id_properties:
+                    id_properties["egid"] = id_properties["gid"]
 
-        if "egid" not in id_properties:
-            id_properties["egid"] = id_properties["gid"]
+                if "context" not in id_properties:
+                    id_properties["context"] = []
 
-        if "context" not in id_properties:
-            id_properties["context"] = []
+                return id_properties
 
-        return id_properties
+            except (KeyError, ValueError):
+                # The output was messed up. We'll try again
+                pass
+
+        raise RuntimeError("The id command is returning weird results. Aborting.")
 
     def reload_users(self):
         """

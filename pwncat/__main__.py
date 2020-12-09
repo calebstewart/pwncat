@@ -106,7 +106,7 @@ def main():
         except ConnectionResetError:
             pwncat.victim.restore_local_term()
             console.log("[yellow]warning[/yellow]: connection reset by remote host")
-        except SystemExit:
+        except (pwncat.util.CommandSystemExit, SystemExit):
             console.log("closing connection")
         finally:
             # Restore the shell
