@@ -98,21 +98,21 @@ class Path:
             )
 
     def glob(self, pattern: str) -> Generator["Path", None, None]:
-        """ Glob the given relative pattern in the directory represented
-        by this path, yielding all matching files (of any kind) """
+        """Glob the given relative pattern in the directory represented
+        by this path, yielding all matching files (of any kind)"""
 
         for name in self._target.listdir(str(self)):
             if fnmatch.fnmatch(name, pattern):
                 yield self / name
 
     def group(self) -> str:
-        """ Returns the name of the group owning the file. KeyError is raised
-        if the file's GID isn't found in the system database. """
+        """Returns the name of the group owning the file. KeyError is raised
+        if the file's GID isn't found in the system database."""
 
         return self._target.find_group(id=self.stat().st_gid).name
 
     def is_dir(self) -> bool:
-        """ Returns True if the path points to a directory (or a symbolic link
+        """Returns True if the path points to a directory (or a symbolic link
         pointing to a directory). False if it points to another kind of file.
         """
 
@@ -178,8 +178,8 @@ class Path:
             return False
 
     def iterdir(self) -> bool:
-        """ When the path points to a directory, yield path objects of the
-        directory contents. """
+        """When the path points to a directory, yield path objects of the
+        directory contents."""
 
         if not self.is_dir():
             raise NotADirectoryError
@@ -195,8 +195,8 @@ class Path:
         self._target.chmod(str(self), mode, link=True)
 
     def lstat(self) -> os.stat_result:
-        """ Same as stat except operate on the symbolic link file itself rather
-        than the file it points to. """
+        """Same as stat except operate on the symbolic link file itself rather
+        than the file it points to."""
 
         if self._lstat is not None:
             return self._lstat
@@ -236,8 +236,8 @@ class Path:
         )
 
     def owner(self) -> str:
-        """ Return the name of the user owning the file. KeyError is raised if
-        the file's uid is not found in the System database """
+        """Return the name of the user owning the file. KeyError is raised if
+        the file's uid is not found in the System database"""
 
         return self._target.find_user(id=self.stat().st_uid).name
 
@@ -279,8 +279,8 @@ class Path:
         return self.__class__(self._target.abspath(str(self)))
 
     def rglob(self, pattern: str) -> Generator["Path", None, None]:
-        """ This is like calling Path.glob() with "**/" added to in the front
-        of the given relative pattern """
+        """This is like calling Path.glob() with "**/" added to in the front
+        of the given relative pattern"""
 
         return self.glob("**/" + pattern)
 
@@ -293,8 +293,8 @@ class Path:
         self._target.rmdir(str(self))
 
     def samefile(self, otherpath: "Path"):
-        """ Return whether this path points to the same file as other_path
-        which can be either a Path object or a string. """
+        """Return whether this path points to the same file as other_path
+        which can be either a Path object or a string."""
 
         if not isinstance(otherpath, Path):
             otherpath = self.__class__(otherpath)
@@ -322,9 +322,9 @@ class Path:
             raise OSError(exc.stdout) from exc
 
     def touch(self, mode: int = 0o666, exist_ok: bool = True):
-        """ Createa file at this path. If the file already exists, function
+        """Createa file at this path. If the file already exists, function
         succeeds if exist_ok is true (and it's modification time is updated).
-        Otherwise FileExistsError is raised. """
+        Otherwise FileExistsError is raised."""
 
         existed = self.exists()
 
@@ -382,7 +382,7 @@ class Path:
 
 
 class Platform:
-    """ Abstracts interactions with a target of a specific platform.
+    """Abstracts interactions with a target of a specific platform.
     This includes running commands, changing directories, locating
     binaries, etc.
 
@@ -437,10 +437,10 @@ class Platform:
         """ Get the value of an environment variable """
 
     def reload_users(self):
-        """ Reload the user and group cache. This is automatically called
+        """Reload the user and group cache. This is automatically called
         if the cache hasn't been built yet, but may be called manually
         if you know the users have changed. This method is also called
-        if a lookup for a specific user or group ID fails. """
+        if a lookup for a specific user or group ID fails."""
 
         raise NotImplementedError(f"{self.name} did not implement reload_users")
 
@@ -470,11 +470,11 @@ class Platform:
         id: Optional[int] = None,
         _recurse: bool = True,
     ) -> "pwncat.db.User":
-        """ Locate a user by name or UID. If the user/group cache has not
+        """Locate a user by name or UID. If the user/group cache has not
         been built, then reload_users is automatically called. If the
         lookup fails, reload_users is called automatically to ensure that
         there has not been a user/group update remotely. If the user
-        still cannot be found, a KeyError is raised. """
+        still cannot be found, a KeyError is raised."""
 
         with self.session.db as db:
             user = db.query(pwncat.db.User).filter_by(host_id=self.session.host)
@@ -536,11 +536,11 @@ class Platform:
         id: Optional[int] = None,
         _recurse: bool = True,
     ) -> "pwncat.db.Group":
-        """ Locate a group by name or GID. If the user/group cache has not
+        """Locate a group by name or GID. If the user/group cache has not
         been built, then reload_users is automatically called. If the
         lookup fails, reload_users is called automatically to ensure that
         there has not been a user/group update remotely. If the group
-        still cannot be found, a KeyError is raised. """
+        still cannot be found, a KeyError is raised."""
 
         with self.session.db as db:
             group = db.query(pwncat.db.Group).filter_by(host_id=self.session.host)
@@ -560,15 +560,15 @@ class Platform:
             return group
 
     def stat(self, path: str) -> os.stat_result:
-        """ Run stat on a path on the remote system and return a stat result
+        """Run stat on a path on the remote system and return a stat result
         This is mainly used by the concrete Path type to fill in a majority
         of it's methods. If the specified path does not exist or cannot be
         accessed, a FileNotFoundError or PermissionError is raised respectively
         """
 
     def lstat(self, path: str) -> os.stat_result:
-        """ Run stat on the symbolic link and return a stat result object.
-        This has the same semantics as the `stat` method. """
+        """Run stat on the symbolic link and return a stat result object.
+        This has the same semantics as the `stat` method."""
 
     def abspath(self, path: str) -> str:
         """ Attempt to resolve a path to an absolute path """
@@ -577,11 +577,11 @@ class Platform:
         """ Attempt to read the target of a link """
 
     def whoami(self):
-        """ Retrieve's only name of the current user (may be faster depending
-        on platform) """
+        """Retrieve's only name of the current user (may be faster depending
+        on platform)"""
 
     def listdir(self, path=None) -> Generator[str, None, None]:
-        """ List the contents of a directory. If ``path`` is None,
+        """List the contents of a directory. If ``path`` is None,
         then the contents of the current directory is listed. The
         list is not guaranteed to be sorted in any way.
 
@@ -907,5 +907,7 @@ def create(
 
 
 from pwncat.platform.linux import Linux
+from pwncat.platform.windows import Windows
 
 register("linux", Linux)
+register("windows", Windows)
