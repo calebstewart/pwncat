@@ -94,7 +94,7 @@ class CompilationError(Exception):
 
 def isprintable(data) -> bool:
     """
-    This is a convenience function to be used rather than the usual 
+    This is a convenience function to be used rather than the usual
     ``str.printable`` boolean value, as that built-in **DOES NOT** consider
     newlines to be part of the printable data set (weird!)
     """
@@ -113,9 +113,9 @@ def human_readable_size(size, decimal_places=2):
 
 
 def human_readable_delta(seconds):
-    """ This produces a human-readable time-delta output suitable for output to
+    """This produces a human-readable time-delta output suitable for output to
     the terminal. It assumes that "seconds" is less than 1 day. I.e. it will only
-    display at most, hours minutes and seconds. """
+    display at most, hours minutes and seconds."""
 
     if seconds < 60:
         return f"{seconds:.2f} seconds"
@@ -134,17 +134,17 @@ def human_readable_delta(seconds):
 
 
 def join(argv: List[str]):
-    """ Join the string much line shlex.join, except assume that each token
+    """Join the string much line shlex.join, except assume that each token
     is expecting double quotes. This allows variable references within the
-    tokens. """
+    tokens."""
 
     return " ".join([quote(x) for x in argv])
 
 
 def quote(token: str):
-    """ Quote the token much like shlex.quote, except don't use single quotes
+    """Quote the token much like shlex.quote, except don't use single quotes
     this will escape any double quotes in the string and wrap it in double
-    quotes. If there are no spaces, it returns the stirng unchanged. """
+    quotes. If there are no spaces, it returns the stirng unchanged."""
     for c in token:
         if c in string.whitespace:
             break
@@ -176,8 +176,8 @@ def escape_markdown(s: str) -> str:
 
 
 def copyfileobj(src, dst, callback, nomv=False):
-    """ Copy a file object to another file object with a callback.
-        This method assumes that both files are binary and support readinto
+    """Copy a file object to another file object with a callback.
+    This method assumes that both files are binary and support readinto
     """
 
     try:
@@ -209,11 +209,11 @@ def copyfileobj(src, dst, callback, nomv=False):
 
 
 def with_progress(title: str, target: Callable[[Callable], None], length: int = None):
-    """ A shortcut to displaying a progress bar for various things. It will
-    start a prompt_toolkit progress bar with the given title and a counter 
+    """A shortcut to displaying a progress bar for various things. It will
+    start a prompt_toolkit progress bar with the given title and a counter
     with the given length. Then, it will call `target` with an `on_progress`
     parameter. This parameter should be called for all progress updates. See
-    the `do_upload` and `do_download` for examples w/ copyfileobj """
+    the `do_upload` and `do_download` for examples w/ copyfileobj"""
 
     with ProgressBar(title) as pb:
         counter = pb(range(length))
@@ -242,13 +242,15 @@ def with_progress(title: str, target: Callable[[Callable], None], length: int = 
 
 def random_string(length: int = 8):
     """ Create a random alphanumeric string """
-    return "".join(random.choice(ALPHANUMERIC) for _ in range(length))
+    return random.choice(string.ascii_letters) + "".join(
+        random.choice(ALPHANUMERIC) for _ in range(length - 1)
+    )
 
 
 def enter_raw_mode():
-    """ Set stdin/stdout to raw mode to pass data directly. 
+    """Set stdin/stdout to raw mode to pass data directly.
 
-        returns: the old state of the terminal
+    returns: the old state of the terminal
     """
 
     # Ensure we don't have any weird buffering issues
@@ -297,9 +299,9 @@ def restore_terminal(state, new_line=True):
 
 
 def get_ip_addr() -> str:
-    """ Retrieve the current IP address. This will return the first tun/tap
-    interface if availabe. Otherwise, it will return the first "normal" 
-    interface with no preference for wired/wireless. """
+    """Retrieve the current IP address. This will return the first tun/tap
+    interface if availabe. Otherwise, it will return the first "normal"
+    interface with no preference for wired/wireless."""
 
     PROTO = netifaces.AF_INET
     ifaces = [

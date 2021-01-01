@@ -11,6 +11,7 @@ public static class ConPtyShell
     private const string errorString = "{{{ConPtyShellException}}}\r\n";
     private const uint ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004;
     private const uint DISABLE_NEWLINE_AUTO_RETURN = 0x0008;
+	private const uint ENABLE_WRAP_AT_EOL_OUTPUT = 0x0002;
     private const uint PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE = 0x00020016;
     private const uint EXTENDED_STARTUPINFO_PRESENT = 0x00080000;
     private const uint CREATE_NO_WINDOW = 0x08000000;
@@ -236,18 +237,8 @@ public static class ConPtyShell
             throw new InvalidOperationException("Could not get console mode");
         }
         outConsoleMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING | DISABLE_NEWLINE_AUTO_RETURN;
+		outConsoleMode &= ~ENABLE_WRAP_AT_EOL_OUTPUT;
         if (!SetConsoleMode(hStdOut, outConsoleMode))
-        {
-            throw new InvalidOperationException("Could not enable virtual terminal processing");
-        }
-
-        IntPtr hStdIn = GetStdHandle(STD_INPUT_HANDLE);
-        if (!GetConsoleMode(hStdIn, out outConsoleMode))
-        {
-            throw new InvalidOperationException("Could not get console mode");
-        }
-        outConsoleMode |= 0x0004 | 0x0001 | 0x0200;
-        if (!SetConsoleMode(hStdIn, outConsoleMode))
         {
             throw new InvalidOperationException("Could not enable virtual terminal processing");
         }
