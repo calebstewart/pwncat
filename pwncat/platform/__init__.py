@@ -433,6 +433,12 @@ class Platform:
     def __str__(self):
         return str(self.channel)
 
+    def process_output(self, data):
+        """Process output from the terminal when in interactive mode.
+        This is mainly used to check if the user exited the interactive terminal,
+        and we should raise an InteractiveExit exception. It does nothing by
+        default."""
+
     def getenv(self, name: str):
         """ Get the value of an environment variable """
 

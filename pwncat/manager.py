@@ -23,7 +23,7 @@ from pwncat.commands import CommandParser
 
 
 class RawModeExit(Exception):
-    """ Indicates that the user would like to exit the raw mode
+    """Indicates that the user would like to exit the raw mode
     shell. This is normally raised when the user presses the
     <prefix>+<C-d> key combination to return to the local prompt."""
 
@@ -33,8 +33,8 @@ class InteractiveExit(Exception):
 
 
 class Session:
-    """ Wraps a channel and platform and tracks configuration and
-    database access per session """
+    """Wraps a channel and platform and tracks configuration and
+    database access per session"""
 
     def __init__(
         self,
@@ -86,14 +86,14 @@ class Session:
 
     @property
     def config(self):
-        """ Get the configuration object for this manager. This
+        """Get the configuration object for this manager. This
         is simply a wrapper for session.manager.config to make
-        accessing configuration a little easier. """
+        accessing configuration a little easier."""
         return self.manager.config
 
     def register_new_host(self):
-        """ Register a new host in the database. This assumes the
-        hash has already been stored in ``self.hash`` """
+        """Register a new host in the database. This assumes the
+        hash has already been stored in ``self.hash``"""
 
         # Create a new host object and add it to the database
         host = pwncat.db.Host(hash=self.hash, platform=self.platform.name)
@@ -121,9 +121,9 @@ class Session:
         return self.manager.modules[module].run(self, **kwargs)
 
     def find_module(self, pattern: str, base=None, exact: bool = False):
-        """ Locate a module by a glob pattern. This is an generator
+        """Locate a module by a glob pattern. This is an generator
         which may yield multiple modules that match the pattern and
-        base class. """
+        base class."""
 
         if base is None:
             base = pwncat.modules.BaseModule
@@ -144,16 +144,16 @@ class Session:
                 yield module
 
     def log(self, *args, **kwargs):
-        """ Log to the console. This utilizes the active sessions
+        """Log to the console. This utilizes the active sessions
         progress instance to log without messing up progress output
-        from other sessions, if we aren't active. """
+        from other sessions, if we aren't active."""
 
         self.manager.log(f"{self.platform}:", *args, **kwargs)
 
     @property
     @contextlib.contextmanager
     def db(self):
-        """ Retrieve a database session
+        """Retrieve a database session
 
         I'm not sure if this is the best way to handle database sessions.
 
@@ -279,8 +279,8 @@ class Manager:
             pass
 
     def open_database(self):
-        """ Create the internal engine and session builder
-        for this manager based on the configured database """
+        """Create the internal engine and session builder
+        for this manager based on the configured database"""
 
         if self.sessions and self.engine is not None:
             raise RuntimeError("cannot change database after sessions are established")
@@ -313,7 +313,7 @@ class Manager:
             pass
 
     def load_modules(self, *paths):
-        """ Dynamically load modules from the specified paths
+        """Dynamically load modules from the specified paths
 
         If a module has the same name as an already loaded module, it will
         take it's place in the module list. This includes built-in modules.
@@ -354,11 +354,11 @@ class Manager:
         self._target = value
 
     def _patch_pwntools(self):
-        """ This method patches stdout and stdin and sys.exchook
+        """This method patches stdout and stdin and sys.exchook
         back to their original contents temporarily in order to
         interact properly with pwntools. You must complete all
         pwntools progress items before calling this. It attempts to
-        remove all the hooks placed into stdio by pwntools. """
+        remove all the hooks placed into stdio by pwntools."""
 
         pwnlib = None
 
@@ -442,6 +442,7 @@ class Manager:
                             )
                         else:
                             data = self.target.platform.channel.recv(4096)
+                            self.target.platform.process_output(data)
                             sys.stdout.buffer.write(data)
             except RawModeExit:
                 pwncat.util.restore_terminal(term_state)
