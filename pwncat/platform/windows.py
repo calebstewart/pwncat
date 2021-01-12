@@ -466,6 +466,13 @@ class Windows(Platform):
                 gz.write(stagetwo_dll)
             encoded = base64.b64encode(compressed.getvalue())
 
+        # for i in range(0, len(encoded), 128):
+        #     self.channel.sendline(encoded[i : i + 128])
+        #     self.session.manager.log(self.channel.recvline().strip().decode("utf-8"))
+        # self.channel.sendline(b"")
+
+        # self.session.manager.log(self.channel.recvline().strip().decode("utf-8"))
+
         self.channel.sendline(encoded)
         self.channel.recvuntil(b"READY")
         self.channel.recvuntil(b"\n")

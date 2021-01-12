@@ -9,9 +9,8 @@ import time
 manager = pwncat.manager.Manager("data/pwncatrc")
 
 # Establish a session
-session = manager.create_session("windows", host="192.168.122.11", port=4444)
-
-# manager.interactive()
+session = manager.create_session("windows", host="192.168.56.10", port=4444)
+# session = manager.create_session("windows", host="192.168.122.11", port=4444)
 
 hosts = (
     session.platform.Path("C:\\") / "Windows" / "System32" / "drivers" / "etc" / "hosts"

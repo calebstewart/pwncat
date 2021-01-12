@@ -433,6 +433,18 @@ class Platform:
     def __str__(self):
         return str(self.channel)
 
+    @property
+    def interactive_input(self):
+        if not self.interactive:
+            raise RuntimeError("interactive_input not valid outside interactive mode")
+        return self.channel
+
+    @property
+    def interactive_output(self):
+        if not self.interactive:
+            raise RuntimeError("interactive_input not valid outside interactive mode")
+        return self.channel
+
     def process_output(self, data):
         """Process output from the terminal when in interactive mode.
         This is mainly used to check if the user exited the interactive terminal,
