@@ -9,7 +9,7 @@ class Command(CommandDefinition):
     """ Set the currently used module in the config handler """
 
     def get_module_choices(self):
-        yield from [module.name for module in pwncat.modules.match(".*")]
+        yield from [module.name for module in pwncat.modules.match("*")]
 
     PROG = "use"
     ARGS = {

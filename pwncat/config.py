@@ -15,8 +15,8 @@ from pwncat.modules import BaseModule
 
 
 def key_type(value: str) -> bytes:
-    """ Converts a key name to a ansi keycode. The value can either be a single
-    printable character or a named key from prompt_toolkit Keys """
+    """Converts a key name to a ansi keycode. The value can either be a single
+    printable character or a named key from prompt_toolkit Keys"""
     if len(value) == 1:
         return value.encode("utf-8")
     if value not in ALL_KEYS:
@@ -97,17 +97,16 @@ class Config:
     def set(self, name: str, value: Any, glob: bool = False):
         """ Set a config value """
 
-        if glob:
-            self.values[name]["value"] = self.values[name]["type"](value)
-            return
-        elif self.module is None or name not in self.module.ARGUMENTS:
+        if not glob and self.module is not None and name in self.module.ARGUMENTS:
+            self.locals[name] = self.module.ARGUMENTS[name].type(value)
+        elif name not in self.values:
             raise KeyError(f"{name}: no such configuration value")
-
-        self.locals[name] = self.module.ARGUMENTS[name].type(value)
+        else:
+            self.values[name]["value"] = self.values[name]["type"](value)
 
     def use(self, module: BaseModule):
-        """ Use the specified module. This clears the current
-        locals configuration. """
+        """Use the specified module. This clears the current
+        locals configuration."""
 
         self.locals = {}
         self.module = module
