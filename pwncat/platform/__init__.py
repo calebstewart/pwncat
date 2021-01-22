@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from typing import List, Optional, Generator, Union, BinaryIO, Type
 from subprocess import CalledProcessError
+from abc import ABC, abstractmethod
 import enum
 import pathlib
 import logging
@@ -381,7 +382,7 @@ class Path:
             filp.write(data)
 
 
-class Platform:
+class Platform(ABC):
     """Abstracts interactions with a target of a specific platform.
     This includes running commands, changing directories, locating
     binaries, etc.
@@ -451,16 +452,16 @@ class Platform:
         and we should raise an InteractiveExit exception. It does nothing by
         default."""
 
+    @abstractmethod
     def getenv(self, name: str):
         """ Get the value of an environment variable """
 
+    @abstractmethod
     def reload_users(self):
         """Reload the user and group cache. This is automatically called
         if the cache hasn't been built yet, but may be called manually
         if you know the users have changed. This method is also called
         if a lookup for a specific user or group ID fails."""
-
-        raise NotImplementedError(f"{self.name} did not implement reload_users")
 
     def iter_users(self) -> Generator["pwncat.db.User", None, None]:
         """ Iterate over all users on the remote system """
@@ -577,6 +578,7 @@ class Platform:
 
             return group
 
+    @abstractmethod
     def stat(self, path: str) -> os.stat_result:
         """Run stat on a path on the remote system and return a stat result
         This is mainly used by the concrete Path type to fill in a majority
@@ -584,20 +586,25 @@ class Platform:
         accessed, a FileNotFoundError or PermissionError is raised respectively
         """
 
+    @abstractmethod
     def lstat(self, path: str) -> os.stat_result:
         """Run stat on the symbolic link and return a stat result object.
         This has the same semantics as the `stat` method."""
 
+    @abstractmethod
     def abspath(self, path: str) -> str:
         """ Attempt to resolve a path to an absolute path """
 
+    @abstractmethod
     def readlink(self, path: str):
         """ Attempt to read the target of a link """
 
+    @abstractmethod
     def whoami(self):
         """Retrieve's only name of the current user (may be faster depending
         on platform)"""
 
+    @abstractmethod
     def listdir(self, path=None) -> Generator[str, None, None]:
         """List the contents of a directory. If ``path`` is None,
         then the contents of the current directory is listed. The
@@ -609,6 +616,7 @@ class Platform:
           does not exist, or you do not have execute permissions.
         """
 
+    @abstractmethod
     def get_host_hash(self) -> str:
         """
         Retrieve a string which uniquely identifies this victim host. On Unix-like
@@ -634,6 +642,9 @@ class Platform:
         :raises: FileNotFoundError: the requested binary does not exist on this host
         """
 
+        # NOTE - this needs to be implemented
+
+    @abstractmethod
     def _do_which(self, name: str) -> Optional[str]:
         """
         This is stub method which must be implemented by the platform. It is
@@ -642,8 +653,6 @@ class Platform:
         should not be invoked directly, but will be indirectly invoked when
         needed by `which`
         """
-
-        raise NotImplementedError(f"{str(self)}: no `which` implementation")
 
     def compile(
         self,
@@ -673,6 +682,9 @@ class Platform:
         :type ldflags: List[str]
         """
 
+        raise NotImplementedError(f"no C compilation support available on {self.name}")
+
+    @abstractmethod
     def Popen(
         self,
         args,
@@ -769,6 +781,7 @@ class Platform:
 
         return self.PATH_TYPE(path)
 
+    @abstractmethod
     def chdir(self, path: Union[str, Path]):
         """
         Change directories to the given path. This method returns the current
@@ -782,6 +795,7 @@ class Platform:
           NotADirectoryError: the specified path is not a directory
         """
 
+    @abstractmethod
     def open(self, path: Union[str, Path], mode: str):
         """
         Open a remote file for reading or writing. Normally, only one of read or
@@ -802,6 +816,7 @@ class Platform:
           IsADirectoryError: the specified path refers to a directory
         """
 
+    @abstractmethod
     def tempfile(
         self, mode: str, length: Optional[int] = None, suffix: Optional[str] = None
     ):
@@ -842,6 +857,10 @@ class Platform:
           PermissionError: the provided password was incorrect
         """
 
+        raise NotImplementedError(
+            f"switch-user not implemented for platform {self.name}"
+        )
+
     def sudo(
         self,
         command: Union[str, List[str]],
@@ -858,6 +877,62 @@ class Platform:
         and a PermissionError is raised. If the password is incorrect, a PermissionError
         is also raised.
         """
+
+        raise NotImplementedError(f"sudo not implemented for platform {self.name}")
+
+    @abstractmethod
+    def stat(self, path: str) -> os.stat_result:
+        """Perform the equivalent of the stat syscall on
+        the remote host"""
+
+    @abstractmethod
+    def lstat(self, path: str) -> os.stat_result:
+        """ Perform the equivalent of the lstat syscall """
+
+    @abstractmethod
+    def abspath(self, path: str) -> str:
+        """ Attempt to resolve a path to an absolute path """
+
+    @abstractmethod
+    def readlink(self, path: str):
+        """ Attempt to read the target of a link """
+
+    @abstractmethod
+    def umask(self, mask: int = None):
+        """ Set or retrieve the current umask value """
+
+    @abstractmethod
+    def touch(self, path: str):
+        """ Update a file modification time and possibly create it """
+
+    @abstractmethod
+    def chmod(self, path: str, mode: int, link: bool = False):
+        """ Update the file permissions """
+
+    @abstractmethod
+    def mkdir(self, path: str, mode: int = 0o777, parents: bool = False):
+        """ Create a new directory """
+
+    @abstractmethod
+    def rename(self, source: str, target: str):
+        """Rename a file from the source to the target. This should
+        replace the target if it exists."""
+
+    @abstractmethod
+    def rmdir(self, target: str):
+        """ Remove the specified directory. It must be empty. """
+
+    @abstractmethod
+    def symlink_to(self, source: str, target: str):
+        """ Create a symbolic link to source from target """
+
+    @abstractmethod
+    def link_to(self, source: str, target: str):
+        """ Create a filesystem hard link. """
+
+    @abstractmethod
+    def unlink(self, target: str):
+        """ Remove a link to a file (similar to `rm`) """
 
 
 def register(name: str, platform: Type[Platform]):

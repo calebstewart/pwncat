@@ -179,8 +179,8 @@ class PopenLinux(pwncat.subprocess.Popen):
         self.returncode = -1
 
     def _receive_returncode(self):
-        """ All output has been read of the stream, now we read
-        the return code. """
+        """All output has been read of the stream, now we read
+        the return code."""
 
         # Read until the returncode delimiter
         code = self.platform.channel.recvuntil(self.code_delim)
@@ -289,9 +289,9 @@ class LinuxReader(BufferedIOBase):
 
 
 class LinuxWriter(BufferedIOBase):
-    """ A wrapper around an active Popen object which is writing to
+    """A wrapper around an active Popen object which is writing to
     a file. Remote files are not seekable, and cannot be simultaneous
-    read/write. """
+    read/write."""
 
     CONTROL_CODES = [
         0x00,
@@ -347,7 +347,7 @@ class LinuxWriter(BufferedIOBase):
         return popen
 
     def write(self, b):
-        """ Write data to the underlying Popen stdin.
+        """Write data to the underlying Popen stdin.
         This translates any control-sequences into escaped control
         sequences, because it assumes you are trying to write to a file
         and not control the terminal.
@@ -467,8 +467,8 @@ class Linux(Platform):
         self.run("unset HISTFILE; export HISTCONTROL=ignorespace; unset PROMPT_COMMAND")
 
     def get_pty(self):
-        """ Spawn a PTY in the current shell. If a PTY is already running
-        then this method does nothing. """
+        """Spawn a PTY in the current shell. If a PTY is already running
+        then this method does nothing."""
 
         # Check if we are currently in a PTY
         if self.has_pty:
@@ -583,7 +583,7 @@ class Linux(Platform):
         return hashlib.md5(identifier.encode("utf-8")).hexdigest()
 
     def listdir(self, path=None) -> Generator[str, None, None]:
-        """ List the contents of a directory. If ``path`` is None,
+        """List the contents of a directory. If ``path`` is None,
         then the contents of the current directory is listed. The
         list is not guaranteed to be sorted in any way.
 
@@ -1078,6 +1078,10 @@ class Linux(Platform):
 
         self._interactive = value
 
+    def _do_which(self, name: str):
+        # NOTE - This needs to be implemented
+        return None
+
     def whoami(self):
         """ Get the name of the current user """
 
@@ -1188,8 +1192,8 @@ class Linux(Platform):
         return stat
 
     def stat(self, path: str) -> os.stat_result:
-        """ Perform the equivalent of the stat syscall on
-        the remote host """
+        """Perform the equivalent of the stat syscall on
+        the remote host"""
 
         try:
             result = self.run(
@@ -1293,8 +1297,8 @@ class Linux(Platform):
                 raise FileNotFoundError(exc.stdout) from exc
 
     def rename(self, source: str, target: str):
-        """ Rename a file from the source to the target. This should
-        replace the target if it exists. """
+        """Rename a file from the source to the target. This should
+        replace the target if it exists."""
 
         try:
             self.run(["mv", source, target], check=True)
