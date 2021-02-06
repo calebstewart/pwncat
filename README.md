@@ -199,7 +199,7 @@ penetration tests including:
 
 * File upload and download
 * Automated privilege escalation enumeration
-* Automated privielge escalation execution
+* Automated privilege escalation execution
 * Automated persistence installation/removal
 * Automated tracking of modified/created files
     * `pwncat` also offers the ability to revert these remote "tampers" automatically
