@@ -48,7 +48,7 @@ def remove_busybox_tamper():
 
 class Victim:
     """ Abstracts interaction with the remote victim host.
-    
+
     :param config: the machine configuration object
     :type config: pwncat.config.Config
     :param state: the current interpreter state
@@ -167,7 +167,7 @@ class Victim:
         the ``host`` table in the database directly. This hash uniquely identifies a host
         even if it's IP changes from your perspective. It is constructed from host-specific
         information probed from the last time ``pwncat`` connected to it.
-        
+
         :param hostid: the unique host hash generated from the last pwncat session
         :param requested_method: the persistence method to utilize for reconnection, if not specified,
             all methods will be tried in order until one works.
@@ -229,7 +229,7 @@ class Victim:
         of a shell. The remote host will be interrogated to figure out the remote shell
         type, system type, etc. It will then cross-reference the database to identify
         if we have seen this host before, and load relevant data for this host.
-        
+
         :param client: the client socket connection
         :type client: socket.SocketType
         :return: None
@@ -432,12 +432,12 @@ class Victim:
         """ Utilize the architecture we grabbed from `uname -m` to download a
         precompiled busybox binary and upload it to the remote machine. This
         makes uploading/downloading and dependency tracking easier. It also
-        makes file upload/download safer, since we have a known good set of 
+        makes file upload/download safer, since we have a known good set of
         commands we can run (rather than relying on GTFObins)
-        
+
         After installation, busybox version of all non-SUID binaries will be
         returned from ``victim.which`` vice local versions.
-        
+
         :param url: a base url for compiled versions of busybox
         """
 
@@ -2017,11 +2017,15 @@ class Victim:
         for _ in range(5):
             try:
                 id_output = self.run("id").decode("utf-8")
-                pieces = id_output.split(" ")
+                pieces = id_output.split(") ")
                 props = {}
                 for p in pieces:
                     segments = p.split("=")
-                    props[segments[0]] = segments[1]
+                    try:
+                        props[segments[0]] = segments[1] + ")"
+                    except IndexError:
+                        console.log(segments)
+                        continue
 
                 id_properties = {}
                 for key, value in props.items():
@@ -2210,7 +2214,7 @@ class Victim:
         Retrieve the database User object for the current user. This will
         call ``victim.whoami()`` to retrieve the current user and cross-reference
         with the local user database.
-        
+
         :return: pwncat.db.User
         """
         name = self.whoami()

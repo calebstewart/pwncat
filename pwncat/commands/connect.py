@@ -84,7 +84,7 @@ class Command(CommandDefinition):
     }
     LOCAL = True
     CONNECTION_PATTERN = re.compile(
-        r"""^(?P<protocol>[-a-zA-Z0-9_]*://)?((?P<user>[^:@]*)?(?P<password>:(\\@|[^@])*)?@)?(?P<host>[^:]*)?(?P<port>:[0-9]*)?$"""
+        r"""^(?P<protocol>[-a-zA-Z0-9_]*://)?((?P<user>[^:]*)?(?P<password>:(\\@|[^@])*)?@)?(?P<host>[^:]*)?(?P<port>:[0-9]*)?$"""
     )
 
     def run(self, args):
