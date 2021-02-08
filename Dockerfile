@@ -24,6 +24,7 @@ COPY . /pwncat
 # Setup pwncat
 RUN set -eux \
 	&& cd /pwncat \
+  && python3 -m pip install -r requirements.txt \
 	&& python3 setup.py install
 
 # Cleanup
@@ -36,7 +37,7 @@ FROM alpine:latest as final
 
 RUN set -eux \
 	&& apk add --no-cache \
-		python3 \
+		python3 libstdc++ \
 	&& find /usr/lib -type f -name '*.pyc' -print0 | xargs -0 -n1 rm -rf || true \
 	&& find /usr/lib -type d -name '__pycache__' -print0 | xargs -0 -n1 rm -rf || true \
 	&& mkdir /work
