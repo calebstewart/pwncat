@@ -451,6 +451,7 @@ class Platform(ABC):
         This is mainly used to check if the user exited the interactive terminal,
         and we should raise an InteractiveExit exception. It does nothing by
         default."""
+        return data
 
     @abstractmethod
     def getenv(self, name: str):
@@ -643,6 +644,8 @@ class Platform(ABC):
         """
 
         # NOTE - this needs to be implemented
+
+        return self._do_which(name)
 
     @abstractmethod
     def _do_which(self, name: str) -> Optional[str]:

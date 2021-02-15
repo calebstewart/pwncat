@@ -13,12 +13,20 @@ class Command(CommandDefinition):
     """ View info about a module """
 
     def get_module_choices(self):
-        yield from [module.name for module in pwncat.modules.match("*")]
+        if self.manager.target is None:
+            return
+
+        yield from [module.name for module in self.manager.target.find_module("*")]
 
     PROG = "search"
-    ARGS = {"module": Parameter(Complete.NONE, help="glob pattern",)}
+    ARGS = {
+        "module": Parameter(
+            Complete.NONE,
+            help="glob pattern",
+        )
+    }
 
-    def run(self, args):
+    def run(self, manager: "pwncat.manager.Manager", args):
 
         table = Table(
             Column(header="Name", ratio=0.2),
@@ -28,7 +36,7 @@ class Command(CommandDefinition):
             expand=True,
         )
 
-        for module in pwncat.modules.match(f"*{args.module}*"):
+        for module in manager.target.find_module(f"*{args.module}*"):
             # Rich will ellipsize the column, but we need to squeze
             # white space and remove newlines. `textwrap.shorten` is
             # the easiest way to do that, so we use a large size for

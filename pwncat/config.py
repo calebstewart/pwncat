@@ -14,8 +14,8 @@ from pwncat.modules import BaseModule
 
 
 def key_type(value: str) -> bytes:
-    """ Converts a key name to a ansi keycode. The value can either be a single
-    printable character or a named key from prompt_toolkit Keys """
+    """Converts a key name to a ansi keycode. The value can either be a single
+    printable character or a named key from prompt_toolkit Keys"""
     if len(value) == 1:
         return value.encode("utf-8")
     if value not in ALL_KEYS:
@@ -49,6 +49,14 @@ def local_file_type(value: str) -> str:
     return value
 
 
+def local_dir_type(value: str) -> str:
+    """ Ensure the path specifies a local directory """
+
+    if not os.path.isdir(value):
+        raise ValueError(f"{value}: no such file or directory")
+    return value
+
+
 class Config:
     def __init__(self):
 
@@ -65,6 +73,7 @@ class Config:
             "on_load": {"value": "", "type": str},
             "db": {"value": "sqlite:///:memory:", "type": str},
             "cross": {"value": None, "type": str},
+            "psmodules": {"value": ".", "type": local_dir_type},
         }
 
         # Locals are set per-used-module
@@ -113,8 +122,8 @@ class Config:
             return default
 
     def use(self, module: BaseModule):
-        """ Use the specified module. This clears the current
-        locals configuration. """
+        """Use the specified module. This clears the current
+        locals configuration."""
 
         self.locals = {}
         self.module = module

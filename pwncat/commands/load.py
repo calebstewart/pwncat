@@ -26,5 +26,6 @@ class Command(CommandDefinition):
     DEFAULTS = {}
     LOCAL = True
 
-    def run(self, args):
-        pwncat.modules.reload(args.path)
+    def run(self, manager: "pwncat.manager.Manager", args):
+
+        manager.load_modules(args.path)

@@ -48,10 +48,6 @@ class Command(CommandDefinition):
 
     PROG = "connect"
     ARGS = {
-        "--config,-c": Parameter(
-            Complete.LOCAL_FILE,
-            help="Path to a configuration script to execute prior to connecting",
-        ),
         "--identity,-i": Parameter(
             Complete.LOCAL_FILE,
             help="The private key for authentication for SSH connections",
@@ -101,20 +97,6 @@ class Command(CommandDefinition):
         host = None
         port = None
         try_reconnect = False
-
-        if not args.config and os.path.exists("./pwncatrc"):
-            args.config = "./pwncatrc"
-        elif not args.config and os.path.exists("./data/pwncatrc"):
-            args.config = "./data/pwncatrc"
-
-        if args.config:
-            try:
-                # Load the configuration
-                with open(args.config, "r") as filp:
-                    manager.parser.eval(filp.read(), args.config)
-            except OSError as exc:
-                console.log(f"[red]error[/red]: {exc}")
-                return
 
         if args.list:
             # Grab a list of installed persistence methods for all hosts

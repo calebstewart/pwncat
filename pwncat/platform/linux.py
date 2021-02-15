@@ -8,6 +8,7 @@ import pkg_resources
 import hashlib
 import time
 import shlex
+import sys
 import os
 
 import pwncat
@@ -1029,6 +1030,30 @@ class Linux(Platform):
         and a PermissionError is raised. If the password is incorrect, a PermissionError
         is also raised.
         """
+
+    def interactive_read(self):
+
+        # We use a local raw mode TTY, so we don't need any special processing
+        return sys.stdin.buffer.read(64)
+
+    def interactive_loop(self):
+
+        old_stdin = sys.stdin
+        has_prefix = False
+
+        pwncat.util.push_term_state()
+
+        try:
+            pwncat.util.enter_raw_mode(non_block=False)
+            sys.stdin.reconfigure(line_buffering=False)
+
+            while True:
+                data = sys.stdin.buffer.read(64)
+                has_prefix = self.session.manager._process_input(data, has_prefix)
+
+        finally:
+            pwncat.util.pop_term_state()
+            sys.stdin.reconfigure(line_buffering=False)
 
     @property
     def interactive(self) -> bool:

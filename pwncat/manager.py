@@ -2,6 +2,7 @@
 from typing import List, Dict, Union, Optional
 from prompt_toolkit.shortcuts import confirm
 from io import TextIOWrapper
+import threading
 import contextlib
 import pkgutil
 import fnmatch
@@ -15,17 +16,11 @@ import rich.progress
 
 import pwncat.db
 import pwncat.modules
-from pwncat.util import console
+from pwncat.util import console, RawModeExit
 from pwncat.platform import Platform
 from pwncat.channel import Channel, ChannelClosed
 from pwncat.config import Config
 from pwncat.commands import CommandParser
-
-
-class RawModeExit(Exception):
-    """Indicates that the user would like to exit the raw mode
-    shell. This is normally raised when the user presses the
-    <prefix>+<C-d> key combination to return to the local prompt."""
 
 
 class InteractiveExit(Exception):
@@ -272,11 +267,15 @@ class Manager:
             pass
 
         # Load local configuration script
-        try:
-            with open(config) as filp:
-                self.parser.eval(filp.read(), config)
-        except (FileNotFoundError, PermissionError):
-            pass
+        if isinstance(config, str):
+            try:
+                with open(config) as filp:
+                    self.parser.eval(filp.read(), config)
+            except (FileNotFoundError, PermissionError):
+                pass
+        elif config is not None:
+            self.parser.eval(config.read(), config.name)
+            config.close()
 
     def open_database(self):
         """Create the internal engine and session builder
@@ -342,6 +341,13 @@ class Manager:
         else:
             console.log(*args, **kwargs)
 
+    def print(self, *args, **kwargs):
+
+        if self.target is not None:
+            self.target._progress.print(*args, **kwargs)
+        else:
+            console.print(*args, **kwargs)
+
     @property
     def target(self) -> Session:
         """ Retrieve the currently focused target """
@@ -386,7 +392,7 @@ class Manager:
         sys.stdin = TextIOWrapper(
             os.fdopen(sys.stdin.fileno(), "br", buffering=0),
             write_through=True,
-            line_buffering=False,
+            line_buffering=True,
         )
 
         while self.interactive_running:
@@ -417,47 +423,99 @@ class Manager:
             # I don't like this. I may switch to an asyncio-based wrapper in
             # the future, to alleviate requirements on channel implementations
             # but I'm not sure how to implement it right now.
-            selector = selectors.DefaultSelector()
-            selector.register(sys.stdin, selectors.EVENT_READ, None)
-            selector.register(self.target.platform.channel, selectors.EVENT_READ, None)
+            # selector = selectors.DefaultSelector()
+            # selector.register(sys.stdin, selectors.EVENT_READ, None)
+            # selector.register(self.target.platform.channel, selectors.EVENT_READ, None)
 
             # Make the local terminal enter a raw state for
             # direct interaction with the remote shell
-            term_state = pwncat.util.enter_raw_mode()
+            # term_state = pwncat.util.enter_raw_mode()
+
+            # pwncat.util.push_term_state()
+            # pwncat.util.enter_raw_mode()
 
             self.target.platform.interactive = True
 
-            try:
-                # We do this until the user pressed <prefix>+C-d or
-                # until the connection dies. Afterwards, we go back to
-                # a local prompt.
-                done = False
-                has_prefix = False
-                while not done:
-                    for k, _ in selector.select():
-                        if k.fileobj is sys.stdin:
-                            data = sys.stdin.buffer.read(64)
-                            has_prefix = self._process_input(
-                                data, has_prefix, term_state
-                            )
-                        else:
-                            data = self.target.platform.channel.recv(4096)
-                            self.target.platform.process_output(data)
+            interactive_complete = threading.Event()
+
+            def output_thread_main():
+
+                while not interactive_complete.is_set():
+
+                    data = self.target.platform.channel.recv(4096)
+
+                    if data != b"" and data != None:
+                        try:
+                            data = self.target.platform.process_output(data)
                             sys.stdout.buffer.write(data)
+                            sys.stdout.buffer.flush()
+                        except RawModeExit:
+                            interactive_complete.set()
+                    else:
+                        interactive_complete.wait(timeout=0.1)
+
+            output_thread = threading.Thread(target=output_thread_main)
+            output_thread.start()
+
+            has_prefix = False
+            channel_closed = False
+
+            try:
+                self.target.platform.interactive_loop()
+                # while not interactive_complete.is_set():
+                #     data = sys.stdin.buffer.read(64)
+                #     has_prefix = self._process_input(data, has_prefix)
             except RawModeExit:
-                pwncat.util.restore_terminal(term_state)
+                pass
             except ChannelClosed:
-                pwncat.util.restore_terminal(term_state)
+                channel_closed = True
                 self.log(
                     f"[yellow]warning[/yellow]: {self.target.platform}: connection reset"
                 )
-                self.target.died()
             except Exception:
-                pwncat.util.restore_terminal(term_state)
                 pwncat.util.console.print_exception()
 
-            if self.target is not None:
+            # Trigger thread to exit
+            interactive_complete.set()
+            output_thread.join()
+
+            # pwncat.util.pop_term_state()
+
+            # Exit interactive mode
+            if channel_closed:
+                self.target.died()
+            else:
                 self.target.platform.interactive = False
+
+            # try:
+            #     # We do this until the user pressed <prefix>+C-d or
+            #     # until the connection dies. Afterwards, we go back to
+            #     # a local prompt.
+            #     done = False
+            #     has_prefix = False
+            #     while not done:
+            #         for k, _ in selector.select():
+            #             if k.fileobj is sys.stdin:
+            #                 data = sys.stdin.buffer.read(64)
+            #                 has_prefix = self._process_input(data, has_prefix)
+            #             else:
+            #                 data = self.target.platform.channel.recv(4096)
+            #                 self.target.platform.process_output(data)
+            #                 sys.stdout.buffer.write(data)
+            # except RawModeExit:
+            #     self.target.platform.interactive = False
+            # except ChannelClosed:
+            #     self.target.platform.interactive = False
+            #     self.log(
+            #         f"[yellow]warning[/yellow]: {self.target.platform}: connection reset"
+            #     )
+            #     self.target.died()
+            # except Exception:
+            #     self.target.platform.interactive = False
+            #     pwncat.util.console.print_exception()
+
+            # if self.target is not None and self.target.platform.interactive:
+            #     self.target.platform.interactive = False
 
     def create_session(self, platform: str, channel: Channel = None, **kwargs):
         """
@@ -473,7 +531,7 @@ class Manager:
         session = Session(self, platform, channel, **kwargs)
         return session
 
-    def _process_input(self, data: bytes, has_prefix: bool, term_state):
+    def _process_input(self, data: bytes, has_prefix: bool):
         """ Process stdin data from the user in raw mode """
 
         for byte in data:
@@ -495,13 +553,17 @@ class Manager:
                         self.target.platform.channel.send(byte)
                         binding = binding.lstrip("pass")
                     else:
-                        pwncat.util.restore_terminal(term_state)
+                        self.target.platform.interactive = False
+                        # pwncat.util.restore_terminal(term_state)
+
                         sys.stdout.write("\n")
 
                         self.parser.eval(binding, "<binding>")
 
                         self.target.platform.channel.send(b"\n")
-                        pwncat.util.enter_raw_mode()
+
+                        self.target.platform.interactive = True
+                        # pwncat.util.enter_raw_mode()
             elif byte == self.config["prefix"].value:
                 has_prefix = True
             elif data == pwncat.config.KeyType("c-d").value:

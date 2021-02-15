@@ -37,7 +37,7 @@ class Command(CommandDefinition):
         "destination": Parameter(Complete.LOCAL_FILE, nargs="?"),
     }
 
-    def run(self, args):
+    def run(self, manager: "pwncat.manager.Manager", args):
 
         # Create a progress bar for the download
         progress = Progress(
@@ -60,14 +60,15 @@ class Command(CommandDefinition):
             )
 
         try:
-            length = pwncat.victim.get_file_size(args.source)
+            path = manager.target.platform.Path(args.source)
+            length = path.stat().st_size
             started = time.time()
             with progress:
                 task_id = progress.add_task(
                     "download", filename=args.source, total=length, start=False
                 )
                 with open(args.destination, "wb") as destination:
-                    with pwncat.victim.open(args.source, "rb", length=length) as source:
+                    with path.open("rb") as source:
                         progress.start_task(task_id)
                         util.copyfileobj(
                             source,

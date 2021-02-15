@@ -30,6 +30,7 @@ class Socket(Channel):
 
         super().__init__(**kwargs)
 
+        self._connected = True
         self.client = client
         self.address = (host, port)
 
@@ -37,9 +38,13 @@ class Socket(Channel):
         self.client.setblocking(False)
         fcntl.fcntl(self.client, fcntl.F_SETFL, os.O_NONBLOCK)
 
+    @property
+    def connected(self):
+        return self._connected
+
     def send(self, data: bytes):
-        """ Send data to the remote shell. This is a blocking call
-        that only returns after all data is sent. """
+        """Send data to the remote shell. This is a blocking call
+        that only returns after all data is sent."""
 
         try:
             written = 0
@@ -49,12 +54,13 @@ class Socket(Channel):
                 except BlockingIOError:
                     pass
         except BrokenPipeError as exc:
+            self._connected = False
             raise ChannelClosed(self) from exc
 
         return len(data)
 
     def recv(self, count: Optional[int] = None) -> bytes:
-        """ Receive data from the remote shell
+        """Receive data from the remote shell
 
         If your channel class does not implement ``peak``, a default
         implementation is provided. In this case, you can use the
@@ -80,10 +86,11 @@ class Socket(Channel):
             if exc.args[0] == errno.EAGAIN or exc.args[0] == errno.EWOULDBLOCK:
                 return data
 
+            self._connected = False
             raise ChannelClosed(self) from exc
 
     def peek(self, count: Optional[int] = None):
-        """ Receive data from the remote shell and leave
+        """Receive data from the remote shell and leave
         the data in the recv buffer.
 
         There is a default implementation for this method which will
@@ -109,7 +116,12 @@ class Socket(Channel):
             if exc.args[0] == errno.EAGAIN or exc.args[0] == errno.EWOULDBLOCK:
                 return data
 
+            self._connected = False
             raise ChannelClosed(self) from exc
+
+    def close(self):
+        self._connected = False
+        self.client.close()
 
     def fileno(self):
         return self.client.fileno()

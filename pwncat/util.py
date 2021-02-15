@@ -29,6 +29,8 @@ CTRL_C = b"\x03"
 
 ALPHANUMERIC = string.ascii_letters + string.digits
 
+STORED_TERM_STATE = []
+
 
 class State(Enum):
     """ The current PtyHandler state """
@@ -90,6 +92,12 @@ class CompilationError(Exception):
             return f"No working local or remote compiler found"
         else:
             return f"Error during compilation of source files"
+
+
+class RawModeExit(Exception):
+    """Indicates that the user would like to exit the raw mode
+    shell. This is normally raised when the user presses the
+    <prefix>+<C-d> key combination to return to the local prompt."""
 
 
 def isprintable(data) -> bool:
@@ -247,7 +255,7 @@ def random_string(length: int = 8):
     )
 
 
-def enter_raw_mode():
+def enter_raw_mode(non_block=True):
     """Set stdin/stdout to raw mode to pass data directly.
 
     returns: the old state of the terminal
@@ -276,8 +284,11 @@ def enter_raw_mode():
 
     # Remove ECHO from lflag and ensure we won't block
     new[3] &= ~(termios.ECHO | termios.ICANON)
-    new[6][termios.VMIN] = 0
-    new[6][termios.VTIME] = 0
+
+    if non_block:
+        new[6][termios.VMIN] = 0
+        new[6][termios.VTIME] = 0
+
     termios.tcsetattr(fild, termios.TCSADRAIN, new)
 
     # Set raw mode
@@ -287,6 +298,32 @@ def enter_raw_mode():
     fcntl.fcntl(sys.stdin, fcntl.F_SETFL, orig_fl)
 
     return old, orig_fl
+
+
+def push_term_state():
+    """Save the current terminal state on our state stack
+    so we can easily return to the current state."""
+
+    # We save the termios settings and flags
+    STORED_TERM_STATE.append(
+        (
+            sys.stdin,
+            termios.tcgetattr(sys.stdin.fileno()),
+            fcntl.fcntl(sys.stdin, fcntl.F_GETFL),
+        )
+    )
+
+
+def pop_term_state():
+    """
+    Return the terminal to the state that was last pushed
+    """
+
+    try:
+        state = STORED_TERM_STATE.pop()
+        restore_terminal(state[1:])
+    except:
+        pass
 
 
 def restore_terminal(state, new_line=True):

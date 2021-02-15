@@ -85,16 +85,19 @@ class Ssh(Channel):
         self.client = chan
         self.address = (host, port)
 
+    def close(self):
+        self.client.close()
+
     def send(self, data: bytes):
-        """ Send data to the remote shell. This is a blocking call
-        that only returns after all data is sent. """
+        """Send data to the remote shell. This is a blocking call
+        that only returns after all data is sent."""
 
         self.client.sendall(data)
 
         return len(data)
 
     def recv(self, count: Optional[int] = None) -> bytes:
-        """ Receive data from the remote shell
+        """Receive data from the remote shell
 
         If your channel class does not implement ``peak``, a default
         implementation is provided. In this case, you can use the

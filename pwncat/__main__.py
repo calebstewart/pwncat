@@ -6,28 +6,19 @@ import shlex
 import sys
 import warnings
 import os
+import argparse
 from pathlib import Path
-import inspect
 
 from sqlalchemy import exc as sa_exc
 from sqlalchemy.exc import InvalidRequestError
 from paramiko.buffered_pipe import BufferedPipe
 
-import pwncat
+import pwncat.manager
 from pwncat.util import console
-from pwncat.remote import Victim
-from pwncat.db import get_session
+from pwncat.commands import connect
 
 
 def main():
-
-    params = inspect.signature(BufferedPipe.read).parameters
-
-    if "flags" not in params:
-        console.log(
-            f"[red]error[/red]: pwncat requires a custom fork of paramiko. This can be installed with `pip install -U git+https://github.com/calebstewart/paramiko`"
-        )
-        sys.exit(1)
 
     # Ignore SQL Alchemy warnings
     with warnings.catch_warnings():
@@ -36,87 +27,142 @@ def main():
         # Default log-level is "INFO"
         logging.getLogger().setLevel(logging.INFO)
 
-        # Build the victim object
-        pwncat.victim = Victim()
-
-        # Find the user configuration
-        config_path = (
-            Path(os.environ.get("XDG_CONFIG_HOME", "~/.config/"))
-            / "pwncat"
-            / "pwncatrc"
+        parser = argparse.ArgumentParser()
+        parser.add_argument(
+            "--config",
+            "-c",
+            type=argparse.FileType("r"),
+            default="./pwncatrc",
+            help="Custom configuration file (default: ./pwncatrc)",
         )
-        config_path = config_path.expanduser()
-
-        try:
-            # Read the config script
-            with config_path.open("r") as filp:
-                script = filp.read()
-
-            # Run the script
-            pwncat.parser.eval(script, str(config_path))
-        except (FileNotFoundError, PermissionError):
-            # The config doesn't exist
-            pass
-
-        # Arguments to `pwncat` are considered arguments to `connect`
-        # We use the `prog_name` argument to make the help for "connect"
-        # display "pwncat" in the usage. This is just a visual fix, and
-        # isn't used anywhere else.
-        pwncat.parser.dispatch_line(
-            shlex.join(["connect"] + sys.argv[1:]), prog_name="pwncat"
+        parser.add_argument(
+            "--identity",
+            "-i",
+            type=argparse.FileType("r"),
+            default=None,
+            help="Private key for SSH authentication",
         )
-
-        # Only continue if we successfully connected
-        if not pwncat.victim.connected:
-            sys.exit(0)
-
-        # Make stdin unbuffered. Without doing this, some key sequences
-        # which are multi-byte don't get sent properly (e.g. up and left
-        # arrow keys)
-        sys.stdin = TextIOWrapper(
-            os.fdopen(sys.stdin.fileno(), "br", buffering=0),
-            write_through=True,
-            line_buffering=False,
+        parser.add_argument(
+            "--listen",
+            "-l",
+            action="store_true",
+            help="Enable the `bind` protocol (supports netcat-style syntax)",
         )
+        parser.add_argument(
+            "--platform", "-m", help="Name of the platform to use (default: linux)"
+        )
+        parser.add_argument(
+            "--port",
+            "-p",
+            help="Alternative way to specify port to support netcat-style syntax",
+        )
+        parser.add_argument(
+            "--list",
+            action="store_true",
+            help="List known hosts and any installed persistence",
+        )
+        parser.add_argument(
+            "connection_string",
+            metavar="[protocol://][user[:password]@][host][:port]",
+            help="Connection string describing victim",
+            nargs="?",
+        )
+        parser.add_argument(
+            "pos_port",
+            nargs="?",
+            metavar="port",
+            help="Alternative port number to support netcat-style syntax",
+        )
+        args = parser.parse_args()
 
-        # Setup the selector to wait for data asynchronously from both streams
-        selector = selectors.DefaultSelector()
-        selector.register(sys.stdin, selectors.EVENT_READ, None)
-        selector.register(pwncat.victim.client, selectors.EVENT_READ, "read")
+        # Create the session manager
+        manager = pwncat.manager.Manager(args.config)
 
-        # Initialize our state
-        done = False
+        if args.list:
 
-        try:
-            # This loop is only used to funnel data between the local
-            # and remote hosts when in raw mode. During the `pwncat`
-            # prompt, the main loop is handled by the CommandParser
-            # class `run` method.
-            while not done:
-                for k, _ in selector.select():
-                    if k.fileobj is sys.stdin:
-                        data = sys.stdin.buffer.read(64)
-                        pwncat.victim.process_input(data)
-                    else:
-                        data = pwncat.victim.recv()
-                        if data is None or len(data) == 0:
-                            done = True
-                            break
-                        sys.stdout.buffer.write(data)
-                        sys.stdout.flush()
-        except ConnectionResetError:
-            pwncat.victim.restore_local_term()
-            console.log("[yellow]warning[/yellow]: connection reset by remote host")
-        except SystemExit:
-            console.log("closing connection")
-        finally:
-            # Restore the shell
-            pwncat.victim.restore_local_term()
-            try:
-                # Make sure everything was committed
-                get_session().commit()
-            except InvalidRequestError:
-                pass
+            with manager.new_db_session() as db:
+                hosts = {
+                    host.hash: (host, []) for host in db.query(pwncat.db.Host).all()
+                }
+
+            for host_hash, (host, modules) in hosts.items():
+                console.print(
+                    f"[magenta]{host.ip}[/magenta] - "
+                    f"[red]{host.distro}[/red] - "
+                    f"[yellow]{host_hash}[/yellow]"
+                )
+                for module in modules:
+                    console.print(f"  - {str(module)}")
+
+            return
+
+        if (
+            args.connection_string is not None
+            or args.pos_port is not None
+            or args.port is not None
+            or args.platform is not None
+            or args.listen is not None
+            or args.identity is not None
+        ):
+            protocol = None
+            user = None
+            password = None
+            host = None
+            port = None
+            try_reconnect = False
+
+            if args.connection_string:
+                m = connect.Command.CONNECTION_PATTERN.match(args.connection_string)
+                protocol = m.group("protocol")
+                user = m.group("user")
+                password = m.group("password")
+                host = m.group("host")
+                port = m.group("port")
+
+            if protocol is not None and args.listen:
+                console.log(
+                    f"[red]error[/red]: --listen is not compatible with an explicit connection string"
+                )
+                return
+
+            if (
+                sum(
+                    [port is not None, args.port is not None, args.pos_port is not None]
+                )
+                > 1
+            ):
+                console.log(f"[red]error[/red]: multiple ports specified")
+                return
+
+            if args.port is not None:
+                port = args.port
+            if args.pos_port is not None:
+                port = args.pos_port
+
+            if port is not None:
+                try:
+                    port = int(port.lstrip(":"))
+                except:
+                    console.log(f"[red]error[/red]: {port}: invalid port number")
+                    return
+
+            if protocol != "ssh://" and args.identity is not None:
+                console.log(
+                    f"[red]error[/red]: --identity is only valid for ssh protocols"
+                )
+                return
+
+            manager.create_session(
+                platform=args.platform,
+                protocol=protocol,
+                user=user,
+                password=password,
+                host=host,
+                port=port,
+                identity=args.identity,
+            )
+
+        manager.interactive()
 
 
 if __name__ == "__main__":

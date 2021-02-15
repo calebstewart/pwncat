@@ -27,7 +27,9 @@ class Command(CommandDefinition):
     PROG = "set"
     ARGS = {
         "--password,-p": Parameter(
-            Complete.NONE, action="store_true", help="set a user password",
+            Complete.NONE,
+            action="store_true",
+            help="set a user password",
         ),
         "--global,-g": Parameter(
             Complete.NONE,
@@ -50,6 +52,10 @@ class Command(CommandDefinition):
 
     def run(self, manager, args):
         if args.password:
+            manager.log(
+                "[red]error[/red]: user interaction not supported in new framework (yet)"
+            )
+            return
             if args.variable is None:
                 found = False
                 for name, user in pwncat.victim.users.items():

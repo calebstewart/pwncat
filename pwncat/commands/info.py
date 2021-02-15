@@ -13,7 +13,10 @@ class Command(CommandDefinition):
     """ View info about a module """
 
     def get_module_choices(self):
-        yield from [module.name for module in pwncat.modules.match("*")]
+        if self.manager.target is None:
+            return
+
+        yield from [module.name for module in self.manager.target.find_module("*")]
 
     PROG = "info"
     ARGS = {
@@ -26,20 +29,20 @@ class Command(CommandDefinition):
         )
     }
 
-    def run(self, args):
+    def run(self, manager: "pwncat.manager.Manager", args):
 
-        if not args.module and pwncat.config.module is None:
+        if not args.module and manager.config.module is None:
             console.log("[red]error[/red]: no module specified")
             return
 
         if args.module:
             try:
-                module = pwncat.modules.find(args.module)
-            except KeyError:
+                module = list(manager.target.find_module(args.module, exact=True))[0]
+            except IndexError:
                 console.log(f"[red]error[/red]: {args.module}: no such module")
                 return
         else:
-            module = pwncat.config.module
+            module = manager.config.module
 
         console.print(
             f"[bold underline]Module [cyan]{module.name}[/cyan][/bold underline]"

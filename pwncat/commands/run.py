@@ -23,7 +23,10 @@ class Command(CommandDefinition):
     """
 
     def get_module_choices(self):
-        yield from [module.name for module in pwncat.modules.match("*")]
+        if self.manager.target is None:
+            return
+
+        yield from [module.name for module in self.manager.target.find_module("*")]
 
     PROG = "run"
     ARGS = {
@@ -43,13 +46,15 @@ class Command(CommandDefinition):
         "args": Parameter(Complete.NONE, nargs="*", help="Module arguments"),
     }
 
-    def run(self, args):
+    def run(self, manager: "pwncat.manager.Manager", args):
 
-        if args.module is None and pwncat.config.module is None:
+        module_name = args.module
+
+        if args.module is None and manager.config.module is None:
             console.log("[red]error[/red]: no module specified")
             return
         elif args.module is None:
-            args.module = pwncat.config.module.name
+            module_name = manager.config.module.name
 
         # Parse key=value pairs
         values = {}
@@ -61,12 +66,14 @@ class Command(CommandDefinition):
                 values[name] = value
 
         # pwncat.config.locals.update(values)
-        config_values = pwncat.config.locals.copy()
+        config_values = manager.config.locals.copy()
         config_values.update(values)
 
         try:
-            result = pwncat.modules.run(args.module, **config_values)
-            pwncat.config.back()
+            result = manager.target.run(module_name, **config_values)
+
+            if args.module is None:
+                manager.config.back()
         except pwncat.modules.ModuleFailed as exc:
             if args.traceback:
                 console.print_exception()
@@ -74,7 +81,7 @@ class Command(CommandDefinition):
                 console.log(f"[red]error[/red]: module failed: {exc}")
             return
         except pwncat.modules.ModuleNotFound:
-            console.log(f"[red]error[/red]: {args.module}: not found")
+            console.log(f"[red]error[/red]: {module_name}: not found")
             return
         except pwncat.modules.ArgumentFormatError as exc:
             console.log(f"[red]error[/red]: {exc}: invalid argument")
@@ -91,12 +98,12 @@ class Command(CommandDefinition):
         else:
 
             if result is None or (isinstance(result, list) and not result):
-                console.log(f"Module [bold]{args.module}[/bold] completed successfully")
+                console.log(f"Module [bold]{module_name}[/bold] completed successfully")
                 return
 
             if not isinstance(result, list):
                 result = [result]
-            self.display_item(title=args.module, results=result)
+            self.display_item(title=module_name, results=result)
 
     def display_item(self, title, results):
         """ Display a possibly complex item """

