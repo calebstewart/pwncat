@@ -268,14 +268,19 @@ class Manager:
 
         # Load local configuration script
         if isinstance(config, str):
-            try:
-                with open(config) as filp:
-                    self.parser.eval(filp.read(), config)
-            except (FileNotFoundError, PermissionError):
-                pass
+            with open(config) as filp:
+                self.parser.eval(filp.read(), config)
         elif config is not None:
             self.parser.eval(config.read(), config.name)
             config.close()
+        else:
+            try:
+                # If no config is specified, attempt to load `./pwncatrc`
+                # but don't fail if it doesn't exist.
+                with open("./pwncatrc") as filp:
+                    self.parser.eval(filp.read(), "./pwncatrc")
+            except (FileNotFoundError, PermissionError):
+                pass
 
     def open_database(self):
         """Create the internal engine and session builder

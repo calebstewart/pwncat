@@ -32,7 +32,7 @@ def main():
             "--config",
             "-c",
             type=argparse.FileType("r"),
-            default="./pwncatrc",
+            default=None,
             help="Custom configuration file (default: ./pwncatrc)",
         )
         parser.add_argument(
