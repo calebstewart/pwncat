@@ -76,93 +76,97 @@ def main():
         args = parser.parse_args()
 
         # Create the session manager
-        manager = pwncat.manager.Manager(args.config)
+        with pwncat.manager.Manager(args.config) as manager:
 
-        if args.list:
+            if args.list:
 
-            with manager.new_db_session() as db:
-                hosts = {
-                    host.hash: (host, []) for host in db.query(pwncat.db.Host).all()
-                }
+                with manager.new_db_session() as db:
+                    hosts = {
+                        host.hash: (host, []) for host in db.query(pwncat.db.Host).all()
+                    }
 
-            for host_hash, (host, modules) in hosts.items():
-                console.print(
-                    f"[magenta]{host.ip}[/magenta] - "
-                    f"[red]{host.distro}[/red] - "
-                    f"[yellow]{host_hash}[/yellow]"
-                )
-                for module in modules:
-                    console.print(f"  - {str(module)}")
+                for host_hash, (host, modules) in hosts.items():
+                    console.print(
+                        f"[magenta]{host.ip}[/magenta] - "
+                        f"[red]{host.distro}[/red] - "
+                        f"[yellow]{host_hash}[/yellow]"
+                    )
+                    for module in modules:
+                        console.print(f"  - {str(module)}")
 
-            return
-
-        if (
-            args.connection_string is not None
-            or args.pos_port is not None
-            or args.port is not None
-            or args.platform is not None
-            or args.listen is not None
-            or args.identity is not None
-        ):
-            protocol = None
-            user = None
-            password = None
-            host = None
-            port = None
-            try_reconnect = False
-
-            if args.connection_string:
-                m = connect.Command.CONNECTION_PATTERN.match(args.connection_string)
-                protocol = m.group("protocol")
-                user = m.group("user")
-                password = m.group("password")
-                host = m.group("host")
-                port = m.group("port")
-
-            if protocol is not None and args.listen:
-                console.log(
-                    f"[red]error[/red]: --listen is not compatible with an explicit connection string"
-                )
                 return
 
             if (
-                sum(
-                    [port is not None, args.port is not None, args.pos_port is not None]
-                )
-                > 1
+                args.connection_string is not None
+                or args.pos_port is not None
+                or args.port is not None
+                or args.platform is not None
+                or args.listen is not None
+                or args.identity is not None
             ):
-                console.log(f"[red]error[/red]: multiple ports specified")
-                return
+                protocol = None
+                user = None
+                password = None
+                host = None
+                port = None
+                try_reconnect = False
 
-            if args.port is not None:
-                port = args.port
-            if args.pos_port is not None:
-                port = args.pos_port
+                if args.connection_string:
+                    m = connect.Command.CONNECTION_PATTERN.match(args.connection_string)
+                    protocol = m.group("protocol")
+                    user = m.group("user")
+                    password = m.group("password")
+                    host = m.group("host")
+                    port = m.group("port")
 
-            if port is not None:
-                try:
-                    port = int(port.lstrip(":"))
-                except:
-                    console.log(f"[red]error[/red]: {port}: invalid port number")
+                if protocol is not None and args.listen:
+                    console.log(
+                        f"[red]error[/red]: --listen is not compatible with an explicit connection string"
+                    )
                     return
 
-            if protocol != "ssh://" and args.identity is not None:
-                console.log(
-                    f"[red]error[/red]: --identity is only valid for ssh protocols"
+                if (
+                    sum(
+                        [
+                            port is not None,
+                            args.port is not None,
+                            args.pos_port is not None,
+                        ]
+                    )
+                    > 1
+                ):
+                    console.log(f"[red]error[/red]: multiple ports specified")
+                    return
+
+                if args.port is not None:
+                    port = args.port
+                if args.pos_port is not None:
+                    port = args.pos_port
+
+                if port is not None:
+                    try:
+                        port = int(port.lstrip(":"))
+                    except:
+                        console.log(f"[red]error[/red]: {port}: invalid port number")
+                        return
+
+                if protocol != "ssh://" and args.identity is not None:
+                    console.log(
+                        f"[red]error[/red]: --identity is only valid for ssh protocols"
+                    )
+                    return
+
+                manager.create_session(
+                    platform=args.platform,
+                    protocol=protocol,
+                    user=user,
+                    password=password,
+                    host=host,
+                    port=port,
+                    identity=args.identity,
                 )
-                return
 
-            manager.create_session(
-                platform=args.platform,
-                protocol=protocol,
-                user=user,
-                password=password,
-                host=host,
-                port=port,
-                identity=args.identity,
-            )
-
-        manager.interactive()
+            manager.interactive()
 
 
 if __name__ == "__main__":

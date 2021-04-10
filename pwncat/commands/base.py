@@ -13,7 +13,7 @@ import pwncat
 class Complete(Enum):
     """
     Command argument completion options
-    
+
     """
 
     # Complete from the choices array in kwargs
@@ -31,8 +31,8 @@ class Complete(Enum):
 
 
 class StoreConstOnce(argparse.Action):
-    """ Only allow the user to store a value in the destination once. This prevents
-    users from selection multiple actions in the privesc parser. """
+    """Only allow the user to store a value in the destination once. This prevents
+    users from selection multiple actions in the privesc parser."""
 
     def __call__(self, parser, namespace, values, option_string=None):
         if hasattr(self, "__" + self.dest + "_seen"):
@@ -42,18 +42,19 @@ class StoreConstOnce(argparse.Action):
 
 
 def StoreForAction(action: List[str]) -> Callable:
-    """ Generates a custom argparse Action subclass which verifies that the current
+    """Generates a custom argparse Action subclass which verifies that the current
     selected "action" option is one of the provided actions in this function. If
-    not, an error is raised. """
+    not, an error is raised."""
 
     class StoreFor(argparse.Action):
-        """ Store the value if the currently selected action matches the list of
-        actions passed to this function. """
+        """Store the value if the currently selected action matches the list of
+        actions passed to this function."""
 
         def __call__(self, parser, namespace, values, option_string=None):
             if getattr(namespace, "action", None) not in action:
                 raise argparse.ArgumentError(
-                    self, f"{option_string}: only valid for {action}",
+                    self,
+                    f"{option_string}: only valid for {action}",
                 )
 
             setattr(namespace, self.dest, values)
@@ -62,20 +63,21 @@ def StoreForAction(action: List[str]) -> Callable:
 
 
 def StoreConstForAction(action: List[str]) -> Callable:
-    """ Generates a custom argparse Action subclass which verifies that the current
+    """Generates a custom argparse Action subclass which verifies that the current
     selected "action" option is one of the provided actions in this function. If
     not, an error is raised. This stores the constant `const` to the `dest` argument.
     This is comparable to `store_const`, but checks that you have selected one of
-    the specified actions. """
+    the specified actions."""
 
     class StoreFor(argparse.Action):
-        """ Store the value if the currently selected action matches the list of
-        actions passed to this function. """
+        """Store the value if the currently selected action matches the list of
+        actions passed to this function."""
 
         def __call__(self, parser, namespace, values, option_string=None):
             if getattr(namespace, "action", None) not in action:
                 raise argparse.ArgumentError(
-                    self, f"{option_string}: only valid for {action}",
+                    self,
+                    f"{option_string}: only valid for {action}",
                 )
 
             setattr(namespace, self.dest, self.const)
@@ -85,9 +87,9 @@ def StoreConstForAction(action: List[str]) -> Callable:
 
 def RemoteFileType(file_exist=True, directory_exist=False):
     def _type(command: "CommandDefinition", name: str):
-        """ Ensures that the remote file named exists. This should only be used for 
+        """Ensures that the remote file named exists. This should only be used for
         arguments which represent files on the remote system which should be viewable
-        by the running user (e.g. not helpful for privesc methods). """
+        by the running user (e.g. not helpful for privesc methods)."""
 
         # Attempt to find the "test" command
         test = pwncat.victim.which("test")
@@ -120,7 +122,7 @@ def RemoteFileType(file_exist=True, directory_exist=False):
 
 
 class Parameter:
-    """ Generic parameter definition for commands.
+    """Generic parameter definition for commands.
 
     This isn't in use yet, but I'd like to transition to this as it's:
 
@@ -141,7 +143,12 @@ class Parameter:
     """
 
     def __init__(
-        self, complete: Complete, token=Name.Label, group: str = None, *args, **kwargs,
+        self,
+        complete: Complete,
+        token=Name.Label,
+        group: str = None,
+        *args,
+        **kwargs,
     ):
         self.complete = complete
         self.token = token
@@ -212,8 +219,8 @@ class CommandDefinition:
     # }
 
     def __init__(self, manager: "pwncat.manager.Manager"):
-        """ Initialize a new command instance. Parse the local arguments array
-        into an argparse object. """
+        """Initialize a new command instance. Parse the local arguments array
+        into an argparse object."""
 
         self.manager = manager
 
@@ -248,7 +255,7 @@ class CommandDefinition:
         """
         Parse the ARGS and DEFAULTS dictionaries to build an argparse ArgumentParser
         for this command. You should not need to overload this.
-        
+
         :param parser: the parser object to add arguments to
         :param args: the ARGS dictionary
         """

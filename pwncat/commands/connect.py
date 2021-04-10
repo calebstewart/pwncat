@@ -19,8 +19,7 @@ from pwncat.commands.base import (
     StoreConstOnce,
 )
 
-# from pwncat.persist import PersistenceError
-from pwncat.modules.persist import PersistError
+from pwncat.modules import PersistError
 from pwncat.db import get_session
 
 

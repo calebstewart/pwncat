@@ -22,26 +22,32 @@ class Bind(Socket):
             host = "0.0.0.0"
 
         if port is None:
-            raise ChannelError(f"no port specified")
+            raise ChannelError(self, f"no port specified")
+
+        super().__init__(client=None, host=host, port=port, **kwargs)
+
+        self.address = (host, port)
+        self.server = socket.create_server((host, port), reuse_port=True)
+
+    def connect(self):
 
         with Progress(
-            f"bound to [blue]{host}[/blue]:[cyan]{port}[/cyan]",
+            f"bound to [blue]{self.host}[/blue]:[cyan]{self.port}[/cyan]",
             BarColumn(bar_width=None),
             transient=True,
         ) as progress:
             task_id = progress.add_task("listening", total=1, start=False)
-            # Create the socket server
-            server = socket.create_server((host, port), reuse_port=True)
 
             try:
                 # Wait for a connection
-                (client, address) = server.accept()
+                (client, address) = self.server.accept()
+                self._socket_connected(client)
             except KeyboardInterrupt:
-                raise ChannelError("listener aborted")
+                raise ChannelError(self, "listener aborted")
+            finally:
+                self.server.close()
 
             progress.update(task_id, visible=False)
             progress.log(
                 f"[green]received[/green] connection from [blue]{address[0]}[/blue]:[cyan]{address[1]}[/cyan]"
             )
-
-        super().__init__(client=client, host=host, port=port, **kwargs)

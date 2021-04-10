@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from typing import Any, Dict, List, Union
 import ipaddress
+import copy
 import re
 import os
 
@@ -57,6 +58,20 @@ def local_dir_type(value: str) -> str:
     return value
 
 
+def bool_type(value: str) -> bool:
+
+    if isinstance(value, bool):
+        return value
+
+    value = value.lower()
+    if value == "1" or value == "true" or value == "on":
+        return True
+    elif value == "0" or value == "false" or value == "off":
+        return False
+
+    raise ValueError(f"{value}: expected boolean value")
+
+
 class Config:
     def __init__(self):
 
@@ -74,6 +89,7 @@ class Config:
             "db": {"value": "sqlite:///:memory:", "type": str},
             "cross": {"value": None, "type": str},
             "psmodules": {"value": ".", "type": local_dir_type},
+            "verbose": {"value": False, "type": bool_type},
         }
 
         # Locals are set per-used-module
@@ -87,6 +103,20 @@ class Config:
             KeyType("s"): "sync",
             KeyType("c"): "set state command",
         }
+
+    def copy(self) -> "Config":
+        """Copy this configuration object exactly. This is mainly used
+        to allow for the possibility of running modules in the background
+        without being affected by future configuration changes."""
+
+        new = Config()
+
+        new.values = copy.copy(self.values)
+        new.locals = copy.copy(self.locals)
+        new.module = self.module
+        new.bindings = copy.copy(self.bindings)
+
+        return new
 
     def binding(self, name_or_value: Union[str, bytes]) -> str:
         """ Get a key binding by it's key name or key value. """

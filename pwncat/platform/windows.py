@@ -356,22 +356,17 @@ class Windows(Platform):
     powershell for this platform to function, and the channel must be
     established with an open powershell session."""
 
+    name = "windows"
     PATH_TYPE = pathlib.PureWindowsPath
-    LIBRARY_IMPORTS = {
-        "Kernel32": [
-            "IntPtr GetStdHandle(int nStdHandle)",
-            "bool GetConsoleMode(IntPtr hConsoleHandle, out uint lpMode)",
-            "bool SetConsoleMode(IntPtr hConsoleHandle, uint lpMode)",
-        ]
-    }
 
     def __init__(
         self,
         session: "pwncat.session.Session",
         channel: pwncat.channel.Channel,
-        log: str = None,
+        *args,
+        **kwargs,
     ):
-        super().__init__(session, channel, log)
+        super().__init__(session, channel, *args, **kwargs)
 
         self.name = "windows"
 
@@ -860,7 +855,7 @@ class Windows(Platform):
 
         try:
             result = self.powershell(f'Get-ChildItem -Force -Path "{path}" | Select ')
-            return result[0] if len(result) else []
+            return [r["Name"] for r in (result[0] if len(result) else [])]
         except PowershellError as exc:
             if "not exist" in str(exc):
                 raise FileNotFoundError(path)
@@ -949,10 +944,12 @@ class Windows(Platform):
 
         if result.st_file_attributes & stat.FILE_ATTRIBUTE_DEVICE:
             result.st_mode |= stat.S_IFBLK
-        if result.st_file_attributes & stat.FILE_ATTRIBUTE_DEVICE:
+        if result.st_file_attributes & stat.FILE_ATTRIBUTE_DIRECTORY:
             result.st_mode |= stat.S_IFDIR
-        if result.st_file_attributes & stat.FILE_ATTRIBUTE_DEVICE:
+        if result.st_file_attributes & stat.FILE_ATTRIBUTE_NORMAL:
             result.st_mode |= stat.S_IFREG
+        elif result.st_file_attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT:
+            result.st_mode |= stat.S_IFLNK
 
         return result
 

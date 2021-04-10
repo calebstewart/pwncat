@@ -72,11 +72,13 @@ class PopenLinux(pwncat.subprocess.Popen):
 
         # Create the writer-pipe if requested
         if stdin == pwncat.subprocess.PIPE:
-            self.stdin = platform.channel.makefile("w")
+            self.stdin_raw = platform.channel.makefile("w")
             if text or encoding is not None or errors is not None:
                 self.stdin = TextIOWrapper(
-                    self.stdin, encoding=encoding, errors=errors, write_through=True
+                    self.stdin_raw, encoding=encoding, errors=errors, write_through=True
                 )
+            else:
+                self.stdin = self.stdin_raw
 
     def detach(self):
 
@@ -99,19 +101,30 @@ class PopenLinux(pwncat.subprocess.Popen):
         if self.stdin is not None:
             self.stdin.flush()
 
-        # Drain buffer, don't wait for more data. The user didn't ask
-        # for the data with `stdout=PIPE`, so we can safely ignore it.
-        # This returns true if we hit EOF
+        # This gets a 'lil... funky... Normally, the ChannelFile
+        # wraps a non-blocking socket in a blocking file object
+        # because this what we normally we want and allows us
+        # to implement our own timeouts. However, here we want
+        # a non-blocking call to check for EOF, so we set the
+        # internal ``blocking`` flag to False which can cause
+        # a `BlockingIOError` caught below. We need to do this
+        # in a nested `try-finaly` so we gaurantee catching it
+        # and resetting the flag before calling `_receive_returncode`.
         try:
-            if (
-                self.stdout_raw.peek(len(self.end_delim)) == b""
-                and self.stdout_raw.raw.eof
-            ):
+            try:
+                self.stdout_raw.raw.blocking = False
+                result = self.stdout_raw.peek(len(self.end_delim))
+            finally:
+                self.stdout_raw.raw.blocking = False
+
+            if result == b"" and self.stdout_raw.raw.eof:
                 self._receive_returncode()
                 return self.returncode
         except ValueError:
             self._receive_returncode()
             return self.returncode
+        except BlockingIOError:
+            return None
 
     def wait(self, timeout: float = None):
 
@@ -147,17 +160,20 @@ class PopenLinux(pwncat.subprocess.Popen):
         data = None
 
         while self.poll() is None:
-            if end_time is not None and time.time() >= end_time:
-                raise TimeoutExpired(self.args, timeout, data)
-            if self.stdout is not None and data is None:
-                data = self.stdout.read(4096)
-            elif self.stdout is not None:
-                new_data = self.stdout.read(4096)
-                if new_data is not None:
-                    data += new_data
-            else:
-                # A pipe wasn't requested. Don't buffer the data.
-                self.stdout_raw.read1(4096)
+            try:
+                if end_time is not None and time.time() >= end_time:
+                    raise TimeoutExpired(self.args, timeout, data)
+                if self.stdout is not None and data is None:
+                    data = self.stdout.read(4096)
+                elif self.stdout is not None:
+                    new_data = self.stdout.read(4096)
+                    if new_data is not None:
+                        data += new_data
+                else:
+                    # A pipe wasn't requested. Don't buffer the data.
+                    self.stdout_raw.read1(4096)
+            except BlockingIOError:
+                time.sleep(0.1)
 
         return (data, None)
 
@@ -202,11 +218,12 @@ class LinuxReader(BufferedIOBase):
     remote file.
     """
 
-    def __init__(self, popen, on_close=None):
+    def __init__(self, popen, on_close=None, name: str = None):
         super().__init__()
 
         self.popen = popen
         self.on_close = on_close
+        self.name = name
 
     def readable(self):
         if self.popen is None:
@@ -282,7 +299,7 @@ class LinuxReader(BufferedIOBase):
 
         try:
             self.popen.wait(timeout=0.1)
-        except TimeoutError:
+        except TimeoutExpired:
             self.popen.terminate()
             self.popen.wait()
 
@@ -325,13 +342,14 @@ class LinuxWriter(BufferedIOBase):
         0x7F,
     ]
 
-    def __init__(self, popen, on_close=None):
+    def __init__(self, popen, on_close=None, name: str = None):
         super().__init__()
 
         self.popen = popen
         self.last_byte = None
         self.since_newline = 0
         self.on_close = on_close
+        self.name = name
 
     def readable(self):
         return False
@@ -431,10 +449,11 @@ class Linux(Platform):
     information on the implemented methods and interface definition.
     """
 
+    name = "linux"
     PATH_TYPE = pathlib.PurePosixPath
 
-    def __init__(self, session, channel: pwncat.channel.Channel, log: str = None):
-        super().__init__(session, channel, log)
+    def __init__(self, session, channel: pwncat.channel.Channel, *args, **kwargs):
+        super().__init__(session, channel, *args, **kwargs)
 
         # Name of this platform. This stored in the database and used
         # to match modules to this platform.
@@ -454,6 +473,29 @@ class Linux(Platform):
 
         # Ensure history is disabled
         self.disable_history()
+
+        # List of paths that should basically always be in our PATH
+        wanted_paths = [
+            "/bin",
+            "/usr/bin",
+            "/usr/local/bin",
+            "/sbin",
+            "/usr/sbin",
+            "/usr/local/sbin",
+        ]
+
+        # Build a good PATH
+        remote_path = [p for p in self.getenv("PATH").split(":") if p != ""]
+        normalized = False
+        for p in wanted_paths:
+            if p not in remote_path:
+                remote_path.append(p)
+                normalized = True
+
+        if normalized:
+            # Set the path
+            self.session.log("normalizing shell path")
+            self.setenv("PATH", ":".join(remote_path), export=True)
 
         p = self.Popen("[ -t 1 ]")
         if p.wait() == 0:
@@ -628,36 +670,39 @@ class Linux(Platform):
                     return result
             return None
 
-        p = self.Popen(
-            ["which", name],
-            encoding="utf-8",
-            stderr=pwncat.subprocess.DEVNULL,
-            stdout=pwncat.subprocess.PIPE,
-        )
-        stdout, _ = p.communicate()
+        try:
+            result = self.run(["which", name], text=True, capture_output=True)
 
-        if p.returncode != 0:
+            if quote:
+                return shlex.quote(result.stdout.rstrip("\n"))
+            return result.stdout.rstrip("\n")
+        except CalledProcessError:
             return None
-
-        stdout = stdout.strip()
-
-        if stdout == "":
-            return None
-
-        if quote:
-            return shlex.quote(stdout)
-
-        return stdout
 
     def getenv(self, name: str):
 
         try:
-            proc = self.run(
-                ["echo", f"${name}"], capture_output=True, text=True, check=True
-            )
+            proc = self.run(f"echo ${name}", capture_output=True, text=True, check=True)
             return proc.stdout.rstrip("\n")
         except CalledProcessError:
             return ""
+
+    def setenv(self, name: str, value: str, export: bool = False):
+        """Set an environment variable in the shell.
+
+        :param name: the name of the environment variable
+        :type name: a string representing a valid shell variable name
+        :param value: the value of the variable
+        :type value: str
+        :param export: whether to export the new value
+        :type export: bool
+        """
+
+        command = []
+        if export:
+            command.append("export")
+        command.append(f"{pwncat.util.quote(name)}={pwncat.util.quote(value)}")
+        proc = self.run(command, capture_output=False, check=True)
 
     def compile(
         self,
@@ -813,6 +858,17 @@ class Linux(Platform):
           NotADirectoryError: the specified path is not a directory
         """
 
+        try:
+            proc = self.run(
+                f'pwd ; cd "{path}"',
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+            return proc.stdout.strip()
+        except CalledProcessError as exc:
+            raise FileNotFoundError(str(path))
+
     def open(
         self,
         path: Union[str, Path],
@@ -886,6 +942,7 @@ class Linux(Platform):
                 on_close=lambda filp: filp.popen.platform.channel.send(
                     exit_cmd.encode("utf-8")
                 ),
+                name=path,
             )
         else:
             for method in self.gtfo.iter_methods(
@@ -914,6 +971,7 @@ class Linux(Platform):
                 on_close=lambda filp: filp.popen.platform.channel.send(
                     exit_cmd.encode("utf-8")
                 ),
+                name=path,
             )
 
         if "b" not in mode:
@@ -930,9 +988,10 @@ class Linux(Platform):
 
     def tempfile(
         self,
-        mode: str = "r",
         length: Optional[int] = None,
         suffix: Optional[str] = None,
+        directory: Optional[str] = None,
+        **kwargs,
     ):
         """
         Create a temporary file on the remote host and open it with the specified mode.
@@ -952,8 +1011,47 @@ class Linux(Platform):
         :type length: int
         :param suffix: a suffix for the filename
         :type suffix: str
+        :param directory: a directory where the temporary file will be placed
+        :type directory: str or Path-like
         :return: a file-like object
         """
+
+        if length is None:
+            length = 8
+
+        if suffix is None:
+            suffix = ""
+
+        path = ""
+
+        # Find a suitable temporary directory
+        if directory is not None:
+            tempdir = self.Path(directory)
+        if directory is None or not tempdir.is_dir():
+            tempdir = self.Path("/dev/shm")
+        if not tempdir.is_dir():
+            tempdir = self.Path("/tmp")
+        if not tempdir.is_dir():
+            raise FileNotFoundError("no temporary directories!")
+
+        # This is safer, and costs less, but `mktemp` may not exist
+        mktemp = self.which("mktemp")
+        if mktemp is not None:
+            try:
+                result = self.run(
+                    [mktemp, "-p", str(tempdir), "--suffix", suffix, "X" * length],
+                    capture_output=True,
+                    text=True,
+                )
+                path = result.stdout.rstrip("\n")
+            except CalledProcessError as exc:
+                raise PermissionError(str(exc))
+        else:
+            path = tempdir / (util.random_string(length) + suffix)
+            while path.exists():
+                path = tempdir / (util.random_string(length) + suffix)
+
+        return self.open(path, **kwargs)
 
     def su(self, user: str, password: Optional[str] = None):
         """
@@ -988,6 +1086,9 @@ class Linux(Platform):
         # Assume we don't need a password if we are root
         if self.current_user().id != 0:
 
+            # Read password: prompt
+            proc.stdout.read(10)
+
             # Send the password
             proc.stdin.write(password + "\n")
             proc.stdin.flush()
@@ -995,7 +1096,7 @@ class Linux(Platform):
             # Retrieve the response (this may take some time if wrong)
             result = proc.stdout.readline().lower()
 
-            if result == "password: \n":
+            if result == "password: \n" or result.strip() == "":
                 result = proc.stdout.readline().lower()
 
             # Check for keywords indicating failure
@@ -1019,6 +1120,7 @@ class Linux(Platform):
         user: Optional[str] = None,
         group: Optional[str] = None,
         password: Optional[str] = None,
+        as_is: bool = False,
         **popen_kwargs,
     ):
         """
@@ -1029,31 +1131,124 @@ class Linux(Platform):
         sent from the database. If a password is not available, the process is killed
         and a PermissionError is raised. If the password is incorrect, a PermissionError
         is also raised.
+
+        :param command: either an argument array or command line string
+        :type command: str
+        :param user: the name of a user to execute as or None
+        :type user: str
+        :param group: the group to execute as or None
+        :type group: str
+        :param password: the password for the current user
+        :type password: str
+        :param as_is: indicates to not add `sudo` to the command line
+        :type as_is: bool
+        :param **popen_kwargs: arguments passed to the ``Popen`` method
         """
 
-    def interactive_read(self):
+        # This repeats some of the logic from `Popen`, but we need to handle these
+        # cases specially for `sudo`.
+        if isinstance(command, list):
+            command = shlex.join(command)
+        elif not isinstance(command, str):
+            raise ValueError("expected a command string or list of arguments")
 
-        # We use a local raw mode TTY, so we don't need any special processing
-        return sys.stdin.buffer.read(64)
+        if "shell" in popen_kwargs and popen_kwargs["shell"]:
+            command = shlex.join(["/bin/sh", "-c", command])
+            popen_kwargs["shell"] = False
 
-    def interactive_loop(self):
+        if "env" in popen_kwargs and popen_kwargs["env"] is not None:
+            command = (
+                " ".join(
+                    [
+                        f"{util.quote(name)}={util.quote(value)}"
+                        for name, value in popen_kwargs["env"].items()
+                    ]
+                )
+                + " "
+                + command
+            )
+            popen_kwargs["env"] = None
 
-        old_stdin = sys.stdin
-        has_prefix = False
+        if password is None:
+            password = self.current_user.password
 
-        pwncat.util.push_term_state()
+        # At this point, the command is a string
+        if not as_is:
+            if password is not None:
+                sudo_command = "sudo -p 'Password: ' "
+            else:
+                sudo_command = "sudo -n "
 
-        try:
-            pwncat.util.enter_raw_mode(non_block=False)
-            sys.stdin.reconfigure(line_buffering=False)
+            if user is not None:
+                sudo_command += f"-u {user}"
+            if group is not None:
+                sudo_command += f"-g {group}"
 
-            while True:
-                data = sys.stdin.buffer.read(64)
-                has_prefix = self.session.manager._process_input(data, has_prefix)
+            command = sudo_command + " " + command
+        else:
+            # We need to inject the `-p 'Password: '` or `-n`
+            command = shlex.split(command)
+            if password is not None:
+                command.insert(1, "-p")
+                command.insert(2, "Password: ")
+            else:
+                command.insert(1, "-n")
+            command = shlex.join(command)
 
-        finally:
-            pwncat.util.pop_term_state()
-            sys.stdin.reconfigure(line_buffering=False)
+        # We need to send the password
+        popen_kwargs["stdin"] = subprocess.PIPE
+
+        # Start the process
+        proc = self.Popen(args=command, **popen_kwargs)
+
+        # There's no password to deliver. It either succeeded or failed :shrug:
+        if password is None:
+
+            output = self.channel.peek(16, timeout=1).lower()
+            if output == "sudo: a password":
+                # Cleanup the process
+                proc.wait()
+                # Inform the caller
+                raise PermissionError("incorrect password or sudo permissions")
+
+            return proc
+
+        # Peek output to check for a password prompt
+        # This bypasses the `proc.stdout_raw` ChannelFile, but
+        # is necessary to access the peek buffer. The data will
+        # still be available to the file wrappers later.
+        output = self.channel.peek(16, timeout=2).lower()
+        if (
+            b"[sudo]" in output
+            or b"password for " in output
+            or output.endswith(b"password: ")
+            or b"lecture" in output
+        ):
+
+            # Drain remaining data in the socket (and peek buffer)
+            self.channel.drain()
+
+            # Send the password
+            self.channel.sendline(password.encode("utf-8"))
+
+            self.channel.recvuntil(b"\n")
+
+            # We use a longer timeout because sudo sometimes waits
+            # to prevent bruteforce attacks
+            output = self.channel.peek(16, timeout=6).lower()
+
+            if (
+                b"[sudo]" in output
+                or b"password for" in output
+                or b"sorry," in output
+                or b"sudo: " in output
+                or output.endswith(b"password: ")
+            ):
+                # End the process (with C-c)
+                proc.kill()
+                raise PermissionError(f"incorrect password or sudo permissions")
+
+        return proc
 
     @property
     def interactive(self) -> bool:
@@ -1078,6 +1273,7 @@ class Linux(Platform):
             command = " ; ".join([" stty -echo nl lnext ^V", "export PS1="]) + "\n"
             self.logger.info(command.rstrip("\n"))
             self.channel.send(command.encode("utf-8"))
+            self.channel.drain()
         else:
 
             # Going interactive requires a pty
@@ -1100,6 +1296,7 @@ class Linux(Platform):
             )
             self.logger.info(command.rstrip("\n"))
             self.channel.send(command.encode("utf-8"))
+            self.channel.drain()
 
         self._interactive = value
 

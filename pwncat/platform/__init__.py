@@ -8,7 +8,10 @@ import logging
 import logging.handlers
 import fnmatch
 import stat
+import sys
 import os
+
+from rich.logging import RichHandler
 
 import pwncat
 import pwncat.subprocess
@@ -36,6 +39,16 @@ class Path:
     _stat: os.stat_result
     _lstat: os.stat_result
     parts = []
+
+    @classmethod
+    def cwd(cls):
+        """ Return a new concrete path referencing the current directory """
+        return cls(".").resolve()
+
+    @classmethod
+    def home(cls):
+        """ Return a new concrete path referencing the current user home directory """
+        return cls("~").resolve()
 
     def writable(self) -> bool:
         """ This is non-standard, but is useful """
@@ -132,6 +145,9 @@ class Path:
 
     def is_mount(self) -> bool:
         """ Returns True if the path is a mount point. """
+
+        if str(self) == "/":
+            return True
 
         if self.parent.stat().st_dev != self.stat().st_dev:
             return True
@@ -387,21 +403,39 @@ class Platform(ABC):
     This includes running commands, changing directories, locating
     binaries, etc.
 
+    During construction, the channel ``connect`` method is called
+    to complete any outstanding requirements for connecting the channel.
+    If the channel is not connected after this, a ``PlatformError``
+    is raised.
+
+    Platform's are not created directly, but can be instantiated
+    through the manager ``create_session`` method.
+
+    :param session: a session object to which this platform is bound
     :param channel: an open a channel with the specified platform
     :type channel: pwncat.channel.Channel
-
+    :param log: path to a log file which logs each command executed for this platform
+    :type log: str
     """
+
+    name = None
+    """ Name of this platform (e.g. "linux") """
 
     def __init__(
         self,
         session: "pwncat.manager.Session",
         channel: "pwncat.channel.Channel",
         log: str = None,
+        verbose: bool = False,
     ):
 
         # This will throw a ChannelError if we can't complete the
         # connection, so we do it first.
         channel.connect()
+
+        # Ensure everything is kosher with the channel
+        if not channel.connected:
+            raise PlatformError("channel connection failed")
 
         self.session = session
         self.channel = channel
@@ -418,6 +452,9 @@ class Platform(ABC):
             handler.setFormatter(logging.Formatter("%(asctime)s - %(message)s"))
             self.logger.addHandler(handler)
 
+        if verbose:
+            self.logger.addHandler(RichHandler())
+
         base_path = self.PATH_TYPE
         target = self
 
@@ -429,33 +466,52 @@ class Platform(ABC):
             def __init__(self, *args):
                 base_path.__init__(*args)
 
-        self.PATH_TYPE = RemotePath
+        self.Path = RemotePath
+        """ A concrete Path object for this platform conforming to pathlib.Path """
 
-    def __str__(self):
-        return str(self.channel)
+    def interactive_loop(self):
+        """Handles interactive piping of data between victim and attacker. If
+        the platform you are implementing does not support raw mode, you must
+        override this method to support interactivity. A working example with
+        the python readline module exists in the windows platform. Linux uses
+        this default implementation."""
 
-    @property
-    def interactive_input(self):
-        if not self.interactive:
-            raise RuntimeError("interactive_input not valid outside interactive mode")
-        return self.channel
+        old_stdin = sys.stdin
+        has_prefix = False
 
-    @property
-    def interactive_output(self):
-        if not self.interactive:
-            raise RuntimeError("interactive_input not valid outside interactive mode")
-        return self.channel
+        pwncat.util.push_term_state()
+
+        try:
+            pwncat.util.enter_raw_mode(non_block=False)
+            sys.stdin.reconfigure(line_buffering=False)
+
+            while True:
+                data = sys.stdin.buffer.read(64)
+                has_prefix = self.session.manager._process_input(data, has_prefix)
+
+        finally:
+            pwncat.util.pop_term_state()
+            sys.stdin.reconfigure(line_buffering=False)
 
     def process_output(self, data):
-        """Process output from the terminal when in interactive mode.
-        This is mainly used to check if the user exited the interactive terminal,
-        and we should raise an InteractiveExit exception. It does nothing by
-        default."""
+        """Called during interactivity to handle output from the victim. It can
+        mutate the output and return a changed value if needed. It does nothing
+        by default."""
+
         return data
 
+    def __str__(self):
+        """ Retrieve a string describing the platform connection """
+        return str(self.channel)
+
     @abstractmethod
-    def getenv(self, name: str):
-        """ Get the value of an environment variable """
+    def getenv(self, name: str) -> str:
+        """Get the value of an environment variable.
+
+        :param name: the name of the environment variable
+        :type name: str
+        :rtype: str
+        """
 
     @abstractmethod
     def reload_users(self):
@@ -767,23 +823,6 @@ class Platform(ABC):
 
         return completed_proc
 
-    def Path(self, path: Optional[str] = None) -> Path:
-        """
-        Takes the given string and returns a concrete path for this host.
-        This path object conforms to the "concrete path" definition of the
-        standard python ``pathlib`` library. Generally speaking, it is a
-        subclass of ``pathlib.PurePath`` which implements the concrete
-        features by being bound to this specific victim. If no path is
-        specified, a path representing the current directory is returned.
-
-        :param path: a relative or absolute path path
-        :type path: str
-        :return: a concrete path object
-        :rtype: Path
-        """
-
-        return self.PATH_TYPE(path)
-
     @abstractmethod
     def chdir(self, path: Union[str, Path]):
         """
@@ -938,7 +977,7 @@ class Platform(ABC):
         """ Remove a link to a file (similar to `rm`) """
 
 
-def register(name: str, platform: Type[Platform]):
+def register(platform: Type[Platform]):
     """
     Register a platform class to be automatically constructed with the
     ``create`` factory function with the given name. This can be used
@@ -952,7 +991,7 @@ def register(name: str, platform: Type[Platform]):
 
     global PLATFORM_TYPES
 
-    PLATFORM_TYPES[name] = platform
+    PLATFORM_TYPES[platform.name] = platform
 
 
 def find(name: str) -> Type[Platform]:
@@ -1005,5 +1044,5 @@ def create(
 from pwncat.platform.linux import Linux
 from pwncat.platform.windows import Windows
 
-register("linux", Linux)
-register("windows", Windows)
+register(Linux)
+register(Windows)

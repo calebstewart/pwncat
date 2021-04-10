@@ -2,6 +2,7 @@
 import time
 from typing import Optional, Type, Union
 from io import RawIOBase, BufferedReader, BufferedWriter, DEFAULT_BUFFER_SIZE
+from abc import ABC, abstractmethod
 
 CHANNEL_TYPES = {}
 
@@ -34,7 +35,7 @@ class ChannelClosed(ChannelError):
 
 
 class ChannelTimeout(ChannelError):
-    """ Raised when a read times out.
+    """Raised when a read times out.
 
     :param data: the data read before the timeout occurred
     :type data: bytes
@@ -70,6 +71,7 @@ class ChannelFile(RawIOBase):
         self.found_sof = False
         self.on_close = on_close
         self.eof = False
+        self._blocking = True
 
         if not text:
             self.mode += "b"
@@ -80,6 +82,15 @@ class ChannelFile(RawIOBase):
         if self.sof_marker is not None and "r" in self.mode:
             self.channel.recvuntil(self.sof_marker)
             self.found_sof = True
+
+    @property
+    def blocking(self) -> bool:
+        """ Indicates whether to act like a blocking file or not """
+        return self._blocking
+
+    @blocking.setter
+    def blocking(self, value):
+        self._blocking = value
 
     def readable(self) -> bool:
         return "r" in self.mode
@@ -128,6 +139,9 @@ class ChannelFile(RawIOBase):
                 data = self.channel.recv(len(b))
                 b[: len(data)] = data
                 n = len(data)
+
+            if n == 0 and not self.blocking:
+                raise BlockingIOError
 
         obj = bytes(b[:n])
 
@@ -182,10 +196,36 @@ class ChannelFile(RawIOBase):
         return written
 
 
-class Channel:
+class Channel(ABC):
     """
     Abstract interation with a remote victim. This class acts similarly to a
-    socket object. In the common cases, it simply wraps a socket object.
+    socket object. In the common cases, it simply wraps a socket object. Some
+    methods have default implementations, but many are required to be implemented.
+    At a minimum, the following methods/properties must be implemented:
+
+    - connected
+    - send
+    - recv
+    - recvinto
+    - drain
+    - close
+
+    The ``peek`` and ``unrecv`` methods have default implementations which buffer some
+    data in memory. If using the default implementations of these methods, you should
+    be prepared to read first from `self.peek_buffer` prior to making downstream recv
+    requests.
+
+    In general, direct connections are made during ``__init__``. If you are implementing
+    a listener, the ``connect`` method can be used to wait for/accept the final
+    connection. It is called just before instantiating the resulting pwncat session.
+    At all times, ``connected`` should reflect the state of the underlying data channel.
+    In the case of listeners, ``connected`` should only be true after ``connect`` is
+    called. The ``close`` method should set ``connected`` to false.
+
+    During initialization, you can take any keyword arguments you require to connect.
+    However, you should also always accept a ``**kwargs`` argument. Parameters are
+    passed dynamically from ``pwncat.channel.create`` and may be attempted with extra
+    arguments you don't need.
     """
 
     def __init__(
@@ -204,14 +244,15 @@ class Channel:
         self.peek_buffer: bytes = b""
 
     @property
+    @abstractmethod
     def connected(self):
-        """ Check if this channel is connected. This should return
+        """Check if this channel is connected. This should return
         false prior to an established connection, and may return
         true prior to the ``connect`` method being called for some
-        channel types. """
+        channel types."""
 
     def connect(self):
-        """ Utilize the parameters provided at initialization to
+        """Utilize the parameters provided at initialization to
         connect to the remote host. This is mainly used for channels
         which listen for a connection. In that case, `__init__` creates
         the listener while connect actually establishes a connection.
@@ -222,18 +263,33 @@ class Channel:
         to instantiate the session.
         """
 
+    @abstractmethod
     def send(self, data: bytes):
-        """ Send data to the remote shell. This is a blocking call
-        that only returns after all data is sent. """
+        """Send data to the remote shell. This is a blocking call
+        that only returns after all data is sent.
+
+        :param data: the data to send to the victim
+        :type data: bytes
+        :rtype: None
+        """
 
     def sendline(self, data: bytes, end: bytes = b"\n"):
-        """ Send data followed by an ending character. If no ending
-        character is specified, a new line is used. """
+        """Send data followed by an ending character. If no ending
+        character is specified, a new line is used. This is a blocking
+        call.
+
+        :param data: the data to send to the victim
+        :type data: bytes
+        :param end: the bytes to append
+        :type end: bytes
+        :rtype: None
+        """
 
         return self.send(data + end)
 
+    @abstractmethod
     def recv(self, count: Optional[int] = None) -> bytes:
-        """ Receive data from the remote shell
+        """Receive data from the remote shell
 
         If your channel class does not implement ``peak``, a default
         implementation is provided. In this case, you can use the
@@ -247,9 +303,19 @@ class Channel:
         """
         return b""
 
+    def drain(self):
+
+        while True:
+            data = self.recv(4096)
+            if data is None or len(data) == 0:
+                break
+
     def recvuntil(self, needle: bytes, timeout: Optional[float] = None) -> bytes:
-        """ Receive data until the specified string of bytes is bytes
-        is found. The needle is not stripped from the data.
+        """Receive data until the specified string of bytes is bytes
+        is found. The needle is not stripped from the data. This is a
+        default implementation which utilizes the ``recv`` method.
+        You can override this if your underlying transport provides a
+        better implementation.
 
         :param needle: the bytes to wait for
         :type needle: bytes
@@ -280,19 +346,31 @@ class Channel:
         return data
 
     def recvline(self, timeout: Optional[float] = None) -> bytes:
-        """ Recieve data until a newline is received. The newline
-        is not stripped. """
+        """Recieve data until a newline is received. The newline
+        is not stripped. This is a default implementation that
+        utilizes the ``recvuntil`` method.
+
+        :param timeout: a timeout in seconds for the recv
+        :type timeout: float
+        :rtype: bytes
+        """
 
         return self.recvuntil(b"\n", timeout=timeout)
 
-    def peek(self, count: Optional[int] = None):
-        """ Receive data from the remote shell and leave
-        the data in the recv buffer.
+    def peek(self, count: Optional[int] = None, timeout: Optional[float] = None):
+        """Receive data from the victim and leave the data in the recv
+        buffer. This is a default implementation which uses an internal
+        ``bytes`` buffer within the channel to simulate a peek. You can
+        override this method if your underlying transport supports real
+        ``peek`` operations. If the default ``peek`` implementation is
+        used, ``recv`` should read ``self.peek_buffer`` prior to calling
+        the underlying ``recv``.
 
-        There is a default implementation for this method which will
-        utilize ``recv`` to get data, and buffer it. If the default
-        ``peek`` implementation is used, ``recv`` should read from
-        ``self.peek_buffer`` prior to calling the underlying ``recv``.
+        The ``timeout`` argument works differently from other methods.
+        If no timeout is specified, then the method returns immediately
+        and may return no data. If a timeout is provided, then the method
+        will wait up to ``timeout`` seconds for at least one byte of data
+        not to exceed ``count`` bytes.
 
         :param count: maximum number of bytes to receive (default: unlimited)
         :type count: int
@@ -306,47 +384,43 @@ class Channel:
         else:
             data = b""
 
-        # Check for more data within our count
-        if len(data) < count:
+        if count is not None:
+            count -= len(data)
+
+        if timeout is not None:
+            end_time = time.time() + timeout
+        else:
+            end_time = 0
+
+        while True:
             self.peek_buffer = b""
-            data += self.recv(count - len(data))
-            self.peek_buffer = data
+            new_data = self.recv(count)
+            count -= len(new_data)
+            data += new_data
+            if len(data) or timeout is None:
+                break
+            if timeout is not None and time.time() > end_time:
+                break
+            time.sleep(0.1)
+
+        self.peek_buffer = data
 
         return data
 
     def unrecv(self, data: bytes):
         """
         Place the given bytes on a buffer to be returned next by recv.
-        If you do not implement a custom ``peek``, you can use the builtin
-        implementation. If the ``peek_buffer`` is not used, then you must
-        implement this logic yourself.
+        This method utilizes the internal ``peek`` buffer. Therefore,
+        if you implement a custom ``peek`` method, you must also implement
+        ``unrecv``.
+
+        :param data: the data to place on the incoming buffer
+        :type data: bytes
+        :rtype: None
         """
 
         # This makes the next recv return this data first
         self.peek_buffer = data + self.peek_buffer
-
-    def recvinto(self, *args, **kwargs):
-        """
-        Base method simply raises a NotImplementedError
-        """
-        raise NotImplementedError
-
-    def drain(self, some: bool = False):
-        """ Drain any incoming data from the remote host. In general
-        this is implemented by reading data until a timeout occurs,
-        however implementations may differ by the type of channel.
-        The received data is discarded and never buffered.
-
-        If ``some`` is True, then this method should ignore timeouts
-        until at least one byte of data is received. This is used when
-        we know that some data should be sent, and we want to drain
-        it from the buffer before continuing.
-
-        :param some: whether to wait for at least one byte of data
-        :type some: bool
-        :return: a boolean indicating whether the file is at EOF
-        :rtype: bool
-        """
 
     def makefile(
         self,
@@ -390,12 +464,19 @@ class Channel:
         else:
             return BufferedWriter(raw_io, buffer_size=bufsize)
 
+    def recvinto(self, b):
+        raise NotImplementedError
+
+    @abstractmethod
     def close(self):
-        """ Close this channel. This method should do nothing if
-        the ``connected`` property returns False. """
+        """Close this channel. This method should do nothing if
+        the ``connected`` property returns False."""
 
     def __str__(self):
-        """ Get a representation of this channel """
+        """Get a representation of this channel. The resulting string
+        will be passed through ``rich`` output, so it can contain tags
+        to affect styling and/or color. The default implementation returns
+        ``remote_adddress:remote_port``"""
 
         return f"[cyan]{self.address[0]}[/cyan]:[blue]{self.address[1]}[/blue]"
 
@@ -451,7 +532,11 @@ def create(protocol: Optional[str] = None, **kwargs):
         if "user" in kwargs and kwargs["user"] is not None:
             protocols.append("ssh")
         else:
-            if "host" not in kwargs or kwargs["host"] == "0.0.0.0":
+            if (
+                "host" not in kwargs
+                or kwargs["host"] == "0.0.0.0"
+                or kwargs["host"] is None
+            ):
                 protocols.append("bind")
             else:
                 protocols.append("connect")

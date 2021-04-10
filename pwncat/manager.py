@@ -28,8 +28,10 @@ class InteractiveExit(Exception):
 
 
 class Session:
-    """Wraps a channel and platform and tracks configuration and
-    database access per session"""
+    """This class represents the container by which ``pwncat`` references
+    connections to victim machines. It glues together a connected ``Channel``
+    and an appropriate ``Platform`` implementation. It also provides generic
+    access to the ``pwncat`` database and logging functionality."""
 
     def __init__(
         self,
@@ -42,6 +44,15 @@ class Session:
         self.background = None
         self._db_session = None
 
+        self._progress = rich.progress.Progress(
+            "{task.fields[platform]}",
+            "•",
+            "{task.description}",
+            "•",
+            "{task.fields[status]}",
+            transient=True,
+        )
+
         # If necessary, build a new platform object
         if isinstance(platform, Platform):
             self.platform = platform
@@ -50,18 +61,15 @@ class Session:
             if channel is None:
                 channel = pwncat.channel.create(**kwargs)
 
-            self.platform = pwncat.platform.find(platform)(
-                self, channel, self.config.get("log", None)
-            )
+            # This makes logging work during the constructor
+            self.platform = str(channel)
 
-        self._progress = rich.progress.Progress(
-            str(self.platform),
-            "•",
-            "{task.description}",
-            "•",
-            "{task.fields[status]}",
-            transient=True,
-        )
+            self.platform = pwncat.platform.find(platform)(
+                self,
+                channel,
+                log=self.config.get("log", None),
+                verbose=self.config.get("verbose", False),
+            )
 
         # Register this session with the manager
         self.manager.sessions.append(self)
@@ -176,6 +184,8 @@ class Session:
         if "status" not in kwargs:
             kwargs["status"] = "..."
 
+        kwargs["platform"] = str(self.platform)
+
         try:
             # Ensure this bar is started if we are the selected
             # target.
@@ -208,6 +218,21 @@ class Session:
 
         if self.manager.target == self:
             self.manager.target = None
+
+    def close(self):
+        """ Close the session and remove from manager tracking """
+
+        self.platform.channel.close()
+
+        self.died()
+
+    def __enter__(self):
+
+        return self
+
+    def __exit__(self, _, __, ___):
+
+        self.close()
 
 
 class Manager:
@@ -271,7 +296,7 @@ class Manager:
             with open(config) as filp:
                 self.parser.eval(filp.read(), config)
         elif config is not None:
-            self.parser.eval(config.read(), config.name)
+            self.parser.eval(config.read(), getattr(config, "name", "fileobj"))
             config.close()
         else:
             try:
@@ -281,6 +306,17 @@ class Manager:
                     self.parser.eval(filp.read(), "./pwncatrc")
             except (FileNotFoundError, PermissionError):
                 pass
+
+    def __enter__(self):
+        """ Begin manager context tracking """
+
+        return self
+
+    def __exit__(self, _, __, ___):
+        """ Ensure all sessions are closed """
+
+        while self.sessions:
+            self.sessions[0].close()
 
     def open_database(self):
         """Create the internal engine and session builder
@@ -421,24 +457,6 @@ class Manager:
                 self.log("no active session, returning to local prompt")
                 continue
 
-            # NOTE - I don't like the selectors solution for async stream IO
-            # Currently, we utilize the built-in selectors module.
-            # This module depends on the epoll/select interface on Linux.
-            # This requires that the challels are file-objects (have a fileno method)
-            # I don't like this. I may switch to an asyncio-based wrapper in
-            # the future, to alleviate requirements on channel implementations
-            # but I'm not sure how to implement it right now.
-            # selector = selectors.DefaultSelector()
-            # selector.register(sys.stdin, selectors.EVENT_READ, None)
-            # selector.register(self.target.platform.channel, selectors.EVENT_READ, None)
-
-            # Make the local terminal enter a raw state for
-            # direct interaction with the remote shell
-            # term_state = pwncat.util.enter_raw_mode()
-
-            # pwncat.util.push_term_state()
-            # pwncat.util.enter_raw_mode()
-
             self.target.platform.interactive = True
 
             interactive_complete = threading.Event()
@@ -467,9 +485,6 @@ class Manager:
 
             try:
                 self.target.platform.interactive_loop()
-                # while not interactive_complete.is_set():
-                #     data = sys.stdin.buffer.read(64)
-                #     has_prefix = self._process_input(data, has_prefix)
             except RawModeExit:
                 pass
             except ChannelClosed:
@@ -484,43 +499,11 @@ class Manager:
             interactive_complete.set()
             output_thread.join()
 
-            # pwncat.util.pop_term_state()
-
             # Exit interactive mode
             if channel_closed:
                 self.target.died()
             else:
                 self.target.platform.interactive = False
-
-            # try:
-            #     # We do this until the user pressed <prefix>+C-d or
-            #     # until the connection dies. Afterwards, we go back to
-            #     # a local prompt.
-            #     done = False
-            #     has_prefix = False
-            #     while not done:
-            #         for k, _ in selector.select():
-            #             if k.fileobj is sys.stdin:
-            #                 data = sys.stdin.buffer.read(64)
-            #                 has_prefix = self._process_input(data, has_prefix)
-            #             else:
-            #                 data = self.target.platform.channel.recv(4096)
-            #                 self.target.platform.process_output(data)
-            #                 sys.stdout.buffer.write(data)
-            # except RawModeExit:
-            #     self.target.platform.interactive = False
-            # except ChannelClosed:
-            #     self.target.platform.interactive = False
-            #     self.log(
-            #         f"[yellow]warning[/yellow]: {self.target.platform}: connection reset"
-            #     )
-            #     self.target.died()
-            # except Exception:
-            #     self.target.platform.interactive = False
-            #     pwncat.util.console.print_exception()
-
-            # if self.target is not None and self.target.platform.interactive:
-            #     self.target.platform.interactive = False
 
     def create_session(self, platform: str, channel: Channel = None, **kwargs):
         """
