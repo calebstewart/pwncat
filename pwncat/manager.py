@@ -14,6 +14,9 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
 import rich.progress
 
+import ZODB
+import zodburi
+
 import pwncat.db
 import pwncat.modules
 from pwncat.util import console, RawModeExit
@@ -247,11 +250,12 @@ class Manager:
         self.config = Config()
         self.sessions: List[Session] = []
         self.modules: Dict[str, pwncat.modules.BaseModule] = {}
-        self.engine = None
-        self.SessionBuilder = None
+        # self.engine = None
+        # self.SessionBuilder = None
         self._target = None
         self.parser = CommandParser(self)
         self.interactive_running = False
+        self.db: ZODB.DB = None
 
         # This is needed because pwntools captures the terminal...
         # there's no way officially to undo it, so this is a nasty
@@ -322,35 +326,26 @@ class Manager:
         """Create the internal engine and session builder
         for this manager based on the configured database"""
 
-        if self.sessions and self.engine is not None:
+        if self.sessions and self.db is not None:
             raise RuntimeError("cannot change database after sessions are established")
 
-        self.engine = create_engine(self.config["db"])
-        pwncat.db.Base.metadata.create_all(self.engine)
-        self.SessionBuilder = sessionmaker(bind=self.engine, expire_on_commit=False)
+        # Connect/open the database
+        factory_class, factory_args = zodburi.resolve_uri(self.config["db"])
+        storage = factory_class()
+        self.db = ZODB.DB(storage, **factory_args)
+
+        # Rebuild the command parser now that the database is available
         self.parser = CommandParser(self)
 
     def create_db_session(self):
         """ Create a new SQLAlchemy database session and return it """
 
         # Initialize a fallback database if needed
-        if self.engine is None:
-            self.config.set("db", "sqlite:///:memory:", glob=True)
+        if self.db is None:
+            self.config.set("db", "memory://", glob=True)
             self.open_database()
 
-        return self.SessionBuilder()
-
-    @contextlib.contextmanager
-    def new_db_session(self):
-        """ Track a database session in a context manager """
-
-        session = None
-
-        try:
-            session = self.create_db_session()
-            yield session
-        finally:
-            pass
+        return self.db.open()
 
     def load_modules(self, *paths):
         """Dynamically load modules from the specified paths
