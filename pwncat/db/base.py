@@ -1,5 +1,3 @@
 #!/usr/bin/env python3
 
-from sqlalchemy.ext.declarative import declarative_base
-
-Base = declarative_base()
+# this file is no longer necessary since we are no longer use sqlalchemy?

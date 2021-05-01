@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
-from sqlalchemy import Column, Integer, String, ForeignKey
-from sqlalchemy.orm import relationship
 
-from pwncat.db.base import Base
+import persistent
+from typing import Optional
 
 
-class Binary(Base):
+class Binary(persistent.Persistent):
+    """
+    Stores an understanding of a binary on the target.
+    """
 
-    __tablename__ = "binary"
+    def __init__(self, name, path):
 
-    id = Column(Integer, primary_key=True)
-    host_id = Column(Integer, ForeignKey("host.id"))
-    host = relationship("Host", back_populates="binaries")
-    # Name of the binary (parameter to which)
-    name = Column(String)
-    # The path to the binary on the remote host
-    path = Column(String)
+        # Name of the binary (parameter to which)
+        self.name: Optional[str] = name
+        # The path to the binary on the remote host
+        self.path: Optional[str] = path

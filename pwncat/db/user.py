@@ -1,67 +1,38 @@
 #!/usr/bin/env python3
-from sqlalchemy import Column, Integer, String, ForeignKey, Table
-from sqlalchemy.orm import relationship
 
-from pwncat.db.base import Base
-
-SecondaryGroupAssociation = Table(
-    "secondary_group_association",
-    Base.metadata,
-    Column("group_id", Integer, ForeignKey("groups.id")),
-    Column("user_id", ForeignKey("users.id")),
-)
+import persistent
+import persistent.list
+from typing import Optional
 
 
-class Group(Base):
+class Group(persistent.Persistent):
+    """
+    Stores a record of changes on the target (i.e., things that have been
+    tampered with)
+    """
 
-    __tablename__ = "groups"
+    def __init__(self, name, members):
 
-    id = Column(Integer, primary_key=True)
-    host_id = Column(Integer, ForeignKey("host.id"), primary_key=True)
-    host = relationship("Host", back_populates="groups")
-    name = Column(String)
-    members = relationship(
-        "User",
-        back_populates="groups",
-        secondary=SecondaryGroupAssociation,
-        lazy="selectin",
-    )
+        self.name: Optional[str] = name
+        self.members: persistent.list.PersistentList = persistent.list.PersistentList()
 
     def __repr__(self):
         return f"""Group(gid={self.id}, name={repr(self.name)}), members={repr(",".join(m.name for m in self.members))})"""
 
 
-class User(Base):
+class User(persistent.Persistent):
+    def __init__(self, name, gid, fullname, homedir, password, hash, shell, groups):
 
-    __tablename__ = "users"
-
-    # The users UID
-    id = Column(Integer, primary_key=True)
-    host_id = Column(Integer, ForeignKey("host.id"), primary_key=True)
-    host = relationship("Host", back_populates="users", lazy="selectin")
-    # The users GID
-    gid = Column(Integer, ForeignKey("groups.id"))
-    # The actual DB Group object representing that group
-    group = relationship("Group")
-    # The name of the user
-    name = Column(String, primary_key=True)
-    # The user's full name
-    fullname = Column(String)
-    # The user's home directory
-    homedir = Column(String)
-    # The user's password, if known
-    password = Column(String)
-    # The hash of the user's password, if known
-    hash = Column(String)
-    # The user's default shell
-    shell = Column(String)
-    # The user's secondary groups
-    groups = relationship(
-        "Group",
-        back_populates="members",
-        secondary=SecondaryGroupAssociation,
-        lazy="selectin",
-    )
+        self.name: Optional[str] = name
+        self.gid: Optional[int] = gid
+        self.fullname: Optional[str] = fullname
+        self.homedir: Optional[str] = homedir
+        self.password: Optional[str] = password
+        self.hash: Optional[str] = hash
+        self.shell: Optional[str] = shell
+        self.groups: persistent.list.PersistentList = persistent.list.PersistentList(
+            groups
+        )
 
     def __repr__(self):
         return f"""User(uid={self.id}, gid={self.gid}, name={repr(self.name)})"""

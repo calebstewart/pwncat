@@ -3,7 +3,7 @@ from enum import Enum, auto
 import fnmatch
 import time
 
-import sqlalchemy
+# import sqlalchemy
 
 import pwncat
 from pwncat.platform.linux import Linux
@@ -12,7 +12,7 @@ from pwncat.db import get_session
 
 
 class Schedule(Enum):
-    """ Defines how often an enumeration module will run """
+    """Defines how often an enumeration module will run"""
 
     ALWAYS = auto()
     PER_USER = auto()
@@ -20,7 +20,7 @@ class Schedule(Enum):
 
 
 class EnumerateModule(BaseModule):
-    """ Base class for all enumeration modules """
+    """Base class for all enumeration modules"""
 
     # List of categories/enumeration types this module provides
     # This should be set by the sub-classes to know where to find
@@ -49,7 +49,7 @@ class EnumerateModule(BaseModule):
     }
 
     def run(self, session, types, clear):
-        """ Locate all facts this module provides.
+        """Locate all facts this module provides.
 
         Sub-classes should not override this method. Instead, use the
         enumerate method. `run` will cross-reference with database and
@@ -64,34 +64,31 @@ class EnumerateModule(BaseModule):
 
             if clear:
                 # Delete enumerated facts
-                query = db.query(pwncat.db.Fact).filter_by(
-                    source=self.name, host_id=session.host
+                session.target.facts = persistent.list.PersistentList(
+                    (f for f in session.target.facts if f.source != self.name)
                 )
-                query.delete(synchronize_session=False)
+
                 # Delete our marker
-                if self.SCHEDULE != Schedule.ALWAYS:
-                    query = (
-                        db.query(pwncat.db.Fact)
-                        .filter_by(host_id=session.host, type="marker")
-                        .filter(pwncat.db.Fact.source.startswith(self.name))
-                    )
-                    query.delete(synchronize_session=False)
+                #### We aren't positive how to recreate this in ZODB yet
+                # if self.SCHEDULE != Schedule.ALWAYS:
+                #     query = (
+                #         db.query(pwncat.db.Fact)
+                #         .filter_by(host_id=session.host, type="marker")
+                #         .filter(pwncat.db.Fact.source.startswith(self.name))
+                #     )
+                #     query.delete(synchronize_session=False)
                 return
 
             # Yield all the know facts which have already been enumerated
-            existing_facts = (
-                db.query(pwncat.db.Fact)
-                .filter_by(source=self.name, host_id=session.host)
-                .filter(pwncat.db.Fact.type != "marker")
-            )
+            existing_facts = (f for f in session.target.facts if f.source == self.name)
 
             if types:
-                for fact in existing_facts.all():
+                for fact in existing_facts:
                     for typ in types:
                         if fnmatch.fnmatch(fact.type, typ):
                             yield fact
             else:
-                yield from existing_facts.all()
+                yield from existing_facts
 
             if self.SCHEDULE != Schedule.ALWAYS:
                 exists = (
@@ -110,10 +107,11 @@ class EnumerateModule(BaseModule):
                     continue
 
                 typ, data = item
+                # session.target.facts.append(fact)
 
-                row = pwncat.db.Fact(
-                    host_id=session.host, type=typ, data=data, source=self.name
-                )
+                # row = pwncat.db.Fact(
+                #     host_id=session.host, type=typ, data=data, source=self.name
+                # )
                 try:
                     db.add(row)
                     db.commit()
@@ -135,13 +133,19 @@ class EnumerateModule(BaseModule):
             # Add the marker if needed
             if self.SCHEDULE != Schedule.ALWAYS:
                 row = pwncat.db.Fact(
-                    host_id=session.host, type="marker", source=marker_name, data=None,
+                    host_id=session.host,
+                    type="marker",
+                    source=marker_name,
+                    data=None,
                 )
                 db.add(row)
+            # session.db.transaction_manager.commit()
 
     def enumerate(self, session):
-        """ Defined by sub-classes to do the actual enumeration of
-        facts. """
+        """
+        Defined by sub-classes to do the actual enumeration of
+        facts.
+        """
 
 
 # This makes `run enumerate` initiate a quick scan

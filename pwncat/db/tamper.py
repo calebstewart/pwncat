@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
-from sqlalchemy import Column, Integer, String, ForeignKey, LargeBinary
-from sqlalchemy.orm import relationship
 
-from pwncat.db.base import Base
+import persistent
+from typing import Optional
 
 
-class Tamper(Base):
+class Tamper(persistent.Persistent):
+    """
+    Stores a record of changes on the target (i.e., things that have been
+    tampered with)
+    """
 
-    __tablename__ = "tamper"
+    def __init__(self, name, data):
 
-    id = Column(Integer, primary_key=True)
-    host_id = Column(Integer, ForeignKey("host.id"))
-    host = relationship("Host", back_populates="tampers")
-    name = Column(String)
-    data = Column(LargeBinary)
+        # The name of this tamper method (what was done on the target)
+        self.name: Optional[str] = name
+        # The process outlined in this tamper method
+        self.data: Optional[bytes] = data

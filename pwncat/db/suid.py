@@ -1,20 +1,19 @@
 #!/usr/bin/env python3
-from sqlalchemy import ForeignKey, Integer, Column, String
-from sqlalchemy.orm import relationship
 
-from pwncat.db.base import Base
+import persistent
+from typing import Optional
 
 
-class SUID(Base):
+class SUID(persistent.Persistent):
+    """
+    Stores a record of SUID binaries discovered on the target.
+    """
 
-    __tablename__ = "suid"
+    def __init__(self, path, user):
 
-    id = Column(Integer, primary_key=True)
-    host_id = Column(Integer, ForeignKey("host.id"))
-    host = relationship("Host", back_populates="suid", foreign_keys=[host_id])
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    # user = relationship("User", backref="suid", foreign_keys=[user_id])
-    # Path to this SUID binary
-    path = Column(String)
-    owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    # owner = relationship("User", foreign_keys=[owner_id], backref="owned_suid")
+        # Path to this SUID binary
+        self.path: Optional[str] = path
+
+        # The original SQLAlchemy-style code held a property, "owner_id",
+        # which maintained the uid corresponding to the user owning this suid
+        # file. This may or may not be needed?

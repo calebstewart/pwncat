@@ -5,7 +5,7 @@ from pwncat.modules import BaseModule, Status, Argument
 
 
 class Module(BaseModule):
-    """ Perform a quick enumeration of common useful data """
+    """Perform a quick enumeration of common useful data"""
 
     ARGUMENTS = {
         "output": Argument(
