@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
-from sqlalchemy import Column, Integer, String, ForeignKey
-from sqlalchemy.orm import relationship
 
-from pwncat.db.base import Base
+import persistent
+from typing import Optional
 
 
-class History(Base):
+class History(persistent.Persistent):
+    """Store history of ran commands on the target."""
 
-    __tablename__ = "history"
+    def __init__(self, command):
 
-    id = Column(Integer, primary_key=True)
-    host_id = Column(Integer, ForeignKey("host.id"))
-    host = relationship("Host", back_populates="history")
-    command = Column(String)
+        # The command ran on the target (e.g., "whoami")
+        self.command: Optional[str] = command

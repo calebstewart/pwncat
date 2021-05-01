@@ -22,7 +22,7 @@ def strip_markup(styled_text: str) -> str:
 
 
 def list_wrapper(iterable):
-    """ Wraps a list in a generator """
+    """Wraps a list in a generator"""
     yield from iterable
 
 
@@ -72,7 +72,7 @@ class Module(pwncat.modules.BaseModule):
     PLATFORM = None
 
     def run(self, session, output, modules, types, clear):
-        """ Perform a enumeration of the given moduels and save the output """
+        """Perform a enumeration of the given moduels and save the output"""
 
         module_names = modules
 

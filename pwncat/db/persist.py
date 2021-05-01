@@ -1,21 +1,24 @@
 #!/usr/bin/env python3
-from sqlalchemy import Column, Integer, String, ForeignKey, PickleType
-from sqlalchemy.orm import relationship
 
-from pwncat.db.base import Base
+import persistent
+from typing import Optional
 
 
-class Persistence(Base):
+class Persistence(persistent.Persistent):
+    """
+    Stores an abstract understanding of persistence method installed on a
+    target.
+    """
 
-    __tablename__ = "persistence"
+    def __init__(self, method, user):
 
-    id = Column(Integer, primary_key=True)
-    host_id = Column(Integer, ForeignKey("host.id"))
-    host = relationship("Host", back_populates="persistence")
-    # The type of persistence
-    method = Column(String)
-    # The user this persistence was applied as (ignored for system persistence)
-    user = Column(String)
-    # The custom arguments passed to the persistence module
-    # this **will** include the `user` argument.
-    args = Column(PickleType)
+        # The type of persistence
+        self.method: Optional[str] = method
+        # The user this persistence was applied as
+        # (ignored for system persistence)
+        self.user: Optional[str] = user
+
+        # The original SQLAlchemy-style code held a property, "args",
+        # which was a pickle object contained the custom arguments passed to
+        # the persistence module. It **will** include the `user` argument.
+        # We may re-implement that as a subclass.
