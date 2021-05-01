@@ -86,7 +86,7 @@ class Config:
             "backdoor_user": {"value": "pwncat", "type": str},
             "backdoor_pass": {"value": "pwncat", "type": str},
             "on_load": {"value": "", "type": str},
-            "db": {"value": "sqlite:///:memory:", "type": str},
+            "db": {"value": "memory://", "type": str},
             "cross": {"value": None, "type": str},
             "psmodules": {"value": ".", "type": local_dir_type},
             "verbose": {"value": False, "type": bool_type},

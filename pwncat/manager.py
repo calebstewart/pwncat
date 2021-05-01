@@ -10,10 +10,8 @@ import selectors
 import sys
 import os
 
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine
+import persistent.list
 import rich.progress
-
 import ZODB
 import zodburi
 
@@ -24,6 +22,7 @@ from pwncat.platform import Platform
 from pwncat.channel import Channel, ChannelClosed
 from pwncat.config import Config
 from pwncat.commands import CommandParser
+from pwncat.target import Target
 
 
 class InteractiveExit(Exception):
@@ -46,6 +45,7 @@ class Session:
         self.manager = manager
         self.background = None
         self._db_session = None
+        self.db = manager.db.open()
 
         self._progress = rich.progress.Progress(
             "{task.fields[platform]}",
@@ -80,12 +80,10 @@ class Session:
 
         # Initialize the host reference
         self.hash = self.platform.get_host_hash()
-        with self.db as session:
-            host = session.query(pwncat.db.Host).filter_by(hash=self.hash).first()
-        if host is None:
+
+        if self.target is None:
             self.register_new_host()
         else:
-            self.host = host.id
             self.log("loaded known host from db")
 
         self.platform.get_pty()
@@ -97,18 +95,27 @@ class Session:
         accessing configuration a little easier."""
         return self.manager.config
 
+    @property
+    def target(self) -> Target:
+        """ Retrieve the target object for this session """
+
+        try:
+            # Find target object
+            return next(t for t in self.db.root.targets if t.guid == self.hash)
+        except StopIteration:
+            return None
+
     def register_new_host(self):
         """Register a new host in the database. This assumes the
         hash has already been stored in ``self.hash``"""
 
-        # Create a new host object and add it to the database
-        host = pwncat.db.Host(hash=self.hash, platform=self.platform.name)
+        # Create a new target descriptor
+        target = Target()
+        target.guid = self.hash
 
-        with self.db as session:
-            session.add(host)
-            session.commit()
-
-        self.host = host.id
+        # Add the target to the database
+        self.db.root.targets.append(target)
+        self.db.transaction_manager.commit()
 
         self.log("registered new host w/ db")
 
@@ -123,6 +130,9 @@ class Session:
             and type(self.platform) not in self.manager.modules[module].PLATFORM
         ):
             raise pwncat.modules.IncorrectPlatformError(module)
+
+        # Ensure that our database connection is up to date
+        self.db.begin()
 
         return self.manager.modules[module].run(self, **kwargs)
 
@@ -155,25 +165,6 @@ class Session:
         from other sessions, if we aren't active."""
 
         self.manager.log(f"{self.platform}:", *args, **kwargs)
-
-    @property
-    @contextlib.contextmanager
-    def db(self):
-        """Retrieve a database session
-
-        I'm not sure if this is the best way to handle database sessions.
-
-        """
-
-        try:
-            if self._db_session is None:
-                self._db_session = self.manager.create_db_session()
-            yield self._db_session
-        finally:
-            try:
-                self._db_session.commit()
-            except:
-                pass
 
     @contextlib.contextmanager
     def task(self, *args, **kwargs):
@@ -333,6 +324,14 @@ class Manager:
         factory_class, factory_args = zodburi.resolve_uri(self.config["db"])
         storage = factory_class()
         self.db = ZODB.DB(storage, **factory_args)
+
+        conn = self.db.open()
+        try:
+            conn.root.targets
+        except AttributeError:
+            conn.root.targets = persistent.list.PersistentList()
+            conn.transaction_manager.commit()
+            conn.close()
 
         # Rebuild the command parser now that the database is available
         self.parser = CommandParser(self)

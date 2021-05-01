@@ -49,10 +49,10 @@ from pwncat.channel import ChannelClosed
 
 
 def resolve_blocks(source: str):
-    """ This is a dumb lexer that turns strings of text with code blocks (squigly
+    """This is a dumb lexer that turns strings of text with code blocks (squigly
     braces) into a single long string separated by semicolons. All code blocks are
     converted to strings recursively with correct escaping levels. The resulting
-    string can be sent to break_commands to iterate over the commands. """
+    string can be sent to break_commands to iterate over the commands."""
 
     result = []
     in_brace = False
@@ -108,6 +108,7 @@ def resolve_blocks(source: str):
 class DatabaseHistory(History):
     """ Yield history from the host entry in the database """
 
+    # NOTE - This is nerfed because of ZODB changes...
     def __init__(self, manager):
         super().__init__()
         self.manager = manager
@@ -115,28 +116,31 @@ class DatabaseHistory(History):
     def load_history_strings(self) -> Iterable[str]:
         """ Load the history from the database """
 
-        with self.manager.new_db_session() as session:
-            for history in (
-                session.query(pwncat.db.History)
-                .order_by(pwncat.db.History.id.desc())
-                .all()
-            ):
-                yield history.command
+        if False:
+            with self.manager.new_db_session() as session:
+                for history in (
+                    session.query(pwncat.db.History)
+                    .order_by(pwncat.db.History.id.desc())
+                    .all()
+                ):
+                    yield history.command
 
     def store_string(self, string: str) -> None:
         """ Store a command in the database """
-        history = pwncat.db.History(command=string)
 
-        with self.manager.new_db_session() as session:
-            session.add(history)
+        if False:
+            history = pwncat.db.History(command=string)
+
+            with self.manager.new_db_session() as session:
+                session.add(history)
 
 
 class CommandParser:
-    """ Handles dynamically loading command classes, parsing input, and
+    """Handles dynamically loading command classes, parsing input, and
     dispatching commands. This class effectively has complete control over
     the terminal whenever in an interactive pwncat session. It will change
     termios modes for the control tty at will in order to support raw vs
-    command mode. """
+    command mode."""
 
     def __init__(self, manager: "pwncat.manager.Manager"):
         """ We need to dynamically load commands from pwncat.commands """
@@ -164,8 +168,8 @@ class CommandParser:
         self.saved_term_state = None
 
     def setup_prompt(self):
-        """ This needs to happen after __init__ when the database is fully
-        initialized. """
+        """This needs to happen after __init__ when the database is fully
+        initialized."""
 
         history = DatabaseHistory(self.manager)
         completer = CommandCompleter(self.manager, self.commands)
@@ -229,10 +233,10 @@ class CommandParser:
         return ANSI(ansi_result)
 
     def eval(self, source: str, name: str = "<script>"):
-        """ Evaluate the given source file. This will execute the given string
+        """Evaluate the given source file. This will execute the given string
         as a script of commands. Syntax is the same except that commands may
         be separated by semicolons, comments are accepted as following a "#" and
-        multiline strings are supported with '"{' and '}"' as delimeters. """
+        multiline strings are supported with '"{' and '}"' as delimeters."""
 
         for command in resolve_blocks(source):
             try:
@@ -383,7 +387,7 @@ class CommandParser:
             return
 
     def parse_prefix(self, channel, data: bytes):
-        """ Parse data received from the user when in pwncat's raw mode.
+        """Parse data received from the user when in pwncat's raw mode.
         This will intercept key presses from the user and interpret the
         prefix and any bound keyboard shortcuts. It also sends any data
         without a prefix to the remote channel.
@@ -429,9 +433,9 @@ class CommandParser:
         channel.send(buffer)
 
     def raw_mode(self):
-        """ Save the current terminal state and enter raw mode.
+        """Save the current terminal state and enter raw mode.
         If the terminal is already in raw mode, this function
-        does nothing. """
+        does nothing."""
 
         if self.saved_term_state is not None:
             return
@@ -472,8 +476,8 @@ class CommandParser:
         self.saved_term_state = old, orig_fl
 
     def restore_term(self, new_line=True):
-        """ Restores the normal terminal settings. This does nothing if the
-        terminal is not currently in raw mode. """
+        """Restores the normal terminal settings. This does nothing if the
+        terminal is not currently in raw mode."""
 
         if self.saved_term_state is None:
             return

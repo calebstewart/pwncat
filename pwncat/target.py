@@ -4,7 +4,8 @@ import enum
 
 import persistent
 import persistent.list
-import BTrees.OOBTree import TreeSet
+from BTrees.OOBTree import TreeSet
+
 
 class NAT(enum.Enum):
     """ Indicates the current known state of NAT on the target host """
@@ -16,8 +17,9 @@ class NAT(enum.Enum):
     DISABLED = enum.auto()
     """ NAT is definitely disabled. Public/private addresses are identical. """
 
+
 class OS(enum.Enum):
-    """ Describes the operating system on the target host. This is normally
+    """Describes the operating system on the target host. This is normally
     set by the platform type when connecting, however may be interrogated
     from the target host directly. For example, in the case of similar OS's
     like Linux, Mac, and BSD, the platform may double check the OS prior to
@@ -39,8 +41,9 @@ class OS(enum.Enum):
     UNKNOWN = enum.auto()
     """ Unknown Operatin System """
 
+
 class Target(persistent.Persistent):
-    """ Describes collected data on a target host. This replaces the database
+    """Describes collected data on a target host. This replaces the database
     in previous versions of pwncat. It collects enumeration facts, system info,
     persistence state, and any other contextual information stored across
     instances of pwncat. Properties added to this class are automatically stored
@@ -83,7 +86,7 @@ class Target(persistent.Persistent):
 
     @property
     def nat(self) -> NAT:
-        """ Determine if NAT is applied for this host. This simply tests
+        """Determine if NAT is applied for this host. This simply tests
         whether the target views it's IP in the same way we do. This simply
         compares the public and internal addresses to infer the state of NAT
         on the target network.
@@ -92,12 +95,20 @@ class Target(persistent.Persistent):
         if self.public_address is None or self.internal_address is None:
             return NAT.UNKNOWN
 
-        return NAT.DISABLED if self.public_address[0] == self.internal_address[0] else NAT.ENABLED
+        return (
+            NAT.DISABLED
+            if self.public_address[0] == self.internal_address[0]
+            else NAT.ENABLED
+        )
 
     def facts_with(self, **kwargs):
-        """ Return a generator yielding facts which match the given properties. This is
+        """Return a generator yielding facts which match the given properties. This is
         a relatively restrictive search and the properties must match exactly. For a more
         general search of facts, you can use a Python generator expression over the ``facts``
-        list instead. """
+        list instead."""
 
-        return (fact for fact in self.facts if all(getattr(fact, k, None) == v for k,v in kwargs.items()))
+        return (
+            fact
+            for fact in self.facts
+            if all(getattr(fact, k, None) == v for k, v in kwargs.items())
+        )
