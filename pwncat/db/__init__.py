@@ -2,7 +2,6 @@
 
 import pwncat
 from pwncat.db.binary import Binary
-from pwncat.db.history import History
 from pwncat.db.persist import Persistence
 from pwncat.db.suid import SUID
 from pwncat.db.tamper import Tamper

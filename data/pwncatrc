@@ -7,7 +7,7 @@ set -g privkey "data/pwncat"
 # Set the pwncat backdoor user and password
 set -g backdoor_user "pwncat"
 set -g backdoor_pass "pwncat"
-set -g db "memory://"
+set -g db "file://test.zodb"
 
 set -g on_load {
 	# Run a command upon a stable connection

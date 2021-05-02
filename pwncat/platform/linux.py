@@ -547,11 +547,12 @@ class Linux(Platform):
             return
 
         pty_command = None
+        shell = self.getenv("SHELL")
 
         if pty_command is None:
             script_path = self.which("script")
             if script_path is not None:
-                pty_command = f""" exec {script_path} -qc /bin/sh /dev/null 2>&1\n"""
+                pty_command = f""" exec {script_path} -qc {shell} /dev/null 2>&1\n"""
 
         if pty_command is None:
             python_path = self.which(
@@ -566,7 +567,7 @@ class Linux(Platform):
                 ]
             )
             if python_path is not None:
-                pty_command = f"""exec {python_path} -c "import pty; pty.spawn('/bin/sh')" 2>&1\n"""
+                pty_command = f"""exec {python_path} -c "import pty; pty.spawn('{shell} -i')" 2>&1\n"""
 
         if pty_command is not None:
             self.logger.info(pty_command.rstrip("\n"))
@@ -707,6 +708,15 @@ class Linux(Platform):
             return result.stdout.rstrip("\n")
         except CalledProcessError:
             return None
+
+    def getuid(self):
+        """ Retrieve the current user ID """
+
+        try:
+            proc = self.run(["id", "-ru"], capture_output=True, text=True, check=True)
+            return int(proc.stdout.rstrip("\n"))
+        except CalledProcessError as exc:
+            raise PlatformError(str(exc)) from exc
 
     def getenv(self, name: str):
 
