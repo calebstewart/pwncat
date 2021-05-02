@@ -37,3 +37,4 @@ urllib3==1.25.9
 wcwidth==0.1.9
 python-rapidjson==0.9.1
 ZODB==5.6.0
+zodburi==2.4.0

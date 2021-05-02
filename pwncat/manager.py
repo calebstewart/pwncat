@@ -26,7 +26,7 @@ from pwncat.target import Target
 
 
 class InteractiveExit(Exception):
-    """ Indicates we should exit the interactive terminal """
+    """Indicates we should exit the interactive terminal"""
 
 
 class Session:
@@ -97,7 +97,7 @@ class Session:
 
     @property
     def target(self) -> Target:
-        """ Retrieve the target object for this session """
+        """Retrieve the target object for this session"""
 
         try:
             # Find target object
@@ -121,7 +121,7 @@ class Session:
         self.log("registered new host w/ db")
 
     def run(self, module: str, **kwargs):
-        """ Run a module on this session """
+        """Run a module on this session"""
 
         module_name = module
         module = self.manager.modules.get(module_name)
@@ -180,12 +180,12 @@ class Session:
 
     @contextlib.contextmanager
     def task(self, *args, **kwargs):
-        """ Get a new task in this session's progress instance """
+        """Get a new task in this session's progress instance"""
 
         # Ensure the variable exists even if an exception happens
         # prior to task creation
         task = None
-        started = self._progress._started
+        started = self._progress.live.is_started
 
         if "status" not in kwargs:
             kwargs["status"] = "..."
@@ -211,7 +211,7 @@ class Session:
                 self._progress.stop()
 
     def update_task(self, task, *args, **kwargs):
-        """ Update an active task """
+        """Update an active task"""
 
         self._progress.update(task, *args, **kwargs)
 
@@ -226,7 +226,7 @@ class Session:
             self.manager.target = None
 
     def close(self):
-        """ Close the session and remove from manager tracking """
+        """Close the session and remove from manager tracking"""
 
         self.platform.channel.close()
 
@@ -315,12 +315,12 @@ class Manager:
                 pass
 
     def __enter__(self):
-        """ Begin manager context tracking """
+        """Begin manager context tracking"""
 
         return self
 
     def __exit__(self, _, __, ___):
-        """ Ensure all sessions are closed """
+        """Ensure all sessions are closed"""
 
         while self.sessions:
             self.sessions[0].close()
@@ -348,7 +348,7 @@ class Manager:
         self.parser = CommandParser(self)
 
     def create_db_session(self):
-        """ Create a new SQLAlchemy database session and return it """
+        """Create a new SQLAlchemy database session and return it"""
 
         # Initialize a fallback database if needed
         if self.db is None:
@@ -380,7 +380,7 @@ class Manager:
             setattr(self.modules[module_name], "name", module_name)
 
     def log(self, *args, **kwargs):
-        """ Output a log entry """
+        """Output a log entry"""
 
         if self.target is not None:
             self.target._progress.log(*args, **kwargs)
@@ -396,7 +396,7 @@ class Manager:
 
     @property
     def target(self) -> Session:
-        """ Retrieve the currently focused target """
+        """Retrieve the currently focused target"""
         return self._target
 
     @target.setter
@@ -428,7 +428,7 @@ class Manager:
         pwnlib.term.term_mode = False
 
     def interactive(self):
-        """ Start interactive prompt """
+        """Start interactive prompt"""
 
         self.interactive_running = True
 
@@ -525,7 +525,7 @@ class Manager:
         return session
 
     def _process_input(self, data: bytes, has_prefix: bool):
-        """ Process stdin data from the user in raw mode """
+        """Process stdin data from the user in raw mode"""
 
         for byte in data:
             byte = bytes([byte])

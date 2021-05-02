@@ -34,6 +34,8 @@ refer to the documentation for up to date usage and API documentation!
 pwncat [documentation] is being built out on Read the Docs. Head there for
 the latest usage and development documentation!
 
+**pwncat requires Python 3.9+.**
+
 ## Modules
 
 Recently, the architecture of the pwncat framework was redesigned to
