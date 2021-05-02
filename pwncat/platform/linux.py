@@ -708,6 +708,15 @@ class Linux(Platform):
         except CalledProcessError:
             return None
 
+    def getuid(self):
+        """ Retrieve the current user ID """
+
+        try:
+            proc = self.run(["id", "-ru"], capture_output=True, text=True, check=True)
+            return int(proc.stdout.rstrip("\n"))
+        except CalledProcessError as exc:
+            raise PlatformError(str(exc)) from exc
+
     def getenv(self, name: str):
 
         try:

@@ -505,6 +505,10 @@ class Platform(ABC):
         return str(self.channel)
 
     @abstractmethod
+    def getuid(self):
+        """ Get the current user ID """
+
+    @abstractmethod
     def getenv(self, name: str) -> str:
         """Get the value of an environment variable.
 
@@ -512,128 +516,6 @@ class Platform(ABC):
         :type name: str
         :rtype: str
         """
-
-    @abstractmethod
-    def reload_users(self):
-        """Reload the user and group cache. This is automatically called
-        if the cache hasn't been built yet, but may be called manually
-        if you know the users have changed. This method is also called
-        if a lookup for a specific user or group ID fails."""
-
-    def iter_users(self) -> Generator["pwncat.db.User", None, None]:
-        """ Iterate over all users on the remote system """
-
-        with self.session.db as db:
-            users = db.query(pwncat.db.User).filter_by(host_id=self.session.host).all()
-
-            if users is None:
-                self.reload_users()
-
-                users = (
-                    db.query(pwncat.db.User).filter_by(host_id=self.session.host).all()
-                )
-
-            if users is not None:
-                for user in users:
-                    _ = user.groups
-                    yield user
-
-        return
-
-    def find_user(
-        self,
-        name: Optional[str] = None,
-        id: Optional[int] = None,
-        _recurse: bool = True,
-    ) -> "pwncat.db.User":
-        """Locate a user by name or UID. If the user/group cache has not
-        been built, then reload_users is automatically called. If the
-        lookup fails, reload_users is called automatically to ensure that
-        there has not been a user/group update remotely. If the user
-        still cannot be found, a KeyError is raised."""
-
-        with self.session.db as db:
-            user = db.query(pwncat.db.User).filter_by(host_id=self.session.host)
-
-            if name is not None:
-                user = user.filter_by(name=name)
-            if id is not None:
-                user = user.filter_by(id=id)
-
-            user = user.first()
-            if user is None and _recurse:
-                self.reload_users()
-                return self.find_user(name=name, id=id, _recurse=False)
-            elif user is None:
-                raise KeyError
-
-            return user
-
-    def update_user(self):
-        """ Force an update of the current user the next time it is requested. """
-
-        self._current_user = None
-
-    def current_user(self):
-        """ Retrieve a user object for the current user """
-
-        if self._current_user is not None:
-            return self._current_user
-
-        self._current_user = self.find_user(name=self.whoami())
-
-        return self._current_user
-
-    def iter_groups(self) -> Generator["pwncat.db.Group", None, None]:
-        """ Iterate over all groups on the remote system """
-
-        with self.session.db as db:
-            groups = (
-                db.query(pwncat.db.Group).filter_by(host_id=self.session.host).all()
-            )
-
-            if groups is None:
-                self.reload_users()
-
-                groups = (
-                    db.query(pwncat.db.Group).filter_by(host_id=self.session.host).all()
-                )
-
-            if groups is not None:
-                for group in groups:
-                    _ = group.members
-                    yield group
-
-        return
-
-    def find_group(
-        self,
-        name: Optional[str] = None,
-        id: Optional[int] = None,
-        _recurse: bool = True,
-    ) -> "pwncat.db.Group":
-        """Locate a group by name or GID. If the user/group cache has not
-        been built, then reload_users is automatically called. If the
-        lookup fails, reload_users is called automatically to ensure that
-        there has not been a user/group update remotely. If the group
-        still cannot be found, a KeyError is raised."""
-
-        with self.session.db as db:
-            group = db.query(pwncat.db.Group).filter_by(host_id=self.session.host)
-
-            if name is not None:
-                group = group.filter_by(name=name)
-            if id is not None:
-                group = group.filter_by(id=id)
-
-            group = group.first()
-            if group is None and _recurse:
-                self.reload_users()
-                return self.find_group(name=name, id=id, _recurse=False)
-            elif group is None:
-                raise KeyError
-
-            return group
 
     @abstractmethod
     def stat(self, path: str) -> os.stat_result:

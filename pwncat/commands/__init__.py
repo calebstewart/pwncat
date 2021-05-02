@@ -108,7 +108,6 @@ def resolve_blocks(source: str):
 class DatabaseHistory(History):
     """ Yield history from the host entry in the database """
 
-    # NOTE - This is nerfed because of ZODB changes...
     def __init__(self, manager):
         super().__init__()
         self.manager = manager
@@ -116,23 +115,14 @@ class DatabaseHistory(History):
     def load_history_strings(self) -> Iterable[str]:
         """ Load the history from the database """
 
-        if False:
-            with self.manager.new_db_session() as session:
-                for history in (
-                    session.query(pwncat.db.History)
-                    .order_by(pwncat.db.History.id.desc())
-                    .all()
-                ):
-                    yield history.command
+        with self.manager.db.transaction() as conn:
+            yield from reversed(conn.root.history)
 
     def store_string(self, string: str) -> None:
         """ Store a command in the database """
 
-        if False:
-            history = pwncat.db.History(command=string)
-
-            with self.manager.new_db_session() as session:
-                session.add(history)
+        with self.manager.db.transaction() as conn:
+            conn.root.history.append(string)
 
 
 class CommandParser:
