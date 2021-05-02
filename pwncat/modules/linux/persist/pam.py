@@ -13,7 +13,7 @@ import pwncat
 from pwncat.util import CompilationError, Access
 from pwncat.platform.linux import Linux
 from pwncat.modules import Argument, Status, PersistError, PersistType
-from pwncat.modules.persist import PersistModule
+from pwncat.modules.agnostic.persist import PersistModule
 
 
 class Module(PersistModule):

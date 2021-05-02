@@ -2,9 +2,9 @@
 
 import pwncat
 from pwncat.platform.linux import Linux
-from pwncat.modules.enumerate import EnumerateModule, Schedule
-from pwncat.modules.enumerate.creds import PasswordData
-from pwncat.modules.persist.gather import InstalledModule
+from pwncat.modules.agnostic.enumerate import EnumerateModule, Schedule
+from pwncat.modules.linux.enumerate.creds import PasswordData
+from pwncat.modules.linux.persist.gather import InstalledModule
 
 
 class Module(EnumerateModule):

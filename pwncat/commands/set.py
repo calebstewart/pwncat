@@ -6,7 +6,6 @@ from sqlalchemy.orm import sessionmaker
 import pwncat
 from pwncat.commands.base import CommandDefinition, Complete, Parameter
 from pwncat.util import console, State
-from pwncat.db import get_session, reset_engine
 
 
 class Command(CommandDefinition):

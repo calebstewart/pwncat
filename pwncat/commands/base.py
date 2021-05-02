@@ -121,6 +121,21 @@ def RemoteFileType(file_exist=True, directory_exist=False):
     return _type
 
 
+def get_module_choices(command):
+    """Yields a list of module choices to be used which command argument
+    choices to select a valid module for the current target"""
+
+    if command.manager.target is None:
+        return
+
+    yield from [
+        module.name.removeprefix("agnostic.").removeprefix(
+            command.manager.target.platform.name + "."
+        )
+        for module in command.manager.target.find_module("*")
+    ]
+
+
 class Parameter:
     """Generic parameter definition for commands.
 

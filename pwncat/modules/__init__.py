@@ -82,8 +82,8 @@ class Argument:
 
 
 def List(_type=str):
-    """ Argument list type, which accepts a list of the provided
-    type. """
+    """Argument list type, which accepts a list of the provided
+    type."""
 
     def _ListType(value):
         if isinstance(value, list):
@@ -96,9 +96,9 @@ def List(_type=str):
 
 
 def Bool(value: str):
-    """ Argument of type "bool". Accepts true/false (case-insensitive)
+    """Argument of type "bool". Accepts true/false (case-insensitive)
     as well as 1/0. The presence of an argument of type "Bool" with no
-    assignment (e.g. run module arg) is equivalent to `run module arg=true`. """
+    assignment (e.g. run module arg) is equivalent to `run module arg=true`."""
 
     if isinstance(value, bool):
         return value
@@ -115,27 +115,27 @@ def Bool(value: str):
 
 
 class Result:
-    """ This is a module result. Modules can return standard python objects,
+    """This is a module result. Modules can return standard python objects,
     but if they need to be formatted when displayed, each result should
-    implement this interface. """
+    implement this interface."""
 
     @property
     def category(self) -> str:
-        """ Return a "categry" of object. Categories will be grouped.
+        """Return a "categry" of object. Categories will be grouped.
         If this returns None or is not defined, this result will be "uncategorized"
         """
         return None
 
     @property
     def title(self) -> str:
-        """ Return a short-form description/title of the object. If not defined,
-        this defaults to the object converted to a string. """
-        raise NotImplementedError
+        """Return a short-form description/title of the object. If not defined,
+        this defaults to the object converted to a string."""
+        return str(self)
 
     @property
     def description(self) -> str:
-        """ Returns a long-form description. If not defined, the result is assumed
-        to not be a long-form result. """
+        """Returns a long-form description. If not defined, the result is assumed
+        to not be a long-form result."""
         return None
 
     def is_long_form(self) -> bool:
@@ -147,12 +147,9 @@ class Result:
             return False
         return True
 
-    def __str__(self) -> str:
-        return self.title
-
 
 class Status(str):
-    """ A result which isn't actually returned, but simply updates
+    """A result which isn't actually returned, but simply updates
     the progress bar. It is equivalent to a string, so this is valid:
     ``yield Status("module status update")``"""
 
@@ -206,8 +203,8 @@ def run_decorator(real_run):
 
 
 class BaseModuleMeta(type):
-    """ Ensures that type-checking is done on all "run" functions
-    of sub-classes """
+    """Ensures that type-checking is done on all "run" functions
+    of sub-classes"""
 
     def __new__(cls, name, bases, local):
         if "run" in local:
@@ -216,10 +213,10 @@ class BaseModuleMeta(type):
 
 
 class BaseModule(metaclass=BaseModuleMeta):
-    """ Generic module class. This class allows to easily create
+    """Generic module class. This class allows to easily create
     new modules. Any new module must inherit from this class. The
     run method is guaranteed to receive as key-word arguments any
-    arguments specified in the ``ARGUMENTS`` dictionary. """
+    arguments specified in the ``ARGUMENTS`` dictionary."""
 
     ARGUMENTS = {
         # "name": Argument(int, default="value"),
@@ -248,7 +245,7 @@ class BaseModule(metaclass=BaseModuleMeta):
         self.name = None
 
     def run(self, session, progress=None, **kwargs):
-        """ The run method is called via keyword-arguments with all the
+        """The run method is called via keyword-arguments with all the
         parameters specified in the ``ARGUMENTS`` dictionary. If ``ALLOW_KWARGS``
         was True, then other keyword arguments may also be passed. Any
         types specified in ``ARGUMENTS`` will already have been checked.

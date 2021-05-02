@@ -20,7 +20,6 @@ from pwncat.commands.base import (
 )
 
 from pwncat.modules import PersistError
-from pwncat.db import get_session
 
 
 class Command(CommandDefinition):

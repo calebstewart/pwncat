@@ -6,7 +6,7 @@ from typing import Generator, Optional, List
 import pwncat
 from pwncat.platform.linux import Linux
 from pwncat import util
-from pwncat.modules.enumerate import EnumerateModule, Schedule
+from pwncat.modules.agnostic.enumerate import EnumerateModule, Schedule
 
 per_user = True
 sudo_pattern = re.compile(
@@ -129,14 +129,23 @@ def LineParser(line):
     commands = re.split(r"""(?<!\\), ?""", command)
 
     return SudoSpec(
-        line, True, user, group, host, runas_user, runas_group, options, hash, commands,
+        line,
+        True,
+        user,
+        group,
+        host,
+        runas_user,
+        runas_group,
+        options,
+        hash,
+        commands,
     )
 
 
 class Module(EnumerateModule):
-    """ Enumerate sudo privileges for the current user. If allowed,
+    """Enumerate sudo privileges for the current user. If allowed,
     this module will also enumerate sudo rules for other users. Normally,
-    root permissions are needed to read /etc/sudoers. """
+    root permissions are needed to read /etc/sudoers."""
 
     PROVIDES = ["software.sudo.rule"]
     PLATFORM = [Linux]

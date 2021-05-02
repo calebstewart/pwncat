@@ -6,7 +6,8 @@ from colorama import Fore
 
 import pwncat
 from pwncat.util import Access
-from pwncat.db import get_session
+
+# from pwncat.db import get_session
 
 
 class Action(Enum):
@@ -47,10 +48,10 @@ class CreatedFile(Tamper):
 
 
 class ModifiedFile(Tamper):
-    """ File modification tamper. This tamper needs either a specific line which
+    """File modification tamper. This tamper needs either a specific line which
     should be removed from a text file, or the original original_content as bytes which
     will be replaced. If neither is provided, we will track the modification but be unable
-    to revert it. """
+    to revert it."""
 
     def __init__(
         self, path: str, added_lines: List[str] = None, original_content: bytes = None
@@ -113,12 +114,12 @@ class LambdaTamper(Tamper):
 
 
 class TamperManager:
-    """ TamperManager not only provides some automated ability to tamper with
+    """TamperManager not only provides some automated ability to tamper with
     properties of the remote system, but also a tracker for all modifications
     on the remote system with the ability to remove previous changes. Other modules
     can register system changes with `PtyHandler.tamper` in order to allow the
     user to get a wholistic view of all modifications of the remote system, and
-    attempt revert all modifications automatically. """
+    attempt revert all modifications automatically."""
 
     def __init__(self):
         # List of tampers registered with this manager
@@ -173,8 +174,8 @@ class TamperManager:
         return pickle.loads(pwncat.victim.host.tampers[item].data)
 
     def remove(self, tamper: Tamper):
-        """ Pop a tamper from the list of known tampers. This does not revert the tamper.
-        It removes the tracking for this tamper. """
+        """Pop a tamper from the list of known tampers. This does not revert the tamper.
+        It removes the tracking for this tamper."""
 
         tracker = (
             get_session().query(pwncat.db.Tamper).filter_by(name=str(tamper)).first()

@@ -5,8 +5,8 @@ import time
 import pwncat
 from pwncat.platform.linux import Linux
 from pwncat.modules import Status
-from pwncat.modules.enumerate import EnumerateModule, Schedule
-from pwncat.modules.enumerate.creds import PrivateKeyData
+from pwncat.modules.agnostic.enumerate import EnumerateModule, Schedule
+from pwncat.modules.linux.enumerate.creds import PrivateKeyData
 
 
 class Module(EnumerateModule):

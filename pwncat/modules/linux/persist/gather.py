@@ -5,14 +5,13 @@ import socket
 import pwncat
 from pwncat.util import console
 from pwncat.modules import BaseModule, Argument, Status, Bool, Result
-import pwncat.modules.persist
-from pwncat.db import get_session
+import pwncat.modules.agnostic.persist
 
 
 @dataclasses.dataclass
 class InstalledModule(Result):
-    """ Represents an installed module. It contains the persistence
-    database object and the underlying module object. """
+    """Represents an installed module. It contains the persistence
+    database object and the underlying module object."""
 
     persist: pwncat.db.Persistence
     module: "pwncat.modules.persist.PersistModule"

@@ -12,8 +12,7 @@ from rich import markup
 import pwncat.modules
 from pwncat import util
 from pwncat.util import console
-from pwncat.modules.enumerate import EnumerateModule
-from pwncat.db import get_session
+from pwncat.modules.agnostic.enumerate import EnumerateModule
 
 
 def strip_markup(styled_text: str) -> str:

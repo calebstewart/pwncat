@@ -4,7 +4,7 @@ from typing import List
 
 import pwncat
 from pwncat.platform.linux import Linux
-from pwncat.modules.enumerate import EnumerateModule, Schedule
+from pwncat.modules.agnostic.enumerate import EnumerateModule, Schedule
 
 
 @dataclasses.dataclass

@@ -12,12 +12,6 @@ from pwncat.util import console
 class Command(CommandDefinition):
     """ View info about a module """
 
-    def get_module_choices(self):
-        if self.manager.target is None:
-            return
-
-        yield from [module.name for module in self.manager.target.find_module("*")]
-
     PROG = "search"
     ARGS = {
         "module": Parameter(
@@ -42,8 +36,15 @@ class Command(CommandDefinition):
             # the easiest way to do that, so we use a large size for
             # width.
             description = module.__doc__ if module.__doc__ is not None else ""
+            module_name = module.name.removeprefix("agnostic.")
+
+            if self.manager.target is not None:
+                module_name = module_name.removeprefix(
+                    self.manager.target.platform.name + "."
+                )
+
             table.add_row(
-                f"[cyan]{module.name}[/cyan]",
+                f"[cyan]{module_name}[/cyan]",
                 textwrap.shorten(
                     description.replace("\n", " "), width=200, placeholder="..."
                 ),

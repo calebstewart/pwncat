@@ -9,7 +9,7 @@ from pwncat.modules import (
     ArgumentFormatError,
     MissingArgument,
 )
-from pwncat.modules.escalate import (
+from pwncat.modules.agnostic.escalate import (
     EscalateChain,
     EscalateResult,
     EscalateModule,

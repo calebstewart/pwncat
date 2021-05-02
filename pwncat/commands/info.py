@@ -5,18 +5,17 @@ from rich.table import Table
 from rich import box
 
 import pwncat
-from pwncat.commands.base import CommandDefinition, Complete, Parameter
+from pwncat.commands.base import (
+    CommandDefinition,
+    Complete,
+    Parameter,
+    get_module_choices,
+)
 from pwncat.util import console
 
 
 class Command(CommandDefinition):
     """ View info about a module """
-
-    def get_module_choices(self):
-        if self.manager.target is None:
-            return
-
-        yield from [module.name for module in self.manager.target.find_module("*")]
 
     PROG = "info"
     ARGS = {
@@ -37,15 +36,21 @@ class Command(CommandDefinition):
 
         if args.module:
             try:
-                module = list(manager.target.find_module(args.module, exact=True))[0]
-            except IndexError:
+                module = next(manager.target.find_module(args.module, exact=True))
+                module_name = args.module
+            except StopIteration:
                 console.log(f"[red]error[/red]: {args.module}: no such module")
                 return
         else:
             module = manager.config.module
+            module_name = module.name.removeprefix("agnostic.")
+            if self.manager.target is not None:
+                module_name = module_name.removeprefix(
+                    self.manager.target.platform.name + "."
+                )
 
         console.print(
-            f"[bold underline]Module [cyan]{module.name}[/cyan][/bold underline]"
+            f"[bold underline]Module [cyan]{module_name}[/cyan][/bold underline]"
         )
         console.print(
             textwrap.indent(textwrap.dedent(module.__doc__.strip("\n")), " ") + "\n"

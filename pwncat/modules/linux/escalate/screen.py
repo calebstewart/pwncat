@@ -5,7 +5,7 @@ from io import StringIO
 
 import pwncat
 from pwncat.gtfobins import Capability
-from pwncat.modules.escalate import EscalateError, EscalateModule, Technique
+from pwncat.modules.agnostic.escalate import EscalateError, EscalateModule, Technique
 
 
 class ScreenTechnique(Technique):

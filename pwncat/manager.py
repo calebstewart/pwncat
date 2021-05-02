@@ -114,6 +114,7 @@ class Session:
         target.guid = self.hash
 
         # Add the target to the database
+        self.db.transaction_manager.begin()
         self.db.root.targets.append(target)
         self.db.transaction_manager.commit()
 
@@ -122,19 +123,22 @@ class Session:
     def run(self, module: str, **kwargs):
         """ Run a module on this session """
 
-        if module not in self.manager.modules:
-            raise pwncat.modules.ModuleNotFound(module)
+        module_name = module
+        module = self.manager.modules.get(module_name)
+        if module is None:
+            module = self.manager.modules.get(self.platform.name + "." + module_name)
+        if module is None:
+            module = self.manager.modules.get("agnostic." + module_name)
+        if module is None:
+            raise pwncat.modules.ModuleNotFound(module_name)
 
-        if (
-            self.manager.modules[module].PLATFORM is not None
-            and type(self.platform) not in self.manager.modules[module].PLATFORM
-        ):
-            raise pwncat.modules.IncorrectPlatformError(module)
+        if module.PLATFORM is not None and type(self.platform) not in module.PLATFORM:
+            raise pwncat.modules.IncorrectPlatformError(module_name)
 
         # Ensure that our database connection is up to date
-        self.db.begin()
+        self.db.transaction_manager.begin()
 
-        return self.manager.modules[module].run(self, **kwargs)
+        return module.run(self, **kwargs)
 
     def find_module(self, pattern: str, base=None, exact: bool = False):
         """Locate a module by a glob pattern. This is an generator
@@ -150,14 +154,22 @@ class Session:
                 and type(self.platform) not in module.PLATFORM
             ):
                 continue
-            if (
-                not exact
-                and fnmatch.fnmatch(name, pattern)
-                and isinstance(module, base)
-            ):
-                yield module
-            elif exact and name == pattern and isinstance(module, base):
-                yield module
+            if not isinstance(module, base):
+                continue
+            if not exact:
+                if (
+                    fnmatch.fnmatch(name, pattern)
+                    or fnmatch.fnmatch(name, f"agnostic.{pattern}")
+                    or fnmatch.fnmatch(name, f"{self.platform.name}.{pattern}")
+                ):
+                    yield module
+            elif exact:
+                if (
+                    name == pattern
+                    or name == f"agnostic.{pattern}"
+                    or name == f"{self.platform.name}.{pattern}"
+                ):
+                    yield module
 
     def log(self, *args, **kwargs):
         """Log to the console. This utilizes the active sessions
@@ -326,9 +338,8 @@ class Manager:
         self.db = ZODB.DB(storage, **factory_args)
 
         conn = self.db.open()
-        try:
-            conn.root.targets
-        except AttributeError:
+
+        if not hasattr(conn.root, "targets"):
             conn.root.targets = persistent.list.PersistentList()
             conn.transaction_manager.commit()
             conn.close()

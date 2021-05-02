@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 
 import pwncat
-from pwncat.commands.base import CommandDefinition, Complete, Parameter
+from pwncat.commands.base import (
+    CommandDefinition,
+    Complete,
+    Parameter,
+    get_module_choices,
+)
 from pwncat.util import console
 
 
 class Command(CommandDefinition):
     """ Set the currently used module in the config handler """
-
-    def get_module_choices(self):
-        yield from [module.name for module in self.manager.target.find_module("*")]
 
     PROG = "use"
     ARGS = {

@@ -1,25 +1,38 @@
 #!/usr/bin/env python3
-
-import persistent
 from typing import Optional
 
+import persistent
+from persistent.list import PersistentList
 
-class Fact(persistent.Persistent):
-    """Store enumerated facts. The pwncat.enumerate.Fact objects are pickled and
-    stored in the "data" column. The enumerator is arbitrary, but allows for
-    organizations based on the source enumerator."""
+from pwncat.modules import Result
 
-    def __init__(self, arg_type, source):
+
+class Fact(Result, persistent.Persistent):
+    """Abstract enumerated facts about an enumerated target. Individual
+    enumeration modules will create subclasses containing the data for
+    the fact. A generic fact is guaranteed to have a list of types, a
+    module source, a __repr__ implementation, a __str__ implementation.
+
+    By default, a category property is defined which is the first type
+    in the list of types. This can be overloaded if needed, and is used
+    when formatted and displaying enumeration results.
+
+    Lastly, if the description property is not None, it indicates that
+    the fact has a "long form" description as opposed to a single-line
+    content. This only effects the way reports are generated.
+    """
+
+    def __init__(self, types, source):
+        super().__init__()
+
+        if not isinstance(types, PersistentList):
+            types = PersistentList(types)
 
         # The type of fact (e.g.., "system.user")
-        self.type: Optional[str] = arg_type
+        self.types: PersistentList = types
         # The original procedure that found this fact
-        self.source: Optional[str] = source
-
-        # The original SQLAlchemy-style code held a property, "data",
-        # which was a pickle object. We will re-implement that as a subclass
-        # but that may need to include the class properties used previously.
+        self.source: str = source
 
     @property
     def category(self) -> str:
-        return f"{self.type}"
+        return f"{self.types[0]} facts"

@@ -17,6 +17,7 @@ import pwncat.subprocess
 from pwncat import util
 from pwncat.gtfobins import GTFOBins, Capability, Stream, MissingBinary
 from pwncat.platform import Platform, PlatformError, Path
+from pwncat.db.user import User
 
 
 class PopenLinux(pwncat.subprocess.Popen):
@@ -440,6 +441,34 @@ class LinuxWriter(BufferedIOBase):
 
         # Ensure we don't touch stdio again
         self.detach()
+
+
+class LinuxUser(User):
+    """ Linux-specific user definition """
+
+    def __init__(
+        self,
+        source,
+        name,
+        hash,
+        uid,
+        gid,
+        comment,
+        home,
+        shell,
+        password: Optional[str] = None,
+    ):
+
+        # Normally, the hash is only stored in /etc/shadow
+        if hash == "x":
+            hash = None
+
+        super().__init__(source, name, uid, password=password, hash=hash)
+
+        self.gid = gid
+        self.comment = comment
+        self.home = home
+        self.shell = shell
 
 
 class Linux(Platform):

@@ -5,7 +5,7 @@ import re
 import shlex
 
 import pwncat
-from pwncat.modules.enumerate import EnumerateModule, Schedule
+from pwncat.modules.agnostic.enumerate import EnumerateModule, Schedule
 from pwncat.platform.linux import Linux
 
 

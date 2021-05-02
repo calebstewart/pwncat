@@ -4,7 +4,12 @@ import textwrap
 import pwncat
 import pwncat.modules
 from pwncat.util import console
-from pwncat.commands.base import CommandDefinition, Complete, Parameter
+from pwncat.commands.base import (
+    CommandDefinition,
+    Complete,
+    Parameter,
+    get_module_choices,
+)
 
 
 class Command(CommandDefinition):
@@ -21,12 +26,6 @@ class Command(CommandDefinition):
     find documentation on individual modules including expected
     arguments, you can use the `info` command.
     """
-
-    def get_module_choices(self):
-        if self.manager.target is None:
-            return
-
-        yield from [module.name for module in self.manager.target.find_module("*")]
 
     PROG = "run"
     ARGS = {

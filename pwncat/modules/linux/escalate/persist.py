@@ -4,14 +4,14 @@ import pwncat
 from pwncat.modules import Status
 from pwncat.platform.linux import Linux
 from pwncat.gtfobins import Capability
-from pwncat.modules.persist import PersistError, PersistType
-from pwncat.modules.persist.gather import InstalledModule
-from pwncat.modules.escalate import EscalateError, EscalateModule, Technique
+from pwncat.modules.agnostic.persist import PersistError, PersistType
+from pwncat.modules.agnostic.persist.gather import InstalledModule
+from pwncat.modules.agnostic.escalate import EscalateError, EscalateModule, Technique
 
 
 class PersistenceTechnique(Technique):
-    """ Escalates privileges utilizing an installed persistence
-    technique. """
+    """Escalates privileges utilizing an installed persistence
+    technique."""
 
     def __init__(self, module: EscalateModule, user: str, persist: InstalledModule):
         super(PersistenceTechnique, self).__init__(Capability.SHELL, user, module)
@@ -29,8 +29,8 @@ class PersistenceTechnique(Technique):
 
 
 class Module(EscalateModule):
-    """ This module will enumerate all installed persistence methods which
-    offer local escalation. """
+    """This module will enumerate all installed persistence methods which
+    offer local escalation."""
 
     PLATFORM = None
     PRIORITY = -1

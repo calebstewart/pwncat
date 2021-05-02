@@ -4,7 +4,7 @@ import enum
 
 import persistent
 import persistent.list
-from BTrees.OOBTree import TreeSet
+from BTrees.OOBTree import TreeSet, OOBTree
 
 
 class NAT(enum.Enum):
@@ -75,6 +75,8 @@ class Target(persistent.Persistent):
         """ Target host operating system """
         self.facts: persistent.list.PersistentList = persistent.list.PersistentList()
         """ List of enumerated facts about the target host """
+        self.enumerate_state: OOBTree = OOBTree()
+        """ The state of all enumeration modules which drives the module schedule """
         self.tampers: persistent.list.PersistentList = persistent.list.PersistentList()
         """ List of files/properties of the target that have been modified and/or created. """
         self.users: persistent.list.PersistentList = persistent.list.PersistentList()

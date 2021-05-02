@@ -6,7 +6,7 @@ import paramiko
 
 import pwncat
 from pwncat.modules import Argument, Status, PersistType, PersistError
-from pwncat.modules.persist import PersistModule
+from pwncat.modules.agnostic.persist import PersistModule
 
 
 class Module(PersistModule):

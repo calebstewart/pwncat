@@ -16,41 +16,10 @@ from pwncat.modules import (
     PersistType,
     ArgumentFormatError,
 )
-from pwncat.db import get_session
 
 
-def host_type(ident: str) -> pwncat.db.Host:
-    if isinstance(ident, pwncat.db.Host):
-        return ident
-
-    if ident is None and pwncat.victim is None:
-        raise ArgumentFormatError("invalid host")
-    elif ident is None:
-        return pwncat.victim.host
-
-    try:
-        host = get_session().query(pwncat.db.Host).filter_by(id=int(ident)).first()
-    except ValueError:
-        host = None
-
-    if host is None:
-        host = get_session().query(pwncat.db.Host).filter_by(ip=ident).first()
-
-    if host is None:
-        try:
-            host = (
-                get_session()
-                .query(pwncat.db.Host)
-                .filter_by(ip=socket.gethostbyname(ident))
-                .first()
-            )
-        except socket.gaierror:
-            host = None
-
-    if host is None:
-        raise ArgumentFormatError("invalid host")
-
-    return host
+def host_type(ident: str):
+    return ident
 
 
 class PersistModule(BaseModule):
@@ -120,9 +89,9 @@ class PersistModule(BaseModule):
             ].help = "Ignored for install/remove. Defaults to root for escalate."
 
     def run(self, remove, escalate, connect, host, **kwargs):
-        """ This method should not be overriden by subclasses. It handles all logic
+        """This method should not be overriden by subclasses. It handles all logic
         for installation, escalation, connection, and removal. The standard interface
-        of this method allows abstract interactions across all persistence modules. """
+        of this method allows abstract interactions across all persistence modules."""
 
         if "user" not in kwargs:
             raise RuntimeError(f"{self.__class__} must take a user argument")

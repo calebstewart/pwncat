@@ -2,7 +2,7 @@
 import dataclasses
 import re
 
-from pwncat.modules.enumerate import EnumerateModule, Schedule
+from pwncat.modules.agnostic.enumerate import EnumerateModule, Schedule
 import pwncat
 from pwncat.platform.linux import Linux
 

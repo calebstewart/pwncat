@@ -11,7 +11,7 @@ import pwncat.tamper
 from pwncat.util import Access
 from pwncat.platform.linux import Linux
 from pwncat.modules import Argument, PersistType, PersistError
-from pwncat.modules.persist import PersistModule
+from pwncat.modules.agnostic.persist import PersistModule
 
 
 class Module(PersistModule):

@@ -3,7 +3,12 @@
 import pwncat
 from pwncat.gtfobins import BinaryNotFound, Capability, Stream
 from pwncat.modules import Status
-from pwncat.modules.escalate import EscalateError, EscalateModule, Technique, euid_fix
+from pwncat.modules.agnostic.escalate import (
+    EscalateError,
+    EscalateModule,
+    Technique,
+    euid_fix,
+)
 from pwncat.util import Access
 
 
@@ -24,7 +29,8 @@ class SuTechnique(Technique):
         if current_user.name != "root":
             # Send the su command, and check if it succeeds
             pwncat.victim.run(
-                f'su {self.user} -c "echo good"', wait=False,
+                f'su {self.user} -c "echo good"',
+                wait=False,
             )
 
             pwncat.victim.recvuntil(": ")

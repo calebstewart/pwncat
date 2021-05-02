@@ -14,14 +14,13 @@ victim: Optional["pwncat.remote.Victim"] = None
 from .config import Config
 from .commands import parser
 from .util import console
-from .db import get_session
 from .tamper import TamperManager
 
 tamper: TamperManager = TamperManager()
 
 
 def interactive(platform):
-    """ Run the interactive pwncat shell with the given initialized victim.
+    """Run the interactive pwncat shell with the given initialized victim.
     This function handles the pwncat and remote prompts and does not return
     until explicitly exited by the user.
 

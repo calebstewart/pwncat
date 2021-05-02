@@ -23,7 +23,7 @@ import os
 
 from rich.console import Console
 
-console = Console()
+console = Console(emoji=False)
 
 CTRL_C = b"\x03"
 

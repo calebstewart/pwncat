@@ -1,38 +1,51 @@
 #!/usr/bin/env python3
-
-import persistent
-import persistent.list
 from typing import Optional
 
+from persistent.list import PersistentList
 
-class Group(persistent.Persistent):
-    """
-    Stores a record of changes on the target (i.e., things that have been
-    tampered with)
-    """
-
-    def __init__(self, name, members):
-
-        self.name: Optional[str] = name
-        self.members: persistent.list.PersistentList = persistent.list.PersistentList()
-
-    def __repr__(self):
-        return f"""Group(gid={self.id}, name={repr(self.name)}), members={repr(",".join(m.name for m in self.members))})"""
+from pwncat.db.fact import Fact
 
 
-class User(persistent.Persistent):
-    def __init__(self, name, gid, fullname, homedir, password, hash, shell, groups):
+class Group(Fact):
+    """Basic representation of a user group on the target system. Individual
+    platform enumeration modules may subclass this to implement other user
+    properties as needed for their platform."""
 
-        self.name: Optional[str] = name
-        self.gid: Optional[int] = gid
-        self.fullname: Optional[str] = fullname
-        self.homedir: Optional[str] = homedir
-        self.password: Optional[str] = password
-        self.hash: Optional[str] = hash
-        self.shell: Optional[str] = shell
-        self.groups: persistent.list.PersistentList = persistent.list.PersistentList(
-            groups
-        )
+    def __init__(self, source: str, name: str, gid, members):
+        super().__init__(["group"], source)
+
+        self.name: str = name
+        self.id = gid
+        self.members: PersistentList = PersistentList(members)
 
     def __repr__(self):
-        return f"""User(uid={self.id}, gid={self.gid}, name={repr(self.name)})"""
+        return f"""Group(gid={self.id}, name={repr(self.name)}), members={repr(",".join(m for m in self.members))})"""
+
+
+class User(Fact):
+    """Basic representation of a user on the target system. Individual platform
+    enumeration modules may subclass this to implement other user properties as
+    needed for their platform."""
+
+    def __init__(
+        self,
+        source: str,
+        name,
+        uid,
+        password: Optional[str] = None,
+        hash: Optional[str] = None,
+    ):
+        super().__init__(["user"], source)
+
+        self.name: str = name
+        self.id = uid
+        self.password: Optional[str] = None
+        self.hash: Optional[str] = None
+
+    def __repr__(self):
+        if self.password is None and self.hash is None:
+            return f"""User(uid={self.id}, name={repr(self.name)})"""
+        elif self.password is not None:
+            return f"""User(uid={repr(self.id)}, name={repr(self.name)}, password={repr(self.password)})"""
+        else:
+            return f"""User(uid={repr(self.id)}, name={repr(self.name)}, hash={repr(self.hash)})"""

@@ -3,7 +3,7 @@
 import pwncat
 from pwncat.util import Access
 from pwncat.gtfobins import Capability, Stream, BinaryNotFound
-from pwncat.modules.escalate import (
+from pwncat.modules.agnostic.escalate import (
     EscalateModule,
     EscalateError,
     GTFOTechnique,
