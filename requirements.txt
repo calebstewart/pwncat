@@ -1,4 +1,4 @@
--git+https://github.com/JohnHammond/base64io-python
+git+https://github.com/JohnHammond/base64io-python
 bcrypt==3.1.7
 certifi==2020.6.20
 cffi==1.14.0
