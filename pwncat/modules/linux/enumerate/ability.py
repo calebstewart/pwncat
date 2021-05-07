@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 import subprocess
+import functools
+import shlex
 
 from pwncat.modules.agnostic.enumerate.ability import (
     FileReadAbility,

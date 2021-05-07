@@ -22,8 +22,9 @@ class FileReadAbility(Fact):
         errors: str = None,
         newline: str = None,
     ):
-        """ Open a file for reading. This method mimics the builtin open
-        function, and returns a file-like object for reading. """
+        """Open a file for reading. This method mimics the builtin open
+        function, and returns a file-like object for reading."""
+
 
 class FileWriteAbility(Fact):
     """ Ability to write a file as a different user """
@@ -43,8 +44,8 @@ class FileWriteAbility(Fact):
         errors: str = None,
         newline: str = None,
     ):
-        """ Open a file for writing. This method mimics the builtin open
-        function and returns a file-like object for writing. """
+        """Open a file for writing. This method mimics the builtin open
+        function and returns a file-like object for writing."""
 
 
 class ExecuteAbility(Fact):
@@ -55,7 +56,7 @@ class ExecuteAbility(Fact):
 
         self.uid = uid
 
-    def execute(self, session: "pwncat.manager.Session" path):
+    def execute(self, session: "pwncat.manager.Session", path):
         """ Exectue the given binary in the current session as another user """
 
 
@@ -78,5 +79,7 @@ class EscalationStep(Fact):
 
         self.uid = uid
 
-    def execute(self, session: "pwncat.manager.Session") -> Optional["pwncat.manager.Session"]:
+    def execute(
+        self, session: "pwncat.manager.Session"
+    ) -> Optional["pwncat.manager.Session"]:
         """ Execute the escalation optionally returning a new session """
