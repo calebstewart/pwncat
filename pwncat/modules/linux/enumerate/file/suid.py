@@ -7,6 +7,12 @@ from pwncat.platform.linux import Linux
 from pwncat import util
 from pwncat.modules import Status
 from pwncat.modules.agnostic.enumerate import EnumerateModule, Schedule
+from pwncat.modules.linux.enumerate.ability import (
+    GTFOFileRead,
+    GTFOFileWrite,
+    GTFOExecute,
+)
+from pwncat.gtfobins import Capability, Stream, BinaryNotFound
 
 
 @dataclasses.dataclass
@@ -32,7 +38,7 @@ class Binary:
 class Module(EnumerateModule):
     """ Enumerate SUID binaries on the remote host """
 
-    PROVIDES = ["file.suid"]
+    PROVIDES = ["file.suid", "ability.execute", "ability.read", "ability.write"]
     PLATFORM = [Linux]
     SCHEDULE = Schedule.PER_USER
 

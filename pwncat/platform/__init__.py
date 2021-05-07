@@ -16,6 +16,7 @@ from rich.logging import RichHandler
 import pwncat
 import pwncat.subprocess
 import pwncat.channel
+from pwncat.util import console
 
 PLATFORM_TYPES = {}
 """ A dictionary of platform names mapping to their class
@@ -575,15 +576,29 @@ class Platform(ABC):
         remote host and provide the capabilities of the requested binary.
 
         :param name: name of the binary (e.g. "tar" or "dd")
-        :type name: str
+        :type name: Union[list, str]
         :return: full path to the requested binary
         :rtype: str
         :raises: FileNotFoundError: the requested binary does not exist on this host
         """
 
-        # NOTE - this needs to be implemented
+        if not isinstance(name, str):
+            for n in name:
+                path = self.which(n)
+                if path is not None:
+                    return path
+            return None
 
-        return self._do_which(name)
+        if name in self.session.target.utilities:
+            console.log([x for x in self.session.target.utilities.items()])
+            return self.session.target.utilities[name]
+
+        path = self._do_which(name)
+        self.session.db.transaction_manager.begin()
+        self.session.target.utilities[name] = path
+        self.session.db.transaction_manager.commit()
+
+        return path
 
     @abstractmethod
     def _do_which(self, name: str) -> Optional[str]:
@@ -666,6 +681,7 @@ class Platform(ABC):
         text=None,
         env=None,
         universal_newlines=None,
+        popen_class=None,
         **other_popen_kwargs,
     ) -> pwncat.subprocess.Popen:
         """
@@ -680,7 +696,10 @@ class Platform(ABC):
         if input is not None:
             stdin = pwncat.subprocess.PIPE
 
-        p = self.Popen(
+        if popen_class is None:
+            popen_class = self.Popen
+
+        p = popen_class(
             args,
             stdin=stdin,
             stdout=stdout,

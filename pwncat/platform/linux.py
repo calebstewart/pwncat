@@ -17,7 +17,7 @@ import pwncat.subprocess
 from pwncat import util
 from pwncat.gtfobins import GTFOBins, Capability, Stream, MissingBinary
 from pwncat.platform import Platform, PlatformError, Path
-from pwncat.db.user import User
+from pwncat.db import User
 
 
 class PopenLinux(pwncat.subprocess.Popen):
@@ -567,7 +567,7 @@ class Linux(Platform):
                 ]
             )
             if python_path is not None:
-                pty_command = f"""exec {python_path} -c "import pty; pty.spawn('{shell} -i')" 2>&1\n"""
+                pty_command = f""" exec {python_path} -c "import pty; pty.spawn('{shell} -i')" 2>&1\n"""
 
         if pty_command is not None:
             self.logger.info(pty_command.rstrip("\n"))
@@ -679,7 +679,7 @@ class Linux(Platform):
         for name in p.stdout.split("\n"):
             yield name
 
-    def which(self, name: str, quote: bool = False) -> str:
+    def _do_which(self, name: str) -> str:
         """
         Locate the specified binary on the remote host. Normally, this is done through
         the local `which` command on the remote host (for unix-like hosts), but can be
@@ -693,18 +693,8 @@ class Linux(Platform):
         :raises: FileNotFoundError: the requested binary does not exist on this host
         """
 
-        if not isinstance(name, str):
-            for item in name:
-                result = self.which(item)
-                if result is not None:
-                    return result
-            return None
-
         try:
             result = self.run(["which", name], text=True, capture_output=True)
-
-            if quote:
-                return shlex.quote(result.stdout.rstrip("\n"))
             return result.stdout.rstrip("\n")
         except CalledProcessError:
             return None
@@ -785,6 +775,7 @@ class Linux(Platform):
         errors=None,
         env=None,
         bootstrap_input=None,
+        send_command=None,
         **other_popen_kwargs,
     ) -> pwncat.subprocess.Popen:
         """
@@ -861,7 +852,10 @@ class Linux(Platform):
         command = ";".join(commands).encode("utf-8")
 
         # Send the command
-        self.channel.send(command + b"\n")
+        if send_command is None:
+            self.channel.send(command + b"\n")
+        else:
+            send_command(command + b"\n")
 
         # Send bootstraping input if provided
         if bootstrap_input is not None:
@@ -941,9 +935,8 @@ class Linux(Platform):
             raise PlatformError("mixed read/write streams are not supported")
 
         # Ensure all mode properties are valid
-        for char in mode:
-            if char not in "rwb":
-                raise PlatformError(f"{char}: unknown file mode")
+        if any(c not in "rwb" for c in mode):
+            raise PlatformError(f"{char}: unknown file mode")
 
         # Save this just in case we are opening a text-mode stream
         line_buffering = buffering == -1 or buffering == 1
@@ -1339,72 +1332,12 @@ class Linux(Platform):
 
         self._interactive = value
 
-    def _do_which(self, name: str):
-        # NOTE - This needs to be implemented
-        return None
-
     def whoami(self):
         """ Get the name of the current user """
 
         return self.run(
             ["whoami"], capture_output=True, check=True, encoding="utf-8"
         ).stdout.rstrip("\n")
-
-    def reload_users(self):
-        """ Reload users from the remote host and cache them in the database """
-
-        with self.session.db as db:
-            # Delete existing users from the database
-            db.query(pwncat.db.User).filter_by(host_id=self.session.host).delete()
-            db.query(pwncat.db.Group).filter_by(host_id=self.session.host).delete()
-            db.commit()
-
-        with self.open("/etc/passwd") as filp:
-            etc_passwd = filp.readlines()
-
-        with self.open("/etc/group") as filp:
-            etc_group = filp.readlines()
-
-        with self.session.db as db:
-            users = {}
-
-            for user_line in etc_passwd:
-                name, password, uid, gid, description, home, shell = user_line.rstrip(
-                    "\n"
-                ).split(":")
-                user = pwncat.db.User(
-                    host_id=self.session.host,
-                    id=uid,
-                    gid=gid,
-                    name=name,
-                    homedir=home,
-                    shell=shell,
-                    fullname=description,
-                )
-
-                # Some users have a hash here, but they shouldn't
-                if password != "x":
-                    user.hash = password
-
-                # Track for group creation
-                users[name] = user
-
-                # Add to the database
-                db.add(user)
-
-            for group_line in etc_group:
-                name, _, id, *members = group_line.rstrip("\n").split(":")
-                members = ":".join(members).split(",")
-
-                # Build the group
-                group = pwncat.db.Group(host_id=self.session.host, id=id, name=name)
-                for name in members:
-                    if name in users:
-                        group.members.append(users[name])
-
-                db.add(group)
-
-            db.commit()
 
     def _parse_stat(self, result: str) -> os.stat_result:
         """ Parse the output of a stat command """
