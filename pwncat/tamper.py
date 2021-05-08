@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
-import pickle
 from typing import List, Optional, Callable, Iterator
 from enum import Enum, auto
-from colorama import Fore
+import datetime
 
 import pwncat
 from pwncat.util import Access
-
-# from pwncat.db import get_session
 
 
 class Action(Enum):
@@ -23,22 +20,31 @@ class RevertFailed(Exception):
 class Tamper:
     def __init__(self, action: Action):
         self.action = action
+        self.timestamp = datetime.datetime.now()
 
-    def revert(self):
+    def revert(self, session: "pwncat.manager.Session"):
         raise NotImplementedError
 
 
 class CreatedFile(Tamper):
     """ Created file tamper. Revert simply needs to remove the file. """
 
-    def __init__(self, path: str):
+    def __init__(self, session: "pwncat.manager.Session", path: str):
         super(CreatedFile, self).__init__(Action.CREATE)
         self.path = path
+        self.uid = session.platform.getuid()
 
-    def revert(self):
+    def revert(self, session: "pwncat.manager.Session"):
+
+        current_uid = session.plaform.getuid()
+        if current_uid != self.uid and current_uid != 0:
+            raise RevertFailed(
+                f"{current_uid}: invalid current uid for revert (expected {self.uid})"
+            )
+
         try:
-            pwncat.victim.run(f"rm -f {self.path}")
-            if Access.EXISTS in pwncat.victim.access(self.path):
+            session.platform.Path(self.path).unlink()
+            if session.platform.Path(self.path).exists():
                 raise RevertFailed(f"{self.path}: unable to remove file")
         except (PermissionError, FileNotFoundError) as exc:
             raise RevertFailed(str(exc))
@@ -54,40 +60,42 @@ class ModifiedFile(Tamper):
     to revert it."""
 
     def __init__(
-        self, path: str, added_lines: List[str] = None, original_content: bytes = None
+        self,
+        session: "pwncat.manager.Session",
+        path: str,
+        added_lines: List[str] = None,
+        original_content: bytes = None,
     ):
         super(ModifiedFile, self).__init__(Action.MODIFY)
 
         self.path = path
         self.added_lines = added_lines
         self.original_content = original_content
+        self.uid = session.platform.getuid()
 
-    def revert(self):
+    def revert(self, session: "pwncat.manager.Session"):
+
+        if session.platform.getuid() == self.uid:
+            raise RevertFailed("invalid current uid for revert")
+
         try:
             if self.added_lines:
                 # Read the current lines
-                with pwncat.victim.open(self.path, "r") as filp:
-                    lines = filp.readlines()
+                with session.platform.open(self.path, "r") as filp:
+                    lines = [
+                        line
+                        for line in filp.readlines()
+                        if line not in self.added_lines
+                    ]
 
-                # Remove matching lines
-                for line in self.added_lines:
-                    try:
-                        lines.remove(line)
-                    except ValueError:
-                        pass
-
-                # Write the new original_content
-                file_data = "".join(lines)
-                with pwncat.victim.open(self.path, "w", length=len(file_data)) as filp:
-                    filp.write(file_data)
+                with session.platform.open(self.path, "w") as filp:
+                    filp.write("".join(lines))
 
             elif self.original_content:
-                with pwncat.victim.open(
-                    self.path, "wb", length=len(self.original_content)
-                ) as filp:
+                with session.platform.open(self.path, "wb") as filp:
                     filp.write(self.original_content)
             else:
-                raise RevertFailed("no original_content or added_lines specified")
+                raise RevertFailed("no original_content or added_lines")
         except (PermissionError, FileNotFoundError) as exc:
             raise RevertFailed(str(exc))
 
@@ -99,87 +107,19 @@ class ModifiedFile(Tamper):
 
 
 class LambdaTamper(Tamper):
-    def __init__(self, name: str, revert: Optional[Callable] = None):
+    def __init__(
+        self,
+        name: str,
+        revert: Optional[Callable[["pwncat.manager.Session"], None]] = None,
+    ):
         self.name = name
         self._revert = revert
 
-    def revert(self):
+    def revert(self, session: "pwncat.manager.Session"):
         if self._revert:
-            self._revert()
+            self._revert(session)
         else:
             raise RevertFailed("revert not possible")
 
     def __str__(self):
         return self.name
-
-
-class TamperManager:
-    """TamperManager not only provides some automated ability to tamper with
-    properties of the remote system, but also a tracker for all modifications
-    on the remote system with the ability to remove previous changes. Other modules
-    can register system changes with `PtyHandler.tamper` in order to allow the
-    user to get a wholistic view of all modifications of the remote system, and
-    attempt revert all modifications automatically."""
-
-    def __init__(self):
-        # List of tampers registered with this manager
-        self.tampers: List[Tamper] = []
-
-    def modified_file(
-        self,
-        path: str,
-        original_content: Optional[bytes] = None,
-        added_lines: Optional[List[str]] = None,
-    ):
-        """ Add a new modified file tamper """
-        tamper = ModifiedFile(
-            path, added_lines=added_lines, original_content=original_content
-        )
-        self.add(tamper)
-        return tamper
-
-    def created_file(self, path: str):
-        """ Register a new added file on the remote system """
-        tamper = CreatedFile(path)
-        self.add(tamper)
-        return tamper
-
-    def add(self, tamper: Tamper):
-        """ Register a custom tamper tracker """
-        serialized = pickle.dumps(tamper)
-        tracker = pwncat.db.Tamper(name=str(tamper), data=serialized)
-        pwncat.victim.host.tampers.append(tracker)
-        get_session().commit()
-
-    def custom(self, name: str, revert: Optional[Callable] = None):
-        tamper = LambdaTamper(name, revert)
-        self.add(tamper)
-        return tamper
-
-    def __iter__(self) -> Iterator[Tamper]:
-        for tracker in pwncat.victim.host.tampers:
-            yield pickle.loads(tracker.data)
-
-    def filter(self, base=Tamper):
-        for tamper in self:
-            if isinstance(tamper, base):
-                yield tamper
-
-    def __len__(self):
-        return len(pwncat.victim.host.tampers)
-
-    def __getitem__(self, item: int):
-        if not isinstance(item, int):
-            raise KeyError(f"{item}: not an integer")
-        return pickle.loads(pwncat.victim.host.tampers[item].data)
-
-    def remove(self, tamper: Tamper):
-        """Pop a tamper from the list of known tampers. This does not revert the tamper.
-        It removes the tracking for this tamper."""
-
-        tracker = (
-            get_session().query(pwncat.db.Tamper).filter_by(name=str(tamper)).first()
-        )
-        if tracker is not None:
-            get_session().delete(tracker)
-            get_session().commit()
