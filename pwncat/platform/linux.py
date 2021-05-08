@@ -1217,7 +1217,7 @@ class Linux(Platform):
             popen_kwargs["env"] = None
 
         if password is None:
-            password = self.current_user.password
+            password = self.session.current_user().password
 
         # At this point, the command is a string
         if not as_is:
