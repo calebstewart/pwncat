@@ -681,7 +681,7 @@ class Linux(Platform):
 
         try:
             p = self.run(
-                ["ls", "--all", "-1", path],
+                ["ls", "--all", "-1", "--color=never", path],
                 encoding="utf-8",
                 capture_output=True,
                 check=True,
@@ -938,9 +938,6 @@ class Linux(Platform):
         :param mode: the open-mode (see built-in ``open``)
         :type mode: str
         :return: a file-like object
-        :raises:
-          FileNotFoundError: the specified file does not exist
-          IsADirectoryError: the specified path refers to a directory
         """
 
         # Ensure no invalid overlap of modes
