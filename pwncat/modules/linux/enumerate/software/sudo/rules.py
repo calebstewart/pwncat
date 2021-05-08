@@ -11,6 +11,13 @@ from pwncat.db import Fact
 from pwncat.platform.linux import Linux
 from pwncat.modules.agnostic.enumerate import EnumerateModule, Schedule
 
+
+"""
+TODO: This should end up yielding an escalation ability, since sudo 
+will... inherently give us the potential to run things as the root user.
+We can implement that later after all the enumeration modules are set.
+"""
+
 per_user = True
 sudo_pattern = re.compile(
     r"""(%?[a-zA-Z][a-zA-Z0-9_]*)\s+([a-zA-Z_][-a-zA-Z0-9_.]*)\s*="""
@@ -39,7 +46,7 @@ class SudoSpec(Fact):
     ):
         super().__init__(source=source, types=["software.sudo.rule"])
 
-        self.line: str
+        self.line: str = line
         """ The full, unaltered line from the sudoers file """
         self.matched: bool = False
         """ The regular expression match data. If this is None, all following fields
@@ -61,7 +68,7 @@ class SudoSpec(Fact):
         self.commands: List[str] = None
         """ The command specification """
 
-    def __str__(self):
+    def title(self, session):
         display = ""
 
         if not self.matched:
@@ -98,21 +105,20 @@ class SudoSpec(Fact):
 
         return display
 
-    @property
-    def description(self):
+    def description(self, session):
         return None
 
 
-def LineParser(line):
+def LineParser(source, line):
     match = sudo_pattern.search(line)
 
     if match is None:
-        return SudoSpec(line, matched=False, options=[])
+        return SudoSpec(source, line, matched=False, options=[])
 
     user = match.group(1)
 
     if user in directives:
-        return SudoSpec(line, matched=False, options=[])
+        return SudoSpec(source, line, matched=False, options=[])
 
     if user.startswith("%"):
         group = user.lstrip("%")
@@ -150,6 +156,7 @@ def LineParser(line):
     commands = re.split(r"""(?<!\\), ?""", command)
 
     return SudoSpec(
+        source,
         line,
         True,
         user,
@@ -175,24 +182,26 @@ class Module(EnumerateModule):
     def enumerate(self, session):
 
         try:
-            with session.platform.open("/etc/sudoers", "r") as filp:
-                for line in filp:
-                    line = line.strip()
-                    # Ignore comments and empty lines
-                    if line.startswith("#") or line == "":
-                        continue
+            etc_sudoers = session.platform.Path("/etc/sudoers")
+            if etc_sudoers.readable():
+                with etc_sudoers.open() as filp:
+                    for line in filp:
+                        line = line.strip()
+                        # Ignore comments and empty lines
+                        if line.startswith("#") or line == "":
+                            continue
 
-                    yield LineParser(line)
+                        yield LineParser(self.name, line)
 
-            # No need to parse `sudo -l`, since can read /etc/sudoers
-            return
+                # No need to parse `sudo -l`, since can read /etc/sudoers
+                return
         except (FileNotFoundError, PermissionError):
             pass
 
         # Check for our privileges
         try:
 
-            proc = session.platform.sudo(["sudo", "-nl"], as_is=True)
+            proc = session.platform.sudo(["sudo", "-nl"], as_is=True, text=True)
             result = proc.stdout.read()
             proc.wait()  # ensure this closes properly
 
@@ -215,6 +224,5 @@ class Module(EnumerateModule):
                 continue
 
             # Build the beginning part of a normal spec
-            line = f"{session.current_user()} local=" + line.strip()
-
-            yield LineParser(line)
+            line = f"{session.current_user().name} local=" + line.strip()
+            yield LineParser(self.name, line)

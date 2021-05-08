@@ -24,14 +24,13 @@ class SudoVersion(Fact):
         self.output: str = output
         self.vulnerable: bool = vulnerable
 
-    def __str__(self):
+    def title(self, session):
         result = f"[yellow]sudo[/yellow] version [cyan]{rich.markup.escape(self.version)}[/cyan]"
         if self.vulnerable:
             result += f" (may be [red]vulnerable[/red])"
         return result
 
-    @property
-    def description(self):
+    def description(self, session):
         result = self.output
         if self.vulnerable:
             result = result.rstrip("\n") + "\n\n"

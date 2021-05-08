@@ -71,7 +71,7 @@ class Command(CommandDefinition):
         try:
             result = manager.target.run(module_name, **config_values)
 
-            if args.module is None:
+            if args.module is not None:
                 manager.config.back()
         except pwncat.modules.ModuleFailed as exc:
             if args.traceback:
@@ -102,9 +102,9 @@ class Command(CommandDefinition):
 
             if not isinstance(result, list):
                 result = [result]
-            self.display_item(title=module_name, results=result)
+            self.display_item(manager, title=module_name, results=result)
 
-    def display_item(self, title, results):
+    def display_item(self, manager, title, results):
         """Display a possibly complex item"""
 
         console.print(f"[bold underline]Module '{title}' Results[/bold underline]")
@@ -116,35 +116,40 @@ class Command(CommandDefinition):
 
         # Organize results by category
         for result in results:
-            if isinstance(result, pwncat.modules.Result) and result.is_long_form():
+            if isinstance(result, pwncat.modules.Result) and result.is_long_form(
+                manager.target
+            ):
                 longform.append(result)
             elif (
-                not isinstance(result, pwncat.modules.Result) or result.category is None
+                not isinstance(result, pwncat.modules.Result)
+                or result.category(manager.target) is None
             ):
                 uncategorized.append(result)
-            elif result.category not in categories:
-                categories[result.category] = [result]
+            elif result.category(manager.target) not in categories:
+                categories[result.category(manager.target)] = [result]
             else:
-                categories[result.category].append(result)
+                categories[result.category(manager.target)].append(result)
 
         # Show uncategorized results first
         if uncategorized:
             console.print(f"[bold]Uncategorized Results[/bold]")
             for result in uncategorized:
-                console.print("- " + str(result))
+                console.print("- " + result.title(manager.target))
 
         # Show all other categories
         if categories:
             for category, results in categories.items():
                 console.print(f"[bold]{category}[/bold]")
                 for result in results:
-                    console.print("  - " + str(result))
+                    console.print(f"  - {result.title(manager.target)}")
 
         # Show long-form results in their own sections
         if longform:
             for result in longform:
-                if result.category is None:
-                    console.print(f"[bold]{result.title}[/bold]")
+                if result.category(manager.target) is None:
+                    console.print(f"[bold]{result.title(manager.target)}[/bold]")
                 else:
-                    console.print(f"[bold]{result.category} - {result.title}[/bold]")
-                console.print(textwrap.indent(result.description, "  "))
+                    console.print(
+                        f"[bold]{result.category(manager.target)} - {result.title(manager.target)}[/bold]"
+                    )
+                console.print(textwrap.indent(result.description(manager.target), "  "))

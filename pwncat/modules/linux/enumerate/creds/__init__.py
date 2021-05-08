@@ -19,11 +19,11 @@ class PasswordData(Fact):
         self.lineno: int = lineno
         self.uid: int = uid  # We are Linux-specific here so this can be a literal UID
 
-    def __str__(self):
+    def title(self, session):
         if self.password is not None:
             result = f"Potential Password [cyan]{rich.markup.escape(repr(self.password))}[/cyan]"
             if self.uid is not None:
-                result += f" for [blue]{self.uid}[/blue]"
+                result += f" for [blue]{rich.markup.escape(session.find_user(uid = self.uid).name)}[/blue]"
             if self.filepath is not None:
                 result += f" ({rich.markup.escape(self.filepath)}:{self.lineno})"
         else:

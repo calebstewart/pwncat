@@ -33,9 +33,9 @@ class Binary(Fact):
         """ The uid of the binary """
         self.uid: int = uid
 
-    def __str__(self):
+    def title(self, session):
         color = "red" if self.uid == 0 else "green"
-        return f"[cyan]{rich.markup.escape(self.path)}[/cyan] owned by [{color}]{self.uid}[/{color}]"
+        return f"[cyan]{rich.markup.escape(self.path)}[/cyan] owned by [{color}]{rich.markup.escape(session.find_user(uid=self.uid).name)}[/{color}]"
 
 
 class Module(EnumerateModule):
@@ -51,6 +51,8 @@ class Module(EnumerateModule):
     SCHEDULE = Schedule.PER_USER
 
     def enumerate(self, session: "pwncat.manager.Session"):
+
+        session.find_user(uid=0)
 
         # Spawn a find command to locate the setuid binaries
         proc = session.platform.Popen(

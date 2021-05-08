@@ -33,6 +33,5 @@ class Fact(Result, persistent.Persistent):
         # The original procedure that found this fact
         self.source: str = source
 
-    @property
-    def category(self) -> str:
+    def category(self, session) -> str:
         return f"{self.types[0]} facts"

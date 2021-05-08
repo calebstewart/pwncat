@@ -46,6 +46,8 @@ class Session:
         self.background = None
         self._db_session = None
         self.db = manager.db.open()
+        self.module_depth = 0
+        self.showing_progress = True
 
         self._progress = rich.progress.Progress(
             "{task.fields[platform]}",
@@ -54,9 +56,8 @@ class Session:
             "•",
             "{task.fields[status]}",
             transient=True,
-            # auto_refresh=False,
+            console=console,
         )
-        self._progress_started = False
 
         # If necessary, build a new platform object
         if isinstance(platform, Platform):
@@ -130,14 +131,14 @@ class Session:
     def find_user(self, uid=None, name=None):
         """Locate a user object by name or ID"""
 
-        for user in self.run("enumerate.gather", types=["user"]):
+        for user in self.run("enumerate.gather", progress=False, types=["user"]):
             if (uid is None or user.id == uid) and (name is None or user.name == name):
                 return user
 
     def find_group(self, gid=None, name=None):
         """Locate a user object by name or ID"""
 
-        for group in self.run("enumerate.gather", types=["group"]):
+        for group in self.run("enumerate.gather", progress=False, types=["group"]):
             if (gid is None or group.id == gid) and (
                 name is None or group.name == name
             ):
@@ -157,9 +158,6 @@ class Session:
 
         if module.PLATFORM is not None and type(self.platform) not in module.PLATFORM:
             raise pwncat.modules.IncorrectPlatformError(module_name)
-
-        # Ensure that our database connection is up to date
-        self.db.transaction_manager.begin()
 
         return module.run(self, **kwargs)
 
@@ -208,7 +206,7 @@ class Session:
         # Ensure the variable exists even if an exception happens
         # prior to task creation
         task = None
-        started = self._progress_started
+        started = self._progress._started
 
         if "status" not in kwargs:
             kwargs["status"] = "..."
@@ -220,7 +218,7 @@ class Session:
             # target.
             if self.manager.target == self:
                 self._progress.start()
-                self._progress_started = True
+
             # Create the new task
             task = self._progress.add_task(*args, **kwargs)
             yield task
@@ -233,7 +231,6 @@ class Session:
             # nested tasks.
             if not started:
                 self._progress.stop()
-                self._progress_started = False
 
     def update_task(self, task, *args, **kwargs):
         """Update an active task"""

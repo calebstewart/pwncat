@@ -73,6 +73,28 @@ class Path:
 
         return False
 
+    def readable(self) -> bool:
+        """This is non-standard, but is useful"""
+
+        user = self._target.session.current_user()
+        group = self._target.session.find_group(gid=user.gid)
+        mode = self.stat().st_mode
+        uid = self.stat().st_uid
+        gid = self.stat().st_gid
+
+        if uid == user.id and (mode & stat.S_IRUSR):
+            return True
+        elif group.id == gid and (mode & stat.S_IRGRP):
+            return True
+        else:
+            if group.id == gid and (mode & stat.S_IRGRP):
+                return True
+            else:
+                if mode & stat.S_IROTH:
+                    return True
+
+        return False
+
     def stat(self) -> os.stat_result:
         """Run `stat` on the path and return a stat result"""
 

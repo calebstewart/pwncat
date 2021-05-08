@@ -26,6 +26,12 @@ class FileCapabilityData(Fact):
         self.caps: List[str] = caps
         """ List of strings representing the capabilities (e.g. "cap_net_raw+ep") """
 
+    def title(self, session):
+        line = f"[cyan]{rich.markup.escape(self.path)}[/cyan] -> ["
+        line += ",".join(f"[blue]{rich.markup.escape(c)}[/blue]" for c in self.caps)
+        line += "]"
+        return line
+
     def __str__(self):
         line = f"[cyan]{rich.markup.escape(self.path)}[/cyan] -> ["
         line += ",".join(f"[blue]{rich.markup.escape(c)}[/blue]" for c in self.caps)
@@ -53,7 +59,7 @@ class Module(EnumerateModule):
         with proc.stdout as stream:
             for path in stream:
                 # Parse out path and capability list
-                path, caps = [x.strip() for x in path.strip().split(" = ")]
+                path, caps = [x.strip() for x in path.strip().split(" ")]
                 caps = caps.split(",")
 
                 fact = FileCapabilityData(self.name, path, caps)

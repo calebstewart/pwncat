@@ -18,35 +18,35 @@ LOADED_MODULES = {}
 
 
 class NoValue:
-    """ Differentiates "None" from having no default value """
+    """Differentiates "None" from having no default value"""
 
 
 class ModuleNotFound(Exception):
-    """ The specified module was not found """
+    """The specified module was not found"""
 
 
 class IncorrectPlatformError(Exception):
-    """ The requested module didn't match the current platform """
+    """The requested module didn't match the current platform"""
 
 
 class ArgumentFormatError(Exception):
-    """ Format of one of the arguments was incorrect """
+    """Format of one of the arguments was incorrect"""
 
 
 class MissingArgument(Exception):
-    """ A required argument is missing """
+    """A required argument is missing"""
 
 
 class InvalidArgument(Exception):
-    """ This argument does not exist and ALLOW_KWARGS was false """
+    """This argument does not exist and ALLOW_KWARGS was false"""
 
 
 class ModuleFailed(Exception):
-    """ Base class for module failure """
+    """Base class for module failure"""
 
 
 class PersistError(ModuleFailed):
-    """ Raised when any PersistModule method fails. """
+    """Raised when any PersistModule method fails."""
 
 
 class PersistType(enum.Flag):
@@ -68,7 +68,7 @@ class PersistType(enum.Flag):
 
 @dataclass
 class Argument:
-    """ Argument information for a module """
+    """Argument information for a module"""
 
     type: Callable[[str], Any] = str
     """ A callable which converts a string to the required type
@@ -119,29 +119,26 @@ class Result:
     but if they need to be formatted when displayed, each result should
     implement this interface."""
 
-    @property
-    def category(self) -> str:
-        """Return a "categry" of object. Categories will be grouped.
+    def category(self, session) -> str:
+        """Return a "category" of object. Categories will be grouped.
         If this returns None or is not defined, this result will be "uncategorized"
         """
         return None
 
-    @property
-    def title(self) -> str:
+    def title(self, session) -> str:
         """Return a short-form description/title of the object. If not defined,
         this defaults to the object converted to a string."""
         return str(self)
 
-    @property
-    def description(self) -> str:
+    def description(self, session) -> str:
         """Returns a long-form description. If not defined, the result is assumed
         to not be a long-form result."""
         return None
 
-    def is_long_form(self) -> bool:
-        """ Check if this is a long form result """
+    def is_long_form(self, session) -> bool:
+        """Check if this is a long form result"""
         try:
-            if self.description is None:
+            if self.description(session) is None:
                 return False
         except NotImplementedError:
             return False
@@ -153,9 +150,34 @@ class Status(str):
     the progress bar. It is equivalent to a string, so this is valid:
     ``yield Status("module status update")``"""
 
+    def category(self, session) -> str:
+        """Return a "category" of object. Categories will be grouped.
+        If this returns None or is not defined, this result will be "uncategorized"
+        """
+        return None
+
+    def title(self, session) -> str:
+        """Return a short-form description/title of the object. If not defined,
+        this defaults to the object converted to a string."""
+        return str(self)
+
+    def description(self, session) -> str:
+        """Returns a long-form description. If not defined, the result is assumed
+        to not be a long-form result."""
+        return None
+
+    def is_long_form(self, session) -> bool:
+        """Check if this is a long form result"""
+        try:
+            if self.description(session) is None:
+                return False
+        except NotImplementedError:
+            return False
+        return True
+
 
 def run_decorator(real_run):
-    """ Decorate a run function to evaluate types """
+    """Decorate a run function to evaluate types"""
 
     @functools.wraps(real_run)
     def decorator(self, session, progress=None, **kwargs):
@@ -177,26 +199,44 @@ def run_decorator(real_run):
             elif key not in kwargs and self.ARGUMENTS[key].default is NoValue:
                 raise MissingArgument(key)
 
-        # Save progress reference
-        self.progress = progress
+        # Ensure that our database connection is up to date
+        if session.module_depth == 0:
+            # pwncat.console.log("incrementing mod counter")
+            session.db.transaction_manager.begin()
+        session.module_depth += 1
+        old_show_progress = session.showing_progress
+        if progress is not None:
+            session.showing_progress = progress
 
         # Return the result
         result_object = real_run(self, session, **kwargs)
 
         if inspect.isgenerator(result_object):
-            with session.task(description=self.name, status="...") as task:
-                # Collect results
-                results = []
-                for item in result_object:
-                    session.update_task(task, status=str(item))
-                    if not isinstance(item, Status):
-                        results.append(item)
+            if session.showing_progress:
+                with session.task(description=self.name, status="...") as task:
+                    # Collect results
+                    results = []
+                    for item in result_object:
+                        session.update_task(task, status=item.title(session))
+                        if not isinstance(item, Status):
+                            results.append(item)
+            else:
+                results = [
+                    item for item in result_object if not isinstance(item, Status)
+                ]
 
-                if self.COLLAPSE_RESULT and len(results) == 1:
-                    return results[0]
+            # Decrement the running module counter and reset the progress
+            session.showing_progress = old_show_progress
+            session.module_depth -= 1
 
-                return results
+            if self.COLLAPSE_RESULT and len(results) == 1:
+                return results[0]
+
+            return results
         else:
+            # Decrement the running module counter and reset the progress
+            session.showing_progress = old_show_progress
+            session.module_depth -= 1
             return result_object
 
     return decorator

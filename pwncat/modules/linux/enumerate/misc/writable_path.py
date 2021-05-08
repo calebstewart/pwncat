@@ -17,7 +17,7 @@ class WritablePath(Fact):
 
         self.path: str = path
 
-    def __str__(self):
+    def title(self, session):
         return f"""{rich.markup.escape(self.path)}"""
 
 

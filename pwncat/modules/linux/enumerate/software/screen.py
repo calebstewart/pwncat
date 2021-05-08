@@ -27,7 +27,7 @@ class ScreenVersion(Fact):
         self.perms: int = perms
         self.vulnerable: bool = vulnerable
 
-    def __str__(self):
+    def title(self, session):
         return f"[cyan]{rich.markup.escape(self.path)}[/cyan] (perms: [blue]{oct(self.perms)[2:]}[/blue]) [bold red]is vulnerable[/bold red]"
 
 

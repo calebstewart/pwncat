@@ -25,21 +25,16 @@ class CronEntry(Fact):
         self.datetime: str = datetime
         """ The entire date/time specifier from the crontab entry """
 
-    def __str__(self):
-        return (
-            f"[blue]{self.user.name}[/blue] runs [yellow]{repr(self.command)}[/yellow]"
-        )
-
-    @property
-    def description(self):
+    def description(self, session):
         return f"{self.path}: {self.datetime} {self.command}"
 
-    @property
-    def user(self):
-        return pwncat.victim.find_user_by_id(self.uid)
+    def title(self, session):
+        return f"[blue]{session.find_user(uid=self.uid).name}[/blue] runs [yellow]{repr(self.command)}[/yellow]"
 
 
-def parse_crontab(path: str, line: str, system: bool = True) -> CronEntry:
+def parse_crontab(
+    source, session, path: str, line: str, system: bool = True
+) -> CronEntry:
     """
     Parse a crontab line. This returns a tuple of (command, datetime, user) indicating
     the command to run, when it will execute, and who it will execute as. If system is
@@ -70,13 +65,13 @@ def parse_crontab(path: str, line: str, system: bool = True) -> CronEntry:
     when = " ".join(entry[:5])
 
     if system:
-        uid = pwncat.victim.users[entry[5]].id
+        uid = session.find_user(name=entry[5]).id
         command = " ".join(entry[6:])
     else:
-        uid = pwncat.victim.current_user.id
+        uid = session.current_user().id
         command = " ".join(entry[5:])
 
-    return CronEntry(path, uid, command, when)
+    return CronEntry(source, path, uid, command, when)
 
 
 class Module(EnumerateModule):
@@ -88,19 +83,23 @@ class Module(EnumerateModule):
     PLATFORM = [Linux]
     SCHEDULE = Schedule.PER_USER
 
-    def enumerate(self):
+    def enumerate(self, session):
 
         try:
             # Get this user's crontab entries
-            user_entries = pwncat.victim.env(["crontab", "-l"]).decode("utf-8")
+            proc = session.platform.run(
+                ["crontab", "-l"], capture_output=True, text=True, check=True
+            )
+            user_entries = proc.stdout
+
         except FileNotFoundError:
             # The crontab command doesn't exist :(
             return
 
         for line in user_entries.split("\n"):
             try:
-                yield "software.cron.entry", parse_crontab(
-                    "crontab -l", line, system=False
+                yield parse_crontab(
+                    self.name, session, "crontab -l", line, system=False
                 )
             except ValueError:
                 continue
@@ -109,11 +108,11 @@ class Module(EnumerateModule):
 
         for tab_path in known_tabs:
             try:
-                with pwncat.victim.open(tab_path, "r") as filp:
+                with session.platform.open(tab_path, "r") as filp:
                     for line in filp:
                         try:
-                            yield "software.cron.entry", parse_crontab(
-                                tab_path, line, system=True
+                            yield parse_crontab(
+                                self.name, session, tab_path, line, system=True
                             )
                         except ValueError:
                             continue
@@ -130,18 +129,20 @@ class Module(EnumerateModule):
         for dir_path in known_dirs:
             try:
                 yield Status(f"getting crontabs from [cyan]{dir_path}[/cyan]")
-                filenames = list(pwncat.victim.listdir(dir_path))
+                filenames = list(session.platform.listdir(dir_path))
                 for filename in filenames:
                     if filename in (".", ".."):
                         continue
                     yield Status(f"reading [cyan]{filename}[/cyan]")
                     try:
-                        with pwncat.victim.open(
+                        with session.platform.open(
                             os.path.join(dir_path, filename), "r"
                         ) as filp:
                             for line in filp:
                                 try:
-                                    yield "software.cron.entry", parse_crontab(
+                                    yield parse_crontab(
+                                        self.name,
+                                        session,
                                         os.path.join(dir_path, filename),
                                         line,
                                         system=True,
