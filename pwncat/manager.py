@@ -54,7 +54,9 @@ class Session:
             "•",
             "{task.fields[status]}",
             transient=True,
+            # auto_refresh=False,
         )
+        self._progress_started = False
 
         # If necessary, build a new platform object
         if isinstance(platform, Platform):
@@ -206,7 +208,7 @@ class Session:
         # Ensure the variable exists even if an exception happens
         # prior to task creation
         task = None
-        started = self._progress.live.is_started
+        started = self._progress_started
 
         if "status" not in kwargs:
             kwargs["status"] = "..."
@@ -218,6 +220,7 @@ class Session:
             # target.
             if self.manager.target == self:
                 self._progress.start()
+                self._progress_started = True
             # Create the new task
             task = self._progress.add_task(*args, **kwargs)
             yield task
@@ -230,6 +233,7 @@ class Session:
             # nested tasks.
             if not started:
                 self._progress.stop()
+                self._progress_started = False
 
     def update_task(self, task, *args, **kwargs):
         """Update an active task"""

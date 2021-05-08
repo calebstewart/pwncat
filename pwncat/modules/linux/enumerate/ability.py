@@ -75,7 +75,7 @@ class GTFOFileRead(FileReadAbility):
         return raw_reader
 
     def __str__(self):
-        return f"file read as {self.uid} via {self.method.binary_path}"
+        return f"file read as UID:{self.uid} via {self.method.binary_path}"
 
 
 class GTFOFileWrite(FileWriteAbility):
@@ -139,7 +139,7 @@ class GTFOFileWrite(FileWriteAbility):
         return raw_writer
 
     def __str__(self):
-        return f"file write as {self.uid} via {self.method.binary_path}"
+        return f"file write as UID:{self.uid} via {self.method.binary_path}"
 
 
 class GTFOExecute(ExecuteAbility):
@@ -202,4 +202,4 @@ class GTFOExecute(ExecuteAbility):
         self.send_command(session, shell.encode("utf-8") + b"\n")
 
     def __str__(self):
-        return f"execution as {self.uid} via {self.method.binary_path}"
+        return f"execution as UID:{self.uid} via {self.method.binary_path}"

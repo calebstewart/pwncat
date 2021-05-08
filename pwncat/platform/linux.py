@@ -1114,10 +1114,12 @@ class Linux(Platform):
         # We need a pty to call `su`
         self.get_pty()
 
-        if password is None and self.current_user().id != 0:
-            password = self.find_user(name=user).password
+        current_user = self.session.current_user()
 
-        if self.current_user().id != 0 and password is None:
+        if password is None and current_user.id:
+            password = current_user.password
+
+        if current_user.id != 0 and password is None:
             raise PermissionError("no password provided")
 
         # Run `su`
@@ -1126,7 +1128,7 @@ class Linux(Platform):
         )
 
         # Assume we don't need a password if we are root
-        if self.current_user().id != 0:
+        if current_user.id != 0:
 
             # Read password: prompt
             proc.stdout.read(10)
@@ -1138,7 +1140,7 @@ class Linux(Platform):
             # Retrieve the response (this may take some time if wrong)
             result = proc.stdout.readline().lower()
 
-            if result == "password: \n" or result.strip() == "":
+            if result == "password: \n":
                 result = proc.stdout.readline().lower()
 
             # Check for keywords indicating failure
