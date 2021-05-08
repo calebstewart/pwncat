@@ -54,19 +54,19 @@ class Path:
     def writable(self) -> bool:
         """This is non-standard, but is useful"""
 
-        user = self._target.current_user()
+        user = self._target.session.current_user()
+        group = self._target.session.find_group(gid=user.gid)
         mode = self.stat().st_mode
         uid = self.stat().st_uid
         gid = self.stat().st_gid
 
         if uid == user.id and (mode & stat.S_IWUSR):
             return True
-        elif user.group.id == gid and (mode & stat.S_IWGRP):
+        elif group.id == gid and (mode & stat.S_IWGRP):
             return True
         else:
-            for group in user.groups:
-                if group.id == gid and (mode & stat.S_IWGRP):
-                    return True
+            if group.id == gid and (mode & stat.S_IWGRP):
+                return True
             else:
                 if mode & stat.S_IWOTH:
                     return True

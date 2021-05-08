@@ -17,7 +17,7 @@ import pwncat.subprocess
 from pwncat import util
 from pwncat.gtfobins import GTFOBins, Capability, Stream, MissingBinary
 from pwncat.platform import Platform, PlatformError, Path
-from pwncat.db import User
+from pwncat.db import User, Group
 
 
 class PopenLinux(pwncat.subprocess.Popen):
@@ -469,6 +469,19 @@ class LinuxUser(User):
         self.comment = comment
         self.home = home
         self.shell = shell
+
+
+class LinuxGroup(Group):
+    def __init__(self, source, group_name, hash, gid, members, password=None):
+
+        # We've never seen a group password hash, but those apparently exist????
+        if hash == "x":
+            hash = None
+
+        super().__init__(source, group_name, gid, members)
+
+        self.hash = hash
+        self.password = password
 
 
 class Linux(Platform):

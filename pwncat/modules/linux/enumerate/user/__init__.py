@@ -6,7 +6,7 @@ from pwncat.platform.linux import Linux, LinuxUser
 
 
 class Module(EnumerateModule):
-    """ Enumerate users from a linux target """
+    """Enumerate users from a linux target"""
 
     PROVIDES = ["user"]
     PLATFORM = [Linux]

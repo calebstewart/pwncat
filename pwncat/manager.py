@@ -121,16 +121,25 @@ class Session:
         self.log("registered new host w/ db")
 
     def current_user(self) -> pwncat.db.User:
-        """ Retrieve the current user object """
+        """Retrieve the current user object"""
 
         return self.find_user(uid=self.platform.getuid())
 
     def find_user(self, uid=None, name=None):
-        """ Locate a user object by name or ID """
+        """Locate a user object by name or ID"""
 
         for user in self.run("enumerate.gather", types=["user"]):
             if (uid is None or user.id == uid) and (name is None or user.name == name):
                 return user
+
+    def find_group(self, gid=None, name=None):
+        """Locate a user object by name or ID"""
+
+        for group in self.run("enumerate.gather", types=["group"]):
+            if (gid is None or group.id == gid) and (
+                name is None or group.name == name
+            ):
+                return group
 
     def run(self, module: str, **kwargs):
         """Run a module on this session"""
