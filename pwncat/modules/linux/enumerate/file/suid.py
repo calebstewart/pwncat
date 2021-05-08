@@ -3,6 +3,8 @@ import subprocess
 import dataclasses
 from typing import Any
 
+import rich.markup
+
 import pwncat
 from pwncat.platform.linux import Linux
 from pwncat import util
@@ -33,7 +35,7 @@ class Binary(Fact):
 
     def __str__(self):
         color = "red" if self.uid == 0 else "green"
-        return f"[cyan]{self.path}[/cyan] owned by [{color}]{self.uid}[/{color}]"
+        return f"[cyan]{rich.markup.escape(self.path)}[/cyan] owned by [{color}]{self.uid}[/{color}]"
 
 
 class Module(EnumerateModule):

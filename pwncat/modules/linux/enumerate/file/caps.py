@@ -2,6 +2,8 @@
 from typing import List
 import dataclasses
 
+import rich.markup
+
 import pwncat
 from pwncat.platform.linux import Linux
 from pwncat import util
@@ -25,8 +27,8 @@ class FileCapabilityData(Fact):
         """ List of strings representing the capabilities (e.g. "cap_net_raw+ep") """
 
     def __str__(self):
-        line = f"[cyan]{self.path}[/cyan] -> ["
-        line += ",".join(f"[blue]{c}[/blue]" for c in self.caps)
+        line = f"[cyan]{rich.markup.escape(self.path)}[/cyan] -> ["
+        line += ",".join(f"[blue]{rich.markup.escape(c)}[/blue]" for c in self.caps)
         line += "]"
         return line
 

@@ -2,6 +2,8 @@
 from Crypto.PublicKey import RSA
 import time
 
+import rich.markup
+
 import pwncat
 from pwncat.platform.linux import Linux
 from pwncat.modules import Status
@@ -22,6 +24,12 @@ class Module(EnumerateModule):
 
     def enumerate(self, session: "pwncat.manager.Session"):
 
+        # This uses a list because it does multiple things
+        # 1. It _finds_ the private key locations
+        # 2. It tries to _read_ the private keys
+        # This needs to happen in two loops because it has to happen one at
+        # at a time (you can't have two processes running at the same time)
+        # ..... (right now ;)
         facts = []
 
         # Search for private keys in common locations
@@ -37,12 +45,12 @@ class Module(EnumerateModule):
             for line in pipe:
                 line = line.strip().split(" ")
                 uid, path = int(line[0]), " ".join(line[1:])
-                yield Status(f"found [cyan]{path}[/cyan]")
-                facts.append(PrivateKeyData(uid, path, None, False))
+                yield Status(f"found [cyan]{rich.markup.escape(path)}[/cyan]")
+                facts.append(PrivateKeyData(self.name, path, uid, None, False))
 
         for fact in facts:
             try:
-                yield Status(f"reading [cyan]{fact.path}[/cyan]")
+                yield Status(f"reading [cyan]{rich.markup.escape(fact.path)}[/cyan]")
                 with session.platform.open(fact.path, "r") as filp:
                     fact.content = filp.read().strip().replace("\r\n", "\n")
 
@@ -60,9 +68,6 @@ class Module(EnumerateModule):
                         # Some other error happened, probably not a key
                         continue
 
-                # we set the user field to the id temporarily
-                fact.user = session.platform.find_user(id=fact.user)
-
-                yield "creds.private_key", fact
+                yield fact
             except (PermissionError, FileNotFoundError):
                 continue

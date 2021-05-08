@@ -115,6 +115,7 @@ class Module(EnumerateModule):
 
                 # This was a match for the search. We  may have extracted a
                 # password. Either way, log it.
-                yield "creds.password", PasswordData(password, path, lineno)
+                fact = PasswordData(self.name, password, path, lineno, uid=None)
+                yield fact
 
         proc.wait()
