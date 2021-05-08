@@ -2,19 +2,22 @@
 from typing import List
 import dataclasses
 
+
 import pwncat
-from pwncat.platform.linux import Linux
 from pwncat import util
+from pwncat.db import Fact
+from pwncat.platform.linux import Linux
 from pwncat.modules.agnostic.enumerate import EnumerateModule, Schedule
 
 
-@dataclasses.dataclass
-class ASLRStateData:
+class ASLRStateData(Fact):
+    def __init__(self, source, state):
+        super().__init__(source=source, types=["system.aslr"])
 
-    state: int
-    """ the value of /proc/sys/kernel/randomize_va_space """
+        self.state: int = state
+        """ the value of /proc/sys/kernel/randomize_va_space """
 
-    def __str__(self):
+    def title(self, session):
         if self.state == 0:
             return f"ASLR is [green]disabled[/green]"
         return f"ASLR is [red]enabled[/red]"
@@ -29,10 +32,12 @@ class Module(EnumerateModule):
     PROVIDES = ["system.aslr"]
     PLATFORM = [Linux]
 
-    def enumerate(self):
+    def enumerate(self, session):
 
         try:
-            with pwncat.victim.open("/proc/sys/kernel/randomize_va_space", "r") as filp:
+            with session.platform.open(
+                "/proc/sys/kernel/randomize_va_space", "r"
+            ) as filp:
                 value = filp.read()
                 try:
                     value = int(value)
@@ -40,6 +45,6 @@ class Module(EnumerateModule):
                     value = None
 
             if value is not None:
-                yield "system.aslr", ASLRStateData(value)
+                yield ASLRStateData(self.name, value)
         except (FileNotFoundError, PermissionError):
             pass
