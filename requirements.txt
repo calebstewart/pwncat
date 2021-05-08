@@ -26,7 +26,7 @@ pytablewriter==0.54.0
 python-dateutil==2.8.1
 pytz==2020.1
 requests==2.24.0
-rich
+rich==9.10.0
 six==1.15.0
 SQLAlchemy==1.3.18
 tabledata==1.1.2
