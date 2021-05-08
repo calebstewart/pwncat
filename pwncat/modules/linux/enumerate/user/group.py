@@ -35,7 +35,6 @@ class Module(EnumerateModule):
                         yield group
 
                     except Exception as exc:
-                        raise ModuleFailed(f"something fucked {exc}")
                         # Bad group line
                         continue
 
