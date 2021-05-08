@@ -105,7 +105,7 @@ class Command(CommandDefinition):
             self.display_item(title=module_name, results=result)
 
     def display_item(self, title, results):
-        """ Display a possibly complex item """
+        """Display a possibly complex item"""
 
         console.print(f"[bold underline]Module '{title}' Results[/bold underline]")
 
