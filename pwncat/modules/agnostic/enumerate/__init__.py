@@ -3,7 +3,7 @@ from enum import Enum, auto
 import fnmatch
 import time
 
-# import sqlalchemy
+import persistent
 
 import pwncat
 from pwncat.platform.linux import Linux
@@ -87,9 +87,12 @@ class EnumerateModule(BaseModule):
             yield from (f for f in target.facts if f.source == self.name)
 
         # Check if the module is scheduled to run now
-        if (self.SCHEDULE == Schedule.ONCE and self.name in target.enumerate_state) or (
-            self.SCHEDULE == Schedule.PER_USER
-            and session.platform.current_user().id in target.enumerate_state[self.name]
+        if (self.name in target.enumerate_state) and (
+            (self.SCHEDULE == Schedule.ONCE and self.name in target.enumerate_state)
+            or (
+                self.SCHEDULE == Schedule.PER_USER
+                and session.platform.getuid() in target.enumerate_state[self.name]
+            )
         ):
             return
 
@@ -121,9 +124,7 @@ class EnumerateModule(BaseModule):
             elif self.SCHEDULE == Schedule.PER_USER:
                 if not self.name in target.enumerate_state:
                     target.enumerate_state[self.name] = persistent.list.PersistentList()
-                target.enumerate_state[self.name].append(
-                    session.platform.current_user().id
-                )
+                target.enumerate_state[self.name].append(session.platform.getuid())
         finally:
             # Commit database changes
             session.db.transaction_manager.commit()

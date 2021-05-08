@@ -16,6 +16,7 @@ from rich.logging import RichHandler
 import pwncat
 import pwncat.subprocess
 import pwncat.channel
+from pwncat.util import console
 
 PLATFORM_TYPES = {}
 """ A dictionary of platform names mapping to their class
@@ -53,19 +54,19 @@ class Path:
     def writable(self) -> bool:
         """This is non-standard, but is useful"""
 
-        user = self._target.current_user()
+        user = self._target.session.current_user()
+        group = self._target.session.find_group(gid=user.gid)
         mode = self.stat().st_mode
         uid = self.stat().st_uid
         gid = self.stat().st_gid
 
         if uid == user.id and (mode & stat.S_IWUSR):
             return True
-        elif user.group.id == gid and (mode & stat.S_IWGRP):
+        elif group.id == gid and (mode & stat.S_IWGRP):
             return True
         else:
-            for group in user.groups:
-                if group.id == gid and (mode & stat.S_IWGRP):
-                    return True
+            if group.id == gid and (mode & stat.S_IWGRP):
+                return True
             else:
                 if mode & stat.S_IWOTH:
                     return True
@@ -567,7 +568,7 @@ class Platform(ABC):
         :rtype: str
         """
 
-    def which(self, name: str) -> str:
+    def which(self, name: str, **kwargs) -> str:
         """
         Locate the specified binary on the remote host. Normally, this is done through
         the local `which` command on the remote host (for unix-like hosts), but can be
@@ -575,15 +576,33 @@ class Platform(ABC):
         remote host and provide the capabilities of the requested binary.
 
         :param name: name of the binary (e.g. "tar" or "dd")
-        :type name: str
+        :type name: Union[list, str]
         :return: full path to the requested binary
         :rtype: str
         :raises: FileNotFoundError: the requested binary does not exist on this host
         """
 
-        # NOTE - this needs to be implemented
+        """
+        TODO: We should do something about the `which` statement that is sometimes
+        passed in, if we were using busybox. 
+        """
 
-        return self._do_which(name)
+        if not isinstance(name, str):
+            for n in name:
+                path = self.which(n)
+                if path is not None:
+                    return path
+            return None
+
+        if name in self.session.target.utilities:
+            return self.session.target.utilities[name]
+
+        path = self._do_which(name)
+        self.session.db.transaction_manager.begin()
+        self.session.target.utilities[name] = path
+        self.session.db.transaction_manager.commit()
+
+        return path
 
     @abstractmethod
     def _do_which(self, name: str) -> Optional[str]:
@@ -666,6 +685,7 @@ class Platform(ABC):
         text=None,
         env=None,
         universal_newlines=None,
+        popen_class=None,
         **other_popen_kwargs,
     ) -> pwncat.subprocess.Popen:
         """
@@ -680,7 +700,10 @@ class Platform(ABC):
         if input is not None:
             stdin = pwncat.subprocess.PIPE
 
-        p = self.Popen(
+        if popen_class is None:
+            popen_class = self.Popen
+
+        p = popen_class(
             args,
             stdin=stdin,
             stdout=stdout,

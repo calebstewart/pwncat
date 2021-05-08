@@ -17,7 +17,7 @@ import pwncat.subprocess
 from pwncat import util
 from pwncat.gtfobins import GTFOBins, Capability, Stream, MissingBinary
 from pwncat.platform import Platform, PlatformError, Path
-from pwncat.db.user import User
+from pwncat.db import User, Group
 
 
 class PopenLinux(pwncat.subprocess.Popen):
@@ -235,7 +235,7 @@ class LinuxReader(BufferedIOBase):
         return False
 
     def detach(self):
-        """ Detach the underlying process and return the Popen object """
+        """Detach the underlying process and return the Popen object"""
 
         popen = self.popen
         self.popen = None
@@ -243,7 +243,7 @@ class LinuxReader(BufferedIOBase):
         return popen
 
     def read(self, size: int = -1):
-        """ Read data from the file """
+        """Read data from the file"""
 
         if self.popen is None:
             raise UnsupportedOperation("reader is detached")
@@ -255,7 +255,7 @@ class LinuxReader(BufferedIOBase):
         return result
 
     def read1(self, size: int = -1):
-        """ Read data w/ 1 call to underlying buffer """
+        """Read data w/ 1 call to underlying buffer"""
 
         if self.popen is None:
             raise UnsupportedOperation("reader is detached")
@@ -267,7 +267,7 @@ class LinuxReader(BufferedIOBase):
         return result
 
     def readinto(self, b):
-        """ Read data w/ 1 call to underlying buffer """
+        """Read data w/ 1 call to underlying buffer"""
 
         if self.popen is None:
             raise UnsupportedOperation("reader is detached")
@@ -278,7 +278,7 @@ class LinuxReader(BufferedIOBase):
         return result
 
     def readinto1(self, b):
-        """ Read data w/ 1 call to underlying buffer """
+        """Read data w/ 1 call to underlying buffer"""
 
         if self.popen is None:
             raise UnsupportedOperation("reader is detached")
@@ -290,7 +290,7 @@ class LinuxReader(BufferedIOBase):
         return result
 
     def close(self):
-        """ Close the file and stop the process """
+        """Close the file and stop the process"""
 
         if self.popen is None:
             raise UnsupportedOperation("reader is detached")
@@ -359,7 +359,7 @@ class LinuxWriter(BufferedIOBase):
         return True
 
     def detach(self):
-        """ Detach the underlying process and return the Popen object """
+        """Detach the underlying process and return the Popen object"""
 
         popen = self.popen
         self.popen = None
@@ -408,7 +408,7 @@ class LinuxWriter(BufferedIOBase):
         return len(b)
 
     def close(self):
-        """ Close the file and stop the process """
+        """Close the file and stop the process"""
 
         if self.popen is None:
             return
@@ -444,7 +444,7 @@ class LinuxWriter(BufferedIOBase):
 
 
 class LinuxUser(User):
-    """ Linux-specific user definition """
+    """Linux-specific user definition"""
 
     def __init__(
         self,
@@ -469,6 +469,19 @@ class LinuxUser(User):
         self.comment = comment
         self.home = home
         self.shell = shell
+
+
+class LinuxGroup(Group):
+    def __init__(self, source, group_name, hash, gid, members, password=None):
+
+        # We've never seen a group password hash, but those apparently exist????
+        if hash == "x":
+            hash = None
+
+        super().__init__(source, group_name, gid, members)
+
+        self.hash = hash
+        self.password = password
 
 
 class Linux(Platform):
@@ -533,7 +546,7 @@ class Linux(Platform):
             self.has_pty = False
 
     def disable_history(self):
-        """ Disable shell history """
+        """Disable shell history"""
 
         # Ensure history is not tracked
         self.run("unset HISTFILE; export HISTCONTROL=ignorespace; unset PROMPT_COMMAND")
@@ -567,7 +580,7 @@ class Linux(Platform):
                 ]
             )
             if python_path is not None:
-                pty_command = f"""exec {python_path} -c "import pty; pty.spawn('{shell} -i')" 2>&1\n"""
+                pty_command = f""" exec {python_path} -c "import pty; pty.spawn('{shell} -i')" 2>&1\n"""
 
         if pty_command is not None:
             self.logger.info(pty_command.rstrip("\n"))
@@ -679,7 +692,7 @@ class Linux(Platform):
         for name in p.stdout.split("\n"):
             yield name
 
-    def which(self, name: str, quote: bool = False) -> str:
+    def _do_which(self, name: str) -> str:
         """
         Locate the specified binary on the remote host. Normally, this is done through
         the local `which` command on the remote host (for unix-like hosts), but can be
@@ -693,24 +706,14 @@ class Linux(Platform):
         :raises: FileNotFoundError: the requested binary does not exist on this host
         """
 
-        if not isinstance(name, str):
-            for item in name:
-                result = self.which(item)
-                if result is not None:
-                    return result
-            return None
-
         try:
             result = self.run(["which", name], text=True, capture_output=True)
-
-            if quote:
-                return shlex.quote(result.stdout.rstrip("\n"))
             return result.stdout.rstrip("\n")
         except CalledProcessError:
             return None
 
     def getuid(self):
-        """ Retrieve the current user ID """
+        """Retrieve the current user ID"""
 
         try:
             proc = self.run(["id", "-ru"], capture_output=True, text=True, check=True)
@@ -785,6 +788,7 @@ class Linux(Platform):
         errors=None,
         env=None,
         bootstrap_input=None,
+        send_command=None,
         **other_popen_kwargs,
     ) -> pwncat.subprocess.Popen:
         """
@@ -861,7 +865,10 @@ class Linux(Platform):
         command = ";".join(commands).encode("utf-8")
 
         # Send the command
-        self.channel.send(command + b"\n")
+        if send_command is None:
+            self.channel.send(command + b"\n")
+        else:
+            send_command(command + b"\n")
 
         # Send bootstraping input if provided
         if bootstrap_input is not None:
@@ -941,9 +948,8 @@ class Linux(Platform):
             raise PlatformError("mixed read/write streams are not supported")
 
         # Ensure all mode properties are valid
-        for char in mode:
-            if char not in "rwb":
-                raise PlatformError(f"{char}: unknown file mode")
+        if any(c not in "rwb" for c in mode):
+            raise PlatformError(f"{char}: unknown file mode")
 
         # Save this just in case we are opening a text-mode stream
         line_buffering = buffering == -1 or buffering == 1
@@ -960,7 +966,7 @@ class Linux(Platform):
             ):
                 try:
                     payload, input_data, exit_cmd = method.build(
-                        lfile=path, suid=True, length=1000000
+                        gtfo=self.gtfo, lfile=path, suid=True, length=1000000
                     )
                     break
                 except MissingBinary:
@@ -989,7 +995,7 @@ class Linux(Platform):
             ):
                 try:
                     payload, input_data, exit_cmd = method.build(
-                        lfile=path, suid=True, length=1000000
+                        gtfo=self.gtfo, lfile=path, suid=True, length=1000000
                     )
                     break
                 except MissingBinary:
@@ -1209,7 +1215,7 @@ class Linux(Platform):
             popen_kwargs["env"] = None
 
         if password is None:
-            password = self.current_user.password
+            password = self.session.current_user().password
 
         # At this point, the command is a string
         if not as_is:
@@ -1339,75 +1345,15 @@ class Linux(Platform):
 
         self._interactive = value
 
-    def _do_which(self, name: str):
-        # NOTE - This needs to be implemented
-        return None
-
     def whoami(self):
-        """ Get the name of the current user """
+        """Get the name of the current user"""
 
         return self.run(
             ["whoami"], capture_output=True, check=True, encoding="utf-8"
         ).stdout.rstrip("\n")
 
-    def reload_users(self):
-        """ Reload users from the remote host and cache them in the database """
-
-        with self.session.db as db:
-            # Delete existing users from the database
-            db.query(pwncat.db.User).filter_by(host_id=self.session.host).delete()
-            db.query(pwncat.db.Group).filter_by(host_id=self.session.host).delete()
-            db.commit()
-
-        with self.open("/etc/passwd") as filp:
-            etc_passwd = filp.readlines()
-
-        with self.open("/etc/group") as filp:
-            etc_group = filp.readlines()
-
-        with self.session.db as db:
-            users = {}
-
-            for user_line in etc_passwd:
-                name, password, uid, gid, description, home, shell = user_line.rstrip(
-                    "\n"
-                ).split(":")
-                user = pwncat.db.User(
-                    host_id=self.session.host,
-                    id=uid,
-                    gid=gid,
-                    name=name,
-                    homedir=home,
-                    shell=shell,
-                    fullname=description,
-                )
-
-                # Some users have a hash here, but they shouldn't
-                if password != "x":
-                    user.hash = password
-
-                # Track for group creation
-                users[name] = user
-
-                # Add to the database
-                db.add(user)
-
-            for group_line in etc_group:
-                name, _, id, *members = group_line.rstrip("\n").split(":")
-                members = ":".join(members).split(",")
-
-                # Build the group
-                group = pwncat.db.Group(host_id=self.session.host, id=id, name=name)
-                for name in members:
-                    if name in users:
-                        group.members.append(users[name])
-
-                db.add(group)
-
-            db.commit()
-
     def _parse_stat(self, result: str) -> os.stat_result:
-        """ Parse the output of a stat command """
+        """Parse the output of a stat command"""
 
         # Reverse the string. The filename may have a space in it, so we do this
         # to properly parse it.
@@ -1475,7 +1421,7 @@ class Linux(Platform):
         return self._parse_stat(result.stdout)
 
     def lstat(self, path: str) -> os.stat_result:
-        """ Perform the equivalent of the lstat syscall """
+        """Perform the equivalent of the lstat syscall"""
 
         try:
             result = self.run(
@@ -1495,7 +1441,7 @@ class Linux(Platform):
         return self._parse_stat(result.stdout)
 
     def abspath(self, path: str) -> str:
-        """ Attempt to resolve a path to an absolute path """
+        """Attempt to resolve a path to an absolute path"""
 
         try:
             result = self.run(
@@ -1506,7 +1452,7 @@ class Linux(Platform):
             raise FileNotFoundError(path) from exc
 
     def readlink(self, path: str):
-        """ Attempt to read the target of a link """
+        """Attempt to read the target of a link"""
 
         try:
             self.lstat(path)
@@ -1518,7 +1464,7 @@ class Linux(Platform):
             raise OSError(f"Invalid argument: '{path}'") from exc
 
     def umask(self, mask: int = None):
-        """ Set or retrieve the current umask value """
+        """Set or retrieve the current umask value"""
 
         if mask is None:
             return int(self.run(["umask"], capture_output=True, text=True).stdout, 8)
@@ -1527,12 +1473,12 @@ class Linux(Platform):
         return mask
 
     def touch(self, path: str):
-        """ Update a file modification time and possibly create it """
+        """Update a file modification time and possibly create it"""
 
         self.run(["touch", path])
 
     def chmod(self, path: str, mode: int, link: bool = False):
-        """ Update the file permissions """
+        """Update the file permissions"""
 
         if link:
             self.run(["chmod", "-h", oct(mode)[2:], path])
@@ -1540,7 +1486,7 @@ class Linux(Platform):
             self.run(["chmod", oct(mode)[2:], path])
 
     def mkdir(self, path: str, mode: int = 0o777, parents: bool = False):
-        """ Create a new directory """
+        """Create a new directory"""
 
         try:
             if parents:
@@ -1567,7 +1513,7 @@ class Linux(Platform):
             raise FileNotFoundError(source) from exc
 
     def rmdir(self, target: str):
-        """ Remove the specified directory. It must be empty. """
+        """Remove the specified directory. It must be empty."""
 
         try:
             self.run(["rmdir", target], check=True)
@@ -1575,7 +1521,7 @@ class Linux(Platform):
             raise OSError(f"Directory not empty: {target}") from exc
 
     def symlink_to(self, source: str, target: str):
-        """ Create a symbolic link to source from target """
+        """Create a symbolic link to source from target"""
 
         # Since this function is unlikely to be called outside of
         # the path abstraction, we don't do much error checking.
@@ -1585,13 +1531,13 @@ class Linux(Platform):
         self.run(["ln", "-s", source, target], check=True)
 
     def link_to(self, source: str, target: str):
-        """ Create a filesystem hard link. """
+        """Create a filesystem hard link."""
 
         # Same warning as with symlink
         self.run(["ln", source, target], check=True)
 
     def unlink(self, target: str):
-        """ Remove a link to a file (similar to `rm`) """
+        """Remove a link to a file (similar to `rm`)"""
 
         try:
             self.run(["rm", target], check=True)

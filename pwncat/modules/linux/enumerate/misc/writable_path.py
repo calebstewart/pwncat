@@ -2,10 +2,23 @@
 import os
 import stat
 
+import rich.markup
+
 import pwncat
+from pwncat.db import Fact
 from pwncat.util import Access
 from pwncat.platform.linux import Linux
 from pwncat.modules.agnostic.enumerate import EnumerateModule, Schedule
+
+
+class WritablePath(Fact):
+    def __init__(self, source, path):
+        super().__init__(source=source, types=["misc.writable_path"])
+
+        self.path: str = path
+
+    def __str__(self):
+        return f"""{rich.markup.escape(self.path)}"""
 
 
 class Module(EnumerateModule):
@@ -20,8 +33,6 @@ class Module(EnumerateModule):
 
     def enumerate(self, session):
 
-        user = session.platform.current_user()
-
         for path in session.platform.getenv("PATH").split(":"):
 
             # Ignore empty components
@@ -35,4 +46,4 @@ class Module(EnumerateModule):
 
             # See if we have write permission
             if path.is_dir() and path.writable():
-                yield "misc.writable_path", str(path.resolve())
+                yield WritablePath(self.name, str(path.resolve()))

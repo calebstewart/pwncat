@@ -3,23 +3,27 @@ import dataclasses
 import os
 import re
 
+import rich.markup
+
 import pwncat
+from pwncat.db import Fact
 from pwncat.platform.linux import Linux
 from pwncat.modules import Status
 from pwncat.modules.agnostic.enumerate import EnumerateModule, Schedule
 
 
-@dataclasses.dataclass
-class CronEntry:
+class CronEntry(Fact):
+    def __init__(self, source, path, uid, command, datetime):
+        super().__init__(source=source, types=["software.cron.entry"])
 
-    path: str
-    """ The path to the crontab where this was found """
-    uid: int
-    """ The user ID this entry will run as """
-    command: str
-    """ The command that will execute """
-    datetime: str
-    """ The entire date/time specifier from the crontab entry """
+        self.path: str = path
+        """ The path to the crontab where this was found """
+        self.uid: int = uid
+        """ The user ID this entry will run as """
+        self.command: str = command
+        """ The command that will execute """
+        self.datetime: str = datetime
+        """ The entire date/time specifier from the crontab entry """
 
     def __str__(self):
         return (

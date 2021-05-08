@@ -81,7 +81,7 @@ class Target(persistent.Persistent):
         """ List of files/properties of the target that have been modified and/or created. """
         self.users: persistent.list.PersistentList = persistent.list.PersistentList()
         """ List of users known on the target system (may not be all-encompasing depending on access) """
-        self.utilities: TreeSet = TreeSet()
+        self.utilities: OOBTree() = OOBTree()
         """ Mapping of utility names to paths. This is mainly used on Unix platforms to identify binaries available in the path. """
         self.implants: persistent.list.PersistentList = persistent.list.PersistentList()
         """ List of installed implants on this target host """

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from typing import Optional
 
+import rich.markup
 from persistent.list import PersistentList
 
 from pwncat.db.fact import Fact
@@ -19,7 +20,10 @@ class Group(Fact):
         self.members: PersistentList = PersistentList(members)
 
     def __repr__(self):
-        return f"""Group(gid={self.id}, name={repr(self.name)}), members={repr(",".join(m for m in self.members))})"""
+        return f"""Group(gid={self.id}, name={repr(self.name)}, members={repr(self.members)})"""
+
+    def __str__(self):
+        return f"""{rich.markup.escape(self.name)}, gid={self.id}, members={rich.markup.escape(",".join((m for m in self.members)))}"""
 
 
 class User(Fact):

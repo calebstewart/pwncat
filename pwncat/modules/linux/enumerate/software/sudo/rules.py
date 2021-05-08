@@ -3,9 +3,12 @@ import dataclasses
 import re
 from typing import Generator, Optional, List
 
+import rich.markup
+
 import pwncat
-from pwncat.platform.linux import Linux
 from pwncat import util
+from pwncat.db import Fact
+from pwncat.platform.linux import Linux
 from pwncat.modules.agnostic.enumerate import EnumerateModule, Schedule
 
 per_user = True
@@ -19,30 +22,44 @@ sudo_pattern = re.compile(
 directives = ["Defaults", "User_Alias", "Runas_Alias", "Host_Alias", "Cmnd_Alias"]
 
 
-@dataclasses.dataclass
-class SudoSpec:
+class SudoSpec(Fact):
+    def __init__(
+        self,
+        source,
+        line: str,
+        matched: bool = False,
+        user: Optional[str] = None,
+        group: Optional[str] = None,
+        host: Optional[str] = None,
+        runas_user: Optional[str] = None,
+        runas_group: Optional[str] = None,
+        options: List[str] = None,
+        hash: str = None,
+        commands: List[str] = None,
+    ):
+        super().__init__(source=source, types=["software.sudo.rule"])
 
-    line: str
-    """ The full, unaltered line from the sudoers file """
-    matched: bool = False
-    """ The regular expression match data. If this is None, all following fields
-    are invalid and should not be used. """
-    user: Optional[str] = None
-    """ The user which this rule applies to. This is None if a group was specified """
-    group: Optional[str] = None
-    """ The group this rule applies to. This is None if a user was specified. """
-    host: Optional[str] = None
-    """ The host this rule applies to """
-    runas_user: Optional[str] = None
-    """ The user we are allowed to run as """
-    runas_group: Optional[str] = None
-    """ The GID we are allowed to run as (may be None)"""
-    options: List[str] = None
-    """ A list of options specified (e.g. NOPASSWD, SETENV, etc) """
-    hash: str = None
-    """ A hash type and value which sudo will obey """
-    commands: List[str] = None
-    """ The command specification """
+        self.line: str
+        """ The full, unaltered line from the sudoers file """
+        self.matched: bool = False
+        """ The regular expression match data. If this is None, all following fields
+        are invalid and should not be used. """
+        self.user: Optional[str] = None
+        """ The user which this rule applies to. This is None if a group was specified """
+        self.group: Optional[str] = None
+        """ The group this rule applies to. This is None if a user was specified. """
+        self.host: Optional[str] = None
+        """ The host this rule applies to """
+        self.runas_user: Optional[str] = None
+        """ The user we are allowed to run as """
+        self.runas_group: Optional[str] = None
+        """ The GID we are allowed to run as (may be None)"""
+        self.options: List[str] = None
+        """ A list of options specified (e.g. NOPASSWD, SETENV, etc) """
+        self.hash: str = None
+        """ A hash type and value which sudo will obey """
+        self.commands: List[str] = None
+        """ The command specification """
 
     def __str__(self):
         display = ""
@@ -51,28 +68,32 @@ class SudoSpec:
             return self.line
 
         if self.user is not None:
-            display += f"User [blue]{self.user}[/blue]: "
+            display += f"User [blue]{rich.markup.escape(self.user)}[/blue]: "
         else:
-            display += f"Group [cyan]{self.group}[/cyan]: "
+            display += f"Group [cyan]{rich.markup.escape(self.group)}[/cyan]: "
 
-        display += f"[yellow]{'[/yellow], [yellow]'.join(self.commands)}[/yellow] as "
+        display += f"[yellow]{'[/yellow], [yellow]'.join((rich.markup.escape(x) for c in self.commands))}[/yellow] as "
 
         if self.runas_user == "root":
             display += f"[red]root[/red]"
         elif self.runas_user is not None:
-            display += f"[blue]{self.runas_user}[/blue]"
+            display += f"[blue]{rich.markup.escape(self.runas_user)}[/blue]"
 
         if self.runas_group == "root":
             display += f":[red]root[/red]"
         elif self.runas_group is not None:
-            display += f"[cyan]{self.runas_group}[/cyan]"
+            display += f"[cyan]{rich.markup.escape(self.runas_group)}[/cyan]"
 
         if self.host is not None:
-            display += f" on [magenta]{self.host}[/magenta]"
+            display += f" on [magenta]{rich.markup.escape(self.host)}[/magenta]"
 
         if self.options:
             display += (
-                " (" + ",".join(f"[green]{x}[/green]" for x in self.options) + ")"
+                " ("
+                + ",".join(
+                    f"[green]{rich.markup.escape(x)}[/green]" for x in self.options
+                )
+                + ")"
             )
 
         return display
@@ -151,17 +172,17 @@ class Module(EnumerateModule):
     PLATFORM = [Linux]
     SCHEDULE = Schedule.PER_USER
 
-    def enumerate(self):
+    def enumerate(self, session):
 
         try:
-            with pwncat.victim.open("/etc/sudoers", "r") as filp:
+            with session.platform.open("/etc/sudoers", "r") as filp:
                 for line in filp:
                     line = line.strip()
                     # Ignore comments and empty lines
                     if line.startswith("#") or line == "":
                         continue
 
-                    yield "sudo", LineParser(line)
+                    yield LineParser(line)
 
             # No need to parse `sudo -l`, since can read /etc/sudoers
             return
@@ -170,10 +191,13 @@ class Module(EnumerateModule):
 
         # Check for our privileges
         try:
-            result = pwncat.victim.sudo("-nl", send_password=False).decode("utf-8")
-            if result.strip() == "sudo: a password is required":
-                result = pwncat.victim.sudo("-l").decode("utf-8")
+
+            proc = session.platform.sudo(["sudo", "-nl"], as_is=True)
+            result = proc.stdout.read()
+            proc.wait()  # ensure this closes properly
+
         except PermissionError:
+            # if this asks for a password and we don't have one, bail
             return
 
         for line in result.split("\n"):
@@ -191,6 +215,6 @@ class Module(EnumerateModule):
                 continue
 
             # Build the beginning part of a normal spec
-            line = f"{pwncat.victim.current_user.name} local=" + line.strip()
+            line = f"{session.current_user()} local=" + line.strip()
 
-            yield "software.sudo.rule", LineParser(line)
+            yield LineParser(line)

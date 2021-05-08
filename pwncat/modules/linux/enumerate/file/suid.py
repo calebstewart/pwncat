@@ -1,38 +1,52 @@
 #!/usr/bin/env python3
 import subprocess
 import dataclasses
+from typing import Any
+
+import rich.markup
 
 import pwncat
 from pwncat.platform.linux import Linux
 from pwncat import util
 from pwncat.modules import Status
 from pwncat.modules.agnostic.enumerate import EnumerateModule, Schedule
+from pwncat.modules.linux.enumerate.ability import (
+    GTFOFileRead,
+    GTFOFileWrite,
+    GTFOExecute,
+)
+from pwncat.gtfobins import Capability, Stream, BinaryNotFound
+from pwncat.db import Fact
 
 
-@dataclasses.dataclass
-class Binary:
+class Binary(Fact):
     """
     A generic description of a SUID binary
     """
 
-    path: str
-    """ The path to the binary """
-    owner: "pwncat.db.User"
-    """ The owner of the binary """
+    def __init__(self, source, path, uid):
+        super().__init__(source=source, types=["file.suid"])
+
+        """ The path to the binary """
+        self.path: str = path
+
+        """ The uid of the binary """
+        self.uid: int = uid
 
     def __str__(self):
-        color = "red" if self.owner.id == 0 else "green"
-        return f"[cyan]{self.path}[/cyan] owned by [{color}]{self.owner.name}[/{color}]"
-
-    @property
-    def uid(self):
-        return self.owner.id
+        color = "red" if self.uid == 0 else "green"
+        return f"[cyan]{rich.markup.escape(self.path)}[/cyan] owned by [{color}]{self.uid}[/{color}]"
 
 
 class Module(EnumerateModule):
-    """ Enumerate SUID binaries on the remote host """
+    """Enumerate SUID binaries on the remote host"""
 
-    PROVIDES = ["file.suid"]
+    PROVIDES = [
+        "file.suid",
+        "ability.execute",
+        "ability.file.read",
+        "ability.file.write",
+    ]
     PLATFORM = [Linux]
     SCHEDULE = Schedule.PER_USER
 
@@ -53,9 +67,29 @@ class Module(EnumerateModule):
                 path = path.strip().split(" ")
                 uid, path = int(path[0]), " ".join(path[1:])
 
-                facts.append(Binary(path, uid))
-                yield Status(path)
+                fact = Binary(self.name, path, uid)
+                yield fact
 
-        for fact in facts:
-            fact.owner = session.platform.find_user(id=fact.owner)
-            yield "file.suid", fact
+                for method in session.platform.gtfo.iter_binary(path):
+                    if method.cap == Capability.READ:
+                        yield GTFOFileRead(
+                            source=self.name,
+                            uid=uid,
+                            method=method,
+                            suid=True,
+                        )
+                    if method.cap == Capability.WRITE:
+                        yield GTFOFileWrite(
+                            source=self.name,
+                            uid=uid,
+                            method=method,
+                            suid=True,
+                            length=100000000000,  # TO-DO: WE SHOULD FIX THIS???
+                        )
+                    if method.cap == Capability.SHELL:
+                        yield GTFOExecute(
+                            source=self.name,
+                            uid=uid,
+                            method=method,
+                            suid=True,
+                        )
