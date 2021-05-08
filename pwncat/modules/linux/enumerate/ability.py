@@ -2,6 +2,7 @@
 import subprocess
 import functools
 import shlex
+from io import TextIOWrapper
 
 from pwncat.modules.agnostic.enumerate.ability import (
     FileReadAbility,
@@ -9,11 +10,12 @@ from pwncat.modules.agnostic.enumerate.ability import (
     ExecuteAbility,
 )
 from pwncat.gtfobins import Capability, Stream
+from pwncat.platform.linux import LinuxReader, LinuxWriter
 import pwncat.subprocess
 
 
 class GTFOFileRead(FileReadAbility):
-    """ Utilize a GTFO Method Wrapper to implement the FileReadAbility """
+    """Utilize a GTFO Method Wrapper to implement the FileReadAbility"""
 
     def __init__(self, source, uid, method, **kwargs):
         super().__init__(source=source, uid=uid)
@@ -31,13 +33,15 @@ class GTFOFileRead(FileReadAbility):
         errors: str = None,
         newline: str = None,
     ):
-        """ Read the file data using a GTFO bins reader """
+        """Read the file data using a GTFO bins reader"""
 
         if any(c not in "rb" for c in mode):
             raise ValueError("only r/b modes allowed")
 
         # Build the payload
-        payload, input_data, exit_cmd = self.method.build(lfile=path, **self.kwargs)
+        payload, input_data, exit_cmd = self.method.build(
+            gtfo=session.platform.gtfo, lfile=path, **self.kwargs
+        )
 
         # Send the command to the victim with the input and setup stdio pipes
         popen = session.platform.Popen(
@@ -60,7 +64,7 @@ class GTFOFileRead(FileReadAbility):
         # Automatically decode to the specified encoding if requested
         if "b" not in mode:
             return TextIOWrapper(
-                stream,
+                raw_reader,
                 encoding=encoding,
                 errors=errors,
                 newline=newline,
@@ -75,7 +79,7 @@ class GTFOFileRead(FileReadAbility):
 
 
 class GTFOFileWrite(FileWriteAbility):
-    """ Utilize a GTFO Method Wrapper to implement the FileWriteAbility """
+    """Utilize a GTFO Method Wrapper to implement the FileWriteAbility"""
 
     def __init__(self, source, uid, method, **kwargs):
         super().__init__(source=source, uid=uid)
@@ -93,13 +97,15 @@ class GTFOFileWrite(FileWriteAbility):
         errors: str = None,
         newline: str = None,
     ):
-        """ Read the file data using a GTFO bins reader """
+        """Read the file data using a GTFO bins reader"""
 
         if any(c not in "wb" for c in mode):
             raise ValueError("only w/b modes allowed")
 
         # Build the payload
-        payload, input_data, exit_cmd = self.method.build(lfile=path, **self.kwargs)
+        payload, input_data, exit_cmd = self.method.build(
+            gtfo=session.platform.gtfo, lfile=path, **self.kwargs
+        )
 
         # Send the command to the victim with the input and setup stdio pipes
         popen = session.platform.Popen(
@@ -122,7 +128,7 @@ class GTFOFileWrite(FileWriteAbility):
         # Automatically decode to the specified encoding if requested
         if "b" not in mode:
             return TextIOWrapper(
-                stream,
+                raw_writer,
                 encoding=encoding,
                 errors=errors,
                 newline=newline,
@@ -137,15 +143,16 @@ class GTFOFileWrite(FileWriteAbility):
 
 
 class GTFOExecute(ExecuteAbility):
-    """ Execute a remote binary with a given GTFObins capability """
+    """Execute a remote binary with a given GTFObins capability"""
 
     def __init__(self, source, uid, method, **kwargs):
-        super().__init__(source=source)
+        super().__init__(source=source, uid=uid)
 
-        self.uid = uid
+        self.method = method
+        self.kwargs = kwargs
 
     def send_command(self, session, command: bytes):
-        """ Send the command to the target for this GTFObin """
+        """Send the command to the target for this GTFObin"""
 
         # Figure out what shell to use based on the environment
         shell = session.platform.getenv("SHELL")
@@ -162,7 +169,7 @@ class GTFOExecute(ExecuteAbility):
 
         # Construct the GTFObins payload
         payload, input_data, exit_cmd = self.method.build(
-            shell=full_command, **self.kwargs
+            gtfo=session.platform.gtfo, shell=full_command, **self.kwargs
         )
 
         # Send the payload
@@ -172,23 +179,23 @@ class GTFOExecute(ExecuteAbility):
         session.platform.channel.send(input_data)
 
     def Popen(self, session, *args, **kwargs):
-        """ Emulate the platform.Popen method for execution as another user """
+        """Emulate the platform.Popen method for execution as another user"""
 
         return session.platform.Popen(
             *args,
             **kwargs,
-            send_command=functools.partial(self.send_command, session=session),
+            send_command=functools.partial(self.send_command, session),
         )
 
     def run(self, session, *args, **kwargs):
-        """ Emulate the `platform.run` method for execution as another user """
+        """Emulate the `platform.run` method for execution as another user"""
 
         return session.platform.run(
-            *args, **kwargs, popen_class=functools.partial(self.Popen, session=session)
+            *args, **kwargs, popen_class=functools.partial(self.Popen, session)
         )
 
     def shell(self, session):
-        """ Replace the running shell with a shell as another user """
+        """Replace the running shell with a shell as another user"""
 
         shell = session.platform.getenv("SHELL")
 

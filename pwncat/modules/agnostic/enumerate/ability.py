@@ -5,10 +5,10 @@ from pwncat.db import Fact
 
 
 class FileReadAbility(Fact):
-    """ Ability to read a file as a different user """
+    """Ability to read a file as a different user"""
 
     def __init__(self, source, uid):
-        super().__init__(types=["escalate.ability.file_read"], source=source)
+        super().__init__(types=["ability.file.read"], source=source)
 
         self.uid = uid
 
@@ -27,10 +27,10 @@ class FileReadAbility(Fact):
 
 
 class FileWriteAbility(Fact):
-    """ Ability to write a file as a different user """
+    """Ability to write a file as a different user"""
 
     def __init__(self, source, uid):
-        super().__init__(types=["escalate.ability.file_write"], source=source)
+        super().__init__(types=["ability.file.write"], source=source)
 
         self.uid = uid
 
@@ -49,25 +49,25 @@ class FileWriteAbility(Fact):
 
 
 class ExecuteAbility(Fact):
-    """ Ability to execute a binary as a different user """
+    """Ability to execute a binary as a different user"""
 
     def __init__(self, source, uid):
-        super().__init__(types=["escalate.ability.execute"], source=source)
+        super().__init__(types=["ability.execute"], source=source)
 
         self.uid = uid
 
     def execute(self, session: "pwncat.manager.Session", path):
-        """ Exectue the given binary in the current session as another user """
+        """Exectue the given binary in the current session as another user"""
 
 
 class SpawnAbility(Fact):
-    """ Ability to spawn a new process as a different user without communications """
+    """Ability to spawn a new process as a different user without communications"""
 
     def __init__(self, source, uid):
-        super().__init__(types=["escalate.ability.spawn"], source=source)
+        super().__init__(types=["ability.spawn"], source=source)
 
     def execute(self, session: "pwncat.manager.Session", path):
-        """ Execute the given binary outside of this session w/ no IO """
+        """Execute the given binary outside of this session w/ no IO"""
 
 
 class EscalationStep(Fact):
@@ -75,11 +75,11 @@ class EscalationStep(Fact):
     a new user or create a new session as the requested user."""
 
     def __init__(self, source, uid):
-        super().__init__(types=["escalate.step"], source=source)
+        super().__init__(types=["step"], source=source)
 
         self.uid = uid
 
     def execute(
         self, session: "pwncat.manager.Session"
     ) -> Optional["pwncat.manager.Session"]:
-        """ Execute the escalation optionally returning a new session """
+        """Execute the escalation optionally returning a new session"""

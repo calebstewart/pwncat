@@ -235,7 +235,7 @@ class LinuxReader(BufferedIOBase):
         return False
 
     def detach(self):
-        """ Detach the underlying process and return the Popen object """
+        """Detach the underlying process and return the Popen object"""
 
         popen = self.popen
         self.popen = None
@@ -243,7 +243,7 @@ class LinuxReader(BufferedIOBase):
         return popen
 
     def read(self, size: int = -1):
-        """ Read data from the file """
+        """Read data from the file"""
 
         if self.popen is None:
             raise UnsupportedOperation("reader is detached")
@@ -255,7 +255,7 @@ class LinuxReader(BufferedIOBase):
         return result
 
     def read1(self, size: int = -1):
-        """ Read data w/ 1 call to underlying buffer """
+        """Read data w/ 1 call to underlying buffer"""
 
         if self.popen is None:
             raise UnsupportedOperation("reader is detached")
@@ -267,7 +267,7 @@ class LinuxReader(BufferedIOBase):
         return result
 
     def readinto(self, b):
-        """ Read data w/ 1 call to underlying buffer """
+        """Read data w/ 1 call to underlying buffer"""
 
         if self.popen is None:
             raise UnsupportedOperation("reader is detached")
@@ -278,7 +278,7 @@ class LinuxReader(BufferedIOBase):
         return result
 
     def readinto1(self, b):
-        """ Read data w/ 1 call to underlying buffer """
+        """Read data w/ 1 call to underlying buffer"""
 
         if self.popen is None:
             raise UnsupportedOperation("reader is detached")
@@ -290,7 +290,7 @@ class LinuxReader(BufferedIOBase):
         return result
 
     def close(self):
-        """ Close the file and stop the process """
+        """Close the file and stop the process"""
 
         if self.popen is None:
             raise UnsupportedOperation("reader is detached")
@@ -359,7 +359,7 @@ class LinuxWriter(BufferedIOBase):
         return True
 
     def detach(self):
-        """ Detach the underlying process and return the Popen object """
+        """Detach the underlying process and return the Popen object"""
 
         popen = self.popen
         self.popen = None
@@ -408,7 +408,7 @@ class LinuxWriter(BufferedIOBase):
         return len(b)
 
     def close(self):
-        """ Close the file and stop the process """
+        """Close the file and stop the process"""
 
         if self.popen is None:
             return
@@ -444,7 +444,7 @@ class LinuxWriter(BufferedIOBase):
 
 
 class LinuxUser(User):
-    """ Linux-specific user definition """
+    """Linux-specific user definition"""
 
     def __init__(
         self,
@@ -533,7 +533,7 @@ class Linux(Platform):
             self.has_pty = False
 
     def disable_history(self):
-        """ Disable shell history """
+        """Disable shell history"""
 
         # Ensure history is not tracked
         self.run("unset HISTFILE; export HISTCONTROL=ignorespace; unset PROMPT_COMMAND")
@@ -700,7 +700,7 @@ class Linux(Platform):
             return None
 
     def getuid(self):
-        """ Retrieve the current user ID """
+        """Retrieve the current user ID"""
 
         try:
             proc = self.run(["id", "-ru"], capture_output=True, text=True, check=True)
@@ -953,7 +953,7 @@ class Linux(Platform):
             ):
                 try:
                     payload, input_data, exit_cmd = method.build(
-                        lfile=path, suid=True, length=1000000
+                        gtfo=self.gtfo, lfile=path, suid=True, length=1000000
                     )
                     break
                 except MissingBinary:
@@ -982,7 +982,7 @@ class Linux(Platform):
             ):
                 try:
                     payload, input_data, exit_cmd = method.build(
-                        lfile=path, suid=True, length=1000000
+                        gtfo=self.gtfo, lfile=path, suid=True, length=1000000
                     )
                     break
                 except MissingBinary:
@@ -1333,14 +1333,14 @@ class Linux(Platform):
         self._interactive = value
 
     def whoami(self):
-        """ Get the name of the current user """
+        """Get the name of the current user"""
 
         return self.run(
             ["whoami"], capture_output=True, check=True, encoding="utf-8"
         ).stdout.rstrip("\n")
 
     def _parse_stat(self, result: str) -> os.stat_result:
-        """ Parse the output of a stat command """
+        """Parse the output of a stat command"""
 
         # Reverse the string. The filename may have a space in it, so we do this
         # to properly parse it.
@@ -1408,7 +1408,7 @@ class Linux(Platform):
         return self._parse_stat(result.stdout)
 
     def lstat(self, path: str) -> os.stat_result:
-        """ Perform the equivalent of the lstat syscall """
+        """Perform the equivalent of the lstat syscall"""
 
         try:
             result = self.run(
@@ -1428,7 +1428,7 @@ class Linux(Platform):
         return self._parse_stat(result.stdout)
 
     def abspath(self, path: str) -> str:
-        """ Attempt to resolve a path to an absolute path """
+        """Attempt to resolve a path to an absolute path"""
 
         try:
             result = self.run(
@@ -1439,7 +1439,7 @@ class Linux(Platform):
             raise FileNotFoundError(path) from exc
 
     def readlink(self, path: str):
-        """ Attempt to read the target of a link """
+        """Attempt to read the target of a link"""
 
         try:
             self.lstat(path)
@@ -1451,7 +1451,7 @@ class Linux(Platform):
             raise OSError(f"Invalid argument: '{path}'") from exc
 
     def umask(self, mask: int = None):
-        """ Set or retrieve the current umask value """
+        """Set or retrieve the current umask value"""
 
         if mask is None:
             return int(self.run(["umask"], capture_output=True, text=True).stdout, 8)
@@ -1460,12 +1460,12 @@ class Linux(Platform):
         return mask
 
     def touch(self, path: str):
-        """ Update a file modification time and possibly create it """
+        """Update a file modification time and possibly create it"""
 
         self.run(["touch", path])
 
     def chmod(self, path: str, mode: int, link: bool = False):
-        """ Update the file permissions """
+        """Update the file permissions"""
 
         if link:
             self.run(["chmod", "-h", oct(mode)[2:], path])
@@ -1473,7 +1473,7 @@ class Linux(Platform):
             self.run(["chmod", oct(mode)[2:], path])
 
     def mkdir(self, path: str, mode: int = 0o777, parents: bool = False):
-        """ Create a new directory """
+        """Create a new directory"""
 
         try:
             if parents:
@@ -1500,7 +1500,7 @@ class Linux(Platform):
             raise FileNotFoundError(source) from exc
 
     def rmdir(self, target: str):
-        """ Remove the specified directory. It must be empty. """
+        """Remove the specified directory. It must be empty."""
 
         try:
             self.run(["rmdir", target], check=True)
@@ -1508,7 +1508,7 @@ class Linux(Platform):
             raise OSError(f"Directory not empty: {target}") from exc
 
     def symlink_to(self, source: str, target: str):
-        """ Create a symbolic link to source from target """
+        """Create a symbolic link to source from target"""
 
         # Since this function is unlikely to be called outside of
         # the path abstraction, we don't do much error checking.
@@ -1518,13 +1518,13 @@ class Linux(Platform):
         self.run(["ln", "-s", source, target], check=True)
 
     def link_to(self, source: str, target: str):
-        """ Create a filesystem hard link. """
+        """Create a filesystem hard link."""
 
         # Same warning as with symlink
         self.run(["ln", source, target], check=True)
 
     def unlink(self, target: str):
-        """ Remove a link to a file (similar to `rm`) """
+        """Remove a link to a file (similar to `rm`)"""
 
         try:
             self.run(["rm", target], check=True)

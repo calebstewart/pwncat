@@ -6,15 +6,23 @@ import pwncat
 from pwncat.platform.linux import Linux
 from pwncat import util
 from pwncat.modules.agnostic.enumerate import EnumerateModule, Schedule
+from pwncat.db import Fact
+
+"""
+TODO: Eventually, this should be used for escalation as well, because privilege
+escalation can be performed with binary capabilities. These are not yet
+implemented in our gtfobins.json database, but John can tackle that soon.
+"""
 
 
-@dataclasses.dataclass
-class FileCapabilityData:
+class FileCapabilityData(Fact):
+    def __init__(self, source, path, caps):
+        super().__init__(source=source, types=["file.caps"])
 
-    path: str
-    """ The path to the file """
-    caps: List[str]
-    """ List of strings representing the capabilities (e.g. "cap_net_raw+ep") """
+        self.path: str = path
+        """ The path to the file """
+        self.caps: List[str] = caps
+        """ List of strings representing the capabilities (e.g. "cap_net_raw+ep") """
 
     def __str__(self):
         line = f"[cyan]{self.path}[/cyan] -> ["
@@ -24,7 +32,7 @@ class FileCapabilityData:
 
 
 class Module(EnumerateModule):
-    """ Enumerate capabilities of the binaries of the remote host """
+    """Enumerate capabilities of the binaries of the remote host"""
 
     PROVIDES = ["file.caps"]
     PLATFORM = [Linux]
@@ -46,4 +54,5 @@ class Module(EnumerateModule):
                 path, caps = [x.strip() for x in path.strip().split(" = ")]
                 caps = caps.split(",")
 
-                yield "file.caps", FileCapabilityData(path, caps)
+                fact = FileCapabilityData(self.name, path, caps)
+                yield fact

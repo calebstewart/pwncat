@@ -568,7 +568,7 @@ class Platform(ABC):
         :rtype: str
         """
 
-    def which(self, name: str) -> str:
+    def which(self, name: str, **kwargs) -> str:
         """
         Locate the specified binary on the remote host. Normally, this is done through
         the local `which` command on the remote host (for unix-like hosts), but can be
@@ -582,6 +582,11 @@ class Platform(ABC):
         :raises: FileNotFoundError: the requested binary does not exist on this host
         """
 
+        """
+        TODO: We should do something about the `which` statement that is sometimes
+        passed in, if we were using busybox. 
+        """
+
         if not isinstance(name, str):
             for n in name:
                 path = self.which(n)
@@ -590,7 +595,6 @@ class Platform(ABC):
             return None
 
         if name in self.session.target.utilities:
-            console.log([x for x in self.session.target.utilities.items()])
             return self.session.target.utilities[name]
 
         path = self._do_which(name)
