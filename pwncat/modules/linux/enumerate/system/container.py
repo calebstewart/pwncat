@@ -3,18 +3,21 @@ from typing import List
 import dataclasses
 
 import pwncat
-from pwncat.platform.linux import Linux
 from pwncat import util
+from pwncat.db import Fact
+from pwncat.platform.linux import Linux
 from pwncat.modules.agnostic.enumerate import EnumerateModule, Schedule
+from pwncat.subprocess import CalledProcessError
 
 
-@dataclasses.dataclass
-class ContainerData:
+class ContainerData(Fact):
+    def __init__(self, source, type):
+        super().__init__(source=source, types=["system.container"])
 
-    type: str
-    """ what type of container? either docker or lxd """
+        self.type: str = type
+        """ what type of container? either docker or lxd """
 
-    def __str__(self):
+    def title(self, session):
         return f"Running in a [yellow]{self.type}[/yellow] container"
 
 
@@ -27,28 +30,36 @@ class Module(EnumerateModule):
     PROVIDES = ["system.container"]
     PLATFORM = [Linux]
 
-    def enumerate(self):
+    def enumerate(self, session):
 
         try:
-            with pwncat.victim.open("/proc/self/cgroup", "r") as filp:
+            with session.platform.open("/proc/self/cgroup", "r") as filp:
                 if "docker" in filp.read().lower():
-                    yield "system.container", ContainerData("docker")
+                    yield ContainerData(self.name, "docker")
                     return
         except (FileNotFoundError, PermissionError):
             pass
 
-        with pwncat.victim.subprocess(
-            f'find / -maxdepth 3 -name "*dockerenv*" -exec ls -la {{}} \\; 2>/dev/null',
-            "r",
-        ) as pipe:
-            if pipe.read().strip() != b"":
-                yield "system.container", ContainerData("docker")
-                return
+        try:
+            proc = session.platform.run(
+                f'find / -maxdepth 3 -name "*dockerenv*" -exec ls -la {{}} \\; 2>/dev/null',
+                capture_output=True,
+                text=True,
+            )
+
+            if proc.stdout:
+                if proc.stdout.strip() != "":
+                    yield "system.container", ContainerData(self.name, "docker")
+                    return
+
+        except CalledProcessError as exc:
+            # We couldn't read in from a .dockerenv file
+            pass
 
         try:
-            with pwncat.victim.open("/proc/1/environ", "r") as filp:
+            with session.platform.open("/proc/1/environ", "r") as filp:
                 if "container=lxc" in filp.read().lower():
-                    yield "system.container", ContainerData("lxc")
+                    yield ContainerData(self.name, "lxc")
                     return
         except (FileNotFoundError, PermissionError):
             pass

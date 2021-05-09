@@ -52,6 +52,9 @@ class Module(EnumerateModule):
 
     def enumerate(self, session: "pwncat.manager.Session"):
 
+        # This forces the session to enumerate users FIRST, so we don't run
+        # into trying to enumerate _whilest_ enumerating SUID binaries...
+        # since we can't yet run multiple processes at the same time
         session.find_user(uid=0)
 
         # Spawn a find command to locate the setuid binaries

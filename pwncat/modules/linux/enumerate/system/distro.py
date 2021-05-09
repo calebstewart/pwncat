@@ -2,14 +2,16 @@
 from typing import List
 import dataclasses
 
+import rich.markup
+
 import pwncat
-from pwncat.platform.linux import Linux
 from pwncat import util
+from pwncat.db import Fact
+from pwncat.platform.linux import Linux
 from pwncat.modules.agnostic.enumerate import EnumerateModule, Schedule
 
 
-@dataclasses.dataclass
-class DistroVersionData:
+class DistroVersionData(Fact):
     """
     Represents a W.X.Y-Z kernel version where W is the major version,
     X is the minor version, Y is the patch, and Z is the ABI.
@@ -18,16 +20,19 @@ class DistroVersionData:
         https://askubuntu.com/questions/843197/what-are-kernel-version-number-components-w-x-yy-zzz-called
     """
 
-    name: str
-    ident: str
-    build_id: str
-    version: str
+    def __init__(self, source, name, ident, build_id, version):
+        super().__init__(source=source, types=["system.distro"])
 
-    def __str__(self):
+        self.name: str = name
+        self.ident: str = ident
+        self.build_id: str = build_id
+        self.version: str = version
+
+    def title(self, session):
         return (
-            f"Running [blue]{self.name}[/blue] ([cyan]{self.ident}[/cyan]), "
-            f"Version [red]{self.version}[/red], "
-            f"Build ID [green]{self.build_id}[/green]."
+            f"Running [blue]{rich.markup.escape(str(self.name))}[/blue] ([cyan]{rich.markup.escape(self.ident)}[/cyan]), "
+            f"Version [red]{rich.markup.escape(str(self.version))}[/red], "
+            f"Build ID [green]{rich.markup.escape(str(self.build_id))}[/green]."
         )
 
 
@@ -39,7 +44,7 @@ class Module(EnumerateModule):
     PROVIDES = ["system.distro"]
     PLATFORM = [Linux]
 
-    def enumerate(self):
+    def enumerate(self, session):
 
         build_id = None
         pretty_name = None
@@ -47,7 +52,7 @@ class Module(EnumerateModule):
         version = None
 
         try:
-            with pwncat.victim.open("/etc/os-release", "r") as filp:
+            with session.platform.open("/etc/os-release", "r") as filp:
                 for line in filp:
                     line = line.strip()
                     if line.startswith("PRETTY_NAME="):
@@ -63,7 +68,7 @@ class Module(EnumerateModule):
 
         if version is None:
             try:
-                with pwncat.victim.open("/etc/lsb-release", "r") as filp:
+                with session.platform.open("/etc/lsb-release", "r") as filp:
                     for line in filp:
                         if line.startswith("LSB_VERSION="):
                             version = line.split("=")[1].strip('"')
@@ -79,4 +84,4 @@ class Module(EnumerateModule):
         ):
             return
 
-        yield "system.distro", DistroVersionData(pretty_name, ident, build_id, version)
+        yield DistroVersionData(self.name, pretty_name, ident, build_id, version)

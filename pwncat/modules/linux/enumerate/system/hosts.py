@@ -3,21 +3,25 @@ from typing import List
 import dataclasses
 import re
 
+import rich.markup
+
 import pwncat
-from pwncat.platform.linux import Linux
 from pwncat import util
+from pwncat.db import Fact
+from pwncat.platform.linux import Linux
 from pwncat.modules.agnostic.enumerate import EnumerateModule, Schedule
 
 
-@dataclasses.dataclass
-class HostData:
+class HostData(Fact):
+    def __init__(self, source, address, hostnames):
+        super().__init__(source=source, types=["system.mountpoint"])
 
-    address: str
-    hostnames: List[str]
+        self.address: str = address
+        self.hostnames: List[str] = hostnames
 
-    def __str__(self):
-        joined_hostnames = ", ".join(self.hostnames)
-        return f"[cyan]{self.address}[/cyan] -> [blue]{joined_hostnames}[/blue]"
+    def title(self, session):
+        joined_hostnames = ", ".join((rich.markup.escape(h) for h in self.hostnames))
+        return f"[cyan]{rich.markup.escape(self.address)}[/cyan] -> [blue]{joined_hostnames}[/blue]"
 
 
 class Module(EnumerateModule):
@@ -29,10 +33,10 @@ class Module(EnumerateModule):
     PROVIDES = ["network.hosts"]
     PLATFORM = [Linux]
 
-    def enumerate(self):
+    def enumerate(self, session):
 
         try:
-            with pwncat.victim.open("/etc/hosts", "r") as filp:
+            with session.platform.open("/etc/hosts", "r") as filp:
                 for line in filp:
                     # Remove comments
                     line = re.sub(r"#.*$", "", line).strip()
@@ -49,6 +53,6 @@ class Module(EnumerateModule):
                     ):
                         continue
                     address, *hostnames = [e for e in line.split(" ") if e != ""]
-                    yield "network.hosts", HostData(address, hostnames)
+                    yield HostData(self.name, address, hostnames)
         except (PermissionError, FileNotFoundError):
             pass

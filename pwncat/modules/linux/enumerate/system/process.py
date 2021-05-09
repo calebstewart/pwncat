@@ -3,48 +3,45 @@ from typing import List
 import dataclasses
 import shlex
 
+import rich.markup
+
 import pwncat
+from pwncat.db import Fact
 from pwncat.platform.linux import Linux
 from pwncat.modules.agnostic.enumerate import EnumerateModule, Schedule
 
 
-@dataclasses.dataclass
-class ProcessData:
-    """ A single process from the `ps` output """
+class ProcessData(Fact):
 
-    uid: int
-    pid: int
-    ppid: int
-    argv: List[str]
+    """A single process from the `ps` output"""
 
-    def __str__(self):
-        if isinstance(self.uid, str):
-            user = self.uid
-            color = "yellow"
+    def __init__(self, source, uid, username, pid, ppid, argv):
+        super().__init__(source=source, types=["system.process"])
+
+        self.uid: int = uid
+        self.username: str = username
+        self.pid: int = pid
+        self.ppid: int = ppid
+        self.argv: List[str] = argv
+
+    def title(self, session):
+        if self.uid == 0:
+            color = "red"
+        elif self.uid < 1000:
+            color = "blue"
         else:
-            if self.uid == 0:
-                color = "red"
-            elif self.uid < 1000:
-                color = "blue"
-            else:
-                color = "magenta"
+            color = "magenta"
 
-            # Color our current user differently
-            if self.uid == pwncat.victim.current_user.id:
-                color = "lightblue"
+        # Color our current user differently
+        if self.uid == session.platform.getuid():
+            color = "lightblue"
 
-            user = self.user.name
-
-        result = f"[{color}]{user:>10s}[/{color}] "
+        result = f"[{color}]{self.username:>10s}[/{color}] "
         result += f"[magenta]{self.pid:<7d}[/magenta] "
         result += f"[lightblue]{self.ppid:<7d}[/lightblue] "
         result += f"[cyan]{shlex.join(self.argv)}[/cyan]"
 
         return result
-
-    @property
-    def user(self) -> pwncat.db.User:
-        return pwncat.victim.find_user_by_id(self.uid)
 
 
 class Module(EnumerateModule):
@@ -60,31 +57,38 @@ class Module(EnumerateModule):
     PLATFORM = [Linux]
     SCHEDULE = Schedule.ONCE
 
-    def enumerate(self):
+    def enumerate(self, session):
 
         try:
-            with pwncat.victim.subprocess(
-                ["ps", "-eo", "pid,ppid,user,command", "--no-header", "-ww"], "r"
-            ) as filp:
+            proc = session.platform.run(
+                "ps -eo pid,ppid,uid,user,command --no-header -ww",
+                capture_output=True,
+                text=True,
+            )
+
+            if proc.stdout:
                 # Iterate over each process
-                for line in filp:
-                    line = line.strip().decode("utf-8")
+                for line in proc.stdout.split("\n"):
+                    if line:
+                        line = line.strip()
 
-                    entities = line.split()
-                    pid, ppid, username, *argv = entities
-                    if username not in pwncat.victim.users:
-                        uid = username
-                    else:
-                        uid = pwncat.victim.users[username].id
+                        entities = line.split()
 
-                    command = " ".join(argv)
-                    # Kernel threads aren't helpful for us
-                    if command.startswith("[") and command.endswith("]"):
-                        continue
+                        try:
+                            pid, ppid, uid, username, *argv = entities
+                        except ValueError as exc:
+                            # We couldn't parse some line for some reason?
+                            continue
 
-                    pid = int(pid)
-                    ppid = int(ppid)
+                        command = " ".join(argv)
+                        # Kernel threads aren't helpful for us
+                        if command.startswith("[") and command.endswith("]"):
+                            continue
 
-                    yield "system.process", ProcessData(uid, pid, ppid, argv)
+                        uid = int(uid)
+                        pid = int(pid)
+                        ppid = int(ppid)
+
+                        yield ProcessData(self.name, uid, username, pid, ppid, argv)
         except (FileNotFoundError, PermissionError):
             return
