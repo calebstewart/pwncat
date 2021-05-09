@@ -2,25 +2,29 @@
 import dataclasses
 from typing import Dict
 
+import rich.markup
+
 import pwncat
+from pwncat.db import Fact
 from pwncat.platform.linux import Linux
 from pwncat.modules.agnostic.enumerate import EnumerateModule, Schedule
 
 
-@dataclasses.dataclass
-class SELinuxState:
+class SELinuxState(Fact):
+    def __init__(self, source, state, status):
+        super().__init__(source=source, types=["system.selinux"])
 
-    state: str
-    status: Dict[str, str]
+        self.state: str = state
+        self.status: Dict[str, str] = status
 
-    def __str__(self):
+    def title(self, session):
         result = f"SELinux is "
         if self.state == "enabled":
             result += f"[red]enabled[/red]"
         elif self.state == "disabled":
             result += f"[green]disabled[/green]"
         else:
-            result += f"[yellow]{self.state}[/yellow]"
+            result += f"[yellow]{rich.markup.escape(self.state)}[/yellow]"
         return result
 
     @property
@@ -31,8 +35,7 @@ class SELinuxState:
     def enabled(self) -> bool:
         return self.state.lower() == "enabled"
 
-    @property
-    def description(self):
+    def description(self, session):
         width = max(len(x) for x in self.status) + 1
         return "\n".join(
             f"{key+':':{width}} {value}" for key, value in self.status.items()
@@ -48,24 +51,27 @@ class Module(EnumerateModule):
     SCHEDULE = Schedule.ONCE
     PLATFORM = [Linux]
 
-    def enumerate(self):
+    def enumerate(self, session):
 
         try:
-            output = pwncat.victim.env(["sestatus"]).strip().decode("utf-8")
+            output = session.platform.run("sestatus", capture_output=True, text=True)
         except (FileNotFoundError, PermissionError):
             return
 
-        status = {}
-        for line in output.split("\n"):
-            line = line.strip().replace("\t", " ")
-            values = " ".join([x for x in line.split(" ") if x != ""]).split(":")
-            key = values[0].rstrip(":").strip()
-            value = " ".join(values[1:])
-            status[key] = value.strip()
+        if output:
+            output = output.stdout.strip()
 
-        if "SELinux status" in status:
-            state = status["SELinux status"]
-        else:
-            state = "unknown"
+            status = {}
+            for line in output.split("\n"):
+                line = line.strip().replace("\t", " ")
+                values = " ".join([x for x in line.split(" ") if x != ""]).split(":")
+                key = values[0].rstrip(":").strip()
+                value = " ".join(values[1:])
+                status[key] = value.strip()
 
-        yield "system.selinux", SELinuxState(state, status)
+            if "SELinux status" in status:
+                state = status["SELinux status"]
+            else:
+                state = "unknown"
+
+            yield SELinuxState(self.name, state, status)

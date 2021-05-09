@@ -14,7 +14,7 @@ class Action(Enum):
 
 
 class RevertFailed(Exception):
-    """ Reversion of a tamper failed. This requires manual intervention by the user """
+    """Reversion of a tamper failed. This requires manual intervention by the user"""
 
 
 class Tamper:
@@ -27,7 +27,7 @@ class Tamper:
 
 
 class CreatedFile(Tamper):
-    """ Created file tamper. Revert simply needs to remove the file. """
+    """Created file tamper. Revert simply needs to remove the file."""
 
     def __init__(self, session: "pwncat.manager.Session", path: str):
         super(CreatedFile, self).__init__(Action.CREATE)
@@ -123,3 +123,8 @@ class LambdaTamper(Tamper):
 
     def __str__(self):
         return self.name
+
+
+class TamperManager:
+
+    pass

@@ -15,37 +15,28 @@ class ProcessData(Fact):
 
     """A single process from the `ps` output"""
 
-    def __init__(self, source, uid, pid, ppid, argv):
+    def __init__(self, source, uid, username, pid, ppid, argv):
         super().__init__(source=source, types=["system.process"])
 
         self.uid: int = uid
+        self.username: str = username
         self.pid: int = pid
         self.ppid: int = ppid
         self.argv: List[str] = argv
 
     def title(self, session):
-        if isinstance(self.uid, str):
-            user = self.uid
-            color = "yellow"
+        if self.uid == 0:
+            color = "red"
+        elif self.uid < 1000:
+            color = "blue"
         else:
-            if self.uid == 0:
-                color = "red"
-            elif self.uid < 1000:
-                color = "blue"
-            else:
-                color = "magenta"
+            color = "magenta"
 
-            # Color our current user differently
-            if self.uid == session.platform.getuid():
-                color = "lightblue"
+        # Color our current user differently
+        if self.uid == session.platform.getuid():
+            color = "lightblue"
 
-            user = session.find_user(uid=self.uid)
-            if user is not None:
-                user = user.name
-            else:
-                user = self.uid
-
-        result = f"[{color}]{user:>10s}[/{color}] "
+        result = f"[{color}]{self.username:>10s}[/{color}] "
         result += f"[magenta]{self.pid:<7d}[/magenta] "
         result += f"[lightblue]{self.ppid:<7d}[/lightblue] "
         result += f"[cyan]{shlex.join(self.argv)}[/cyan]"
@@ -68,14 +59,9 @@ class Module(EnumerateModule):
 
     def enumerate(self, session):
 
-        # This forces the session to enumerate users FIRST, so we don't run
-        # into trying to enumerate _whilest_ enumerating SUID binaries...
-        # since we can't yet run multiple processes at the same time
-        session.find_user(uid=0)
-
         try:
             proc = session.platform.run(
-                "ps -eo pid,ppid,user,command --no-header -ww",
+                "ps -eo pid,ppid,uid,user,command --no-header -ww",
                 capture_output=True,
                 text=True,
             )
@@ -88,22 +74,21 @@ class Module(EnumerateModule):
 
                         entities = line.split()
 
-                        pid, ppid, username, *argv = entities
-
-                        uid = session.find_user(name=username)
-                        if uid is not None:
-                            uid = uid.id
-                        else:
-                            uid = username
+                        try:
+                            pid, ppid, uid, username, *argv = entities
+                        except ValueError as exc:
+                            # We couldn't parse some line for some reason?
+                            continue
 
                         command = " ".join(argv)
                         # Kernel threads aren't helpful for us
                         if command.startswith("[") and command.endswith("]"):
                             continue
 
+                        uid = int(uid)
                         pid = int(pid)
                         ppid = int(ppid)
 
-                        yield ProcessData(self.name, uid, pid, ppid, argv)
+                        yield ProcessData(self.name, uid, username, pid, ppid, argv)
         except (FileNotFoundError, PermissionError):
             return
