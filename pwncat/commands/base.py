@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-from typing import Dict, Any, List, Callable
-from pygments.token import *
-from enum import Enum, auto
-from functools import partial
-import argparse
-import shlex
 import os
+import shlex
+import argparse
+from enum import Enum, auto
+from typing import Any, Dict, List, Callable
+from functools import partial
+
+from pygments.token import *
 
 import pwncat
 

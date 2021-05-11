@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-import dataclasses
 import re
+import dataclasses
 
 import rich.markup
 
 import pwncat
 from pwncat.db import Fact
-from pwncat.platform.linux import Linux
 from pwncat.subprocess import CalledProcessError
-from pwncat.modules.enumerate import EnumerateModule, Schedule
+from pwncat.platform.linux import Linux
+from pwncat.modules.enumerate import Schedule, EnumerateModule
 
 
 class SudoVersion(Fact):

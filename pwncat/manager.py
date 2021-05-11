@@ -1,29 +1,29 @@
 #!/usr/bin/env python3
-from typing import List, Dict, Union, Optional
-from prompt_toolkit.shortcuts import confirm
-from io import TextIOWrapper
+import os
+import sys
+import fnmatch
+import pkgutil
+import selectors
 import threading
 import contextlib
-import pkgutil
-import fnmatch
-import selectors
-import sys
-import os
+from io import TextIOWrapper
+from typing import Dict, List, Union, Optional
 
-import persistent.list
-import rich.progress
 import ZODB
 import zodburi
+import rich.progress
+import persistent.list
+from prompt_toolkit.shortcuts import confirm
 
 import pwncat.db
 import pwncat.modules
 import pwncat.modules.enumerate
-from pwncat.util import console, RawModeExit
-from pwncat.platform import Platform
-from pwncat.channel import Channel, ChannelClosed
+from pwncat.util import RawModeExit, console
 from pwncat.config import Config
-from pwncat.commands import CommandParser
 from pwncat.target import Target
+from pwncat.channel import Channel, ChannelClosed
+from pwncat.commands import CommandParser
+from pwncat.platform import Platform
 
 
 class InteractiveExit(Exception):

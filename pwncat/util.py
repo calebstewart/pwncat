@@ -1,27 +1,27 @@
 #!/usr/bin/env python3
+import os
 import re
-from typing import Tuple, BinaryIO, Callable, List, Optional
-from http.server import BaseHTTPRequestHandler, HTTPServer
-from socketserver import TCPServer, BaseRequestHandler
-from prompt_toolkit.shortcuts import ProgressBar
-from functools import partial
-from colorama import Fore, Style
-from io import TextIOWrapper
-from enum import Enum, Flag, auto
-import netifaces
+import sys
+import tty
+import time
+import fcntl
+import random
 import socket
 import string
-import random
-import threading
 import logging
 import termios
-import fcntl
-import time
-import tty
-import sys
-import os
+import threading
+from io import TextIOWrapper
+from enum import Enum, Flag, auto
+from typing import List, Tuple, BinaryIO, Callable, Optional
+from functools import partial
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from socketserver import TCPServer, BaseRequestHandler
 
+import netifaces
+from colorama import Fore, Style
 from rich.console import Console
+from prompt_toolkit.shortcuts import ProgressBar
 
 console = Console(emoji=False)
 

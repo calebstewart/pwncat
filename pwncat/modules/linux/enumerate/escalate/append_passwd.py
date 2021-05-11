@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 import crypt
 
-from pwncat.modules.enumerate import EnumerateModule, Schedule
-from pwncat.facts import EscalationReplace
-from pwncat.platform.linux import Linux
-from pwncat.modules import ModuleFailed
 from pwncat.util import console
+from pwncat.facts import EscalationReplace
+from pwncat.modules import ModuleFailed
+from pwncat.platform.linux import Linux
+from pwncat.modules.enumerate import Schedule, EnumerateModule
 
 
 class AppendPasswd(EscalationReplace):

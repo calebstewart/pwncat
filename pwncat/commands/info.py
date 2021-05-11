@@ -1,17 +1,13 @@
 #!/usr/bin/env python3
 import textwrap
 
-from rich.table import Table
 from rich import box
+from rich.table import Table
 
 import pwncat
-from pwncat.commands.base import (
-    CommandDefinition,
-    Complete,
-    Parameter,
-    get_module_choices,
-)
 from pwncat.util import console
+from pwncat.commands.base import (Complete, Parameter, CommandDefinition,
+                                  get_module_choices)
 
 
 class Command(CommandDefinition):

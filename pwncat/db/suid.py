@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
-import persistent
 from typing import Optional
+
+import persistent
 
 
 class SUID(persistent.Persistent):

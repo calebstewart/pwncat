@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-from pwncat.commands.base import CommandDefinition
 import pwncat
+from pwncat.commands.base import CommandDefinition
 
 
 class Command(CommandDefinition):

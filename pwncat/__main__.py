@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-from io import TextIOWrapper
-import logging
-import selectors
-import shlex
-import sys
-import warnings
 import os
+import sys
+import shlex
+import logging
 import argparse
+import warnings
+import selectors
+from io import TextIOWrapper
 from pathlib import Path
 
 from sqlalchemy import exc as sa_exc

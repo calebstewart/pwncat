@@ -1,21 +1,13 @@
 #!/usr/bin/env python3
 import enum
-import inspect
 import socket
+import inspect
 
 import pwncat
 import pwncat.db
 from pwncat.util import State
-from pwncat.modules import (
-    BaseModule,
-    Argument,
-    Bool,
-    Status,
-    ModuleFailed,
-    PersistError,
-    PersistType,
-    ArgumentFormatError,
-)
+from pwncat.modules import (Bool, Status, Argument, BaseModule, PersistType,
+                            ModuleFailed, PersistError, ArgumentFormatError)
 
 
 def host_type(ident: str):

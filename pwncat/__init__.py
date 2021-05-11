@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
-from typing import Optional
-from io import TextIOWrapper
-import sys
 import os
-
+import sys
 import selectors
+from io import TextIOWrapper
+from typing import Optional
+
 from sqlalchemy.exc import InvalidRequestError
 
 # These need to be assigned prior to importing other
 # parts of pwncat
 victim: Optional["pwncat.remote.Victim"] = None
 
-from .config import Config
-from .commands import parser
 from .util import console
+from .config import Config
 from .tamper import TamperManager
+from .commands import parser
 
 tamper: TamperManager = TamperManager()
 

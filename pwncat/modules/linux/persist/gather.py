@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-import dataclasses
 import socket
+import dataclasses
 
 import pwncat
-from pwncat.util import console
-from pwncat.modules import BaseModule, Argument, Status, Bool, Result
 import pwncat.modules.agnostic.persist
+from pwncat.util import console
+from pwncat.modules import Bool, Result, Status, Argument, BaseModule
 
 
 @dataclasses.dataclass

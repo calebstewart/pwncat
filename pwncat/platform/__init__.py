@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
-from typing import List, Optional, Generator, Union, BinaryIO, Type
-from subprocess import CalledProcessError
-from abc import ABC, abstractmethod
-import enum
-import pathlib
-import logging
-import logging.handlers
-import fnmatch
-import stat
-import sys
 import os
+import sys
+import enum
+import stat
+import fnmatch
+import logging
+import pathlib
+import logging.handlers
+from abc import ABC, abstractmethod
+from typing import List, Type, Union, BinaryIO, Optional, Generator
+from subprocess import CalledProcessError
 
 from rich.logging import RichHandler
 
 import pwncat
-import pwncat.subprocess
 import pwncat.channel
+import pwncat.subprocess
 from pwncat.util import console
 
 PLATFORM_TYPES = {}

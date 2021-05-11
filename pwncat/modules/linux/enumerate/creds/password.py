@@ -2,10 +2,10 @@
 import os
 import re
 
-from pwncat.modules.enumerate import EnumerateModule, Schedule
+import pwncat
 from pwncat.facts import PotentialPassword
 from pwncat.platform.linux import Linux
-import pwncat
+from pwncat.modules.enumerate import Schedule, EnumerateModule
 
 
 class Module(EnumerateModule):

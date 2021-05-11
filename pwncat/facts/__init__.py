@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from typing import Optional, IO, Callable
+from typing import IO, Callable, Optional
 
 import rich.markup
 from persistent.list import PersistentList

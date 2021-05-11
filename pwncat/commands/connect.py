@@ -1,25 +1,19 @@
 #!/usr/bin/env python3
-from colorama import Fore
-import ipaddress
-import os.path
-import socket
 import re
+import socket
+import os.path
+import ipaddress
 
 import paramiko
-from prompt_toolkit import prompt
+from colorama import Fore
 from rich.progress import Progress, BarColumn
+from prompt_toolkit import prompt
 
 import pwncat
 from pwncat.util import console
-from pwncat.commands.base import (
-    CommandDefinition,
-    Complete,
-    Parameter,
-    StoreForAction,
-    StoreConstOnce,
-)
-
 from pwncat.modules import PersistError
+from pwncat.commands.base import (Complete, Parameter, StoreConstOnce,
+                                  StoreForAction, CommandDefinition)
 
 
 class Command(CommandDefinition):

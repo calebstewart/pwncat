@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-from typing import Optional, List, Tuple
 import enum
+from typing import List, Tuple, Optional
 
 import persistent
 import persistent.list
-from BTrees.OOBTree import TreeSet, OOBTree
+from BTrees.OOBTree import OOBTree, TreeSet
 
 
 class NAT(enum.Enum):

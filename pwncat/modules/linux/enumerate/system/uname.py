@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-from typing import List, Optional
-import dataclasses
-import pkg_resources
 import json
+import dataclasses
+from typing import List, Optional
+
+import pkg_resources
 
 import pwncat
-from pwncat.platform.linux import Linux
 from pwncat import util
-from pwncat.modules.enumerate import EnumerateModule, Schedule
+from pwncat.platform.linux import Linux
+from pwncat.modules.enumerate import Schedule, EnumerateModule
 
 
 @dataclasses.dataclass

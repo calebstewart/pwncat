@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-import socket
+import os
 import errno
 import fcntl
-import os
+import socket
 from typing import Optional
 
-from rich.progress import BarColumn, Progress
+from rich.progress import Progress, BarColumn
 
-from pwncat.channel.socket import Socket
 from pwncat.channel import Channel, ChannelError, ChannelClosed
+from pwncat.channel.socket import Socket
 
 
 class Connect(Socket):

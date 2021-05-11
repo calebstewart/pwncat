@@ -1,29 +1,29 @@
 #!/usr/bin/env python3
-from io import RawIOBase, TextIOWrapper, BufferedIOBase, UnsupportedOperation
-from typing import List, Union, BinaryIO
-from io import StringIO, BytesIO
-from subprocess import CalledProcessError, TimeoutExpired
-from dataclasses import dataclass
-import termios
-import subprocess
-import textwrap
-import pkg_resources
-import readline
-import pathlib
+import os
+import sys
+import gzip
+import json
+import stat
+import time
 import base64
 import shutil
-import json
-import gzip
-import time
-import gzip
-import stat
-import sys
-import os
+import pathlib
+import termios
+import readline
+import textwrap
+import subprocess
+from io import (BytesIO, StringIO, RawIOBase, TextIOWrapper, BufferedIOBase,
+                UnsupportedOperation)
+from typing import List, Union, BinaryIO
+from subprocess import TimeoutExpired, CalledProcessError
+from dataclasses import dataclass
+
+import pkg_resources
 
 import pwncat
-import pwncat.subprocess
 import pwncat.util
-from pwncat.platform import Platform, PlatformError, Path
+import pwncat.subprocess
+from pwncat.platform import Path, Platform, PlatformError
 
 INTERACTIVE_END_MARKER = b"\nINTERACTIVE_COMPLETE\r\n"
 

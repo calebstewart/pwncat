@@ -4,8 +4,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 import pwncat
-from pwncat.commands.base import CommandDefinition, Complete, Parameter
-from pwncat.util import console, State
+from pwncat.util import State, console
+from pwncat.commands.base import Complete, Parameter, CommandDefinition
 
 
 class Command(CommandDefinition):

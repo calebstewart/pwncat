@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import subprocess
 
-from pwncat.commands import CommandDefinition, Complete
+from pwncat.commands import Complete, CommandDefinition
 from pwncat.commands.base import parameter
 
 

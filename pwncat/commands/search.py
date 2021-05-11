@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 import textwrap
 
-from rich.table import Table, Column
 from rich import box
+from rich.table import Table, Column
 
 import pwncat
-from pwncat.commands.base import CommandDefinition, Complete, Parameter
 from pwncat.util import console
+from pwncat.commands.base import Complete, Parameter, CommandDefinition
 
 
 class Command(CommandDefinition):

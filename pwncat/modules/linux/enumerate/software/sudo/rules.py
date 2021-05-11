@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-import dataclasses
 import re
-from typing import Generator, Optional, List
+import dataclasses
+from typing import List, Optional, Generator
 
 import rich.markup
 
@@ -9,8 +9,7 @@ import pwncat
 from pwncat import util
 from pwncat.db import Fact
 from pwncat.platform.linux import Linux
-from pwncat.modules.enumerate import EnumerateModule, Schedule
-
+from pwncat.modules.enumerate import Schedule, EnumerateModule
 
 """
 TODO: This should end up yielding an escalation ability, since sudo 

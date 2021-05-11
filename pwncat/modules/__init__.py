@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 import enum
-import inspect
-import pkgutil
-from dataclasses import dataclass
-import typing
-from typing import Any, Callable
 import typing
 import fnmatch
+import inspect
+import pkgutil
 import functools
+from typing import Any, Callable
+from dataclasses import dataclass
 
 from rich.progress import Progress
 

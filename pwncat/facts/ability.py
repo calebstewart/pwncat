@@ -1,17 +1,15 @@
 #!/usr/bin/env python3
-import subprocess
-import functools
 import shlex
+import functools
+import subprocess
 from io import TextIOWrapper
 
-from pwncat.modules.agnostic.enumerate.ability import (
-    FileReadAbility,
-    FileWriteAbility,
-    ExecuteAbility,
-)
-from pwncat.gtfobins import Capability, Stream
-from pwncat.platform.linux import LinuxReader, LinuxWriter
 import pwncat.subprocess
+from pwncat.gtfobins import Stream, Capability
+from pwncat.platform.linux import LinuxReader, LinuxWriter
+from pwncat.modules.agnostic.enumerate.ability import (ExecuteAbility,
+                                                       FileReadAbility,
+                                                       FileWriteAbility)
 
 
 class GTFOFileRead(FileReadAbility):

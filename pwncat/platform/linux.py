@@ -1,23 +1,24 @@
 #!/usr/bin/env python3
-from typing import Generator, List, Union, BinaryIO, Optional
-from subprocess import CalledProcessError, TimeoutExpired
-from io import TextIOWrapper, BufferedIOBase, UnsupportedOperation
-import subprocess
-import pathlib
-import pkg_resources
-import hashlib
+import os
+import sys
 import time
 import shlex
-import sys
-import os
+import hashlib
+import pathlib
+import subprocess
+from io import TextIOWrapper, BufferedIOBase, UnsupportedOperation
+from typing import List, Union, BinaryIO, Optional, Generator
+from subprocess import TimeoutExpired, CalledProcessError
+
+import pkg_resources
 
 import pwncat
 import pwncat.channel
 import pwncat.subprocess
 from pwncat import util
-from pwncat.gtfobins import GTFOBins, Capability, Stream, MissingBinary
-from pwncat.platform import Platform, PlatformError, Path
 from pwncat.db import User, Group
+from pwncat.gtfobins import Stream, GTFOBins, Capability, MissingBinary
+from pwncat.platform import Path, Platform, PlatformError
 
 
 class PopenLinux(pwncat.subprocess.Popen):

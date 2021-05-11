@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-import socket
+import os
 import errno
 import fcntl
-import os
+import socket
 from typing import Optional
 
-from rich.progress import BarColumn, Progress
+from rich.progress import Progress, BarColumn
 
 from pwncat.channel import Channel, ChannelError, ChannelClosed
 

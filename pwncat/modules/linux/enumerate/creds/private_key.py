@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-from Crypto.PublicKey import RSA
 import time
 
 import rich.markup
+from Crypto.PublicKey import RSA
 
-from pwncat.modules.enumerate import EnumerateModule, Schedule
-from pwncat.platform.linux import Linux
-from pwncat.modules import Status
-from pwncat.facts import PrivateKey
 import pwncat
+from pwncat.facts import PrivateKey
+from pwncat.modules import Status
+from pwncat.platform.linux import Linux
+from pwncat.modules.enumerate import Schedule, EnumerateModule
 
 
 class Module(EnumerateModule):

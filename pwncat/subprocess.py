@@ -1,14 +1,8 @@
 #!/usr/bin/env python3
-from typing import List, IO, Optional
-from subprocess import (
-    CompletedProcess,
-    SubprocessError,
-    TimeoutExpired,
-    CalledProcessError,
-    DEVNULL,
-    PIPE,
-)
 import io
+from typing import IO, List, Optional
+from subprocess import (PIPE, DEVNULL, TimeoutExpired, SubprocessError,
+                        CompletedProcess, CalledProcessError)
 
 import pwncat
 

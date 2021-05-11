@@ -1,31 +1,21 @@
 #!/usr/bin/env python3
-import pwncat
-from pwncat.commands.base import (
-    CommandDefinition,
-    Complete,
-    Parameter,
-    StoreConstOnce,
-    StoreForAction,
-    RemoteFileType,
-)
-from functools import partial
-from colorama import Fore
-from pwncat import util
-from pwncat.util import console
+import os
+import time
 import argparse
 import datetime
-import time
-import os
+from functools import partial
 
-from rich.progress import (
-    BarColumn,
-    DownloadColumn,
-    TextColumn,
-    TransferSpeedColumn,
-    TimeRemainingColumn,
-    Progress,
-    TaskID,
-)
+from colorama import Fore
+from rich.progress import (TaskID, Progress, BarColumn, TextColumn,
+                           DownloadColumn, TimeRemainingColumn,
+                           TransferSpeedColumn)
+
+import pwncat
+from pwncat import util
+from pwncat.util import console
+from pwncat.commands.base import (Complete, Parameter, RemoteFileType,
+                                  StoreConstOnce, StoreForAction,
+                                  CommandDefinition)
 
 
 class Command(CommandDefinition):

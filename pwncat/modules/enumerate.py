@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-from enum import Enum, auto
+import time
 import typing
 import fnmatch
-import time
+from enum import Enum, auto
 
 import persistent
 
 import pwncat
+from pwncat.modules import List, Status, Argument, BaseModule
 from pwncat.platform.linux import Linux
-from pwncat.modules import BaseModule, Status, Argument, List
 
 
 class Schedule(Enum):

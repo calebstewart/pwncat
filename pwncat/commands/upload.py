@@ -4,30 +4,15 @@ import time
 from functools import partial
 
 from colorama import Fore
-from rich.progress import (
-    BarColumn,
-    DownloadColumn,
-    TextColumn,
-    TransferSpeedColumn,
-    TimeRemainingColumn,
-    Progress,
-    TaskID,
-)
+from rich.progress import (TaskID, Progress, BarColumn, TextColumn,
+                           DownloadColumn, TimeRemainingColumn,
+                           TransferSpeedColumn)
 
 import pwncat
-from pwncat.util import (
-    console,
-    Access,
-    human_readable_size,
-    human_readable_delta,
-    copyfileobj,
-)
-from pwncat.commands.base import (
-    CommandDefinition,
-    Complete,
-    Parameter,
-    RemoteFileType,
-)
+from pwncat.util import (Access, console, copyfileobj, human_readable_size,
+                         human_readable_delta)
+from pwncat.commands.base import (Complete, Parameter, RemoteFileType,
+                                  CommandDefinition)
 
 
 class Command(CommandDefinition):

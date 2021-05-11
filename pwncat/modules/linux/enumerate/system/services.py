@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 import dataclasses
 
-from pwncat.modules.enumerate import EnumerateModule, Schedule
 import pwncat
-from pwncat.platform.linux import Linux
 from pwncat.util import Init
+from pwncat.platform.linux import Linux
+from pwncat.modules.enumerate import Schedule, EnumerateModule
 
 
 @dataclasses.dataclass

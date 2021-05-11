@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-from enum import IntFlag
 import dataclasses
+from enum import IntFlag
 
 from rich.table import Table
 
-from pwncat.modules.enumerate import EnumerateModule, Schedule
 from pwncat.platform.windows import Windows
+from pwncat.modules.enumerate import Schedule, EnumerateModule
 
 
 class LuidAttributes(IntFlag):

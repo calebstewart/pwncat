@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
+import fnmatch
+import inspect
+import itertools
+import collections
 from io import IOBase
 from pathlib import Path
-import collections
-import itertools
-import inspect
-import fnmatch
 
-from rich.progress import Progress
 from rich import markup
+from rich.progress import Progress
 
 import pwncat.modules
 from pwncat import util

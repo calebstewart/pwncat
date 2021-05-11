@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
+import os
 import shutil
 import socket
-import os
 
 import paramiko
 from prompt_toolkit import prompt
@@ -9,8 +9,8 @@ from prompt_toolkit import prompt
 import pwncat
 import pwncat.tamper
 from pwncat.util import Access
-from pwncat.platform.linux import Linux
 from pwncat.modules import Argument, PersistType, PersistError
+from pwncat.platform.linux import Linux
 from pwncat.modules.agnostic.persist import PersistModule
 
 

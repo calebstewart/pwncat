@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-import pkg_resources
-import base64
-import hashlib
-import socket
 import io
 import os
+import base64
+import socket
+import hashlib
 from typing import Optional
 
 import paramiko
+import pkg_resources
 
 import pwncat
-from pwncat.util import CompilationError, Access
+from pwncat.util import Access, CompilationError
+from pwncat.modules import Status, Argument, PersistType, PersistError
 from pwncat.platform.linux import Linux
-from pwncat.modules import Argument, Status, PersistError, PersistType
 from pwncat.modules.agnostic.persist import PersistModule
 
 

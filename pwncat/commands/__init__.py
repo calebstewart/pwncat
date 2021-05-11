@@ -1,51 +1,44 @@
 #!/usr/bin/env python3
-import traceback
-from typing import TextIO, Type
-from prompt_toolkit import PromptSession, ANSI
-from prompt_toolkit.shortcuts import ProgressBar, confirm
-from prompt_toolkit.completion import (
-    Completer,
-    PathCompleter,
-    Completion,
-    CompleteEvent,
-    NestedCompleter,
-    WordCompleter,
-    merge_completers,
-)
-from pygments.lexer import RegexLexer, bygroups, include
-from pygments.token import *
-from pygments.style import Style
-from prompt_toolkit.styles.pygments import style_from_pygments_cls
-from prompt_toolkit.styles import merge_styles, Style
-from prompt_toolkit.lexers import PygmentsLexer
-from prompt_toolkit.document import Document
-from prompt_toolkit.application.current import get_app
-from prompt_toolkit.key_binding import KeyBindings
-from pygments.styles import get_style_by_name
-from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
-from prompt_toolkit.history import InMemoryHistory, History
-from typing import Dict, Any, List, Iterable
-from colorama import Fore
-from enum import Enum, auto
-from io import TextIOWrapper
-import rich.text
-import argparse
-import pkgutil
-import shlex
-import sys
-import fcntl
-import termios
-import tty
 import os
 import re
-
+import sys
+import tty
+import fcntl
+import shlex
+import pkgutil
+import termios
+import argparse
+import traceback
+from io import TextIOWrapper
+from enum import Enum, auto
 from pprint import pprint
+from typing import Any, Dict, List, Type, TextIO, Iterable
+
+import rich.text
+from colorama import Fore
+from prompt_toolkit import ANSI, PromptSession
+from pygments.lexer import RegexLexer, include, bygroups
+from pygments.style import Style
+from pygments.token import *
+from pygments.styles import get_style_by_name
+from prompt_toolkit.lexers import PygmentsLexer
+from prompt_toolkit.styles import Style, merge_styles
+from prompt_toolkit.history import History, InMemoryHistory
+from prompt_toolkit.document import Document
+from prompt_toolkit.shortcuts import ProgressBar, confirm
+from prompt_toolkit.completion import (Completer, Completion, CompleteEvent,
+                                       PathCompleter, WordCompleter,
+                                       NestedCompleter, merge_completers)
+from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
+from prompt_toolkit.styles.pygments import style_from_pygments_cls
+from prompt_toolkit.application.current import get_app
 
 import pwncat
 import pwncat.db
-from pwncat.commands.base import CommandDefinition, Complete
 from pwncat.util import State, console
 from pwncat.channel import ChannelClosed
+from pwncat.commands.base import Complete, CommandDefinition
 
 
 def resolve_blocks(source: str):

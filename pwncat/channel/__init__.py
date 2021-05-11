@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 import time
-from typing import Optional, Type, Union
-from io import RawIOBase, BufferedReader, BufferedWriter, DEFAULT_BUFFER_SIZE
+from io import DEFAULT_BUFFER_SIZE, RawIOBase, BufferedReader, BufferedWriter
 from abc import ABC, abstractmethod
+from typing import Type, Union, Optional
 
 CHANNEL_TYPES = {}
 
@@ -552,11 +552,11 @@ def create(protocol: Optional[str] = None, **kwargs):
                 raise
 
 
+from pwncat.channel.ssh import Ssh
+from pwncat.channel.bind import Bind
 # Import default channel types and register them
 from pwncat.channel.socket import Socket
-from pwncat.channel.bind import Bind
 from pwncat.channel.connect import Connect
-from pwncat.channel.ssh import Ssh
 from pwncat.channel.reconnect import Reconnect
 
 register("socket", Socket)

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-from typing import Dict, Callable, Any, List, Generator, BinaryIO, IO, Tuple
-from enum import Enum, Flag, auto
-from base64io import Base64IO
-import rapidjson as json
-import shlex
-import os
 import io
+import os
+import shlex
+from enum import Enum, Flag, auto
+from typing import IO, Any, Dict, List, Tuple, BinaryIO, Callable, Generator
+
+import rapidjson as json
+from base64io import Base64IO
 
 
 class ControlCodes:

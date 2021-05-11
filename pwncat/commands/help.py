@@ -2,9 +2,9 @@
 import textwrap
 
 import pwncat
-from pwncat.commands import CommandParser
-from pwncat.commands.base import CommandDefinition, Complete, Parameter
 from pwncat.util import console
+from pwncat.commands import CommandParser
+from pwncat.commands.base import Complete, Parameter, CommandDefinition
 
 
 class Command(CommandDefinition):

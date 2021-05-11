@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-import socket
 import crypt
+import socket
 
 import paramiko
 
 import pwncat
-from pwncat.modules import Argument, Status, PersistType, PersistError
+from pwncat.modules import Status, Argument, PersistType, PersistError
 from pwncat.modules.agnostic.persist import PersistModule
 
 

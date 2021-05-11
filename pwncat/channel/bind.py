@@ -2,10 +2,10 @@
 import socket
 from typing import Optional
 
-from rich.progress import BarColumn, Progress
+from rich.progress import Progress, BarColumn
 
-from pwncat.channel.socket import Socket
 from pwncat.channel import Channel, ChannelError
+from pwncat.channel.socket import Socket
 
 
 class Bind(Socket):

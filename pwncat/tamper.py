@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-from typing import List, Optional, Callable, Iterator
-from enum import Enum, auto
 import datetime
+from enum import Enum, auto
+from typing import List, Callable, Iterator, Optional
 
 import pwncat
 from pwncat.util import Access
