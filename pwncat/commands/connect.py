@@ -12,8 +12,13 @@ from prompt_toolkit import prompt
 import pwncat
 from pwncat.util import console
 from pwncat.modules import PersistError
-from pwncat.commands.base import (Complete, Parameter, StoreConstOnce,
-                                  StoreForAction, CommandDefinition)
+from pwncat.commands.base import (
+    Complete,
+    Parameter,
+    StoreConstOnce,
+    StoreForAction,
+    CommandDefinition,
+)
 
 
 class Command(CommandDefinition):

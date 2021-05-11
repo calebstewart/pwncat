@@ -26,9 +26,15 @@ from prompt_toolkit.styles import Style, merge_styles
 from prompt_toolkit.history import History, InMemoryHistory
 from prompt_toolkit.document import Document
 from prompt_toolkit.shortcuts import ProgressBar, confirm
-from prompt_toolkit.completion import (Completer, Completion, CompleteEvent,
-                                       PathCompleter, WordCompleter,
-                                       NestedCompleter, merge_completers)
+from prompt_toolkit.completion import (
+    Completer,
+    Completion,
+    CompleteEvent,
+    PathCompleter,
+    WordCompleter,
+    NestedCompleter,
+    merge_completers,
+)
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.styles.pygments import style_from_pygments_cls

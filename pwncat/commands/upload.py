@@ -4,15 +4,25 @@ import time
 from functools import partial
 
 from colorama import Fore
-from rich.progress import (TaskID, Progress, BarColumn, TextColumn,
-                           DownloadColumn, TimeRemainingColumn,
-                           TransferSpeedColumn)
+from rich.progress import (
+    TaskID,
+    Progress,
+    BarColumn,
+    TextColumn,
+    DownloadColumn,
+    TimeRemainingColumn,
+    TransferSpeedColumn,
+)
 
 import pwncat
-from pwncat.util import (Access, console, copyfileobj, human_readable_size,
-                         human_readable_delta)
-from pwncat.commands.base import (Complete, Parameter, RemoteFileType,
-                                  CommandDefinition)
+from pwncat.util import (
+    Access,
+    console,
+    copyfileobj,
+    human_readable_size,
+    human_readable_delta,
+)
+from pwncat.commands.base import Complete, Parameter, RemoteFileType, CommandDefinition
 
 
 class Command(CommandDefinition):
@@ -21,7 +31,10 @@ class Command(CommandDefinition):
     PROG = "upload"
     ARGS = {
         "source": Parameter(Complete.LOCAL_FILE),
-        "destination": Parameter(Complete.REMOTE_FILE, nargs="?",),
+        "destination": Parameter(
+            Complete.REMOTE_FILE,
+            nargs="?",
+        ),
     }
 
     def run(self, manager: "pwncat.manager.Manager", args):

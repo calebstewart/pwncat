@@ -6,16 +6,27 @@ import datetime
 from functools import partial
 
 from colorama import Fore
-from rich.progress import (TaskID, Progress, BarColumn, TextColumn,
-                           DownloadColumn, TimeRemainingColumn,
-                           TransferSpeedColumn)
+from rich.progress import (
+    TaskID,
+    Progress,
+    BarColumn,
+    TextColumn,
+    DownloadColumn,
+    TimeRemainingColumn,
+    TransferSpeedColumn,
+)
 
 import pwncat
 from pwncat import util
 from pwncat.util import console
-from pwncat.commands.base import (Complete, Parameter, RemoteFileType,
-                                  StoreConstOnce, StoreForAction,
-                                  CommandDefinition)
+from pwncat.commands.base import (
+    Complete,
+    Parameter,
+    RemoteFileType,
+    StoreConstOnce,
+    StoreForAction,
+    CommandDefinition,
+)
 
 
 class Command(CommandDefinition):

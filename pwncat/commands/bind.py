@@ -23,7 +23,9 @@ class Command(CommandDefinition):
             nargs="?",
         ),
         "script": Parameter(
-            Complete.NONE, help="The script to run when the key is pressed", nargs="?",
+            Complete.NONE,
+            help="The script to run when the key is pressed",
+            nargs="?",
         ),
     }
     LOCAL = True

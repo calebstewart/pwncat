@@ -19,7 +19,11 @@ def Reconnect(host: str, user: str = None, password: str = None, **kwargs):
         "{task.fields[status]}",
         transient=True,
     ) as progress:
-        task_id = progress.add_task("attempt", module="initializing", status="...",)
+        task_id = progress.add_task(
+            "attempt",
+            module="initializing",
+            status="...",
+        )
 
         for module in pwncat.modules.run(
             "persist.gather", host=host, module=password, progress=progress

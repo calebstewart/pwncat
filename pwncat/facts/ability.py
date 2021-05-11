@@ -7,9 +7,11 @@ from io import TextIOWrapper
 import pwncat.subprocess
 from pwncat.gtfobins import Stream, Capability
 from pwncat.platform.linux import LinuxReader, LinuxWriter
-from pwncat.modules.agnostic.enumerate.ability import (ExecuteAbility,
-                                                       FileReadAbility,
-                                                       FileWriteAbility)
+from pwncat.modules.agnostic.enumerate.ability import (
+    ExecuteAbility,
+    FileReadAbility,
+    FileWriteAbility,
+)
 
 
 class GTFOFileRead(FileReadAbility):

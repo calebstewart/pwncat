@@ -6,8 +6,10 @@ import ipaddress
 from typing import Any, Dict, List, Union
 
 from prompt_toolkit.keys import ALL_KEYS, Keys
-from prompt_toolkit.input.ansi_escape_sequences import (ANSI_SEQUENCES,
-                                                        REVERSE_ANSI_SEQUENCES)
+from prompt_toolkit.input.ansi_escape_sequences import (
+    ANSI_SEQUENCES,
+    REVERSE_ANSI_SEQUENCES,
+)
 
 from pwncat.modules import BaseModule
 

@@ -8,11 +8,11 @@ import pwncat
 
 
 class RemoteBinaryPipe(RawIOBase):
-    """ Encapsulate a piped interaction with a remote process. The remote PTY
-    should have been placed in raw mode prior to this object being created, and 
+    """Encapsulate a piped interaction with a remote process. The remote PTY
+    should have been placed in raw mode prior to this object being created, and
     the appropriate flags in pty already modified. If EOF is found or the object
     is closed, it will restore the state of the terminal (w/ `reset`). No further
-    reading or writing will be allowed. """
+    reading or writing will be allowed."""
 
     def __init__(
         self,

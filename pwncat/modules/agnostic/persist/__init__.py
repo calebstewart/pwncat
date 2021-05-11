@@ -6,8 +6,16 @@ import inspect
 import pwncat
 import pwncat.db
 from pwncat.util import State
-from pwncat.modules import (Bool, Status, Argument, BaseModule, PersistType,
-                            ModuleFailed, PersistError, ArgumentFormatError)
+from pwncat.modules import (
+    Bool,
+    Status,
+    Argument,
+    BaseModule,
+    PersistType,
+    ModuleFailed,
+    PersistError,
+    ArgumentFormatError,
+)
 
 
 def host_type(ident: str):

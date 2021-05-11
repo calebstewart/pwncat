@@ -554,6 +554,7 @@ def create(protocol: Optional[str] = None, **kwargs):
 
 from pwncat.channel.ssh import Ssh
 from pwncat.channel.bind import Bind
+
 # Import default channel types and register them
 from pwncat.channel.socket import Socket
 from pwncat.channel.connect import Connect

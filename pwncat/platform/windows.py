@@ -12,8 +12,14 @@ import termios
 import readline
 import textwrap
 import subprocess
-from io import (BytesIO, StringIO, RawIOBase, TextIOWrapper, BufferedIOBase,
-                UnsupportedOperation)
+from io import (
+    BytesIO,
+    StringIO,
+    RawIOBase,
+    TextIOWrapper,
+    BufferedIOBase,
+    UnsupportedOperation,
+)
 from typing import List, Union, BinaryIO
 from subprocess import TimeoutExpired, CalledProcessError
 from dataclasses import dataclass

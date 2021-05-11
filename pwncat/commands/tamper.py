@@ -6,8 +6,13 @@ from rich.progress import Progress, BarColumn
 import pwncat
 from pwncat.util import console
 from pwncat.tamper import Tamper, RevertFailed
-from pwncat.commands.base import (Complete, Parameter, StoreConstOnce,
-                                  StoreForAction, CommandDefinition)
+from pwncat.commands.base import (
+    Complete,
+    Parameter,
+    StoreConstOnce,
+    StoreForAction,
+    CommandDefinition,
+)
 
 
 class Command(CommandDefinition):
