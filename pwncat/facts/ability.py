@@ -7,11 +7,9 @@ from io import TextIOWrapper
 import pwncat.subprocess
 from pwncat.gtfobins import Stream, Capability
 from pwncat.platform.linux import LinuxReader, LinuxWriter
-from pwncat.modules.agnostic.enumerate.ability import (
-    ExecuteAbility,
-    FileReadAbility,
-    FileWriteAbility,
-)
+from pwncat.modules.agnostic.enumerate.ability import (ExecuteAbility,
+                                                       FileReadAbility,
+                                                       FileWriteAbility)
 
 
 class GTFOFileRead(FileReadAbility):
@@ -74,8 +72,9 @@ class GTFOFileRead(FileReadAbility):
 
         return raw_reader
 
-    def __str__(self):
-        return f"file read as UID:{self.uid} via {self.method.binary_path}"
+    def title(self, session):
+        user = session.find_user(uid=self.uid)
+        return f"file read as [blue]{user.name}[/blue] via [cyan]{self.method.binary_path}[/cyan]"
 
 
 class GTFOFileWrite(FileWriteAbility):
@@ -138,8 +137,9 @@ class GTFOFileWrite(FileWriteAbility):
 
         return raw_writer
 
-    def __str__(self):
-        return f"file write as UID:{self.uid} via {self.method.binary_path}"
+    def title(self, session):
+        user = session.find_user(uid=self.uid)
+        return f"file write as [blue]{user.name}[/blue] via [cyan]{self.method.binary_path}[/cyan]"
 
 
 class GTFOExecute(ExecuteAbility):
@@ -201,5 +201,6 @@ class GTFOExecute(ExecuteAbility):
 
         self.send_command(session, shell.encode("utf-8") + b"\n")
 
-    def __str__(self):
-        return f"execution as UID:{self.uid} via {self.method.binary_path}"
+    def title(self, session):
+        user = session.find_user(uid=self.uid)
+        return f"shell as [blue]{user.name}[/blue] via [cyan]{self.method.binary_path}[/cyan]"

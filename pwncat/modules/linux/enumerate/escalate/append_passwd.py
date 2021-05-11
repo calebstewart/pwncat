@@ -53,11 +53,12 @@ class AppendPasswd(EscalationReplace):
 
         try:
             session.platform.su(backdoor_user, password=backdoor_pass)
+            return lambda session: session.platform.channel.send(b"exit\n")
         except PermissionError:
             raise ModuleFailed("added user, but switch user failed")
 
-    def __str__(self):
-        return f"""add user via [blue]file write[/blue] as [red]root[/red] (w/ {self.ability})"""
+    def title(self, session: "pwncat.manager.Session"):
+        return f"""add user via [blue]file write[/blue] as [red]root[/red] (w/ {self.ability.title(session)})"""
 
 
 class Module(EnumerateModule):

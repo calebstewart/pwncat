@@ -49,16 +49,9 @@ class Session:
         self.db = manager.db.open()
         self.module_depth = 0
         self.showing_progress = True
+        self.layers = []
 
-        self._progress = rich.progress.Progress(
-            "{task.fields[platform]}",
-            "•",
-            "{task.description}",
-            "•",
-            "{task.fields[status]}",
-            transient=True,
-            console=console,
-        )
+        self._progress = None
 
         # If necessary, build a new platform object
         if isinstance(platform, Platform):
@@ -207,7 +200,7 @@ class Session:
         # Ensure the variable exists even if an exception happens
         # prior to task creation
         task = None
-        started = self._progress._started
+        started = self._progress is not None  # ._started
 
         if "status" not in kwargs:
             kwargs["status"] = "..."
@@ -217,7 +210,16 @@ class Session:
         try:
             # Ensure this bar is started if we are the selected
             # target.
-            if self.manager.target == self:
+            if self.manager.target == self and not started:
+                self._progress = rich.progress.Progress(
+                    "{task.fields[platform]}",
+                    "•",
+                    "{task.description}",
+                    "•",
+                    "{task.fields[status]}",
+                    transient=True,
+                    console=console,
+                )
                 self._progress.start()
 
             # Create the new task
@@ -232,6 +234,7 @@ class Session:
             # nested tasks.
             if not started:
                 self._progress.stop()
+                self._progress = None
 
     def update_task(self, task, *args, **kwargs):
         """Update an active task"""
@@ -250,6 +253,10 @@ class Session:
 
     def close(self):
         """Close the session and remove from manager tracking"""
+
+        # Unwrap all layers in the session
+        while self.layers:
+            self.layers.pop()(self)
 
         self.platform.channel.close()
 
@@ -276,8 +283,6 @@ class Manager:
         self.config = Config()
         self.sessions: List[Session] = []
         self.modules: Dict[str, pwncat.modules.BaseModule] = {}
-        # self.engine = None
-        # self.SessionBuilder = None
         self._target = None
         self.parser = CommandParser(self)
         self.interactive_running = False
@@ -414,7 +419,7 @@ class Manager:
     def log(self, *args, **kwargs):
         """Output a log entry"""
 
-        if self.target is not None:
+        if self.target is not None and self.target._progress is not None:
             self.target._progress.log(*args, **kwargs)
         else:
             console.log(*args, **kwargs)
