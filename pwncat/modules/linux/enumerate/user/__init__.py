@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 
 from pwncat.modules import ModuleFailed, Status
-from pwncat.modules.agnostic.enumerate import EnumerateModule, Schedule
-from pwncat.platform.linux import Linux, LinuxUser
+from pwncat.modules.enumerate import EnumerateModule, Schedule
+from pwncat.platform.linux import Linux
+from pwncat.facts.linux import LinuxUser
 
 
 class Module(EnumerateModule):

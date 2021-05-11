@@ -7,7 +7,7 @@ import rich.markup
 import pwncat
 from pwncat.platform.linux import Linux
 from pwncat import util
-from pwncat.modules.agnostic.enumerate import EnumerateModule, Schedule
+from pwncat.modules.enumerate import EnumerateModule, Schedule
 from pwncat.db import Fact
 
 """

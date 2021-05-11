@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 import crypt
 
-from pwncat.modules import ModuleFailed
-from pwncat.modules.agnostic.enumerate import EnumerateModule, Schedule
-from pwncat.modules.linux.enumerate.escalate import EscalationReplace
+from pwncat.modules.enumerate import EnumerateModule, Schedule
+from pwncat.facts import EscalationReplace
 from pwncat.platform.linux import Linux
+from pwncat.modules import ModuleFailed
 from pwncat.util import console
 
 

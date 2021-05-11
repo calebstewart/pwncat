@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
-import pwncat
-from pwncat.platform.linux import Linux
-from pwncat.modules.agnostic.enumerate import EnumerateModule, Schedule
-from pwncat.modules.linux.enumerate.creds import PasswordData
+from pwncat.modules.enumerate import EnumerateModule, Schedule
 from pwncat.modules.linux.persist.gather import InstalledModule
+from pwncat.facts import PotentialPassword
+from pwncat.platform.linux import Linux
+import pwncat
 
 """
 TODO: This module is specifically used to check if we have passwords set
@@ -64,7 +64,7 @@ class Module(EnumerateModule):
 
                     observed.append(line)
 
-                    yield "creds.password", PasswordData(
+                    yield "creds.password", PotentialPassword(
                         password, log_path, None, uid=pwncat.victim.users[user].id
                     )
         except (FileNotFoundError, PermissionError):

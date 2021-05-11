@@ -9,7 +9,7 @@ import pwncat
 from pwncat.db import Fact
 from pwncat.platform.linux import Linux
 from pwncat.modules import Status
-from pwncat.modules.agnostic.enumerate import EnumerateModule, Schedule
+from pwncat.modules.enumerate import EnumerateModule, Schedule
 
 
 class CronEntry(Fact):

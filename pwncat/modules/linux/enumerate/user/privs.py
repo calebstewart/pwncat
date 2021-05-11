@@ -4,7 +4,7 @@ import dataclasses
 
 from rich.table import Table
 
-from pwncat.modules.agnostic.enumerate import EnumerateModule, Schedule
+from pwncat.modules.enumerate import EnumerateModule, Schedule
 from pwncat.platform.windows import Windows
 
 

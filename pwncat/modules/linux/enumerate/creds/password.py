@@ -2,10 +2,10 @@
 import os
 import re
 
-import pwncat
+from pwncat.modules.enumerate import EnumerateModule, Schedule
+from pwncat.facts import PotentialPassword
 from pwncat.platform.linux import Linux
-from pwncat.modules.agnostic.enumerate import EnumerateModule, Schedule
-from pwncat.modules.linux.enumerate.creds import PasswordData
+import pwncat
 
 
 class Module(EnumerateModule):
@@ -115,7 +115,7 @@ class Module(EnumerateModule):
 
                 # This was a match for the search. We  may have extracted a
                 # password. Either way, log it.
-                fact = PasswordData(self.name, password, path, lineno, uid=None)
+                fact = PotentialPassword(self.name, password, path, lineno, uid=None)
                 yield fact
 
         proc.wait()

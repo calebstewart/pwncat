@@ -5,18 +5,18 @@ from typing import Any
 
 import rich.markup
 
-import pwncat
+from pwncat.modules.enumerate import EnumerateModule, Schedule
+from pwncat.gtfobins import Capability, Stream, BinaryNotFound
 from pwncat.platform.linux import Linux
-from pwncat import util
 from pwncat.modules import Status
-from pwncat.modules.agnostic.enumerate import EnumerateModule, Schedule
-from pwncat.modules.linux.enumerate.ability import (
+from pwncat.facts.ability import (
     GTFOFileRead,
     GTFOFileWrite,
     GTFOExecute,
 )
-from pwncat.gtfobins import Capability, Stream, BinaryNotFound
 from pwncat.db import Fact
+from pwncat import util
+import pwncat
 
 
 class Binary(Fact):

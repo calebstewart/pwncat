@@ -4,11 +4,11 @@ import time
 
 import rich.markup
 
-import pwncat
+from pwncat.modules.enumerate import EnumerateModule, Schedule
 from pwncat.platform.linux import Linux
 from pwncat.modules import Status
-from pwncat.modules.agnostic.enumerate import EnumerateModule, Schedule
-from pwncat.modules.linux.enumerate.creds import PrivateKeyData
+from pwncat.facts import PrivateKey
+import pwncat
 
 
 class Module(EnumerateModule):
@@ -46,7 +46,7 @@ class Module(EnumerateModule):
                 line = line.strip().split(" ")
                 uid, path = int(line[0]), " ".join(line[1:])
                 yield Status(f"found [cyan]{rich.markup.escape(path)}[/cyan]")
-                facts.append(PrivateKeyData(self.name, path, uid, None, False))
+                facts.append(PrivateKey(self.name, path, uid, None, False))
 
         for fact in facts:
             try:

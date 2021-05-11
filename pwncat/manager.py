@@ -17,6 +17,7 @@ import zodburi
 
 import pwncat.db
 import pwncat.modules
+import pwncat.modules.enumerate
 from pwncat.util import console, RawModeExit
 from pwncat.platform import Platform
 from pwncat.channel import Channel, ChannelClosed
@@ -175,7 +176,7 @@ class Session:
                 and type(self.platform) not in module.PLATFORM
             ):
                 continue
-            if not isinstance(module, base):
+            if not issubclass(type(module), base):
                 continue
             if not exact:
                 if (
@@ -393,7 +394,12 @@ class Manager:
         for loader, module_name, _ in pkgutil.walk_packages(
             paths, prefix="pwncat.modules."
         ):
-            module = loader.find_module(module_name).load_module(module_name)
+
+            # Why is this check *not* part of pkgutil??????? D:<
+            if module_name not in sys.modules:
+                module = loader.find_module(module_name).load_module(module_name)
+            else:
+                module = sys.modules[module_name]
 
             if getattr(module, "Module", None) is None:
                 continue
