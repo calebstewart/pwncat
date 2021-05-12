@@ -3,14 +3,14 @@ import subprocess
 import dataclasses
 from typing import Any
 
-import rich.markup
-
 import pwncat
+import rich.markup
 from pwncat import util
 from pwncat.db import Fact
 from pwncat.modules import Status
 from pwncat.gtfobins import Stream, Capability, BinaryNotFound
-from pwncat.facts.ability import GTFOExecute, GTFOFileRead, GTFOFileWrite
+from pwncat.facts.ability import (GTFOExecute, GTFOFileRead, GTFOFileWrite,
+                                  build_gtfo_ability)
 from pwncat.platform.linux import Linux
 from pwncat.modules.enumerate import Schedule, EnumerateModule
 
@@ -71,26 +71,7 @@ class Module(EnumerateModule):
                 fact = Binary(self.name, path, uid)
                 yield fact
 
-                for method in session.platform.gtfo.iter_binary(path):
-                    if method.cap == Capability.READ:
-                        yield GTFOFileRead(
-                            source=self.name,
-                            uid=uid,
-                            method=method,
-                            suid=True,
-                        )
-                    if method.cap == Capability.WRITE:
-                        yield GTFOFileWrite(
-                            source=self.name,
-                            uid=uid,
-                            method=method,
-                            suid=True,
-                            length=100000000000,  # TO-DO: WE SHOULD FIX THIS???
-                        )
-                    if method.cap == Capability.SHELL:
-                        yield GTFOExecute(
-                            source=self.name,
-                            uid=uid,
-                            method=method,
-                            suid=True,
-                        )
+                yield from (
+                    build_gtfo_ability(self.name, uid, method, suid=True)
+                    for method in session.platform.gtfo.iter_binary(path)
+                )

@@ -3,6 +3,7 @@ import shlex
 import functools
 import subprocess
 from io import TextIOWrapper
+from typing import Any
 
 import pwncat.subprocess
 from pwncat.gtfobins import Stream, Capability
@@ -10,6 +11,25 @@ from pwncat.platform.linux import LinuxReader, LinuxWriter
 from pwncat.modules.agnostic.enumerate.ability import (ExecuteAbility,
                                                        FileReadAbility,
                                                        FileWriteAbility)
+
+
+def build_gtfo_ability(
+    source: str, uid: Any, method: "pwncat.gtfobins.MethodWrapper", **kwargs
+):
+    """ Build a escalation ability from a GTFOBins method """
+
+    if method.cap == Capability.READ:
+        return GTFOFileRead(source=source, uid=uid, method=method, **kwargs)
+    if method.cap == Capability.WRITE:
+        return GTFOFileWrite(
+            source=source,
+            uid=uid,
+            method=method,
+            length=100000000000,  # TODO: WE SHOULD FIX THIS???
+            **kwargs,
+        )
+    if method.cap == Capability.SHELL:
+        return GTFOExecute(source=source, uid=uid, method=method, **kwargs)
 
 
 class GTFOFileRead(FileReadAbility):

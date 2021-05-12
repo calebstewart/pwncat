@@ -11,12 +11,11 @@ from abc import ABC, abstractmethod
 from typing import List, Type, Union, BinaryIO, Optional, Generator
 from subprocess import CalledProcessError
 
-from rich.logging import RichHandler
-
 import pwncat
 import pwncat.channel
 import pwncat.subprocess
 from pwncat.util import console
+from rich.logging import RichHandler
 
 PLATFORM_TYPES = {}
 """ A dictionary of platform names mapping to their class
@@ -620,7 +619,7 @@ class Platform(ABC):
             return self.session.target.utilities[name]
 
         path = self._do_which(name)
-        self.session.db.transaction_manager.begin()
+        # self.session.db.transaction_manager.begin()
         self.session.target.utilities[name] = path
         self.session.db.transaction_manager.commit()
 

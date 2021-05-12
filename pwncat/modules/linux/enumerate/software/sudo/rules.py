@@ -3,11 +3,12 @@ import re
 import dataclasses
 from typing import List, Optional, Generator
 
-import rich.markup
-
 import pwncat
+import rich.markup
 from pwncat import util
 from pwncat.db import Fact
+from pwncat.facts import build_gtfo_ability
+from pwncat.gtfobins import Capability
 from pwncat.platform.linux import Linux
 from pwncat.modules.enumerate import Schedule, EnumerateModule
 
@@ -47,24 +48,24 @@ class SudoSpec(Fact):
 
         self.line: str = line
         """ The full, unaltered line from the sudoers file """
-        self.matched: bool = False
+        self.matched: bool = matched
         """ The regular expression match data. If this is None, all following fields
         are invalid and should not be used. """
-        self.user: Optional[str] = None
+        self.user: Optional[str] = user
         """ The user which this rule applies to. This is None if a group was specified """
-        self.group: Optional[str] = None
+        self.group: Optional[str] = group
         """ The group this rule applies to. This is None if a user was specified. """
-        self.host: Optional[str] = None
+        self.host: Optional[str] = host
         """ The host this rule applies to """
-        self.runas_user: Optional[str] = None
+        self.runas_user: Optional[str] = runas_user
         """ The user we are allowed to run as """
-        self.runas_group: Optional[str] = None
+        self.runas_group: Optional[str] = runas_group
         """ The GID we are allowed to run as (may be None)"""
-        self.options: List[str] = None
+        self.options: List[str] = options
         """ A list of options specified (e.g. NOPASSWD, SETENV, etc) """
-        self.hash: str = None
+        self.hash: str = hash
         """ A hash type and value which sudo will obey """
-        self.commands: List[str] = None
+        self.commands: List[str] = commands
         """ The command specification """
 
     def title(self, session):
@@ -78,7 +79,7 @@ class SudoSpec(Fact):
         else:
             display += f"Group [cyan]{rich.markup.escape(self.group)}[/cyan]: "
 
-        display += f"[yellow]{'[/yellow], [yellow]'.join((rich.markup.escape(x) for c in self.commands))}[/yellow] as "
+        display += f"[yellow]{'[/yellow], [yellow]'.join((rich.markup.escape(c) for c in self.commands))}[/yellow] as "
 
         if self.runas_user == "root":
             display += f"[red]root[/red]"
@@ -154,19 +155,21 @@ def LineParser(source, line):
     command = match.group(11)
     commands = re.split(r"""(?<!\\), ?""", command)
 
-    return SudoSpec(
-        source,
-        line,
-        True,
-        user,
-        group,
-        host,
-        runas_user,
-        runas_group,
-        options,
-        hash,
-        commands,
+    rule = SudoSpec(
+        source=source,
+        line=line,
+        matched=True,
+        user=user,
+        group=group,
+        host=host,
+        runas_user=runas_user,
+        runas_group=runas_group,
+        options=options,
+        hash=hash,
+        commands=commands,
     )
+
+    return rule
 
 
 class Module(EnumerateModule):
@@ -174,11 +177,20 @@ class Module(EnumerateModule):
     this module will also enumerate sudo rules for other users. Normally,
     root permissions are needed to read /etc/sudoers."""
 
-    PROVIDES = ["software.sudo.rule"]
+    PROVIDES = [
+        "software.sudo.rule",
+        "ability.execute",
+        "ability.file.read",
+        "ability.file.write",
+    ]
     PLATFORM = [Linux]
     SCHEDULE = Schedule.PER_USER
 
     def enumerate(self, session):
+
+        # We need to ensure that the user database is retrieved...
+        # NOTE: there should probably be a shortcut for this
+        session.find_user(uid=0)
 
         try:
             etc_sudoers = session.platform.Path("/etc/sudoers")
@@ -190,9 +202,28 @@ class Module(EnumerateModule):
                         if line.startswith("#") or line == "":
                             continue
 
-                        yield LineParser(self.name, line)
+                        rule = LineParser(self.name, line)
 
-                # No need to parse `sudo -l`, since can read /etc/sudoers
+                        # Yield the sudo rule
+                        yield rule
+
+                        # We can't handle abilities which we didn't parse properly
+                        if not rule.matched:
+                            continue
+
+                        # Grab the user by name so we can get the UID
+                        user = session.find_user(name=rule.user)
+                        if user is None:
+                            # Not a valid user? :/
+                            continue
+
+                        # Yield escalation abilities
+                        for spec in rule.commands:
+                            yield from (
+                                build_gtfo_ability(self.name, user.id, method)
+                                for method in session.platform.gtfo.iter_sudo(spec)
+                            )
+
                 return
         except (FileNotFoundError, PermissionError):
             pass
@@ -224,4 +255,28 @@ class Module(EnumerateModule):
 
             # Build the beginning part of a normal spec
             line = f"{session.current_user().name} local=" + line.strip()
-            yield LineParser(self.name, line)
+            rule = LineParser(self.name, line)
+
+            # Yield the sudo rule
+            yield rule
+
+            # We can't handle abilities which we didn't parse properly
+            if not rule.matched:
+                continue
+
+            user_name = rule.runas_user
+            if user_name == "ALL":
+                user_name = "root"
+
+            # Grab the user by name so we can get the UID
+            user = session.find_user(name=user_name)
+            if user is None:
+                # Not a valid user? :/
+                continue
+
+            # Yield escalation abilities
+            for spec in rule.commands:
+                yield from (
+                    build_gtfo_ability(self.name, user.id, method)
+                    for method in session.platform.gtfo.iter_sudo(spec)
+                )

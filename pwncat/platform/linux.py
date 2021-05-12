@@ -10,9 +10,8 @@ from io import TextIOWrapper, BufferedIOBase, UnsupportedOperation
 from typing import List, Union, BinaryIO, Optional, Generator
 from subprocess import TimeoutExpired, CalledProcessError
 
-import pkg_resources
-
 import pwncat
+import pkg_resources
 import pwncat.channel
 import pwncat.subprocess
 from pwncat import util
@@ -148,8 +147,13 @@ class PopenLinux(pwncat.subprocess.Popen):
 
     def communicate(self, input=None, timeout=None):
 
+        if self.stdout is self.stdout_raw:
+            empty = b""
+        else:
+            empty = ""
+
         if self.returncode is not None:
-            return (None, None)
+            return (empty, empty)
 
         if input is not None and self.stdin is not None:
             self.stdin.write(input)
@@ -159,7 +163,7 @@ class PopenLinux(pwncat.subprocess.Popen):
         else:
             end_time = None
 
-        data = None
+        data = empty
 
         while self.poll() is None:
             try:
@@ -177,7 +181,7 @@ class PopenLinux(pwncat.subprocess.Popen):
             except BlockingIOError:
                 time.sleep(0.1)
 
-        return (data, None)
+        return (data, empty)
 
     def kill(self):
 
@@ -667,7 +671,9 @@ class Linux(Platform):
         """
 
         try:
-            result = self.run(["which", name], text=True, capture_output=True)
+            result = self.run(
+                ["which", name], text=True, capture_output=True, check=True
+            )
             return result.stdout.rstrip("\n")
         except CalledProcessError:
             return None
