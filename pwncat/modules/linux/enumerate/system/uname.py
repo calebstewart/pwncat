@@ -6,28 +6,45 @@ from typing import List, Optional
 import pkg_resources
 
 import pwncat
+from pwncat.db import Fact
 from pwncat import util
 from pwncat.platform.linux import Linux
 from pwncat.modules.enumerate import Schedule, EnumerateModule
 
 
-@dataclasses.dataclass
-class ArchData:
+class ArchData(Fact):
     """
     Simply the architecture of the remote machine. This class
     wraps the architecture name in a nicely printable data
     class.
     """
 
-    arch: str
-    """ The determined architecture. """
+    def __init__(self, source, arch):
+        super().__init__(source=source, types=["system.arch"])
 
-    def __str__(self):
+        self.arch: str = arch
+        """ The determined architecture. """
+
+    def title(self, session):
         return f"Running on a [cyan]{self.arch}[/cyan] processor"
 
 
-@dataclasses.dataclass
-class KernelVersionData:
+class HostnameData(Fact):
+    """
+    The hostname of this machine.
+    """
+
+    def __init__(self, source, hostname):
+        super().__init__(source=source, types=["system.hostname"])
+
+        self.hostname: str = hostname
+        """ The determined architecture. """
+
+    def title(self, session):
+        return f"Hostname [cyan]{self.hostname}[/cyan]"
+
+
+class KernelVersionData(Fact):
     """
     Represents a W.X.Y-Z kernel version where W is the major version,
     X is the minor version, Y is the patch, and Z is the ABI.
@@ -36,12 +53,15 @@ class KernelVersionData:
         https://askubuntu.com/questions/843197/what-are-kernel-version-number-components-w-x-yy-zzz-called
     """
 
-    major: int
-    minor: int
-    patch: int
-    abi: str
+    def __init__(self, source, major, minor, patch, abi):
+        super().__init__(source=source, types=["system.kernel.version"])
 
-    def __str__(self):
+        self.major: int = major
+        self.minor: int = minor
+        self.patch: int = patch
+        self.abi: str = abi
+
+    def title(self, session):
         return (
             f"Running Linux Kernel [red]{self.major}[/red]."
             f"[green]{self.minor}[/green]."
@@ -49,8 +69,7 @@ class KernelVersionData:
         )
 
 
-@dataclasses.dataclass
-class KernelVulnerabilityData:
+class KernelVulnerabilityData(Fact):
     """
     Data describing a kernel vulnerability which appears to be exploitable
     on the remote host. This is **not** guaranteed to be exploitable, however
@@ -59,21 +78,23 @@ class KernelVulnerabilityData:
     vulnerability.
     """
 
-    name: str
-    versions: List[str]
-    link: Optional[str]
-    cve: Optional[str]
-    # All exploits are assumed working, but can be marked as not working
-    working: bool = True
+    def __init__(self, source, name, versions, link, cve):
+        super().__init__(source=source, types=["system.kernel.vuln"])
 
-    def __str__(self):
+        self.name: str = name
+        self.versions: List[str] = versions
+        self.link: Optional[str] = link
+        self.cve: Optional[str] = cve
+        # All exploits are assumed working, but can be marked as not working
+        working: bool = True
+
+    def title(self, title):
         line = f"[red]{self.name}[/red]"
         if self.cve is not None:
             line += f" ([cyan]CVE-{self.cve}[/cyan])"
         return line
 
-    @property
-    def description(self):
+    def description(self, title):
         line = f"Affected Versions: {repr(self.versions)}\n"
         if self.link:
             line += f"Details: {self.link}"
@@ -102,12 +123,15 @@ class Module(EnumerateModule):
     PLATFORM = [Linux]
     SCHEDULE = Schedule.ONCE
 
-    def enumerate(self):
-        """ Run uname and organize information """
+    def enumerate(self, session):
+        """Run uname and organize information"""
 
         # Grab the uname output
-        output = pwncat.victim.run("uname -s -n -r -m -o").decode("utf-8").strip()
-        fields = output.split(" ")
+        output = session.platform.run(
+            "uname -s -n -r -m -o", capture_output=True, text=True, check=True
+        )
+
+        fields = output.stdout.split(" ")
 
         # Grab the components
         # kernel_name = fields[0] if fields else None
@@ -121,14 +145,14 @@ class Module(EnumerateModule):
         y_and_z = ".".join(y_and_z).split("-")
         y = y_and_z[0]
         z = "-".join(y_and_z[1:])
-        version = KernelVersionData(int(w), int(x), int(y), z)
-        yield "system.kernel.version", version
+        version = KernelVersionData(self.name, int(w), int(x), int(y), z)
+        yield version
 
         # Handle arch
-        yield "system.arch", ArchData(machine_name)
+        yield ArchData(self.name, machine_name)
 
         # Handle Hostname
-        yield "system.hostname", hostname
+        yield HostnameData(self.name, hostname)
 
         # Handle Kernel vulnerabilities
         with open(
@@ -140,6 +164,10 @@ class Module(EnumerateModule):
             for name, vuln in vulns.items():
                 if version_string not in vuln["vuln"]:
                     continue
-                yield "system.kernel.vuln", KernelVulnerabilityData(
-                    name, vuln["vuln"], vuln.get("mil", None), vuln.get("cve", None)
+                yield KernelVulnerabilityData(
+                    self.name,
+                    name,
+                    vuln["vuln"],
+                    vuln.get("mil", None),
+                    vuln.get("cve", None),
                 )

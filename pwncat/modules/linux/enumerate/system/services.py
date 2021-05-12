@@ -1,31 +1,34 @@
 #!/usr/bin/env python3
-import dataclasses
+
+import rich.markup
 
 import pwncat
+from pwncat.db import Fact
 from pwncat.util import Init
 from pwncat.platform.linux import Linux
 from pwncat.modules.enumerate import Schedule, EnumerateModule
 
 
-@dataclasses.dataclass
-class ServiceData:
+class ServiceData(Fact):
+    def __init__(self, source, name, uid, state, pid):
+        super().__init__(source=source, types=["system.service"])
 
-    name: str
-    """ The name of the service as given on the remote host """
-    uid: int
-    """ The user this service is running as """
-    state: str
-    """ Whether the service is running """
-    pid: int
+        self.name: str = name
+        """ The name of the service as given on the remote host """
+        self.uid: int = uid
+        """ The user this service is running as """
+        self.state: str = state
+        """ Whether the service is running """
+        self.pid: int = pid
 
-    def __str__(self):
+    def title(self, session):
         if self.uid == 0:
             color = "red"
         else:
             color = "green"
 
         try:
-            user_name = pwncat.victim.find_user_by_id(self.uid).name
+            user_name = session.find_user(uid=self.uid).name
         except KeyError:
             user_name = f"{self.uid} (unknown user)"
             color = "yellow"
@@ -42,18 +45,18 @@ class ServiceData:
 
 
 class Module(EnumerateModule):
-    """ Enumerate systemd services on the victim """
+    """Enumerate systemd services on the victim"""
 
     PROVIDES = ["system.service"]
     PLATFORM = [Linux]
     SCHEDULE = Schedule.ONCE
 
-    def enumerate(self):
+    def enumerate(self, session):
 
-        for fact in pwncat.modules.run(
+        for fact in session.run(
             "enumerate.gather", types=["system.init"], progress=self.progress
         ):
-            if fact.data.init != Init.SYSTEMD:
+            if fact.init != Init.SYSTEMD:
                 return
             break
 
@@ -61,37 +64,28 @@ class Module(EnumerateModule):
         # For the generic call, we grab the name, PID, user, and state
         # of each process. If some part of pwncat needs more, it can
         # request it specifically.
-        data = pwncat.victim.env(
-            [
-                "systemctl",
-                "show",
-                "--type=service",
-                "--no-pager",
-                "--all",
-                "--value",
-                "--property",
-                "Id",
-                "--property",
-                "MainPID",
-                "--property",
-                "UID",
-                "--property",
-                "SubState",
-                "\\*",
-            ],
-            PAGER="",
+
+        data = session.platform.run(
+            "systemctl show --type=service --no-pager --all --value --property Id --property MainPID --property UID --property SubState \\*",
+            capture_output=True,
+            text=True,
+            check=True,
         )
-        data = data.strip().decode("utf-8").split("\n")
 
-        for i in range(0, len(data), 5):
-            if i >= (len(data) - 4):
-                break
-            name = data[i + 2].strip().rstrip(".service")
-            pid = int(data[i].strip())
-            if "[not set]" in data[i + 1]:
-                uid = 0
-            else:
-                uid = int(data[i + 1].strip())
-            state = data[i + 3].strip()
+        if data.stdout:
+            data = data.stdout.split("\n\n")
 
-            yield "system.service", ServiceData(name, uid, state, pid)
+            for segment in data:
+                section = segment.split("\n")
+                try:
+                    pid = int(section[0])
+                except ValueError as exc:
+                    pwncat.console.log(repr(data), markup=False)
+                if section[1] == "[not set]":
+                    uid = 0
+                else:
+                    uid = int(section[1])
+                name = section[2].removesuffix(".service")
+                state = section[3]
+
+                yield ServiceData(self.name, name, uid, state, pid)
