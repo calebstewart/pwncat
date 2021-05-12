@@ -8,6 +8,12 @@ from pwncat.util import Init
 from pwncat.platform.linux import Linux
 from pwncat.modules.enumerate import Schedule, EnumerateModule
 
+"""
+TODO: This is weirdly inconsistent. Sometimes it works, other times it misses
+like more than half of the services. We don't know why. systemctl might be
+doing something weird?
+"""
+
 
 class ServiceData(Fact):
     def __init__(self, source, name, uid, state, pid):
@@ -80,7 +86,7 @@ class Module(EnumerateModule):
                 try:
                     pid = int(section[0])
                 except ValueError as exc:
-                    pwncat.console.log(repr(data), markup=False)
+                    continue
                 if section[1] == "[not set]":
                     uid = 0
                 else:
