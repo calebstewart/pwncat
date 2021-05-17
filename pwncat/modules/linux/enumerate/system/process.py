@@ -64,6 +64,7 @@ class Module(EnumerateModule):
                 "ps -eo pid,ppid,uid,user,command --no-header -ww",
                 capture_output=True,
                 text=True,
+                check=True,
             )
 
             if proc.stdout:

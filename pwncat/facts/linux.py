@@ -5,7 +5,7 @@ from pwncat.facts import User, Group
 
 
 class LinuxUser(User):
-    """ Linux-specific user definition """
+    """Linux-specific user definition"""
 
     def __init__(
         self,
@@ -33,7 +33,7 @@ class LinuxUser(User):
 
 
 class LinuxGroup(Group):
-    """ Linux-specific group definition """
+    """Linux-specific group definition"""
 
     def __init__(self, source, group_name, hash, gid, members, password=None):
 

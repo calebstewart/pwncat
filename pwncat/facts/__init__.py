@@ -23,9 +23,6 @@ class Group(Fact):
     def __repr__(self):
         return f"""Group(gid={self.id}, name={repr(self.name)}, members={repr(self.members)})"""
 
-    def __str__(self):
-        return f"""{rich.markup.escape(self.name)}, gid={self.id}, members={rich.markup.escape(",".join((m for m in self.members)))}"""
-
 
 class User(Fact):
     """Basic representation of a user on the target system. Individual platform

@@ -9,6 +9,7 @@ import pwncat
 from pwncat.db import Fact
 from pwncat.modules import Status
 from pwncat.platform.linux import Linux
+from pwncat.subprocess import CalledProcessError
 from pwncat.modules.enumerate import Schedule, EnumerateModule
 
 
@@ -92,7 +93,7 @@ class Module(EnumerateModule):
             )
             user_entries = proc.stdout
 
-        except FileNotFoundError:
+        except CalledProcessError as exc:
             # The crontab command doesn't exist :(
             return
 

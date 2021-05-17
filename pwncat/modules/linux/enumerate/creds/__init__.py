@@ -48,13 +48,12 @@ class PrivateKeyData(Fact):
         self.encrypted: bool = encrypted
         """ Is this private key encrypted? """
 
-    def __str__(self):
+    def title(self, session):
         if self.uid == 0:
             color = "red"
         else:
             color = "green"
         return f"Potential private key for [{color}]{self.uid}[/{color}] at [cyan]{rich.markup.escape(self.path)}[/cyan]"
 
-    @property
-    def description(self) -> str:
+    def description(self, session) -> str:
         return self.content

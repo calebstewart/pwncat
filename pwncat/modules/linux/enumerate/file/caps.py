@@ -32,12 +32,6 @@ class FileCapabilityData(Fact):
         line += "]"
         return line
 
-    def __str__(self):
-        line = f"[cyan]{rich.markup.escape(self.path)}[/cyan] -> ["
-        line += ",".join(f"[blue]{rich.markup.escape(c)}[/blue]" for c in self.caps)
-        line += "]"
-        return line
-
 
 class Module(EnumerateModule):
     """Enumerate capabilities of the binaries of the remote host"""
@@ -57,10 +51,19 @@ class Module(EnumerateModule):
 
         # Process the standard output from the command
         with proc.stdout as stream:
-            for path in stream:
+            for line in stream:
                 # Parse out path and capability list
-                path, caps = [x.strip() for x in path.strip().split(" ")]
-                caps = caps.split(",")
 
-                fact = FileCapabilityData(self.name, path, caps)
+                # getcap is inconsistent in how it displays output.
+                # We can try and handle both cases.
+                if " = " in line:
+                    # /usr/bin/mtr-packet = cap_net_raw+ep
+                    path, caps = [x.strip() for x in line.strip().split("=")]
+                    caps = caps.split(",")
+                    fact = FileCapabilityData(self.name, path, caps)
+                else:
+                    path, caps = [x.strip() for x in line.strip().split(" ")]
+                    caps = caps.split(",")
+                    fact = FileCapabilityData(self.name, path, caps)
+
                 yield fact

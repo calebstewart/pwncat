@@ -1299,7 +1299,7 @@ class Linux(Platform):
                         " stty sane",
                         f" stty rows {rows} columns {columns}",
                         f" export TERM='{TERM}'",
-                        """export PS1='$(command printf "\\033[01;31m(remote)\\033[0m \\033[01;33m$(whoami)@$(hostname)\\033[0m:\\033[1;36m$PWD\\033[0m$ ")'""",
+                        """export PS1='$(command printf "\\033[01;31m(remote)\\033[0m \\033[01;33m$(whoami)@$(hostname)\\033[0m:\\033[1;36m$PWD\\033[0m\\$ ")'""",
                     ]
                 )
                 + "\n"
