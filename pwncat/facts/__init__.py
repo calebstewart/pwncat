@@ -2,9 +2,8 @@
 from typing import IO, Callable, Optional
 
 import rich.markup
-from persistent.list import PersistentList
-
 from pwncat.db import Fact
+from persistent.list import PersistentList
 from pwncat.facts.ability import *
 from pwncat.facts.escalate import *
 
@@ -112,95 +111,23 @@ class PrivateKey(Fact):
         return self.content
 
 
-class FileReadAbility(Fact):
-    """Ability to read a file as a different user"""
-
-    def __init__(self, source, uid):
-        super().__init__(types=["ability.file.read"], source=source)
-
-        self.uid = uid
-
-    def open(
-        self,
-        session,
-        path: str,
-        mode: str = "r",
-        buffering: int = -1,
-        encoding: str = "utf-8",
-        errors: str = None,
-        newline: str = None,
-    ) -> IO:
-        """Open a file for reading. This method mimics the builtin open
-        function, and returns a file-like object for reading."""
-
-
-class FileWriteAbility(Fact):
-    """Ability to write a file as a different user"""
-
-    def __init__(self, source, uid):
-        super().__init__(types=["ability.file.write"], source=source)
-
-        self.uid = uid
-
-    def open(
-        self,
-        session,
-        path: str,
-        mode: str = "r",
-        buffering: int = -1,
-        encoding: str = "utf-8",
-        errors: str = None,
-        newline: str = None,
-    ) -> IO:
-        """Open a file for writing. This method mimics the builtin open
-        function and returns a file-like object for writing."""
-
-
-class ExecuteAbility(Fact):
-    """Ability to execute a binary as a different user"""
-
-    def __init__(self, source, uid):
-        super().__init__(types=["ability.execute"], source=source)
-
-        self.uid = uid
-
-    def shell(
-        self, session: "pwncat.manager.Session"
-    ) -> Callable[["pwncat.manager.Session"], None]:
-        """Replace the current shell with a new shell as the identified user
-
-        :param session: the session to operate on
-        :type session: pwncat.manager.Session
-        :returns: Callable - A lambda taking the session and exiting the new shell
-        """
-
-
-class SpawnAbility(Fact):
-    """Ability to spawn a new process as a different user without communications"""
-
-    def __init__(self, source, uid):
-        super().__init__(types=["ability.spawn"], source=source)
-
-    def execute(self, session: "pwncat.manager.Session", command: str):
-        """Utilize this ability to execute a command as a different user
-
-        :param session: the session on which to operate
-        :type session: pwncat.manager.Session
-        :param command: a command to execute
-        :type command: str
-        """
-
-
 class EscalationReplace(Fact):
     """Performs escalation and transforms the current session into the context
-    of the specified user."""
+    of the specified user.
 
-    def __init__(self, source, uid):
+    :param source: the name of the generating module
+    :type source: str
+    :param source_uid: the starting uid needed to use this escalation
+    :param uid: the target uid for this escalation
+    """
+
+    def __init__(self, source, source_uid, uid):
         super().__init__(types=["escalate.replace"], source=source)
 
+        self.source_uid = source_uid
         self.uid = uid
 
-    def execute(
+    def escalate(
         self, session: "pwncat.manager.Session"
     ) -> Callable[["pwncat.manager.Session"], None]:
         """Execute the escalation optionally returning a new session
@@ -213,11 +140,18 @@ class EscalationReplace(Fact):
 
 class EscalationSpawn(Fact):
     """Performs escalation and spawns a new session in the context of the
-    specified user. The execute method will return the new session."""
+    specified user. The execute method will return the new session.
 
-    def __init__(self, source, uid):
+    :param source: the name of the generating module
+    :type source: str
+    :param source_uid: the starting uid needed to use this escalation
+    :param uid: the target uid for this escalation
+    """
+
+    def __init__(self, source, source_uid, uid):
         super().__init__(types=["escalate.spawn"], source=source)
 
+        self.source_uid = source_uid
         self.uid = uid
 
     def execute(self, session: "pwncat.manager.Session") -> "pwncat.manager.Session":

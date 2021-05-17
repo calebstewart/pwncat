@@ -7,7 +7,7 @@ import selectors
 import threading
 import contextlib
 from io import TextIOWrapper
-from typing import Dict, List, Union, Optional
+from typing import Dict, List, Tuple, Union, Optional
 
 import ZODB
 import zodburi
@@ -137,6 +137,16 @@ class Session:
                 name is None or group.name == name
             ):
                 return group
+
+    def register_fact(self, fact: "pwncat.db.Fact"):
+        """Register a fact with this session's target. This is useful when
+        a fact is generated during execution of a command or module, but is
+        not associated with a specific enumeration module. It can still be
+        queried with the base `enumerate` module by it's type."""
+
+        if fact not in self.target.facts:
+            self.target.facts.append(fact)
+            self.db.transaction_manager.commit()
 
     def run(self, module: str, **kwargs):
         """Run a module on this session"""

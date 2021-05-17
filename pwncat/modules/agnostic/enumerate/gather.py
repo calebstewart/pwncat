@@ -6,12 +6,11 @@ import collections
 from io import IOBase
 from pathlib import Path
 
-from rich import markup
-from rich.progress import Progress
-
 import pwncat.modules
+from rich import markup
 from pwncat import util
 from pwncat.util import console
+from rich.progress import Progress
 from pwncat.modules.enumerate import EnumerateModule
 
 
@@ -67,10 +66,15 @@ class Module(pwncat.modules.BaseModule):
         "clear": pwncat.modules.Argument(
             bool, default=False, help="Clear the cached results of all matching modules"
         ),
+        "cache": pwncat.modules.Argument(
+            bool,
+            default=True,
+            help="Return cached results along with new facts (default: True)",
+        ),
     }
     PLATFORM = None
 
-    def run(self, session, output, modules, types, clear):
+    def run(self, session, output, modules, types, clear, cache):
         """Perform a enumeration of the given moduels and save the output"""
 
         module_names = modules
@@ -90,6 +94,14 @@ class Module(pwncat.modules.BaseModule):
 
         # Enumerate all facts
         facts = {}
+
+        if cache:
+            for fact in session.target.facts:
+                if any(
+                    any(fnmatch.fnmatch(t2, t1) for t2 in fact.types) for t1 in types
+                ):
+                    yield fact
+
         for module in modules:
 
             if types:
@@ -112,7 +124,7 @@ class Module(pwncat.modules.BaseModule):
             yield pwncat.modules.Status(module.name)
 
             # Iterate over facts from the sub-module with our progress manager
-            for item in module.run(session, types=types):
+            for item in module.run(session, types=types, cache=False):
                 if output is None:
                     yield item
                 elif item.type not in facts:

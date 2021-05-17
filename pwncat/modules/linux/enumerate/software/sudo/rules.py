@@ -211,16 +211,31 @@ class Module(EnumerateModule):
                         if not rule.matched:
                             continue
 
+                        user_name = rule.runas_user
+                        if user_name == "ALL":
+                            user_name = "root"
+
                         # Grab the user by name so we can get the UID
+                        runas_user = session.find_user(name=user_name)
+                        if runas_user is None:
+                            # Not a valid user? :/
+                            continue
+
                         user = session.find_user(name=rule.user)
                         if user is None:
-                            # Not a valid user? :/
                             continue
 
                         # Yield escalation abilities
                         for spec in rule.commands:
                             yield from (
-                                build_gtfo_ability(self.name, user.id, method)
+                                build_gtfo_ability(
+                                    self.name,
+                                    runas_user.id,
+                                    method,
+                                    spec=spec,
+                                    source_uid=user.id,
+                                    user=runas_user.name,
+                                )
                                 for method in session.platform.gtfo.iter_sudo(spec)
                             )
 
@@ -230,6 +245,8 @@ class Module(EnumerateModule):
 
         # Check for our privileges
         try:
+
+            current_user = session.current_user()
 
             proc = session.platform.sudo(["sudo", "-nl"], as_is=True, text=True)
             result = proc.stdout.read()
@@ -277,6 +294,13 @@ class Module(EnumerateModule):
             # Yield escalation abilities
             for spec in rule.commands:
                 yield from (
-                    build_gtfo_ability(self.name, user.id, method)
+                    build_gtfo_ability(
+                        self.name,
+                        user.id,
+                        method,
+                        spec=spec,
+                        user=user.name,
+                        source_uid=current_user.id,
+                    )
                     for method in session.platform.gtfo.iter_sudo(spec)
                 )

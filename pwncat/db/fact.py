@@ -2,9 +2,8 @@
 from typing import Optional
 
 import persistent
-from persistent.list import PersistentList
-
 from pwncat.modules import Result
+from persistent.list import PersistentList
 
 
 class Fact(Result, persistent.Persistent):
@@ -33,5 +32,25 @@ class Fact(Result, persistent.Persistent):
         # The original procedure that found this fact
         self.source: str = source
 
+    def __eq__(self, o):
+        """This is probably a horrible idea.
+
+        NOTE: This is called for every comparison... the `in` operator
+        wasn't working for persistent lists, so we need this to verify
+        uniqueness of facts in the database.
+        """
+
+        for name, value in self.__dict__.items():
+            if name.startswith("_"):
+                continue
+            if not hasattr(o, name) or getattr(o, name) != value:
+                return False
+
+        return True
+
     def category(self, session) -> str:
         return f"{self.types[0]} facts"
+
+    @property
+    def type(self):
+        return self.types[0]

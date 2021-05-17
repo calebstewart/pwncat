@@ -9,8 +9,12 @@ from pwncat import util
 from pwncat.db import Fact
 from pwncat.modules import Status
 from pwncat.gtfobins import Stream, Capability, BinaryNotFound
-from pwncat.facts.ability import (GTFOExecute, GTFOFileRead, GTFOFileWrite,
-                                  build_gtfo_ability)
+from pwncat.facts.ability import (
+    GTFOExecute,
+    GTFOFileRead,
+    GTFOFileWrite,
+    build_gtfo_ability,
+)
 from pwncat.platform.linux import Linux
 from pwncat.modules.enumerate import Schedule, EnumerateModule
 
@@ -65,6 +69,7 @@ class Module(EnumerateModule):
         with proc.stdout as stream:
             for path in stream:
                 # Parse out owner ID and path
+                original_path = path
                 path = path.strip().split(" ")
                 uid, path = int(path[0]), " ".join(path[1:])
 
@@ -72,6 +77,8 @@ class Module(EnumerateModule):
                 yield fact
 
                 yield from (
-                    build_gtfo_ability(self.name, uid, method, suid=True)
+                    build_gtfo_ability(
+                        self.name, uid, method, source_uid=None, suid=True
+                    )
                     for method in session.platform.gtfo.iter_binary(path)
                 )
