@@ -13,16 +13,7 @@ class ImplantType(enum.Flag):
 class Implant(Fact):
     """ An installed implant """
 
-    def __init__(self, source, typ, uid):
-
-        types = []
-        if ImplantType.SPAWN in typ:
-            types.append("implant.spawn")
-        if ImplantType.REPLACE in typ:
-            types.append("implant.replace")
-        if ImplantType.REMOTE in typ:
-            types.append("implant.remote")
-
+    def __init__(self, source, types, uid):
         super().__init__(source=source, types=types)
 
         self.uid = uid

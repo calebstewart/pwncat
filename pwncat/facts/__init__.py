@@ -4,9 +4,10 @@ from typing import IO, Callable, Optional
 import rich.markup
 from pwncat.db import Fact
 from persistent.list import PersistentList
+from pwncat.facts.tamper import *
 from pwncat.facts.ability import *
-from pwncat.facts.escalate import *
 from pwncat.facts.implant import *
+from pwncat.facts.escalate import *
 
 
 class Group(Fact):

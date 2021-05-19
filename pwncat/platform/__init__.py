@@ -642,7 +642,7 @@ class Platform(ABC):
         suffix: str = None,
         cflags: List[str] = None,
         ldflags: List[str] = None,
-    ):
+    ) -> str:
         """
         Attempt to compile the given C source files into a binary suitable for the remote
         host. If a compiler exists on the remote host, prefer compilation locally. If no
@@ -661,6 +661,9 @@ class Platform(ABC):
         :type cflags: List[str]
         :param ldflags: a list of flags to pass to the linker
         :type ldflags: List[str]
+        :return: str
+        :raises NotImplementedError: this platform does not support c compilation
+        :raises PlatformError: no local or cross compiler detected or compilation failed
         """
 
         raise NotImplementedError(f"no C compilation support available on {self.name}")

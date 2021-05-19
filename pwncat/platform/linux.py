@@ -3,8 +3,10 @@ import os
 import sys
 import time
 import shlex
+import shutil
 import hashlib
 import pathlib
+import tempfile
 import subprocess
 from io import TextIOWrapper, BufferedIOBase, UnsupportedOperation
 from typing import List, Union, BinaryIO, Optional, Generator
@@ -732,7 +734,7 @@ class Linux(Platform):
         suffix: str = None,
         cflags: List[str] = None,
         ldflags: List[str] = None,
-    ):
+    ) -> str:
         """
         Attempt to compile the given C source files into a binary suitable for the remote
         host. If a compiler exists on the remote host, prefer compilation locally. If no
@@ -751,7 +753,147 @@ class Linux(Platform):
         :type cflags: List[str]
         :param ldflags: a list of flags to pass to the linker
         :type ldflags: List[str]
+        :return: str
+        :raises NotImplementedError: this platform does not support c compilation
+        :raises PlatformError: no local or cross compiler detected or compilation failed
         """
+
+        # This is stupid, but we have a circular import because everything is based on
+        # platforms
+        from pwncat.facts.tamper import CreatedFile
+
+        if cflags is None:
+            cflags = []
+        if ldflags is None:
+            ldflags = []
+
+        try:
+            cross = self.session.config["cross"]
+        except KeyError:
+            cross = None
+
+        try:
+            # We need to know the architecture to compile for it
+            arch_fact = self.session.run("enumerate", types=["system.arch"])[0]
+        except IndexError:
+            arch_fact = None
+            pass
+
+        if cross is not None and os.path.isfile(cross) and arch_fact is not None:
+            # Attempt compilation locally
+            real_sources = []
+            local_temps = []
+
+            # First, ensure all files are on disk, and keep track of local temp files we
+            # need to remove later.
+            for source in sources:
+                if isinstance(source, str):
+                    if not os.path.isfile(source):
+                        raise FileNotFoundError(f"{source}: No such file or directory")
+                    real_sources.append(source)
+                else:
+                    with tempfile.NamedTemporaryFile(
+                        mode="w", suffix=".c", delete=False
+                    ) as filp:
+                        filp.write(source.read())
+                        real_sources.append(filp.name)
+                        local_temps.append(filp.name)
+
+            # Next, ensure we have a valid temporary file location locally for the output file with
+            # the correct suffix. We will upload with the requested name in a moment
+            with tempfile.NamedTemporaryFile("w", suffix=suffix, delete=False) as filp:
+                filp.write("\n")
+                local_output = filp.name
+
+            # Build the GCC command needed to compile
+            command = [
+                cross,
+                f"-march={arch_fact.arch.replace('_', '-')}",
+                "-o",
+                local_output,
+                *cflags,
+                *real_sources,
+                *ldflags,
+            ]
+
+            # Run GCC and grab the output
+            try:
+                subprocess.run(command, check=True, capture_output=True)
+            except subprocess.CalledProcessError as exc:
+                raise PlatformError(str(exc)) from exc
+            finally:
+                for path in local_temps:
+                    os.unlink(path)
+
+            # We have a compiled executable. We now need to upload it.
+            length = os.path.getsize(local_output)
+            with open(local_output, "rb") as source:
+                # Decide on a name
+                if output is not None:
+                    dest = self.open(output, "wb")
+                    remote_path = output
+                else:
+                    # We don't care where it goes, make a tempfile
+                    dest = self.tempfile(suffix=suffix, mode="wb")
+                    remote_path = dest.name
+
+                with dest:
+                    shutil.copyfileobj(source, dest)
+
+            try:
+                self.run(["chmod", "+x", remote_path], check=True)
+            except pwncat.subprocess.CalledProcessError as exc:
+                self.session.log(
+                    "[yellow]warning[/yellow]: failed to set executable bit on compiled binary"
+                )
+
+            return remote_path
+
+        # Do we even have a remote compiler?
+        gcc = self.which("gcc")
+        if gcc is None:
+            raise PlatformError("no gcc found on target")
+
+        # We have a remote compiler. We need to get the sources to the remote host
+        real_sources = []
+        for source in sources:
+            # Upload or write data
+            if isinstance(source, str):
+                with open(source, "rb") as src:
+                    with self.tempfile(suffix=".c", mode="wb") as dest:
+                        shutil.copyfileobj(src, dest)
+                        real_sources.append(dest.name)
+            else:
+                with self.tempfile(mode="w", suffix=".c") as dest:
+                    shutil.copyfileobj(source, dest)
+                    real_sources.append(dest.name)
+
+        if output is None:
+            # We just need to create a file...
+            with self.tempfile(suffix=suffix, mode="w") as filp:
+                output = filp.name
+
+        # Build the command
+        command = [gcc, "-o", output, *cflags, *real_sources, *ldflags]
+
+        try:
+            self.run(command, check=True)
+        except pwncat.subprocess.CalledProcessError:
+            self.run(["rm", "-f", output])
+            raise PlatformError("compilation failed")
+        finally:
+            try:
+                self.run(["rm", "-f", *real_sources], check=True)
+            except pwncat.subprocess.CalledProcessError:
+                # Removing sources failed. Add them as tampers
+                for source in real_sources:
+                    self.session.register_fact(
+                        CreatedFile(
+                            source="platform.compile", uid=self.getuid(), path=source
+                        )
+                    )
+
+        return output
 
     def Popen(
         self,
@@ -1036,7 +1178,7 @@ class Linux(Platform):
 
         :param mode: the open-mode for the new file-like object
         :type mode: str
-        :param length: the intended length for the new file
+        :param length: the intended length for the new file random name component
         :type length: int
         :param suffix: a suffix for the filename
         :type suffix: str

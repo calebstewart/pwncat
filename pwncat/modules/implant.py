@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 from typing import List
 
-from rich.prompt import Prompt
-
-from pwncat.modules import Bool, Status, Argument, BaseModule, ModuleFailed
 from pwncat.util import console
+from rich.prompt import Prompt
 from pwncat.facts import Implant, ImplantType
+from pwncat.modules import Bool, Status, Argument, BaseModule, ModuleFailed
 
 
 class ImplantModule(BaseModule):
@@ -51,7 +50,7 @@ class ImplantModule(BaseModule):
         of this method allows abstract interactions across all persistence modules."""
 
         yield Status(f"installing implant")
-        implant = self.install(session, **kwargs)
+        implant = yield from self.install(session, **kwargs)
 
         # Register the installed implant as an enumerable fact
         session.register_fact(implant)

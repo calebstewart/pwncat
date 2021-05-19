@@ -2,13 +2,13 @@
 import crypt
 
 from pwncat.util import console
-from pwncat.facts import EscalationReplace
+from pwncat.facts import ImplantType, EscalationReplace
 from pwncat.modules import ModuleFailed
+from pwncat.platform import PlatformError
 from pwncat.facts.tamper import ReplacedFile
 from pwncat.platform.linux import Linux
 from pwncat.modules.enumerate import Schedule, EnumerateModule
 from pwncat.modules.linux.implant.passwd import PasswdImplant
-from pwncat.facts import ImplantType
 
 
 class AppendPasswd(EscalationReplace):
@@ -50,7 +50,6 @@ class AppendPasswd(EscalationReplace):
                 session.register_fact(
                     PasswdImplant(
                         "linux.implant.passwd",
-                        ImplantType.REPLACE,
                         backdoor_user,
                         backdoor_pass,
                         new_line,
