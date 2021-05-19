@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 from pwncat.facts import ExecuteAbility, EscalationReplace
-from pwncat.platform.linux import Linux
 from pwncat.modules.enumerate import Schedule, EnumerateModule
 
 
@@ -16,8 +15,6 @@ class DirectReplaceAbility(EscalationReplace):
         return self.ability.shell(session)
 
     def title(self, session: "pwncat.manager.Session"):
-        user = session.find_user(uid=self.uid)
-
         return self.ability.title(session)
 
 
@@ -26,7 +23,7 @@ class Module(EnumerateModule):
     This module produces EscalationReplace results which replace the active
     user in the running session with the new user."""
 
-    PLATFORM = [Linux]
+    PLATFORM = None
     SCHEDULE = Schedule.PER_USER
     PROVIDES = ["escalate.replace"]
 

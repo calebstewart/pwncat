@@ -17,17 +17,8 @@ manager = pwncat.manager.Manager("data/pwncatrc")
 # Establish a session
 # session = manager.create_session("windows", host="192.168.56.10", port=4444)
 # session = manager.create_session("windows", host="192.168.122.11", port=4444)
-session = manager.create_session("linux", host="127.0.0.1", port=9999)
+session = manager.create_session("linux", host="pwncat-ubuntu", port=4444)
 # session = manager.create_session("windows", host="0.0.0.0", port=4444)
 
-for _ in range(30):
-
-    data = session.platform.run(
-        "cat /tmp/dummy",
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-
-    print(data.stdout.split("\n\n")[0])
-    print("===================================================")
+while True:
+    session.platform.getuid()

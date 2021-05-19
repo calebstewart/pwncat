@@ -45,7 +45,7 @@ class ImplantModule(BaseModule):
     """ The ``run`` method returns a single scalar value even though
     it utilizes a generator to provide status updates. """
 
-    def run(self, session: "pwncat.manager.Session", remove, escalate, **kwargs):
+    def run(self, session: "pwncat.manager.Session", **kwargs):
         """This method should not be overriden by subclasses. It handles all logic
         for installation, escalation, connection, and removal. The standard interface
         of this method allows abstract interactions across all persistence modules."""
