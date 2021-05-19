@@ -436,7 +436,7 @@ class Manager:
 
     def print(self, *args, **kwargs):
 
-        if self.target is not None:
+        if self.target is not None and self.target._progress is not None:
             self.target._progress.print(*args, **kwargs)
         else:
             console.print(*args, **kwargs)

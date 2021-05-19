@@ -22,7 +22,7 @@ def host_type(ident: str):
     return ident
 
 
-class PersistModule(BaseModule):
+class ImplantModule(BaseModule):
     """
     Base class for all persistence modules.
 

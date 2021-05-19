@@ -81,11 +81,18 @@ class Ssh(Channel):
         chan = t.open_session()
         chan.get_pty()
         chan.invoke_shell()
+        chan.setblocking(0)
 
         self.client = chan
         self.address = (host, port)
+        self._connected = True
+
+    @property
+    def connected(self):
+        return self._connected
 
     def close(self):
+        self._connected = False
         self.client.close()
 
     def send(self, data: bytes):
@@ -119,6 +126,11 @@ class Ssh(Channel):
         else:
             data = b""
 
-        data += self.client.recv(count - len(data))
+        try:
+            data += self.client.recv(count - len(data))
+            if data == b"":
+                raise ChannelClosed(self)
+        except socket.timeout:
+            pass
 
         return data

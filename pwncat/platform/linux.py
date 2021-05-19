@@ -45,6 +45,7 @@ class PopenLinux(pwncat.subprocess.Popen):
         self.start_delim: bytes = start_delim
         self.end_delim: bytes = end_delim
         self.code_delim: bytes = code_delim
+        self.args = args
 
         # Create a reader-pipe
         if stdout == pwncat.subprocess.PIPE:
@@ -93,6 +94,9 @@ class PopenLinux(pwncat.subprocess.Popen):
             self.stdin.close()
         if self.stdout_raw is not None:
             self.stdout_raw.close()
+
+        # Hope they know what they're doing...
+        self.platform.command_running = None
 
     def poll(self):
 
@@ -191,6 +195,7 @@ class PopenLinux(pwncat.subprocess.Popen):
         # Kill the process (SIGINT)
         self.platform.channel.send(util.CTRL_C * 2)
         self.returncode = -1
+        self.platform.command_running = None
 
     def terminate(self):
 
@@ -200,6 +205,7 @@ class PopenLinux(pwncat.subprocess.Popen):
         # Terminate the process (SIGQUIT)
         self.platform.channel.send(b"\x1C\x1C")
         self.returncode = -1
+        self.platform.command_running = None
 
     def _receive_returncode(self):
         """All output has been read of the stream, now we read
@@ -209,6 +215,9 @@ class PopenLinux(pwncat.subprocess.Popen):
         code = self.platform.channel.recvuntil(self.code_delim)
         code = code.split(self.code_delim)[0]
         code = code.strip().decode("utf-8")
+
+        # This command has finished
+        self.platform.command_running = None
 
         try:
             self.returncode = int(code)
@@ -464,6 +473,7 @@ class Linux(Platform):
         # Name of this platform. This stored in the database and used
         # to match modules to this platform.
         self.name = "linux"
+        self.command_running = None
 
         # This causes an stty to be sent.
         # If we aren't in a pty, it doesn't matter.
@@ -682,6 +692,9 @@ class Linux(Platform):
         """Retrieve the current user ID"""
 
         try:
+            # NOTE: this is probably not great... but sometimes it fails when transitioning
+            # states, and I can't pin down why. The second time normally succeeds, and I've
+            # never observed it hanging for any significant amount of time.
             proc = self.run(["id", "-ru"], capture_output=True, text=True, check=True)
             return int(proc.stdout.rstrip("\n"))
         except CalledProcessError as exc:
@@ -777,6 +790,11 @@ class Linux(Platform):
         else:
             raise ValueError("expected a command string or list of arguments")
 
+        if self.command_running is not None:
+            raise PlatformError(
+                f"attempting to run {repr(command)} during execution of {self.command_running.args}!"
+            )
+
         if shell:
             # Ensure this works normally
             command = shlex.join(["/bin/sh", "-c", command])
@@ -843,7 +861,7 @@ class Linux(Platform):
         # Log the command
         self.logger.info(command.decode("utf-8"))
 
-        return PopenLinux(
+        popen = PopenLinux(
             self,
             args,
             stdout,
@@ -856,6 +874,9 @@ class Linux(Platform):
             end_delim.encode("utf-8") + b"\n",
             code_delim.encode("utf-8") + b"\n",
         )
+        self.command_running = popen
+
+        return popen
 
     def chdir(self, path: Union[str, Path]):
         """

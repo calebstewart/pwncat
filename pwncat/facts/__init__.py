@@ -6,6 +6,7 @@ from pwncat.db import Fact
 from persistent.list import PersistentList
 from pwncat.facts.ability import *
 from pwncat.facts.escalate import *
+from pwncat.facts.implant import *
 
 
 class Group(Fact):

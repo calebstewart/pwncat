@@ -67,10 +67,21 @@ class Command(CommandDefinition):
     PROG = "escalate"
     ARGS = {
         "command": Parameter(
-            Complete.CHOICES, metavar="COMMAND", choices=["list", "run"]
+            Complete.CHOICES,
+            metavar="COMMAND",
+            choices=["list", "run"],
+            help="The action to take (list/run)",
         ),
         "--user,-u": Parameter(
-            Complete.CHOICES, metavar="USERNAME", choices=get_user_choices
+            Complete.CHOICES,
+            metavar="USERNAME",
+            choices=get_user_choices,
+            help="The target user for escalation.",
+        ),
+        "--recursive,-r": Parameter(
+            Complete.NONE,
+            action="store_true",
+            help="Attempt recursive escalation through multiple users",
         ),
     }
 
@@ -93,7 +104,7 @@ class Command(CommandDefinition):
             with manager.target.task(
                 f"escalating to [cyan]{args.user.name}[/cyan]"
             ) as task:
-                self.do_escalate(manager, task, args.user)
+                self.do_escalate(manager, task, args.user, args)
 
     def list_abilities(self, manager, args):
         """This is just a wrapper for `run enumerate types=escalate.*`, but
@@ -117,7 +128,7 @@ class Command(CommandDefinition):
         elif not found:
             console.log("[yellow]warning[/yellow]: no direct escalations found")
 
-    def do_escalate(self, manager: "pwncat.manager.Manager", task, user):
+    def do_escalate(self, manager: "pwncat.manager.Manager", task, user, args):
         """ Execute escalations until we find one that works """
 
         attempted = []
@@ -154,7 +165,7 @@ class Command(CommandDefinition):
             # Attempt escalation directly to the target user if possible
             for escalation in (e for e in escalations if e.uid == user.id):
                 try:
-                    manager.target.update_task(
+                    original_session.update_task(
                         task, status=f"attempting {escalation.title(manager.target)}"
                     )
                     result = escalation.escalate(manager.target)
@@ -181,10 +192,16 @@ class Command(CommandDefinition):
                 except ModuleFailed:
                     failed.append(e)
 
+            if not args.recursive:
+                manager.target.log(
+                    f"[red]error[/red]: no working direct escalations to {user.name}"
+                )
+                return
+
             # Attempt escalation to a different user and recurse
             for escalation in (e for e in escalations if e.uid != user.id):
                 try:
-                    manager.target.update_task(
+                    original_session.update_task(
                         task, status=f"attempting {escalation.title(manager.target)}"
                     )
                     result = escalation.escalate(manager.target)

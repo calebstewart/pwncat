@@ -66,19 +66,22 @@ class Module(EnumerateModule):
         )
 
         facts = []
-        with proc.stdout as stream:
-            for path in stream:
-                # Parse out owner ID and path
-                original_path = path
-                path = path.strip().split(" ")
-                uid, path = int(path[0]), " ".join(path[1:])
+        try:
+            with proc.stdout as stream:
+                for path in stream:
+                    # Parse out owner ID and path
+                    original_path = path
+                    path = path.strip().split(" ")
+                    uid, path = int(path[0]), " ".join(path[1:])
 
-                fact = Binary(self.name, path, uid)
-                yield fact
+                    fact = Binary(self.name, path, uid)
+                    yield fact
 
-                yield from (
-                    build_gtfo_ability(
-                        self.name, uid, method, source_uid=None, suid=True
+                    yield from (
+                        build_gtfo_ability(
+                            self.name, uid, method, source_uid=None, suid=True
+                        )
+                        for method in session.platform.gtfo.iter_binary(path)
                     )
-                    for method in session.platform.gtfo.iter_binary(path)
-                )
+        finally:
+            proc.wait()
