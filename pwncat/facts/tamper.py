@@ -38,7 +38,7 @@ class Tamper(Fact):
         if self.reverted:
             return f"{title} ([green]reverted[/green])"
 
-        if self.data is not None:
+        if self.revertable:
             target_user = session.find_user(uid=self.uid)
             return f"{title} ([yellow]revertable[/yellow] as [blue]{target_user.name}[/blue])"
 
@@ -115,6 +115,8 @@ class CreatedFile(Tamper):
 
         try:
             session.platform.Path(self.path).unlink()
+        except FileNotFoundError:
+            pass
         except PermissionError:
             raise ModuleFailed("permission error")
 

@@ -55,6 +55,9 @@ class PamImplant(Implant):
         # Track the log file separately now
         session.register_fact(CreatedFile(self.source, 0, self.log))
 
+    def title(self, session: "pwncat.manager.Session"):
+        return f"""pam backdoor implant (logging to [cyan]{self.log}[/cyan])"""
+
 
 class Module(ImplantModule):
     """

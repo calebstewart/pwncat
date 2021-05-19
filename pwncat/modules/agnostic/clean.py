@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from pwncat.modules import Status, Argument, BaseModule
+from pwncat.modules import Status, Argument, BaseModule, ModuleFailed
 
 
 class Module(BaseModule):
@@ -23,7 +23,7 @@ class Module(BaseModule):
                 continue
             if current_user.id != tamper.uid:
                 session.log(
-                    f"[yellow]warning[/yellow]: {tamper.title(session)}: incorrect uid to rever"
+                    f"[yellow]warning[/yellow]: {tamper.title(session)}: incorrect uid to revert"
                 )
                 continue
 
