@@ -109,6 +109,7 @@ class Session:
         # Create a new target descriptor
         target = Target()
         target.guid = self.hash
+        target.public_address = (self.platform.channel.host, self.platform.channel.port)
 
         # Add the target to the database
         self.db.transaction_manager.begin()

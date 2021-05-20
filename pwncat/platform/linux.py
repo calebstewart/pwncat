@@ -1613,6 +1613,14 @@ class Linux(Platform):
         else:
             self.run(["chmod", oct(mode)[2:], path])
 
+    def chown(self, path: str, uid: int, gid: int):
+        """ Change ownership of a file """
+
+        try:
+            self.run(["chown", f"{uid}:{gid}", path], check=True)
+        except CalledProcessError as exc:
+            raise PermissionError("failed to change ownership")
+
     def mkdir(self, path: str, mode: int = 0o777, parents: bool = False):
         """Create a new directory"""
 
