@@ -64,6 +64,8 @@ class Target(persistent.Persistent):
         """ An optional friendly name that can be used to refer to this target """
         self.public_address: Optional[Tuple[str, int]] = None
         """ Public address as routable by the attacker """
+        self.platform: str = None
+        """ Name of the platform used to interact with this target """
         self.internal_address: Optional[Tuple[str, int]] = None
         """ Internal address as viewed by the target """
         self.hostname: Optional[str] = None

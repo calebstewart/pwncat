@@ -9,7 +9,10 @@ import selectors
 from io import TextIOWrapper
 from pathlib import Path
 
+from rich import box
+from rich.table import Table
 from sqlalchemy import exc as sa_exc
+from rich.progress import Progress
 from sqlalchemy.exc import InvalidRequestError
 from paramiko.buffered_pipe import BufferedPipe
 
@@ -59,7 +62,7 @@ def main():
         parser.add_argument(
             "--list",
             action="store_true",
-            help="List known hosts and any installed persistence",
+            help="List installed implants with remote connection capability",
         )
         parser.add_argument(
             "connection_string",
@@ -80,19 +83,39 @@ def main():
 
             if args.list:
 
-                with manager.new_db_session() as db:
-                    hosts = {
-                        host.hash: (host, []) for host in db.query(pwncat.db.Host).all()
-                    }
+                db = manager.db.open()
+                implants = []
 
-                for host_hash, (host, modules) in hosts.items():
-                    console.print(
-                        f"[magenta]{host.ip}[/magenta] - "
-                        f"[red]{host.distro}[/red] - "
-                        f"[yellow]{host_hash}[/yellow]"
-                    )
-                    for module in modules:
-                        console.print(f"  - {str(module)}")
+                table = Table(
+                    "ID",
+                    "Address",
+                    "Platform",
+                    "Implant",
+                    "User",
+                    box=box.MINIMAL_DOUBLE_HEAD,
+                )
+
+                # Locate all installed implants
+                for target in db.root.targets:
+
+                    # Collect users
+                    users = {}
+                    for fact in target.facts:
+                        if "user" in fact.types:
+                            users[fact.id] = fact
+
+                    # Collect implants
+                    for fact in target.facts:
+                        if "implant.remote" in fact.types:
+                            table.add_row(
+                                target.guid,
+                                target.public_address[0],
+                                target.platform,
+                                fact.source,
+                                users[fact.uid].name,
+                            )
+
+                console.print(table)
 
                 return
 
@@ -156,15 +179,80 @@ def main():
                     )
                     return
 
-                manager.create_session(
-                    platform=args.platform,
-                    protocol=protocol,
-                    user=user,
-                    password=password,
-                    host=host,
-                    port=port,
-                    identity=args.identity,
-                )
+                # Attempt to reconnect via installed implants
+                if (
+                    protocol is None
+                    and password is None
+                    and port is None
+                    and args.identity is None
+                ):
+                    db = manager.db.open()
+                    implants = []
+
+                    # Locate all installed implants
+                    for target in db.root.targets:
+
+                        if target.guid != host and target.public_address[0] != host:
+                            continue
+
+                        # Collect users
+                        users = {}
+                        for fact in target.facts:
+                            if "user" in fact.types:
+                                users[fact.id] = fact
+
+                        # Collect implants
+                        for fact in target.facts:
+                            if "implant.remote" in fact.types:
+                                implants.append((target, users[fact.uid], fact))
+
+                    with Progress(
+                        "triggering implant",
+                        "•",
+                        "{task.fields[status]}",
+                        transient=True,
+                        console=console,
+                    ) as progress:
+                        task = progress.add_task("", status="...")
+                        for target, implant_user, implant in implants:
+                            # Check correct user
+                            if user is not None and implant_user.name != user:
+                                continue
+                            # Check correct platform
+                            if (
+                                args.platform is not None
+                                and target.platform != args.platform
+                            ):
+                                continue
+
+                            progress.update(
+                                task, status=f"trying [cyan]{implant.source}[/cyan]"
+                            )
+
+                            # Attempt to trigger a new session
+                            try:
+                                session = implant.trigger(manager, target)
+                                manager.target = session
+                                used_implant = implant
+                                break
+                            except ModuleFailed:
+                                continue
+
+                    if manager.target is not None:
+                        manager.target.log(
+                            f"connected via {used_implant.title(manager.target)}"
+                        )
+
+                if manager.target is None:
+                    manager.create_session(
+                        platform=args.platform,
+                        protocol=protocol,
+                        user=user,
+                        password=password,
+                        host=host,
+                        port=port,
+                        identity=args.identity,
+                    )
 
             manager.interactive()
 

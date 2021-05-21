@@ -117,7 +117,7 @@ class AuthorizedKeyImplant(Implant):
 
         # Find the user for this UID
         for fact in target.facts:
-            if "user" in fact.types and fact.id == self.id:
+            if "user" in fact.types and fact.id == self.uid:
                 user = fact
                 break
         else:
