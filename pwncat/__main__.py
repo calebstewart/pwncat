@@ -122,6 +122,8 @@ def main():
 
                 return
 
+            console.log("Welcome to [red]pwncat[/red] 🐈!")
+
             if (
                 args.connection_string is not None
                 or args.pos_port is not None
