@@ -105,8 +105,7 @@ class PrivateKey(Fact):
             color = "green"
         return f"Potential private key for [{color}]{self.uid}[/{color}] at [cyan]{rich.markup.escape(self.path)}[/cyan]"
 
-    @property
-    def description(self) -> str:
+    def description(self, session) -> str:
         return self.content
 
 

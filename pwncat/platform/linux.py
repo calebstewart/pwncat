@@ -95,7 +95,7 @@ class PopenLinux(pwncat.subprocess.Popen):
         if self.stdin is not None:
             self.stdin.close()
         if self.stdout_raw is not None:
-            self.stdout_raw.close()
+            self.stdout_raw.close
 
         # Hope they know what they're doing...
         self.platform.command_running = None
@@ -477,6 +477,8 @@ class Linux(Platform):
         self.name = "linux"
         self.command_running = None
 
+        self._uid = None
+
         # This causes an stty to be sent.
         # If we aren't in a pty, it doesn't matter.
         # if we are, we need this stty to properly handle process IO
@@ -520,6 +522,8 @@ class Linux(Platform):
             self.has_pty = True
         else:
             self.has_pty = False
+
+        self.refresh_uid()
 
     def disable_history(self):
         """Disable shell history"""
@@ -690,17 +694,28 @@ class Linux(Platform):
         except CalledProcessError:
             return None
 
-    def getuid(self):
+    def refresh_uid(self):
         """Retrieve the current user ID"""
 
         try:
             # NOTE: this is probably not great... but sometimes it fails when transitioning
             # states, and I can't pin down why. The second time normally succeeds, and I've
             # never observed it hanging for any significant amount of time.
-            proc = self.run(["id", "-ru"], capture_output=True, text=True, check=True)
-            return int(proc.stdout.rstrip("\n"))
+            while True:
+                try:
+                    proc = self.run(
+                        ["id", "-ru"], capture_output=True, text=True, check=True
+                    )
+                    self._uid = int(proc.stdout.rstrip("\n"))
+                    return self._uid
+                except ValueError:
+                    continue
         except CalledProcessError as exc:
             raise PlatformError(str(exc)) from exc
+
+    def getuid(self):
+        """ Retrieve the current cached uid """
+        return self._uid
 
     def getenv(self, name: str):
 

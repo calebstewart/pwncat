@@ -89,7 +89,7 @@ class Module(pwncat.modules.BaseModule):
         if clear:
             for module in modules:
                 yield pwncat.modules.Status(module.name)
-                module.run(clear=True)
+                module.run(session, clear=True)
             return
 
         # Enumerate all facts

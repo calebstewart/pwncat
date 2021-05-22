@@ -38,6 +38,7 @@ class Link:
         if self.escalation.type == "escalate.replace":
             # Exit out of the subshell
             self.old_session.layers.pop()(self.old_session)
+            self.old_session.platform.refresh_uid()
 
     def __str__(self):
         return self.escalation.title(self.old_session)
@@ -155,6 +156,7 @@ class Command(CommandDefinition):
                 try:
                     # This direction failed. Go back up and try again.
                     chain.pop().leave()
+
                     continue
                 except IndexError:
                     manager.target.log(
@@ -169,6 +171,8 @@ class Command(CommandDefinition):
                         task, status=f"attempting {escalation.title(manager.target)}"
                     )
                     result = escalation.escalate(manager.target)
+
+                    manager.target.platform.refresh_uid()
 
                     # Construct the escalation link
                     link = Link(manager.target, escalation, result)
@@ -205,6 +209,7 @@ class Command(CommandDefinition):
                         task, status=f"attempting {escalation.title(manager.target)}"
                     )
                     result = escalation.escalate(manager.target)
+                    manager.target.platform.refresh_uid()
                     link = Link(manager.target, escalation, result)
 
                     if escalation.type == "escalate.replace":

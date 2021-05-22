@@ -195,6 +195,7 @@ class Module(EnumerateModule):
         try:
             etc_sudoers = session.platform.Path("/etc/sudoers")
             if etc_sudoers.readable():
+                rules = []
                 with etc_sudoers.open() as filp:
                     for line in filp:
                         line = line.strip()
@@ -207,37 +208,41 @@ class Module(EnumerateModule):
                         # Yield the sudo rule
                         yield rule
 
-                        # We can't handle abilities which we didn't parse properly
-                        if not rule.matched:
-                            continue
+                        rules.append(rule)
 
-                        user_name = rule.runas_user
-                        if user_name == "ALL":
-                            user_name = "root"
+                for rule in rules:
 
-                        # Grab the user by name so we can get the UID
-                        runas_user = session.find_user(name=user_name)
-                        if runas_user is None:
-                            # Not a valid user? :/
-                            continue
+                    # We can't handle abilities which we didn't parse properly
+                    if not rule.matched:
+                        continue
 
-                        user = session.find_user(name=rule.user)
-                        if user is None:
-                            continue
+                    user_name = rule.runas_user
+                    if user_name == "ALL":
+                        user_name = "root"
 
-                        # Yield escalation abilities
-                        for spec in rule.commands:
-                            yield from (
-                                build_gtfo_ability(
-                                    self.name,
-                                    runas_user.id,
-                                    method,
-                                    spec=spec,
-                                    source_uid=user.id,
-                                    user=runas_user.name,
-                                )
-                                for method in session.platform.gtfo.iter_sudo(spec)
+                    # Grab the user by name so we can get the UID
+                    runas_user = session.find_user(name=user_name)
+                    if runas_user is None:
+                        # Not a valid user? :/
+                        continue
+
+                    user = session.find_user(name=rule.user)
+                    if user is None:
+                        continue
+
+                    # Yield escalation abilities
+                    for spec in rule.commands:
+                        yield from (
+                            build_gtfo_ability(
+                                self.name,
+                                runas_user.id,
+                                method,
+                                spec=spec,
+                                source_uid=user.id,
+                                user=runas_user.name,
                             )
+                            for method in session.platform.gtfo.iter_sudo(spec)
+                        )
 
                 return
         except (FileNotFoundError, PermissionError):

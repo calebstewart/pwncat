@@ -4,9 +4,8 @@ import re
 import shlex
 import dataclasses
 
-import rich.markup
-
 import pwncat
+import rich.markup
 from pwncat.db import Fact
 from pwncat.subprocess import CalledProcessError
 from pwncat.platform.linux import Linux
@@ -82,6 +81,9 @@ class Module(EnumerateModule):
                 # if this is executable
                 screen_paths.append(path)
 
+        # Clean up the search
+        proc.wait()
+
         # Now, check each screen version to determine if it is vulnerable
         for screen_path in screen_paths:
             version_output = session.platform.Popen(
@@ -112,3 +114,6 @@ class Module(EnumerateModule):
                     continue
 
                 yield ScreenVersion(self.name, path, perms, vulnerable=True)
+
+            # Clean up process
+            version_output.wait()

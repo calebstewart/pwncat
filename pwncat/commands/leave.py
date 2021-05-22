@@ -33,5 +33,7 @@ class Command(CommandDefinition):
 
             for i in range(args.count):
                 manager.target.layers.pop()(manager.target)
+
+            manager.target.platform.refresh_uid()
         except IndexError:
             manager.target.log("[yellow]warning[/yellow]: no more layers to leave")

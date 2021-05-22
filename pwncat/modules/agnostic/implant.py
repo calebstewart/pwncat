@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 
-from rich.prompt import Prompt
-
-from pwncat.modules import BaseModule, Argument, Status, Bool, ModuleFailed
-from pwncat.facts import Implant
 from pwncat.util import console
+from rich.prompt import Prompt
+from pwncat.facts import Implant
+from pwncat.modules import Bool, Status, Argument, BaseModule, ModuleFailed
 
 
 class Module(BaseModule):
@@ -92,6 +91,7 @@ class Module(BaseModule):
                     else:
                         # Track the new shell layer in the current session
                         session.layers.append(result)
+                        session.platform.refresh_uid()
 
                     session.log(
                         f"escalation [green]succeeded[/green] with: {implant.title(session)}"

@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 import time
 
-import rich.markup
-from Crypto.PublicKey import RSA
-
 import pwncat
+import rich.markup
 from pwncat.facts import PrivateKey
 from pwncat.modules import Status
+from Crypto.PublicKey import RSA
 from pwncat.platform.linux import Linux
 from pwncat.modules.enumerate import Schedule, EnumerateModule
 
@@ -47,6 +46,9 @@ class Module(EnumerateModule):
                 uid, path = int(line[0]), " ".join(line[1:])
                 yield Status(f"found [cyan]{rich.markup.escape(path)}[/cyan]")
                 facts.append(PrivateKey(self.name, path, uid, None, False))
+
+        # Ensure proc is cleaned up
+        proc.wait()
 
         for fact in facts:
             try:

