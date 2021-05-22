@@ -4,7 +4,6 @@ import pwncat
 from pwncat.facts import PotentialPassword
 from pwncat.platform.linux import Linux
 from pwncat.modules.enumerate import Schedule, EnumerateModule
-from pwncat.modules.linux.persist.gather import InstalledModule
 
 """
 TODO: This module is specifically used to check if we have passwords set

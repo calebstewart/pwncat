@@ -115,7 +115,10 @@ def main():
                                 users[fact.uid].name,
                             )
 
-                console.print(table)
+                if not table.rows:
+                    console.log("[red]error[/red]: no remote implants found")
+                else:
+                    console.print(table)
 
                 return
 
@@ -124,7 +127,7 @@ def main():
                 or args.pos_port is not None
                 or args.port is not None
                 or args.platform is not None
-                or args.listen is not None
+                or args.listen
                 or args.identity is not None
             ):
                 protocol = None
@@ -238,12 +241,11 @@ def main():
                             except ModuleFailed:
                                 continue
 
-                    if manager.target is not None:
-                        manager.target.log(
-                            f"connected via {used_implant.title(manager.target)}"
-                        )
-
-                if manager.target is None:
+                if manager.target is not None:
+                    manager.target.log(
+                        f"connected via {used_implant.title(manager.target)}"
+                    )
+                else:
                     manager.create_session(
                         platform=args.platform,
                         protocol=protocol,

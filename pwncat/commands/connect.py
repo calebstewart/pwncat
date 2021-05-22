@@ -1,24 +1,13 @@
 #!/usr/bin/env python3
 import re
-import socket
-import os.path
-import ipaddress
-
-import paramiko
-from colorama import Fore
-from rich.progress import Progress, BarColumn
-from prompt_toolkit import prompt
 
 import pwncat
+from rich import box
+from rich.table import Table
 from pwncat.util import console
-from pwncat.modules import PersistError
-from pwncat.commands.base import (
-    Complete,
-    Parameter,
-    StoreConstOnce,
-    StoreForAction,
-    CommandDefinition,
-)
+from rich.progress import Progress
+from pwncat.modules import ModuleFailed
+from pwncat.commands.base import Complete, Parameter, CommandDefinition
 
 
 class Command(CommandDefinition):
@@ -66,7 +55,7 @@ class Command(CommandDefinition):
         "--list": Parameter(
             Complete.NONE,
             action="store_true",
-            help="List all known hosts and their installed persistence",
+            help="List installed implants with remote connection capability",
         ),
         "connection_string": Parameter(
             Complete.NONE,
@@ -94,30 +83,46 @@ class Command(CommandDefinition):
         host = None
         port = None
         try_reconnect = False
+        used_implant = None
 
         if args.list:
-            # Grab a list of installed persistence methods for all hosts
-            # persist.gather will retrieve entries for all hosts if no
-            # host is currently connected.
-            modules = list(pwncat.modules.run("persist.gather"))
-            # Create a mapping of host hash to host object and array of
-            # persistence methods
-            hosts = {
-                host.hash: (host, [])
-                for host in get_session().query(pwncat.db.Host).all()
-            }
 
-            for module in modules:
-                hosts[module.persist.host.hash][1].append(module)
+            db = manager.db.open()
+            implants = []
 
-            for host_hash, (host, modules) in hosts.items():
-                console.print(
-                    f"[magenta]{host.ip}[/magenta] - "
-                    f"[red]{host.distro}[/red] - "
-                    f"[yellow]{host_hash}[/yellow]"
-                )
-                for module in modules:
-                    console.print(f"  - {str(module)}")
+            table = Table(
+                "ID",
+                "Address",
+                "Platform",
+                "Implant",
+                "User",
+                box=box.MINIMAL_DOUBLE_HEAD,
+            )
+
+            # Locate all installed implants
+            for target in db.root.targets:
+
+                # Collect users
+                users = {}
+                for fact in target.facts:
+                    if "user" in fact.types:
+                        users[fact.id] = fact
+
+                # Collect implants
+                for fact in target.facts:
+                    if "implant.remote" in fact.types:
+                        table.add_row(
+                            target.guid,
+                            target.public_address[0],
+                            target.platform,
+                            fact.source,
+                            users[fact.uid].name,
+                        )
+
+            if not table.rows:
+                console.log("[red]error[/red]: no remote implants found")
+            else:
+                console.print(table)
 
             return
 
@@ -136,7 +141,13 @@ class Command(CommandDefinition):
             return
 
         if (
-            sum([port is not None, args.port is not None, args.pos_port is not None])
+            sum(
+                [
+                    port is not None,
+                    args.port is not None,
+                    args.pos_port is not None,
+                ]
+            )
             > 1
         ):
             console.log(f"[red]error[/red]: multiple ports specified")
@@ -158,12 +169,71 @@ class Command(CommandDefinition):
             console.log(f"[red]error[/red]: --identity is only valid for ssh protocols")
             return
 
-        manager.create_session(
-            platform=args.platform,
-            protocol=protocol,
-            user=user,
-            password=password,
-            host=host,
-            port=port,
-            identity=args.identity,
-        )
+        # Attempt to reconnect via installed implants
+        if (
+            protocol is None
+            and password is None
+            and port is None
+            and args.identity is None
+        ):
+            db = manager.db.open()
+            implants = []
+
+            # Locate all installed implants
+            for target in db.root.targets:
+
+                if target.guid != host and target.public_address[0] != host:
+                    continue
+
+                # Collect users
+                users = {}
+                for fact in target.facts:
+                    if "user" in fact.types:
+                        users[fact.id] = fact
+
+                # Collect implants
+                for fact in target.facts:
+                    if "implant.remote" in fact.types:
+                        implants.append((target, users[fact.uid], fact))
+
+            with Progress(
+                "triggering implant",
+                "•",
+                "{task.fields[status]}",
+                transient=True,
+                console=console,
+            ) as progress:
+                task = progress.add_task("", status="...")
+                for target, implant_user, implant in implants:
+                    # Check correct user
+                    if user is not None and implant_user.name != user:
+                        continue
+                    # Check correct platform
+                    if args.platform is not None and target.platform != args.platform:
+                        continue
+
+                    progress.update(
+                        task, status=f"trying [cyan]{implant.source}[/cyan]"
+                    )
+
+                    # Attempt to trigger a new session
+                    try:
+                        session = implant.trigger(manager, target)
+                        manager.target = session
+                        used_implant = implant
+                        break
+                    except ModuleFailed:
+                        continue
+
+        if used_implant is not None:
+            manager.target.log(f"connected via {used_implant.title(manager.target)}")
+        else:
+            manager.create_session(
+                platform=args.platform,
+                protocol=protocol,
+                user=user,
+                password=password,
+                host=host,
+                port=port,
+                identity=args.identity,
+            )
