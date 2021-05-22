@@ -12,7 +12,7 @@ from pathlib import Path
 from rich import box
 from rich.table import Table
 from sqlalchemy import exc as sa_exc
-from rich.progress import Progress
+from rich.progress import Progress, SpinnerColumn
 from sqlalchemy.exc import InvalidRequestError
 from paramiko.buffered_pipe import BufferedPipe
 
@@ -257,6 +257,22 @@ def main():
                     )
 
             manager.interactive()
+
+            if manager.sessions:
+                with Progress(
+                    SpinnerColumn(),
+                    "closing sessions",
+                    "•",
+                    "{task.fields[status]}",
+                    console=console,
+                    transient=True,
+                ) as progress:
+                    task = progress.add_task("task", status="...")
+                    while manager.sessions:
+                        progress.update(task, status=str(manager.sessions[0].platform))
+                        manager.sessions[0].close()
+
+                    progress.update(task, status="done!", completed=100)
 
 
 if __name__ == "__main__":

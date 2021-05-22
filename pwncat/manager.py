@@ -266,6 +266,19 @@ class Session:
     def close(self):
         """Close the session and remove from manager tracking"""
 
+        tampers = self.run("enumerate", types=["tamper"], progress=False)
+        implants = self.run("enumerate", types=["implant.*"], progress=False)
+
+        if tampers:
+            self.log("Leaving behind the following tampers:")
+            for tamper in tampers:
+                self.log(f"  - {tamper.title(self)}")
+
+        if implants:
+            self.log("Leaving behind the following implants:")
+            for implant in implants:
+                self.log(f"  - {implant.title(self)}")
+
         # Unwrap all layers in the session
         while self.layers:
             self.layers.pop()(self)

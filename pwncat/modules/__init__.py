@@ -8,10 +8,9 @@ import functools
 from typing import Any, Callable
 from dataclasses import dataclass
 
-from rich.progress import Progress
-
 import pwncat
 from pwncat.util import console
+from rich.progress import Progress
 
 LOADED_MODULES = {}
 
@@ -207,36 +206,37 @@ def run_decorator(real_run):
         if progress is not None:
             session.showing_progress = progress
 
-        # Return the result
-        result_object = real_run(self, session, **kwargs)
+        try:
 
-        if inspect.isgenerator(result_object):
-            if session.showing_progress:
-                with session.task(description=self.name, status="...") as task:
-                    # Collect results
-                    results = []
-                    for item in result_object:
-                        session.update_task(task, status=item.title(session))
-                        if not isinstance(item, Status):
-                            results.append(item)
+            # Return the result
+            result_object = real_run(self, session, **kwargs)
+
+            if inspect.isgenerator(result_object):
+                if session.showing_progress:
+                    with session.task(description=self.name, status="...") as task:
+                        # Collect results
+                        results = []
+                        for item in result_object:
+                            session.update_task(task, status=item.title(session))
+                            if not isinstance(item, Status):
+                                results.append(item)
+                else:
+                    results = [
+                        item for item in result_object if not isinstance(item, Status)
+                    ]
+
+                if self.COLLAPSE_RESULT and len(results) == 1:
+                    return results[0]
+
+                return results
             else:
-                results = [
-                    item for item in result_object if not isinstance(item, Status)
-                ]
-
-            # Decrement the running module counter and reset the progress
-            session.showing_progress = old_show_progress
+                return result_object
+        finally:
             session.module_depth -= 1
-
-            if self.COLLAPSE_RESULT and len(results) == 1:
-                return results[0]
-
-            return results
-        else:
-            # Decrement the running module counter and reset the progress
             session.showing_progress = old_show_progress
-            session.module_depth -= 1
-            return result_object
+
+            if session.module_depth == 0:
+                session.db.transaction_manager.commit()
 
     return decorator
 

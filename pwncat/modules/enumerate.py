@@ -4,9 +4,8 @@ import typing
 import fnmatch
 from enum import Enum, auto
 
-import persistent
-
 import pwncat
+import persistent
 from pwncat.modules import List, Status, Argument, BaseModule
 from pwncat.platform.linux import Linux
 
@@ -87,9 +86,6 @@ class EnumerateModule(BaseModule):
             if self.name in target.enumerate_state:
                 del target.enumerate_state[self.name]
 
-            # Commit database changes
-            session.db.transaction_manager.commit()
-
             return
 
         # Yield all the know facts which have already been enumerated
@@ -116,42 +112,37 @@ class EnumerateModule(BaseModule):
         ):
             return
 
-        # Get any new facts
-        try:
-            for item in self.enumerate(session):
+        for item in self.enumerate(session):
 
-                # Allow non-fact status updates
-                if isinstance(item, Status):
+            # Allow non-fact status updates
+            if isinstance(item, Status):
+                yield item
+                continue
+
+            # Only add the item if it doesn't exist
+            for f in target.facts:
+                if f == item:
+                    yield Status(item.title(session))
+                    break
+            else:
+                target.facts.append(item)
+
+                # Don't yield the actual fact if we didn't ask for this type
+                if not types or any(
+                    any(fnmatch.fnmatch(item_type, req_type) for req_type in types)
+                    for item_type in item.types
+                ):
                     yield item
-                    continue
-
-                # Only add the item if it doesn't exist
-                for f in target.facts:
-                    if f == item:
-                        yield Status(item.title(session))
-                        break
                 else:
-                    target.facts.append(item)
+                    yield Status(item.title(session))
 
-                    # Don't yield the actual fact if we didn't ask for this type
-                    if not types or any(
-                        any(fnmatch.fnmatch(item_type, req_type) for req_type in types)
-                        for item_type in item.types
-                    ):
-                        yield item
-                    else:
-                        yield Status(item.title(session))
-
-            # Update state for restricted modules
-            if self.SCHEDULE == Schedule.ONCE:
-                target.enumerate_state[self.name] = True
-            elif self.SCHEDULE == Schedule.PER_USER:
-                if not self.name in target.enumerate_state:
-                    target.enumerate_state[self.name] = persistent.list.PersistentList()
-                target.enumerate_state[self.name].append(session.platform.getuid())
-        finally:
-            # Commit database changes
-            session.db.transaction_manager.commit()
+        # Update state for restricted modules
+        if self.SCHEDULE == Schedule.ONCE:
+            target.enumerate_state[self.name] = True
+        elif self.SCHEDULE == Schedule.PER_USER:
+            if not self.name in target.enumerate_state:
+                target.enumerate_state[self.name] = persistent.list.PersistentList()
+            target.enumerate_state[self.name].append(session.platform.getuid())
 
     def enumerate(self, session):
         """

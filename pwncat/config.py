@@ -6,10 +6,8 @@ import ipaddress
 from typing import Any, Dict, List, Union
 
 from prompt_toolkit.keys import ALL_KEYS, Keys
-from prompt_toolkit.input.ansi_escape_sequences import (
-    ANSI_SEQUENCES,
-    REVERSE_ANSI_SEQUENCES,
-)
+from prompt_toolkit.input.ansi_escape_sequences import (ANSI_SEQUENCES,
+                                                        REVERSE_ANSI_SEQUENCES)
 
 from pwncat.modules import BaseModule
 
@@ -135,13 +133,21 @@ class Config:
     def set(self, name: str, value: Any, glob: bool = False):
         """ Set a config value """
 
-        if glob:
-            self.values[name]["value"] = self.values[name]["type"](value)
-            return
-        elif self.module is None or name not in self.module.ARGUMENTS:
+        if (
+            (glob and name not in self.values)
+            or (name not in self.values and self.module is None)
+            or (
+                self.module is not None
+                and name not in self.values
+                and name not in self.module.ARGUMENTS
+            )
+        ):
             raise KeyError(f"{name}: no such configuration value")
 
-        self.locals[name] = self.module.ARGUMENTS[name].type(value)
+        if glob or self.module is None or name not in self.module.ARGUMENTS:
+            self.values[name]["value"] = self.values[name]["type"](value)
+        else:
+            self.locals[name] = self.module.ARGUMENTS[name].type(value)
 
     def get(self, name: str, default=None):
         """ get a value """
