@@ -18,8 +18,8 @@ class ASLRStateData(Fact):
 
     def title(self, session):
         if self.state == 0:
-            return f"ASLR is [green]disabled[/green]"
-        return f"ASLR is [red]enabled[/red]"
+            return "[green]disabled[/green]"
+        return "[red]enabled[/red]"
 
 
 class Module(EnumerateModule):

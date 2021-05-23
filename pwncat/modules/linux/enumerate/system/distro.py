@@ -2,9 +2,8 @@
 import dataclasses
 from typing import List
 
-import rich.markup
-
 import pwncat
+import rich.markup
 from pwncat import util
 from pwncat.db import Fact
 from pwncat.platform.linux import Linux
@@ -30,7 +29,7 @@ class DistroVersionData(Fact):
 
     def title(self, session):
         return (
-            f"Running [blue]{rich.markup.escape(str(self.name))}[/blue] ([cyan]{rich.markup.escape(self.ident)}[/cyan]), "
+            f"[blue]{rich.markup.escape(str(self.name))}[/blue] ([cyan]{rich.markup.escape(self.ident)}[/cyan]), "
             f"Version [red]{rich.markup.escape(str(self.version))}[/red], "
             f"Build ID [green]{rich.markup.escape(str(self.build_id))}[/green]."
         )

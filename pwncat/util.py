@@ -19,6 +19,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import TCPServer, BaseRequestHandler
 
 import netifaces
+from rich import markup
 from colorama import Fore, Style
 from rich.console import Console
 from prompt_toolkit.shortcuts import ProgressBar
@@ -98,6 +99,12 @@ class RawModeExit(Exception):
     """Indicates that the user would like to exit the raw mode
     shell. This is normally raised when the user presses the
     <prefix>+<C-d> key combination to return to the local prompt."""
+
+
+def strip_markup(styled_text: str) -> str:
+    """ Strip rich markup from text """
+    text = markup.render(styled_text)
+    return text.plain
 
 
 def isprintable(data) -> bool:

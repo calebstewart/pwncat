@@ -9,14 +9,9 @@ from pathlib import Path
 import pwncat.modules
 from rich import markup
 from pwncat import util
-from pwncat.util import console
+from pwncat.util import console, strip_markup
 from rich.progress import Progress
 from pwncat.modules.enumerate import EnumerateModule
-
-
-def strip_markup(styled_text: str) -> str:
-    text = markup.render(styled_text)
-    return text.plain
 
 
 def list_wrapper(iterable):

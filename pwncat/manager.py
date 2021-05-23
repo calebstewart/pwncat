@@ -145,6 +145,11 @@ class Session:
             ):
                 return group
 
+    def iter_groups(self):
+        """ Iterate over groups for the target """
+
+        yield from self.run("enumerate.gather", progress=False, types=["group"])
+
     def register_fact(self, fact: "pwncat.db.Fact"):
         """Register a fact with this session's target. This is useful when
         a fact is generated during execution of a command or module, but is

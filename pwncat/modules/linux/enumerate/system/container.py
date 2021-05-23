@@ -18,7 +18,7 @@ class ContainerData(Fact):
         """ what type of container? either docker or lxd """
 
     def title(self, session):
-        return f"Running in a [yellow]{self.type}[/yellow] container"
+        return f"[yellow]{self.type}[/yellow]"
 
 
 class Module(EnumerateModule):

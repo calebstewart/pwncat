@@ -3,11 +3,10 @@ import json
 import dataclasses
 from typing import List, Optional
 
-import pkg_resources
-
 import pwncat
-from pwncat.db import Fact
+import pkg_resources
 from pwncat import util
+from pwncat.db import Fact
 from pwncat.platform.linux import Linux
 from pwncat.modules.enumerate import Schedule, EnumerateModule
 
@@ -41,7 +40,7 @@ class HostnameData(Fact):
         """ The determined architecture. """
 
     def title(self, session):
-        return f"Hostname [cyan]{self.hostname}[/cyan]"
+        return f"[cyan]{self.hostname}[/cyan]"
 
 
 class KernelVersionData(Fact):
