@@ -2,7 +2,7 @@
 
 from pwncat.util import console
 from rich.prompt import Prompt
-from pwncat.facts import Implant
+from pwncat.facts import Implant, KeepImplantFact
 from pwncat.modules import Bool, Status, Argument, BaseModule, ModuleFailed
 
 
@@ -73,6 +73,12 @@ class Module(BaseModule):
                     yield Status(f"removing: {implant.title(session)}")
                     implant.remove(session)
                     session.target.facts.remove(implant)
+                    nremoved += 1
+                except KeepImplantFact:
+                    # Remove implant types but leave the fact
+                    implant.types.remove("implant.remote")
+                    implant.types.remove("implant.replace")
+                    implant.types.remove("implant.spawn")
                     nremoved += 1
                 except ModuleFailed as exc:
                     session.log(

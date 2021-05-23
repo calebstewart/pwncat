@@ -10,6 +10,14 @@ class ImplantType(enum.Flag):
     REMOTE = enum.auto()
 
 
+class KeepImplantFact(Exception):
+    """This is raised when removing an implant where the fact itself
+    remains in the database, but the implant types are removed. Normally,
+    this indicates that the implant was enumerated and not installed by
+    pwncat. Removing the implant simply removes our ability to use it,
+    but tracks the enumeration of the data."""
+
+
 class Implant(Fact):
     """ An installed implant """
 

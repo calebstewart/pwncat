@@ -18,7 +18,10 @@ from paramiko.buffered_pipe import BufferedPipe
 
 import pwncat.manager
 from pwncat.util import console
+from pwncat.channel import ChannelError
+from pwncat.modules import ModuleFailed
 from pwncat.commands import connect
+from pwncat.platform import PlatformError
 
 
 def main():
@@ -241,6 +244,7 @@ def main():
                                 used_implant = implant
                                 break
                             except ModuleFailed:
+                                db.transaction_manager.commit()
                                 continue
 
                 if manager.target is not None:
@@ -248,15 +252,18 @@ def main():
                         f"connected via {used_implant.title(manager.target)}"
                     )
                 else:
-                    manager.create_session(
-                        platform=args.platform,
-                        protocol=protocol,
-                        user=user,
-                        password=password,
-                        host=host,
-                        port=port,
-                        identity=args.identity,
-                    )
+                    try:
+                        manager.create_session(
+                            platform=args.platform,
+                            protocol=protocol,
+                            user=user,
+                            password=password,
+                            host=host,
+                            port=port,
+                            identity=args.identity,
+                        )
+                    except (ChannelError, PlatformError) as exc:
+                        manager.log(f"connection failed: {exc}")
 
             manager.interactive()
 
