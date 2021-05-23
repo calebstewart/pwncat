@@ -15,6 +15,9 @@ class Module(EnumerateModule):
 
     def enumerate(self, session: "pwncat.manager.Session"):
 
+        # Grab all the users and sort by their group ID
+        users = {user.gid: user for user in session.run("enumerate", types=["user"])}
+
         group_file = session.platform.Path("/etc/group")
 
         try:
@@ -23,19 +26,18 @@ class Module(EnumerateModule):
                     try:
                         # Extract the group fields
                         (group_name, hash, gid, members) = group_line.split(":")
+                        gid = int(gid)
+                        members = [m.strip() for m in members.split(",") if m.strip()]
+
+                        if gid in users:
+                            members.append(users[gid].name)
 
                         # Build a group object
-                        group = LinuxGroup(
-                            self.name,
-                            group_name,
-                            hash,
-                            int(gid),
-                            (m.strip() for m in members.split(",") if m.strip()),
-                        )
+                        group = LinuxGroup(self.name, group_name, hash, gid, members)
 
                         yield group
 
-                    except Exception as exc:
+                    except (KeyError, ValueError, IndexError):
                         # Bad group line
                         continue
 
