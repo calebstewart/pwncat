@@ -131,6 +131,11 @@ class Session:
             if (uid is None or user.id == uid) and (name is None or user.name == name):
                 return user
 
+    def iter_users(self):
+        """ Iterate over the users for the target """
+
+        yield from self.run("enumerate.gather", progress=False, types=["user"])
+
     def find_group(self, gid=None, name=None):
         """Locate a user object by name or ID"""
 

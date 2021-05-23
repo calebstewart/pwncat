@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
 import string
 
-from colorama import Fore
-from prompt_toolkit.keys import ALL_KEYS, Keys
-from prompt_toolkit.input.ansi_escape_sequences import REVERSE_ANSI_SEQUENCES
-
 import pwncat
+from colorama import Fore
 from pwncat.util import console
 from pwncat.config import KeyType
+from prompt_toolkit.keys import ALL_KEYS, Keys
 from pwncat.commands.base import Complete, Parameter, CommandDefinition
+from prompt_toolkit.input.ansi_escape_sequences import REVERSE_ANSI_SEQUENCES
 
 
 class Command(CommandDefinition):
+    """Create key aliases for when in raw mode. This only works from platforms
+    which provide a raw interaction (such as linux)."""
 
     PROG = "bind"
     ARGS = {

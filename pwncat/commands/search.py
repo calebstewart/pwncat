@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 import textwrap
 
+import pwncat
 from rich import box
 from rich.table import Table, Column
-
-import pwncat
 from pwncat.util import console
 from pwncat.commands.base import Complete, Parameter, CommandDefinition
 
@@ -22,15 +21,20 @@ class Command(CommandDefinition):
 
     def run(self, manager: "pwncat.manager.Manager", args):
 
+        modules = list(manager.target.find_module(f"*{args.module}*"))
+        min_width = max(
+            len(module.name.removeprefix("agnostic.")) for module in modules
+        )
+
         table = Table(
-            Column(header="Name", ratio=0.2),
-            Column(header="Description", no_wrap=True, ratio=0.8),
+            Column(header="Name", style="cyan", min_width=min_width),
+            Column(header="Description"),
             title="Results",
             box=box.MINIMAL_DOUBLE_HEAD,
             expand=True,
         )
 
-        for module in manager.target.find_module(f"*{args.module}*"):
+        for module in modules:
             # Rich will ellipsize the column, but we need to squeze
             # white space and remove newlines. `textwrap.shorten` is
             # the easiest way to do that, so we use a large size for
@@ -46,7 +50,7 @@ class Command(CommandDefinition):
             table.add_row(
                 f"[cyan]{module_name}[/cyan]",
                 textwrap.shorten(
-                    description.replace("\n", " "), width=200, placeholder="..."
+                    description.replace("\n", " "), width=80, placeholder="..."
                 ),
             )
 

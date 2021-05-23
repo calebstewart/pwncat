@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
+import pwncat
 from rich import box
 from rich.table import Table
-
-import pwncat
 from pwncat.util import console
 from pwncat.commands.base import Complete, Parameter, CommandDefinition
 
@@ -78,8 +77,7 @@ class Command(CommandDefinition):
 
         if args.kill:
             channel = str(session.platform.channel)
-            session.platform.channel.close()
-            session.died()
+            session.close()
             console.log(f"session-{args.session_id} ({channel}) closed")
             return
 

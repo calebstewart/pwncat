@@ -1,17 +1,12 @@
 #!/usr/bin/env python3
 import textwrap
 
+import pwncat
 from rich import box
 from rich.table import Table
-
-import pwncat
 from pwncat.util import console
-from pwncat.commands.base import (
-    Complete,
-    Parameter,
-    CommandDefinition,
-    get_module_choices,
-)
+from pwncat.commands.base import (Complete, Parameter, CommandDefinition,
+                                  get_module_choices)
 
 
 class Command(CommandDefinition):
@@ -56,7 +51,7 @@ class Command(CommandDefinition):
             textwrap.indent(textwrap.dedent(module.__doc__.strip("\n")), " ") + "\n"
         )
 
-        table = Table("Argument", "Default", "Help", box=box.MINIMAL_DOUBLE_HEAD)
+        table = Table("Argument", "Default", "Help", box=box.SIMPLE)
         for arg, info in module.ARGUMENTS.items():
             if info.default is pwncat.modules.NoValue:
                 default = ""

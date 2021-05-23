@@ -2,6 +2,8 @@
 import textwrap
 
 import pwncat
+import rich.box
+from rich.table import Table, Column
 from pwncat.util import console
 from pwncat.commands import CommandParser
 from pwncat.commands.base import Complete, Parameter, CommandDefinition
@@ -32,5 +34,21 @@ class Command(CommandDefinition):
                         console.print(textwrap.dedent(command.__doc__).strip())
                     break
         else:
+            table = Table(
+                Column("Command", style="green"),
+                Column("Description", no_wrap=True),
+                box=rich.box.SIMPLE,
+            )
+
             for command in manager.parser.commands:
-                console.print(f" - {command.PROG}")
+                doc = command.__doc__
+                if doc is None:
+                    doc = ""
+                else:
+                    doc = textwrap.shorten(
+                        textwrap.dedent(doc).strip().replace("\n", ""), 60
+                    )
+
+                table.add_row(command.PROG, doc)
+
+            console.print(table)
