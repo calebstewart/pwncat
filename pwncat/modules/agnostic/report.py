@@ -100,7 +100,7 @@ class Module(BaseModule):
                 with open(output, "w") as filp:
                     template.stream(context).dump(filp)
             else:
-                markdown = Markdown(template.render(context))
+                markdown = Markdown(template.render(context), hyperlinks=False)
                 console.print(markdown)
         except jinja2.TemplateError as exc:
             raise ModuleFailed(str(exc)) from exc

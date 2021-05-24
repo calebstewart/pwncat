@@ -88,6 +88,10 @@ class Config:
             "cross": {"value": None, "type": str},
             "psmodules": {"value": ".", "type": local_dir_type},
             "verbose": {"value": False, "type": bool_type},
+            "windows_c2_dir": {
+                "value": "~/.local/share/pwncat",
+                "type": local_dir_type,
+            },
         }
 
         # Locals are set per-used-module

