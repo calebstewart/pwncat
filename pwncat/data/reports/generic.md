@@ -5,13 +5,14 @@ The report was generated on {{ datetime }}.
 
 ## Common System Information
 
-| Platform     | {{ platform.name }} |
-|--------------|---------------------|
-| Architecture | {{ session.run("enumerate", types=["system.arch"]) | first_or_none | title_or_unknown }} |
-| Hostname     | {{ session.run("enumerate", types=["system.hostname"]) | first_or_none | title_or_unknown }} |
-| ASLR         | {{ session.run("enumerate", types=["system.aslr"]) | first_or_none | title_or_unknown }} |
-| Container    | {{ session.run("enumerate", types=["system.container"]) | first_or_none | title_or_unknown }} |
-| Distribution | {{ session.run("enumerate", types=["system.distro"]) | first_or_none | title_or_unknown }} |
+{{ [
+    ["**Platform**", platform.name],
+    ["**Architecture**", session.run("enumerate", types=["system.arch"]) | first_or_none | title_or_unknown ],
+    ["**Hostname**", session.run("enumerate", types=["system.hostname"]) | first_or_none | title_or_unknown],
+    ["**ASLR**", session.run("enumerate", types=["system.aslr"]) | first_or_none | title_or_unknown],
+    ["**Container**", session.run("enumerate", types=["system.container"]) | first_or_none | title_or_unknown],
+    ["**Distribution**", session.run("enumerate", types=["system.distro"]) | first_or_none | title_or_unknown],
+] | table(headers=False) }}
 
 {% if session.run("enumerate", types=["implant.*"]) %}
 ## Installed Implants

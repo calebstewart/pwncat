@@ -527,8 +527,13 @@ class Platform(ABC):
         return str(self.channel)
 
     @abstractmethod
-    def getuid(self):
-        """Get the current user ID"""
+    def refresh_uid(self) -> Union[int, str]:
+        """ Refresh the cached UID of the current session. """
+
+    @abstractmethod
+    def getuid(self) -> Union[int, str]:
+        """Get the current user ID. This should not query the target, but should
+        return the current cached UID as found with `refresh_uid`."""
 
     @abstractmethod
     def getenv(self, name: str) -> str:

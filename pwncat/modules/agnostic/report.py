@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 import os
 import datetime
+import textwrap
+from typing import List
 
 import jinja2
+import rich.box
+from rich.table import Table
 from pwncat.util import console, strip_markup
 from rich.markdown import Markdown
 from pwncat.modules import Bool, Argument, BaseModule, ModuleFailed
@@ -37,6 +41,37 @@ class Module(BaseModule):
             help="Use a custom template; the template argument must be the path to a jinja2 template",
         ),
     }
+
+    def generate_markdown_table(self, data: List[List], headers: bool = False):
+        """ Generate a markdown table from the given data and headers """
+
+        # Get column widths
+        widths = [
+            max(len(data[r][c]) for r in range(len(data))) for c in range(len(data[0]))
+        ]
+
+        rows = []
+        for r in range(len(data)):
+            rows.append(
+                "|"
+                + "|".join(
+                    [
+                        " " + data[r][c] + " " * (widths[c] - len(data[r][c]) + 1)
+                        for c in range(len(data[r]))
+                    ]
+                )
+                + "|"
+            )
+
+        if headers:
+            rows.insert(
+                1,
+                "|"
+                + "|".join([" " + "-" * widths[c] + " " for c in range(len(data[r]))])
+                + "|",
+            )
+
+        return "  \n".join(rows)
 
     def run(self, session: "pwncat.manager.Session", output, template, fmt, custom):
         """ Perform enumeration and optionally write report """
@@ -74,6 +109,7 @@ class Module(BaseModule):
             else "unknown"
         )
         env.filters["remove_rich"] = lambda thing: strip_markup(str(thing))
+        env.filters["table"] = self.generate_markdown_table
 
         try:
             template = env.get_template(f"{template}.{fmt}")

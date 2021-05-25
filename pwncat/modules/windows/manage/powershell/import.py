@@ -4,7 +4,6 @@ from io import IOBase, BytesIO
 from pathlib import Path
 
 import requests
-
 from pwncat.modules import Bool, Argument, BaseModule, ModuleFailed
 from pwncat.platform.windows import Windows
 
@@ -71,14 +70,7 @@ class Module(BaseModule):
         name, filp = self.resolve_psmodule(session, path)
 
         if name in session.platform.psmodules and not force:
-            session.log(
-                f"[yellow]warning[/yellow]: {name}: skipping previously loaded module"
-            )
             return
-        elif name in session.platform.psmodules and force:
-            session.log(f"[yellow]warning[/yellow]: {name}: reloading module")
-        else:
-            session.log(f"executing powershell module: {name}")
 
         session.platform.powershell(filp)
 

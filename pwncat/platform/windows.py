@@ -834,7 +834,7 @@ function prompt {
         )
         self.user_info = self.powershell(
             "([System.DirectoryServices.AccountManagement.UserPrincipal]::Current).SID.Value"
-        )
+        )[0]
 
     def getuid(self):
 
