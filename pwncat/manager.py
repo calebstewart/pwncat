@@ -561,7 +561,7 @@ class Manager:
             channel_closed = False
 
             try:
-                self.target.platform.interactive_loop()
+                self.target.platform.interactive_loop(interactive_complete)
             except RawModeExit:
                 pass
             except ChannelClosed:

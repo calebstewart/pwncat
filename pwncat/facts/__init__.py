@@ -14,6 +14,57 @@ from pwncat.facts.implant import *
 from pwncat.facts.escalate import *
 
 
+class ArchData(Fact):
+    """
+    Simply the architecture of the remote machine. This class
+    wraps the architecture name in a nicely printable data
+    class.
+    """
+
+    def __init__(self, source, arch):
+        super().__init__(source=source, types=["system.arch"])
+
+        self.arch: str = arch
+        """ The determined architecture. """
+
+    def title(self, session):
+        return f"Running on a [cyan]{self.arch}[/cyan] processor"
+
+
+class HostnameData(Fact):
+    """
+    The hostname of this machine.
+    """
+
+    def __init__(self, source, hostname):
+        super().__init__(source=source, types=["system.hostname"])
+
+        self.hostname: str = hostname
+        """ The determined architecture. """
+
+    def title(self, session):
+        return f"[cyan]{self.hostname}[/cyan]"
+
+
+class DistroVersionData(Fact):
+    """ OS Distribution and version information """
+
+    def __init__(self, source, name, ident, build_id, version):
+        super().__init__(source=source, types=["system.distro"])
+
+        self.name: str = name
+        self.ident: str = ident
+        self.build_id: str = build_id
+        self.version: str = version
+
+    def title(self, session):
+        return (
+            f"[blue]{rich.markup.escape(str(self.name))}[/blue] ([cyan]{rich.markup.escape(self.ident)}[/cyan]), "
+            f"Version [red]{rich.markup.escape(str(self.version))}[/red], "
+            f"Build ID [green]{rich.markup.escape(str(self.build_id))}[/green]."
+        )
+
+
 class Group(Fact):
     """Basic representation of a user group on the target system. Individual
     platform enumeration modules may subclass this to implement other user

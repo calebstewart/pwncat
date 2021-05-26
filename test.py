@@ -20,4 +20,5 @@ with pwncat.manager.Manager("data/pwncatrc") as manager:
     # session = manager.create_session("linux", host="pwncat-ubuntu", port=4444)
     # session = manager.create_session("windows", host="0.0.0.0", port=4444)
 
-    manager.print(session.platform.powershell("Get-LocalGroupMember Administrators"))
+    with session.platform.open("C:\\Users\\caleb\\test", "w") as filp:
+        filp.write("WAT")

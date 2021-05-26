@@ -491,7 +491,7 @@ class Platform(ABC):
         self.Path = RemotePath
         """ A concrete Path object for this platform conforming to pathlib.Path """
 
-    def interactive_loop(self):
+    def interactive_loop(self, interactive_complete: "threading.Event"):
         """Handles interactive piping of data between victim and attacker. If
         the platform you are implementing does not support raw mode, you must
         override this method to support interactivity. A working example with
@@ -507,7 +507,7 @@ class Platform(ABC):
             pwncat.util.enter_raw_mode(non_block=False)
             sys.stdin.reconfigure(line_buffering=False)
 
-            while True:
+            while not interactive_complete.is_set():
                 data = sys.stdin.buffer.read(64)
                 has_prefix = self.session.manager._process_input(data, has_prefix)
 

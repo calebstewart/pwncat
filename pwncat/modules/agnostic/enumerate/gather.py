@@ -92,7 +92,7 @@ class Module(pwncat.modules.BaseModule):
 
         if cache:
             for fact in session.target.facts:
-                if any(
+                if not types or any(
                     any(fnmatch.fnmatch(t2, t1) for t2 in fact.types) for t1 in types
                 ):
                     yield fact

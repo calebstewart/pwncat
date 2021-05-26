@@ -26,8 +26,8 @@ import pkg_resources
 import pwncat.subprocess
 from pwncat.platform import Path, Platform, PlatformError
 
-INTERACTIVE_END_MARKER = b"\nINTERACTIVE_COMPLETE\r\n"
-PWNCAT_WINDOWS_C2_RELEASE_URL = "https://github.com/calebstewart/pwncat-windows-c2/releases/download/v0.0.1/pwncat-windows-v0.0.1.tar.gz"
+INTERACTIVE_END_MARKER = b"INTERACTIVE_COMPLETE\r\n"
+PWNCAT_WINDOWS_C2_RELEASE_URL = "https://github.com/calebstewart/pwncat-windows-c2/releases/download/v0.0.2/pwncat-windows-v0.0.2.tar.gz"
 
 
 class PowershellError(Exception):
@@ -688,7 +688,7 @@ function prompt {
         except EOFError:
             raise RawModeExit
 
-    def interactive_loop(self):
+    def interactive_loop(self, interactive_complete: "threading.Event"):
         """
         Interactively read input from the attacker and send it to an interactive
         terminal on the victim. `RawModeExit` and `ChannelClosed` exceptions
@@ -701,12 +701,9 @@ function prompt {
         pwncat.util.push_term_state()
 
         try:
-            while True:
+            while not interactive_complete.is_set():
                 try:
                     data = input()
-                    if data.strip() == "exit":
-                        raise pwncat.util.RawModeExit
-
                     self.channel.send(data.encode("utf-8") + b"\r")
                 except KeyboardInterrupt:
                     sys.stdout.write("\n")
@@ -714,6 +711,8 @@ function prompt {
                         "[yellow]warning[/yellow]: Ctrl-C does not work for windows targets"
                     )
         except EOFError:
+            self.channel.send(b"\rexit\r")
+            self.channel.recvuntil(INTERACTIVE_END_MARKER)
             raise pwncat.util.RawModeExit
         finally:
             pwncat.util.pop_term_state()
@@ -734,13 +733,14 @@ function prompt {
             # Shift to interactive mode
             cols, rows = os.get_terminal_size()
             self.run_method("PowerShell", "start")
+            output = self.channel.recvline()
+            if not output.strip().startswith(b"INTERACTIVE_START"):
+                self.interactive_tracker = len(INTERACTIVE_END_MARKER)
+                raise PlatformError(f"no interactive start message: {output}")
             self._interactive = True
             self.interactive_tracker = 0
             return
         if not value:
-            if self.interactive_tracker != len(INTERACTIVE_END_MARKER):
-                self.channel.send(b"\rexit\r")
-                self.channel.recvuntil(INTERACTIVE_END_MARKER)
             self._interactive = False
 
     def process_output(self, data):
@@ -761,6 +761,7 @@ function prompt {
             if INTERACTIVE_END_MARKER[self.interactive_tracker] == b:
                 self.interactive_tracker += 1
                 if self.interactive_tracker == len(INTERACTIVE_END_MARKER):
+                    self.channel.recvline()
                     raise pwncat.manager.RawModeExit
             else:
                 self.interactive_tracker = 0
@@ -798,7 +799,7 @@ function prompt {
         try:
             handle = int(result)
         except ValueError:
-            raise FileNotFoundError(str(path))
+            raise FileNotFoundError(f"{str(path)}: {result}")
 
         stream = WindowsFile(self, mode, handle, name=path)
 
@@ -1124,8 +1125,11 @@ function prompt {
         elif result.startswith(b"E:PWSH:"):
             raise PowershellError(result.split(b"E:PWSH:")[1].decode("utf-8"))
 
-        while result != b"END":
-            results.append(json.loads(result))
-            result = self.channel.recvline().strip()
+        try:
+            while result != b"END":
+                results.append(json.loads(result))
+                result = self.channel.recvline().strip()
+        except json.JSONDecodeError as exc:
+            raise PlatformError(result)
 
         return results

@@ -7,40 +7,9 @@ import pwncat
 import pkg_resources
 from pwncat import util
 from pwncat.db import Fact
+from pwncat.facts import ArchData, HostnameData
 from pwncat.platform.linux import Linux
 from pwncat.modules.enumerate import Schedule, EnumerateModule
-
-
-class ArchData(Fact):
-    """
-    Simply the architecture of the remote machine. This class
-    wraps the architecture name in a nicely printable data
-    class.
-    """
-
-    def __init__(self, source, arch):
-        super().__init__(source=source, types=["system.arch"])
-
-        self.arch: str = arch
-        """ The determined architecture. """
-
-    def title(self, session):
-        return f"Running on a [cyan]{self.arch}[/cyan] processor"
-
-
-class HostnameData(Fact):
-    """
-    The hostname of this machine.
-    """
-
-    def __init__(self, source, hostname):
-        super().__init__(source=source, types=["system.hostname"])
-
-        self.hostname: str = hostname
-        """ The determined architecture. """
-
-    def title(self, session):
-        return f"[cyan]{self.hostname}[/cyan]"
 
 
 class KernelVersionData(Fact):

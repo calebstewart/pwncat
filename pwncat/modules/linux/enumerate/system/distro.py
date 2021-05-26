@@ -6,33 +6,9 @@ import pwncat
 import rich.markup
 from pwncat import util
 from pwncat.db import Fact
+from pwncat.facts import DistroVersionData
 from pwncat.platform.linux import Linux
 from pwncat.modules.enumerate import Schedule, EnumerateModule
-
-
-class DistroVersionData(Fact):
-    """
-    Represents a W.X.Y-Z kernel version where W is the major version,
-    X is the minor version, Y is the patch, and Z is the ABI.
-
-    This explanation came from here:
-        https://askubuntu.com/questions/843197/what-are-kernel-version-number-components-w-x-yy-zzz-called
-    """
-
-    def __init__(self, source, name, ident, build_id, version):
-        super().__init__(source=source, types=["system.distro"])
-
-        self.name: str = name
-        self.ident: str = ident
-        self.build_id: str = build_id
-        self.version: str = version
-
-    def title(self, session):
-        return (
-            f"[blue]{rich.markup.escape(str(self.name))}[/blue] ([cyan]{rich.markup.escape(self.ident)}[/cyan]), "
-            f"Version [red]{rich.markup.escape(str(self.version))}[/red], "
-            f"Build ID [green]{rich.markup.escape(str(self.build_id))}[/green]."
-        )
 
 
 class Module(EnumerateModule):
