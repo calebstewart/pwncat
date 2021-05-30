@@ -106,7 +106,10 @@ class PopenLinux(pwncat.subprocess.Popen):
             return self.returncode
 
         if self.stdin is not None:
-            self.stdin.flush()
+            try:
+                self.stdin.flush()
+            except ValueError:
+                pass
 
         # This gets a 'lil... funky... Normally, the ChannelFile
         # wraps a non-blocking socket in a blocking file object
@@ -525,6 +528,11 @@ class Linux(Platform):
 
         self.refresh_uid()
 
+    def exit(self):
+        """ Exit this session """
+
+        self.channel.send(b"exit\n")
+
     def disable_history(self):
         """Disable shell history"""
 
@@ -560,7 +568,7 @@ class Linux(Platform):
                 ]
             )
             if python_path is not None:
-                pty_command = f""" exec {python_path} -c "import pty; pty.spawn('{shell} -i')" 2>&1\n"""
+                pty_command = f""" exec {python_path} -c "import pty; pty.spawn('{shell}')" 2>&1\n"""
 
         if pty_command is not None:
             self.logger.info(pty_command.rstrip("\n"))
@@ -575,6 +583,16 @@ class Linux(Platform):
 
             # When starting a pty, history is sometimes re-enabled
             self.disable_history()
+
+            # Ensure that the TTY settings make sense
+            self.Popen(
+                [
+                    "stty",
+                    "400:1:bf:8a33:3:1c:7f:15:4:0:1:0:11:13:1a:0:12:f:17:16:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0",
+                ],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+            ).wait()
 
             return
 
@@ -1107,7 +1125,7 @@ class Linux(Platform):
             ):
                 try:
                     payload, input_data, exit_cmd = method.build(
-                        gtfo=self.gtfo, lfile=path, suid=True, length=1000000
+                        gtfo=self.gtfo, lfile=path, suid=True
                     )
                     break
                 except MissingBinary:
@@ -1136,7 +1154,7 @@ class Linux(Platform):
             ):
                 try:
                     payload, input_data, exit_cmd = method.build(
-                        gtfo=self.gtfo, lfile=path, suid=True, length=1000000
+                        gtfo=self.gtfo, lfile=path, suid=True
                     )
                     break
                 except MissingBinary:

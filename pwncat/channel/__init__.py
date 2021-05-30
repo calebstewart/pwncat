@@ -336,7 +336,7 @@ class Channel(ABC):
 
             # Check if we have timed out
             if time.time() >= time_end:
-                raise ChannelTimeout(data)
+                raise ChannelTimeout(self, data)
 
             next_byte = self.recv(1)
 

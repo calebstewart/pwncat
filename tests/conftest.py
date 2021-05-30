@@ -1,277 +1,103 @@
 #!/usr/bin/env python3
-import dataclasses
+import os
+import time
 import random
 import socket
 import string
-import time
-import os
+import dataclasses
+from io import StringIO
 
-import digitalocean
 import pytest
+import digitalocean
 from xprocess import ProcessStarter
+from pwncat.channel import ChannelError
 from Crypto.PublicKey import RSA
 
-# Test multiple shells
-SHELLS = ["/bin/sh", "/bin/bash", "/usr/bin/dash", "/usr/bin/zsh"]
+PLATFORM_MAP = {"ubuntu": "linux", "centos": "linux", "windows": "windows"}
 
 
-class LinuxReverseStarter(ProcessStarter):
-    """ Start an infinite linux reverse shell using socat """
+def connection_details_for(name):
+    """Get connection details from environment for the given
+    host type name (e.g. ubuntu, centos, windows)"""
 
-    name = "linux_reverse"
-    pattern = "READY"
-    args = [
-        "/bin/sh",
-        "-c",
-        "echo READY; socat TCP4:127.0.0.1:{port},retry,forever,fork EXEC:{shell}",
-    ]
-    timeout = 5
+    if name not in PLATFORM_MAP:
+        pytest.skip(f"{name} is not a known target")
 
-    @classmethod
-    def get_connection_details(cls):
-        """ Custom method to provide connection details across all starters """
+    if (
+        f"{name.upper()}_HOST" not in os.environ
+        or f"{name.upper()}_BIND_PORT" not in os.environ
+    ):
+        pytest.skip(f"{name} not available")
 
-        return {
-            "platform": "linux",
-            "host": "127.0.0.1",
-            "port": cls.port,
-            "protocol": "bind",
-        }
-
-    def startup_check(self):
-
-        details = self.get_connection_details()
-
-        # with socket.create_server(
-        #     (details["host"], details["port"]), reuse_port=True
-        # ) as sock:
-        #     client = sock.accept()
-
-        return True
+    return {
+        "platform": PLATFORM_MAP[name],
+        "host": os.environ[f"{name.upper()}_HOST"],
+        "port": int(os.environ[f"{name.upper()}_BIND_PORT"]),
+        "protocol": "connect",
+    }
 
 
-class LinuxBindStarter(ProcessStarter):
-    """ Start an infinite linux bind shell using socat """
-
-    name = "linux_bind"
-    pattern = "READY"
-    args = [
-        "/bin/sh",
-        "-c",
-        "echo READY; socat TCP4-LISTEN:{port},bind=127.0.0.1,reuseaddr,fork EXEC:{shell}",
-    ]
-    timeout = 5
-
-    @classmethod
-    def get_connection_details(cls):
-        """ Return connection details for this method """
-
-        return {
-            "platform": "linux",
-            "host": "127.0.0.1",
-            "port": cls.port,
-            "protocol": "connect",
-        }
-
-    def startup_check(self):
-
-        details = self.get_connection_details()
-
-        with socket.create_connection((details["host"], details["port"])) as sock:
-            pass
-
-        return True
+@pytest.fixture(params=["ubuntu", "centos"])
+def linux_details(request):
+    """ Get available connection details for linux hosts """
+    return connection_details_for(request.param)
 
 
-class LinuxFixtureParam(str):
-    """This is a hack to get the names of parameterized fixtures
-    to have meaning beyond "0", "1", "2", etc. Basically, we create
-    a new sublass of string, and apply a constant value which we want
-    to be the name of the parameterized fixture. We also assign members
-    which contain the process starter and shell path for access by the
-    fixture itself."""
-
-    def __new__(cls, starter, shell):
-        obj = str.__new__(cls, f"{starter.name}_{os.path.basename(shell)}")
-        obj.__init__(starter, shell)
-        return obj
-
-    def __init__(self, starter, shell):
-        self.starter = starter
-        self.shell = shell
+@pytest.fixture(params=["windows"])
+def windows_details(request):
+    """ Get available connection details for windows hosts """
+    return connection_details_for(request.param)
 
 
-def LinuxEnumShells(starter):
-    return [LinuxFixtureParam(starter, shell) for shell in SHELLS]
+def session_for(request):
 
+    # Grab details for this target
+    details = connection_details_for(request.param)
 
-@pytest.fixture(
-    params=[
-        *LinuxEnumShells(LinuxReverseStarter),
-        *LinuxEnumShells(LinuxBindStarter),
-    ]
-)
-def linux(xprocess, request):
-    """ Create linux connections available to the pwncat tests """
+    # Check if there are manager arguments
+    manager_args = getattr(
+        request.node.get_closest_marker("manager_config"), "args", {}
+    )
+    if not manager_args:
+        manager_args = {}
 
-    class Starter(request.param.starter):
-        shell = request.param.shell
-        args = request.param.starter.args
-
-    # We need to make a copy of the args array, and assign the port
-    # outside of the class definition to ensure we don't modify the
-    # class of other fixture parameters by mistake.
-    Starter.args = request.param.starter.args[:].copy()
-    Starter.port = random.randint(30000, 60000)
-    Starter.args[-1] = Starter.args[-1].format(port=Starter.port, shell=Starter.shell)
-
-    logfile = xprocess.ensure(str(request.param), Starter)
-
-    yield Starter.get_connection_details()
-
-    xprocess.getinfo(str(request.param)).terminate()
-
-
-@pytest.fixture
-def session(linux):
+    if "config" not in manager_args:
+        manager_args["config"] = StringIO(
+            """
+set -g db "memory://"
+        """
+        )
 
     import pwncat.manager
 
-    with pwncat.manager.Manager(config=None) as manager:
-        session = manager.create_session(**linux)
-        yield session
-
-
-@dataclasses.dataclass
-class DigitalOceanFixture(object):
-    """ Digital Ocean Fixture Data """
-
-    ubuntu: digitalocean.Droplet
-    """ Ubuntu 20.04 droplet instance """
-    centos: digitalocean.Droplet
-    """ CentOS 7 droplet instance """
-    windows: digitalocean.Droplet
-    """ Windows droplet instance """
-
-    user: str
-    """ Username for initial access """
-    password: str
-    """ Password for initial access """
-    ssh_key: str
-    """ SSH private key used for auth to Linux servers """
-    bind_port: int
-    """ Port where shells are bound on the given servers """
-
-
-@pytest.fixture
-def digital_ocean():
-    """ Construct digital ocean targets for remote testing """
-
-    manager = digitalocean.Manager()
-    project = [p for p in manager.get_all_projects() if p.name == "pwncat"][0]
-    unique_name = "test-" + "".join(
-        random.choices(list(string.ascii_letters + string.digits), k=5)
-    )
-
-    key = RSA.generate(2048)
-    pubkey = key.publickey()
-
-    droplets = []
-    keys = []
-
-    try:
-
-        # Create the key
-        do_key = digitalocean.SSHKey(
-            name=unique_name, public_key=pubkey.exportKey("OpenSSH").decode("utf-8")
-        )
-        do_key.create()
-        keys.append(do_key)
-
-        # Create ubuntu vm
-        ubuntu = digitalocean.Droplet(
-            name=unique_name + "-ubuntu",
-            region="nyc1",
-            image="ubuntu-20-04-x64",
-            size_slug="s-1vcpu-1gb",
-            ssh_keys=[do_key],
-            backups=False,
-        )
-        ubuntu.create()
-        droplets.append(ubuntu)
-
-        # Create centos vm
-        centos = digitalocean.Droplet(
-            name=unique_name + "-ubuntu",
-            region="nyc1",
-            image="ubuntu-20-04-x64",
-            size_slug="s-1vcpu-1gb",
-            ssh_keys=[do_key],
-            backups=False,
-        )
-        centos.create()
-        droplets.append(centos)
-
-        # Create windows vm
-        windows = digitalocean.Droplet(
-            name=unique_name + "-ubuntu",
-            region="nyc1",
-            image="ubuntu-20-04-x64",
-            size_slug="s-1vcpu-1gb",
-            ssh_keys=[do_key],
-            backups=False,
-        )
-        windows.create()
-        droplets.append(windows)
-
-        # Add tag to droplets
-        tag = digitalocean.Tag(name=unique_name)
-        tag.create()
-        tag.add_droplets([ubuntu.id, windows.id, centos.id])
-
-        # Wait for droplets to be up
-        waiting_droplets = droplets.copy()
-        while waiting_droplets:
-            for droplet in waiting_droplets:
-                actions = droplet.get_actions()
-                for action in droplet.get_actions():
-                    action.load()
-                    if action.status != "completed":
-                        break
-                else:
-                    droplet.load()
-                    waiting_droplets.remove(droplet)
-                    break
-                time.sleep(1)
-            time.sleep(5)
-
-        # Wait for SSH to be up on the droplets
-        while True:
-            for droplet in droplets:
-                try:
-                    with socket.create_connection((droplet.ip_address, 22)) as sock:
-                        pass
-                except socket.error:
-                    break
-            else:
+    with pwncat.manager.Manager(**manager_args) as manager:
+        for i in range(3):
+            try:
+                session = manager.create_session(**details)
+                yield session
                 break
-            time.sleep(5)
+            except ChannelError:
+                # This seems to be because of the contaiener setup, so we just add
+                # a little sleep in
+                time.sleep(2)
+        else:
+            raise Exception("failed to connect to container")
 
-        yield DigitalOceanFixture(
-            ubuntu=ubuntu,
-            centos=centos,
-            windows=windows,
-            user="root",
-            password="wrong",
-            ssh_key=key,
-            bind_port=0,
-        )
 
-    finally:
+@pytest.fixture(params=["windows", "ubuntu", "centos"])
+def session(request):
+    """ Start a session with any platform """
+    yield from session_for(request)
 
-        for droplet in manager.get_all_droplets(tag_name=unique_name):
-            droplet.destroy()
 
-        for do_key in manager.get_all_sshkeys():
-            if do_key.name == unique_name:
-                do_key.destroy()
+@pytest.fixture(params=["windows"])
+def windows(request):
+    """ Start a windows session """
+    yield from session_for(request)
+
+
+@pytest.fixture(params=["ubuntu", "centos"])
+def linux(request):
+    """ Start a linux session """
+
+    yield from session_for(request)

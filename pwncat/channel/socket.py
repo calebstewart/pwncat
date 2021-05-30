@@ -5,8 +5,8 @@ import fcntl
 import socket
 from typing import Optional
 
+from pwncat.util import console
 from rich.progress import Progress, BarColumn
-
 from pwncat.channel import Channel, ChannelError, ChannelClosed
 
 
@@ -100,6 +100,7 @@ class Socket(Channel):
             data = b""
 
         try:
+            data = data + self.client.recv(count)
             return data + self.client.recv(count)
         except socket.error as exc:
             if exc.args[0] == errno.EAGAIN or exc.args[0] == errno.EWOULDBLOCK:

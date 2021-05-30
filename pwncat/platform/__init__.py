@@ -527,6 +527,10 @@ class Platform(ABC):
         return str(self.channel)
 
     @abstractmethod
+    def exit(self):
+        """ Exit this session """
+
+    @abstractmethod
     def refresh_uid(self) -> Union[int, str]:
         """ Refresh the cached UID of the current session. """
 

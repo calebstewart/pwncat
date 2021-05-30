@@ -293,6 +293,8 @@ class Session:
         while self.layers:
             self.layers.pop()(self)
 
+        self.platform.exit()
+
         self.platform.channel.close()
 
         self.died()
@@ -314,7 +316,7 @@ class Manager:
     sessions, and executing modules.
     """
 
-    def __init__(self, config: str = "./pwncatrc"):
+    def __init__(self, config: str = None):
         self.config = Config()
         self.sessions: List[Session] = []
         self.modules: Dict[str, pwncat.modules.BaseModule] = {}
@@ -376,6 +378,9 @@ class Manager:
                     self.parser.eval(filp.read(), "./pwncatrc")
             except (FileNotFoundError, PermissionError):
                 pass
+
+        if self.db is None:
+            self.open_database()
 
     def __enter__(self):
         """Begin manager context tracking"""
