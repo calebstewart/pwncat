@@ -8,7 +8,6 @@ import dataclasses
 from io import StringIO
 
 import pytest
-import digitalocean
 from xprocess import ProcessStarter
 from pwncat.channel import ChannelError
 from Crypto.PublicKey import RSA
