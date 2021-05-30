@@ -42,7 +42,7 @@ class ChannelTimeout(ChannelError):
     """
 
     def __init__(self, ch, data: bytes):
-        super().__init__(ch, "channel recieve timed out")
+        super().__init__(ch, f"channel recieve timed out: {repr(data)}")
         self.data: bytes = data
 
 
