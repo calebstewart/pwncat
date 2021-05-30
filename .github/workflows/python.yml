@@ -37,9 +37,9 @@ jobs:
 #           flake8
       - name: Test with pytest
         env:
-          CENTOS_HOST: "centos"
+          CENTOS_HOST: "127.0.0.1"
           CENTOS_BIND_PORT: "4444"
-          UBUNTU_HOST: "ubuntu"
+          UBUNTU_HOST: "127.0.0.1"
           UBUNTU_BIND_PORT: "4445"
         run: |
           pytest
