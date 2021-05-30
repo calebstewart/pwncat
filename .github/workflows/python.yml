@@ -5,8 +5,6 @@ on:
 jobs:
   testing:
     runs-on: ubuntu-latest
-    container:
-      image: ubuntu:latest
 
     strategy:
       matrix:
@@ -15,8 +13,12 @@ jobs:
     services:
       centos:
         image: calebjstewart/pwncat-testing:centos
+        ports:
+          - 4444:4444
       ubuntu:
         image: calebjstewart/pwncat-testing:ubuntu
+        ports:
+          - 4445:4444
 
     steps:
       - uses: actions/checkout@v2
@@ -38,6 +40,6 @@ jobs:
           CENTOS_HOST: "centos"
           CENTOS_BIND_PORT: "4444"
           UBUNTU_HOST: "ubuntu"
-          UBUNTU_BIND_PORT: "4444"
+          UBUNTU_BIND_PORT: "4445"
         run: |
           pytest
