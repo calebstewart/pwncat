@@ -5,9 +5,18 @@ on:
 jobs:
   testing:
     runs-on: ubuntu-latest
+    container:
+      image: ubuntu:latest
+
     strategy:
       matrix:
         python-versions: [3.8,3.9]
+
+    services:
+      centos:
+        image: calebjstewart/pwncat-testing:centos
+      ubuntu:
+        image: calebjstewart/pwncat-testing:ubuntu
 
     steps:
       - uses: actions/checkout@v2
@@ -25,5 +34,10 @@ jobs:
 #         run: |
 #           flake8
       - name: Test with pytest
+        env:
+          CENTOS_HOST: "centos"
+          CENTOS_BIND_PORT: "4444"
+          UBUNTU_HOST: "ubuntu"
+          UBUNTU_BIND_PORT: "4444"
         run: |
           pytest
