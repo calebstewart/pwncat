@@ -9,7 +9,6 @@ from prompt_toolkit.input.ansi_escape_sequences import (
     ANSI_SEQUENCES,
 )
 from prompt_toolkit.keys import ALL_KEYS, Keys
-import commentjson as json
 
 from pwncat.modules import BaseModule
 
