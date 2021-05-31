@@ -79,13 +79,13 @@ class Module(EnumerateModule):
 
             if perms & 0o4000:
                 # if this is executable
-                screen_paths.append(path)
+                screen_paths.append((path, perms))
 
         # Clean up the search
         proc.wait()
 
         # Now, check each screen version to determine if it is vulnerable
-        for screen_path in screen_paths:
+        for screen_path, perms in screen_paths:
             version_output = session.platform.Popen(
                 f"{screen_path} --version",
                 shell=True,

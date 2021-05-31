@@ -3,12 +3,12 @@ import shlex
 import functools
 import subprocess
 from io import TextIOWrapper
-from typing import Any, IO, Callable
+from typing import IO, Any, Callable
 
 import pwncat.subprocess
+from pwncat.db import Fact
 from pwncat.gtfobins import Stream, Capability
 from pwncat.platform.linux import LinuxReader, LinuxWriter
-from pwncat.db import Fact
 
 
 def build_gtfo_ability(
@@ -200,7 +200,7 @@ class GTFOFileRead(FileReadAbility):
         else:
             description = ""
 
-        return f"file read as [blue]{user.name}[/blue] via [cyan]{self.method.binary_path}[/cyan]{description} from {source_user}"
+        return f"file read as [blue]{user.name}[/blue] via [cyan]{self.method.binary_path}[/cyan]{description} from {source_user} ([magenta]{self.source}[/magenta])"
 
 
 class GTFOFileWrite(FileWriteAbility):
@@ -279,7 +279,7 @@ class GTFOFileWrite(FileWriteAbility):
         else:
             description = ""
 
-        return f"file write as [blue]{user.name}[/blue] via [cyan]{self.method.binary_path}[/cyan]{description} from {source_user}"
+        return f"file write as [blue]{user.name}[/blue] via [cyan]{self.method.binary_path}[/cyan]{description} from {source_user} ([magenta]{self.source}[/magenta])"
 
 
 class GTFOExecute(ExecuteAbility):
@@ -351,4 +351,4 @@ class GTFOExecute(ExecuteAbility):
         else:
             description = ""
 
-        return f"shell as [blue]{user.name}[/blue] via [cyan]{self.method.binary_path}[/cyan]{description} from {source_user}"
+        return f"shell as [blue]{user.name}[/blue] via [cyan]{self.method.binary_path}[/cyan]{description} from {source_user} ([magenta]{self.source}[/magenta])"
