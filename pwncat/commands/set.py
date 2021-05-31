@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 import pwncat
 from colorama import Fore
-from sqlalchemy import create_engine
 from pwncat.util import State, console
-from sqlalchemy.orm import sessionmaker
 from pwncat.commands.base import Complete, Parameter, CommandDefinition
 
 

@@ -6,22 +6,20 @@ from setuptools.command.install import install
 import shutil, os, stat
 import binascii
 
-# Read the requirements
-with open("requirements.txt") as filp:
-    dependencies = [
-        line.strip() for line in filp.readlines() if not line.startswith("#")
-    ]
-
-# Build dependency links for entries that need them
-# This works for "git+https://github.com/user/package" refs
-dependency_links = [dep for dep in dependencies if dep.startswith("git+")]
-for i, dep in enumerate(dependency_links):
-    link = dep.split("git+")[1]
-    name = dep.split("/")[-1]
-    dependency_links[i] = f"{link}/tarball/master#egg={name}"
-
-# Strip out git+ links from dependencies
-dependencies = [dep for dep in dependencies if not dep.startswith("git+")]
+dependencies = [
+    "netifaces",
+    "packaging",
+    "prompt-toolkit",
+    "pycryptodome",
+    "requests",
+    "rich==9.10.0",
+    "python-rapidjson",
+    "ZODB",
+    "zodburi",
+    "Jinja2",
+    "paramiko",
+]
+dependency_links = []
 
 # Setup
 setup(

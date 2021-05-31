@@ -6,7 +6,6 @@ from enum import Enum, Flag, auto
 from typing import IO, Any, Dict, List, Tuple, BinaryIO, Callable, Generator
 
 import rapidjson as json
-from base64io import Base64IO
 
 
 class ControlCodes:
@@ -231,7 +230,7 @@ class MethodWrapper:
 
         if self.stream is Stream.RAW or self.stream is Stream.PRINT:
             return pipe
-        elif self.stream is not Stream.BASE64:
+        else:
             raise RuntimeError(
                 f"{self.stream.name}: we haven't implemented streaming of encodings besides base64"
             )
