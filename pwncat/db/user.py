@@ -2,9 +2,8 @@
 from typing import Optional
 
 import rich.markup
-from persistent.list import PersistentList
-
 from pwncat.db.fact import Fact
+from persistent.list import PersistentList
 
 
 class Group(Fact):

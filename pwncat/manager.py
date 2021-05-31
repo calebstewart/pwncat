@@ -145,10 +145,12 @@ class Session:
             ):
                 return group
 
-    def iter_groups(self):
+    def iter_groups(self, members: Optional[List[Union[str, int]]] = None):
         """ Iterate over groups for the target """
 
-        yield from self.run("enumerate.gather", progress=False, types=["group"])
+        for group in self.run("enumerate.gather", progress=False, types=["group"]):
+            if members is None or any(m in group.members for m in members):
+                yield group
 
     def register_fact(self, fact: "pwncat.db.Fact"):
         """Register a fact with this session's target. This is useful when

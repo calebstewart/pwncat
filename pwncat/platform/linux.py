@@ -150,7 +150,10 @@ class PopenLinux(pwncat.subprocess.Popen):
             time.sleep(0.1)
 
             # Flush more data to look for the EOF
-            self.stdout_raw.read1(4096)
+            try:
+                self.stdout_raw.read1(4096)
+            except BlockingIOError:
+                pass
 
         return self.returncode
 
@@ -1299,17 +1302,15 @@ class Linux(Platform):
             proc.stdin.write(password + "\n")
             proc.stdin.flush()
 
-            # Retrieve the response (this may take some time if wrong)
-            result = proc.stdout.readline().lower()
+            # line from when we pressed enter above
+            proc.stdout.readline()
 
-            proc.stdin.write("\n")
-            proc.stdin.flush()
-
-            if result.strip() == "":
-                result = proc.stdout.readline().lower()
+            # check the next few bytes; we have to go around the proc.stdin
+            # because we need a peek with a timeout.
+            result = self.channel.peek(10, timeout=5)
 
             # Check for keywords indicating failure
-            if "fail" in result or "incorrect" in result:
+            if b"su: " in result.lower():
 
                 try:
                     # The call failed, wait for the result
@@ -1631,7 +1632,10 @@ class Linux(Platform):
         """Set or retrieve the current umask value"""
 
         if mask is None:
-            return int(self.run(["umask"], capture_output=True, text=True).stdout, 8)
+            return int(
+                self.run(["umask"], capture_output=True, text=True, check=True).stdout,
+                8,
+            )
 
         self.run(["umask", oct(mask)[2:]])
         return mask

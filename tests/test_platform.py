@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
+import io
 import os
 import base64
 import subprocess
 
 import pytest
 from pwncat.util import random_string
+from pwncat.platform.windows import PowershellError
 
 
 def test_platform_file_io(session):
@@ -97,3 +99,22 @@ def test_platform_sudo(session):
         assert output != "john"
     except NotImplementedError:
         pass
+
+
+def test_windows_powershell(windows):
+    """ Test powershell execution """
+
+    # Run a real powershell snippet
+    r = windows.platform.powershell("$PSVersionTable.PSVersion")
+    assert len(r) == 1
+    assert isinstance(r[0], dict)
+
+    # Ensure we get an exception
+    with pytest.raises(PowershellError):
+        windows.platform.powershell("CommandletDoes-NotExist")
+
+    # Run from a file descriptor
+    filp = io.BytesIO(b"""$PSVersionTable.PSVersion""")
+    r = windows.platform.powershell(filp)
+    assert len(r) == 1
+    assert isinstance(r[0], dict)

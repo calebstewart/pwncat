@@ -145,7 +145,7 @@ class Path:
         """Returns the name of the group owning the file. KeyError is raised
         if the file's GID isn't found in the system database."""
 
-        return self._target.find_group(id=self.stat().st_gid).name
+        return self._target.session.find_group(id=self.stat().st_gid).name
 
     def is_dir(self) -> bool:
         """Returns True if the path points to a directory (or a symbolic link
@@ -278,7 +278,7 @@ class Path:
         """Return the name of the user owning the file. KeyError is raised if
         the file's uid is not found in the System database"""
 
-        return self._target.find_user(id=self.stat().st_uid).name
+        return self._target.session.find_user(id=self.stat().st_uid).name
 
     def read_bytes(self) -> bytes:
         """Return the binary contents of the pointed-to file as a bytes object"""
