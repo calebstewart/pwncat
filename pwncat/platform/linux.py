@@ -1302,7 +1302,10 @@ class Linux(Platform):
             # Retrieve the response (this may take some time if wrong)
             result = proc.stdout.readline().lower()
 
-            if result == "password: \n":
+            proc.stdin.write("\n")
+            proc.stdin.flush()
+
+            if result.strip() == "":
                 result = proc.stdout.readline().lower()
 
             # Check for keywords indicating failure

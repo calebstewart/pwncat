@@ -17,7 +17,7 @@ echo "[+] centos bind port: $CENTOS_BIND_PORT"
 echo "[+] ubuntu bind port: $UBUNTU_BIND_PORT"
 
 CENTOS_HOST="127.0.0.1" CENTOS_BIND_PORT=$CENTOS_BIND_PORT UBUNTU_HOST="127.0.0.1" UBUNTU_BIND_PORT=$UBUNTU_BIND_PORT \
-    pytest
+    pytest $@
 
 podman container kill "$CENTOS_CONTAINER"""
 echo "[+] killed centos container"
