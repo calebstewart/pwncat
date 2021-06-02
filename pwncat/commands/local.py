@@ -2,7 +2,6 @@
 import subprocess
 
 from pwncat.commands import Complete, CommandDefinition
-from pwncat.commands.base import parameter
 
 
 class Command(CommandDefinition):

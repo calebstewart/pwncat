@@ -1,4 +1,19 @@
-#!/usr/bin/env python3
+"""
+The manager is the core object within pwncat. A manager is responsible for maintaining
+configuration, terminal state, and maintaining all active pwncat sessions. A manager
+can have zero or more sessions active at any given time. It is recommended to create
+a manager through the context manager syntax. In this way, pwncat will automatically
+disconnect from active sessions and perform any required cleanup prior to exiting
+even if there was an uncaught exception. The normal method of creating a manager is:
+
+.. code-block:: python
+
+    with pwncat.manager.Manager() as manager:
+        # Do something with your manager, like set a configuration item
+        # or open a connection
+        session = manager.create_session(platform="linux", host="192.168.1.1", port=4444)
+
+"""
 import os
 import sys
 import fnmatch
@@ -16,6 +31,7 @@ import persistent.list
 from prompt_toolkit.shortcuts import confirm
 
 import pwncat.db
+import pwncat.facts
 import pwncat.modules
 import pwncat.modules.enumerate
 from pwncat.util import RawModeExit, console
@@ -119,7 +135,7 @@ class Session:
 
         self.log("registered new host w/ db")
 
-    def current_user(self) -> pwncat.db.User:
+    def current_user(self) -> pwncat.facts.User:
         """Retrieve the current user object"""
 
         return self.find_user(uid=self.platform.getuid())

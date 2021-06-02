@@ -1,4 +1,18 @@
-#!/usr/bin/env python3
+"""
+Channels represent the basic communication object within pwncat. Each channel
+abstracts a communication method with a target. By default, pwncat implements
+a few standard channels: socket bind/connect and ssh.
+
+A channel largely mimicks a standard socket, however exact compatibility with
+sockets was not the goal. Instead, it provides a low-level communication channel
+between the target and the attacker. Channels make no assumption about protocol
+of the C2 connection. This is the platform's job.
+
+As a user, you will never directly create a channel. Instead, you will call
+:func:`pwncat.manager.Manager.create_session`. This method will in turn
+locate an appropriate channel based on your arguments, and pass all arguments
+to the constructor for the appropriate channel type.
+"""
 import time
 from io import DEFAULT_BUFFER_SIZE, RawIOBase, BufferedReader, BufferedWriter
 from abc import ABC, abstractmethod
@@ -8,7 +22,13 @@ CHANNEL_TYPES = {}
 
 
 class ChannelError(Exception):
-    """ Raised when a channel fails to connect """
+    """Generic failure of a channel operation.
+
+    :param ch: the channel which caused the exception
+    :type ch: Channel
+    :param msg: a message describing the failure
+    :type msg: str
+    """
 
     def __init__(self, ch, msg="generic channel failure"):
         super().__init__(msg)
@@ -16,7 +36,16 @@ class ChannelError(Exception):
 
 
 class ChannelClosed(ChannelError):
-    """ A channel was closed unexpectedly during communication """
+    """A channel was closed unexpectedly during communication. This
+    exception provides a :func:`cleanup` method which will cleanup the
+    channel within the manager to ensure no further errors occur.
+    This method is normally called by the manager itself upon catching
+    the exception, but you should call this method if you intercept
+    and do not re-throw the exception.
+
+    :param ch: the channel which caused the exception
+    :type ch: Channel
+    """
 
     def __init__(self, ch):
         super().__init__(ch, "channel unexpectedly closed")
@@ -35,7 +64,7 @@ class ChannelClosed(ChannelError):
 
 
 class ChannelTimeout(ChannelError):
-    """Raised when a read times out.
+    """A timeout was reached while reading or writing a channel.
 
     :param data: the data read before the timeout occurred
     :type data: bytes
@@ -51,7 +80,19 @@ class ChannelFile(RawIOBase):
     Wrap a channel in a file-like object. Mainly used for process IO by
     the platform wrappers. It enables platforms to quickly create a file-like
     object which is bounded by a delimeter and can be returned to the user
-    safely.
+    safely. You will not normally create this class directly, but should use
+    the func:`Channel.makefile`` method instead.
+
+    :param channel: the channel to which we bind the file
+    :type channel: Channel
+    :param mode: a file mode (e.g. "r" or "w")
+    :type mode: str
+    :param sof: start of file delimeter; we will recv until this before returning.
+    :type sof: Optional[bytes]
+    :param eof: end of file delimeter; eof will be set after seeing this bytestr
+    :type eof: Optional[bytes]
+    :param on_close: a method to call before closing the file
+    :type on_close: Callable[[Channel], None]
     """
 
     def __init__(
@@ -60,8 +101,6 @@ class ChannelFile(RawIOBase):
         mode: str,
         sof: Optional[bytes] = None,
         eof: Optional[bytes] = None,
-        text: Optional[bool] = False,
-        encoding: str = "utf-8",
         on_close=None,
     ):
         self.channel = channel
@@ -73,19 +112,13 @@ class ChannelFile(RawIOBase):
         self.eof = False
         self._blocking = True
 
-        if not text:
-            self.mode += "b"
-
-        # Ignored if text == False, but saved none the less
-        self.encoding = encoding
-
         if self.sof_marker is not None and "r" in self.mode:
             self.channel.recvuntil(self.sof_marker)
             self.found_sof = True
 
     @property
     def blocking(self) -> bool:
-        """ Indicates whether to act like a blocking file or not """
+        """ Indicates whether to act like a blocking file or not. """
         return self._blocking
 
     @blocking.setter
@@ -93,12 +126,15 @@ class ChannelFile(RawIOBase):
         self._blocking = value
 
     def readable(self) -> bool:
+        """ Test if this is a readable file. """
         return "r" in self.mode
 
     def writable(self) -> bool:
+        """ Test if this is writable file. """
         return "w" in self.mode
 
     def close(self):
+        """ Close the file for reading/writing. This method calls the on_close hook. """
 
         if self.eof:
             return
@@ -122,6 +158,11 @@ class ChannelFile(RawIOBase):
         return data
 
     def readinto(self, b: Union[memoryview, bytearray]):
+        """Read as much data as possible into the given bytearray or memory view.
+
+        :param b: the buffer data into
+        :type b: Union[memoryview, bytearray]
+        """
 
         # If we already hit EOF, don't read anymore
         if self.eof:
@@ -185,6 +226,11 @@ class ChannelFile(RawIOBase):
         return n
 
     def write(self, data: bytes):
+        """Write the given data to the channel
+
+        :param data: the data to write to the channel
+        :type data: bytes
+        """
 
         if self.eof:
             return 0
@@ -291,19 +337,19 @@ class Channel(ABC):
     def recv(self, count: Optional[int] = None) -> bytes:
         """Receive data from the remote shell
 
-        If your channel class does not implement ``peak``, a default
-        implementation is provided. In this case, you can use the
-        ``_pop_peek`` to get available peek buffer data prior to
-        reading data like a normal ``recv``.
+        If your channel class does not implement ``peek``, a default
+        implementation is provided. If you provide a custom recv, but
+        use the default :func:`peek` you must return data from
+        ``self.peek_buffer`` prior to call ``recv``.
 
         :param count: maximum number of bytes to receive (default: unlimited)
         :type count: int
         :return: the data that was received
         :rtype: bytes
         """
-        return b""
 
     def drain(self):
+        """ Drain any buffered data until there is nothing left """
 
         while True:
             data = self.recv(4096)
@@ -311,7 +357,7 @@ class Channel(ABC):
                 break
 
     def recvuntil(self, needle: bytes, timeout: Optional[float] = None) -> bytes:
-        """Receive data until the specified string of bytes is bytes
+        """Receive data until the specified string of bytes is found
         is found. The needle is not stripped from the data. This is a
         default implementation which utilizes the ``recv`` method.
         You can override this if your underlying transport provides a
@@ -441,10 +487,6 @@ class Channel(ABC):
         :type sof: bytes
         :param eof: a string of bytes which indicate the end of file
         :type eof: bytes
-        :param text: whether to produce a text-mode file-like object
-        :type text: bool
-        :param encoding: the encoding used when creating a text-mode file
-        :type encoding: str
         :return: A file-like object suitable for the specified mode
         :rtype: Union[BinaryIO, TextIO]
         :raises:
@@ -476,12 +518,12 @@ class Channel(ABC):
         """Get a representation of this channel. The resulting string
         will be passed through ``rich`` output, so it can contain tags
         to affect styling and/or color. The default implementation returns
-        ``remote_adddress:remote_port``"""
+        ``remote_address:remote_port``"""
 
         return f"[cyan]{self.address[0]}[/cyan]:[blue]{self.address[1]}[/blue]"
 
 
-def register(name: str, channel_class):
+def register(name: str, channel_class: Type[Channel]):
     """
     Register a new channel class with ``pwncat``.
 
@@ -507,7 +549,7 @@ def find(name: str) -> Type[Channel]:
     return CHANNEL_TYPES[name]
 
 
-def create(protocol: Optional[str] = None, **kwargs):
+def create(protocol: Optional[str] = None, **kwargs) -> Channel:
     """
     Create a new channel with the class provided by a registered channel
     protocol. Some assumptions are made if the protocol is not specified.

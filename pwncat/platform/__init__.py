@@ -1,4 +1,32 @@
-#!/usr/bin/env python3
+"""
+A platform is the pwncat abstraction for an OS or specific distribution. In general,
+this abstraction allows pwncat to generically interact with targets at the OS level.
+For example, a platform provides a ``pathlib.Path`` implementation which provides
+seamless file access. A platform also defines ways to query environment variables,
+get the current user ID and name and generically start processes.
+
+An individual platform must define a set of methods within it's ``Platform`` class
+for file abstraction, process abstraction, and user abstraction. These methods are
+then used by the generic ``Path`` and ``Popen`` classes to abstract interaction
+with the target.
+
+Normally, you can access a platform through a session. Every session has a platform
+property which returns a platform-specific implementation of the core methods outlined
+below.
+
+pathlib-like File Abstraction
+-----------------------------
+
+Each platform sets the ``Path`` property to a class which glues our generic ``Path``
+class below to either ``PureWindowsPath`` or ``PureLinuxPath``. You can construct
+a session-specific path object by utilizing the ``session.platform.Path`` property.
+
+.. code-block:: python
+
+    path = session.platform.Path("/etc/passwd")
+    print(path.read_text())
+
+"""
 import os
 import sys
 import enum
@@ -11,11 +39,12 @@ from abc import ABC, abstractmethod
 from typing import List, Type, Union, BinaryIO, Optional, Generator
 from subprocess import CalledProcessError
 
+from rich.logging import RichHandler
+
 import pwncat
 import pwncat.channel
 import pwncat.subprocess
 from pwncat.util import console
-from rich.logging import RichHandler
 
 PLATFORM_TYPES = {}
 """ A dictionary of platform names mapping to their class

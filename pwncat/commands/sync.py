@@ -3,7 +3,7 @@ import os
 
 import pwncat
 from pwncat.util import console
-from pwncat.commands.base import Complete, Parameter, CommandDefinition
+from pwncat.commands import Complete, Parameter, CommandDefinition
 
 
 class Command(CommandDefinition):

@@ -73,8 +73,7 @@ well. Pull requests are always welcome!
     privesc.rst
     persist.rst
     commands/index.rst
-    extending/index.rst
-    api/modules.rst
+    api/pwncat.rst
 
 Indices and tables
 ==================

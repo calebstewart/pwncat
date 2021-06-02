@@ -1,4 +1,11 @@
-#!/usr/bin/env python3
+"""
+The gtfobins module provides an abstract interface into the GTFOBins database.
+The GTFOBins database maps binaries to special permissions which could be used
+for privilege escalation (among other things). Internally, pwncat uses this
+database to identify ways to read/write files as well as during escalation
+with things like SETUID binaries and sudo rules. A full list of all supported
+binaries can be seen in ``pwncat/data/gtfobins.json``.
+"""
 import io
 import os
 import shlex

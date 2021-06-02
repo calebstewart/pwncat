@@ -1,4 +1,6 @@
-#!/usr/bin/env python3
+"""
+Various utility methods and classes which don't fit in any other modules or packages.
+"""
 import os
 import re
 import sys
@@ -223,38 +225,6 @@ def copyfileobj(src, dst, callback, nomv=False):
                 callback(n)
 
 
-def with_progress(title: str, target: Callable[[Callable], None], length: int = None):
-    """A shortcut to displaying a progress bar for various things. It will
-    start a prompt_toolkit progress bar with the given title and a counter
-    with the given length. Then, it will call `target` with an `on_progress`
-    parameter. This parameter should be called for all progress updates. See
-    the `do_upload` and `do_download` for examples w/ copyfileobj"""
-
-    with ProgressBar(title) as pb:
-        counter = pb(range(length))
-        last_update = time.time()
-
-        def on_progress(blocksz):
-            """ Update the progress bar """
-            if blocksz == -1:
-                counter.stopped = True
-                counter.done = True
-                pb.invalidate()
-                return
-
-            counter.items_completed += blocksz
-            if counter.items_completed >= counter.total:
-                counter.done = True
-                counter.stopped = True
-            if (time.time() - last_update) > 0.1:
-                pb.invalidate()
-
-        target(on_progress)
-
-        # https://github.com/prompt-toolkit/python-prompt-toolkit/issues/964
-        time.sleep(0.1)
-
-
 def random_string(length: int = 8):
     """ Create a random alphanumeric string """
     return random.choice(string.ascii_letters) + "".join(
@@ -377,36 +347,3 @@ def get_ip_addr() -> str:
                 return a["addr"]
 
     return None
-
-
-LAST_LOG_MESSAGE = ("", False)
-PROG_ANIMATION = "/-\\"
-LAST_PROG_ANIM = -1
-
-
-def erase_progress():
-    raise RuntimeError("new-logging: please use the rich module for logging")
-
-
-def log(level, message, overlay=False):
-    raise RuntimeError("new-logging: please use the rich module for logging")
-
-
-def info(message, overlay=False):
-    log("info", message, overlay)
-
-
-def warn(message, overlay=False):
-    log("warn", message, overlay)
-
-
-def error(message, overlay=False):
-    log("error", message, overlay)
-
-
-def success(message, overlay=False):
-    log("success", message, overlay)
-
-
-def progress(message, overlay=True):
-    log("prog", message, overlay)

@@ -7,7 +7,7 @@ from rich.table import Table
 from pwncat.util import console
 from rich.progress import Progress
 from pwncat.modules import ModuleFailed
-from pwncat.commands.base import Complete, Parameter, CommandDefinition
+from pwncat.commands import Complete, Parameter, CommandDefinition
 
 
 class Command(CommandDefinition):

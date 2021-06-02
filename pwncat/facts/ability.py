@@ -1,9 +1,16 @@
-#!/usr/bin/env python3
+"""
+Classes implementing specific abilities. Abilities provide access to specific
+actions as a different user. They are used when escalating privileges. Basic
+ability types are defined such as file read, file write and shell execution.
+This module also defines classes and methods which make building abilities
+from GTFOBins methods simpler, since they are used in multiple places within
+pwncat.
+"""
 import shlex
 import functools
 import subprocess
 from io import TextIOWrapper
-from typing import IO, Any, Callable
+from typing import IO, Any, Union, Callable, Optional
 
 import pwncat.subprocess
 from pwncat.db import Fact
@@ -13,12 +20,26 @@ from pwncat.platform.linux import LinuxReader, LinuxWriter
 
 def build_gtfo_ability(
     source: str,
-    uid: Any,
+    uid: Union[int, str],
     method: "pwncat.gtfobins.MethodWrapper",
-    source_uid=None,
+    source_uid: Optional[Union[int, str]] = None,
     **kwargs,
-):
-    """ Build a escalation ability from a GTFOBins method """
+) -> Union["GTFOFileRead", "GTFOFileWrite", "GTFOExecute"]:
+    """Build a escalation ability from a GTFOBins method. This will return
+    one of of the GTFO ability classes based on the capabilties exposed by
+    the given GTFOBins method.
+
+    :param source: the generating module
+    :type source: str
+    :param uid: the user ID of the target user
+    :type uid: Union[int, str]
+    :param method: the GTFObins method to use
+    :type method: pwncat.gtfobins.MethodWrapper
+    :param source_uid: the user ID of the required starting user (or None if it does not matter)
+    :type source_uid: Optional[Union[int, str]]
+    :param \*\*kwargs: keyword arguments passed to the GTFOBins method builder
+    :rtype: Union[GTFOFileRead, GTFOFileWrite, GTFOExecute]
+    """
 
     if method.cap == Capability.READ:
         return GTFOFileRead(
@@ -40,9 +61,19 @@ def build_gtfo_ability(
 
 
 class FileReadAbility(Fact):
-    """Ability to read a file as a different user"""
+    """Represents the ability to read a file as a different user
 
-    def __init__(self, source, source_uid, uid):
+    :param source: generating module name
+    :type source: str
+    :param source_uid: the starting UID or None if it doesnt matter
+    :type source_uid: Optional[Union[int, str]]
+    :param uid: the target UID
+    :type uid: Union[int, str]
+    """
+
+    def __init__(
+        self, source: str, source_uid: Optional[Union[int, str]], uid: Union[int, str]
+    ):
         super().__init__(types=["ability.file.read"], source=source)
 
         self.uid = uid
@@ -59,13 +90,24 @@ class FileReadAbility(Fact):
         newline: str = None,
     ) -> IO:
         """Open a file for reading. This method mimics the builtin open
-        function, and returns a file-like object for reading."""
+        function, and returns a file-like object for reading as the
+        target user."""
 
 
 class FileWriteAbility(Fact):
-    """Ability to write a file as a different user"""
+    """Represents the ability to write a file as a different user
 
-    def __init__(self, source, source_uid, uid):
+    :param source: generating module name
+    :type source: str
+    :param source_uid: the starting UID or None if it doesnt matter
+    :type source_uid: Optional[Union[int, str]]
+    :param uid: the target UID
+    :type uid: Union[int, str]
+    """
+
+    def __init__(
+        self, source: str, source_uid: Optional[Union[int, str]], uid: Union[int, str]
+    ):
         super().__init__(types=["ability.file.write"], source=source)
 
         self.uid = uid
@@ -82,13 +124,24 @@ class FileWriteAbility(Fact):
         newline: str = None,
     ) -> IO:
         """Open a file for writing. This method mimics the builtin open
-        function and returns a file-like object for writing."""
+        function and returns a file-like object for writing as the
+        target user."""
 
 
 class ExecuteAbility(Fact):
-    """Ability to execute a binary as a different user"""
+    """Represents the ability to execute a shell as a different user.
 
-    def __init__(self, source, source_uid, uid):
+    :param source: generating module name
+    :type source: str
+    :param source_uid: the starting UID or None if it doesnt matter
+    :type source_uid: Optional[Union[int, str]]
+    :param uid: the target UID
+    :type uid: Union[int, str]
+    """
+
+    def __init__(
+        self, source: str, source_uid: Optional[Union[int, str]], uid: Union[int, str]
+    ):
         super().__init__(types=["ability.execute"], source=source)
 
         self.source_uid = source_uid
@@ -106,9 +159,19 @@ class ExecuteAbility(Fact):
 
 
 class SpawnAbility(Fact):
-    """Ability to spawn a new process as a different user without communications"""
+    """Represents the ability to spawn a non-interactive process as another user.
 
-    def __init__(self, source, source_uid, uid):
+    :param source: generating module name
+    :type source: str
+    :param source_uid: the starting UID or None if it doesnt matter
+    :type source_uid: Optional[Union[int, str]]
+    :param uid: the target UID
+    :type uid: Union[int, str]
+    """
+
+    def __init__(
+        self, source: str, source_uid: Optional[Union[int, str]], uid: Union[int, str]
+    ):
         super().__init__(types=["ability.spawn"], source=source)
 
         self.source_uid = source_uid
@@ -125,9 +188,27 @@ class SpawnAbility(Fact):
 
 
 class GTFOFileRead(FileReadAbility):
-    """Utilize a GTFO Method Wrapper to implement the FileReadAbility"""
+    """Utilize a GTFO Method Wrapper to implement the FileReadAbility.
 
-    def __init__(self, source, source_uid, uid, method, **kwargs):
+    :param source: generating module name
+    :type source: str
+    :param source_uid: the starting UID or None if it doesnt matter
+    :type source_uid: Optional[Union[int, str]]
+    :param uid: the target UID
+    :type uid: Union[int, str]
+    :param method: the gtfobins method to utilize
+    :type method: pwncat.gtfobins.MethodWrapper
+    :param \*\*kwargs: keyword arguments passed to the method builder
+    """
+
+    def __init__(
+        self,
+        source: str,
+        source_uid: Optional[Union[int, str]],
+        uid: Union[int, str],
+        method: "pwncat.gtfobins.MethodWrapper",
+        **kwargs,
+    ):
         super().__init__(source=source, source_uid=source_uid, uid=uid)
 
         self.method = method
@@ -204,9 +285,27 @@ class GTFOFileRead(FileReadAbility):
 
 
 class GTFOFileWrite(FileWriteAbility):
-    """Utilize a GTFO Method Wrapper to implement the FileWriteAbility"""
+    """Utilize a GTFO Method Wrapper to implement the FileWriteAbility
 
-    def __init__(self, source, source_uid, uid, method, **kwargs):
+    :param source: generating module name
+    :type source: str
+    :param source_uid: the starting UID or None if it doesnt matter
+    :type source_uid: Optional[Union[int, str]]
+    :param uid: the target UID
+    :type uid: Union[int, str]
+    :param method: the gtfobins method to utilize
+    :type method: pwncat.gtfobins.MethodWrapper
+    :param \*\*kwargs: keyword arguments passed to the method builder
+    """
+
+    def __init__(
+        self,
+        source: str,
+        source_uid: Optional[Union[int, str]],
+        uid: Union[int, str],
+        method: "pwncat.gtfobins.MethodWrapper",
+        **kwargs,
+    ):
         super().__init__(source=source, source_uid=source_uid, uid=uid)
 
         self.method = method
@@ -283,9 +382,27 @@ class GTFOFileWrite(FileWriteAbility):
 
 
 class GTFOExecute(ExecuteAbility):
-    """Execute a remote binary with a given GTFObins capability"""
+    """Execute a remote binary with a given GTFObins capability
 
-    def __init__(self, source, source_uid, uid, method, **kwargs):
+    :param source: generating module name
+    :type source: str
+    :param source_uid: the starting UID or None if it doesnt matter
+    :type source_uid: Optional[Union[int, str]]
+    :param uid: the target UID
+    :type uid: Union[int, str]
+    :param method: the gtfobins method to utilize
+    :type method: pwncat.gtfobins.MethodWrapper
+    :param \*\*kwargs: keyword arguments passed to the method builder
+    """
+
+    def __init__(
+        self,
+        source: str,
+        source_uid: Optional[Union[int, str]],
+        uid: Union[int, str],
+        method: "pwncat.gtfobins.MethodWrapper",
+        **kwargs,
+    ):
         super().__init__(source=source, source_uid=source_uid, uid=uid)
 
         self.method = method

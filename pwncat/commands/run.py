@@ -4,7 +4,7 @@ import textwrap
 import pwncat
 import pwncat.modules
 from pwncat.util import console
-from pwncat.commands.base import (
+from pwncat.commands import (
     Complete,
     Parameter,
     CommandDefinition,

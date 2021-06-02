@@ -1,16 +1,38 @@
-#!/usr/bin/env python3
+"""
+This is the base class for all socket-based channels. Both bind and
+connect protocols utilize this base class. You can also programmatically
+utilize this class to instantiate a session via an established socket.
+
+.. code-block:: python
+
+    # Manually connect to a service and trigger a shell on the same socket
+    sock = socket.create_connection(("192.168.1.1", 1337))
+
+    # Create a manager
+    with pwncat.manager.Manager() as manager:
+        # Create a pwncat session around our socket
+        session = manager.create_connection(platform="linux", protocol="socket", client=sock)
+        manager.interactive()
+"""
 import os
 import errno
 import fcntl
 import socket
+import functools
 from typing import Optional
 
-from pwncat.util import console
 from rich.progress import Progress, BarColumn
+
+from pwncat.util import console
 from pwncat.channel import Channel, ChannelError, ChannelClosed
 
 
 def connect_required(method):
+    """Channel method decorator which verifies that the channel
+    is connected prior to executing the wrapped method. If the
+    channel is not connected, a :class:`ChannelError` is raised."""
+
+    @functools.wraps(method)
     def _wrapper(self, *args, **kwargs):
         if not self.connected:
             raise ChannelError(self, "channel not connected")

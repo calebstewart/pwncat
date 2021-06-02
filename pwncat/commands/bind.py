@@ -6,7 +6,7 @@ from colorama import Fore
 from pwncat.util import console
 from pwncat.config import KeyType
 from prompt_toolkit.keys import ALL_KEYS, Keys
-from pwncat.commands.base import Complete, Parameter, CommandDefinition
+from pwncat.commands import Complete, Parameter, CommandDefinition
 from prompt_toolkit.input.ansi_escape_sequences import REVERSE_ANSI_SEQUENCES
 
 

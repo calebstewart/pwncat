@@ -1,5 +1,12 @@
-#!/usr/bin/env python3
+"""
+Tampers are modifications which we knowingly made to the target host.
+pwncat tracks tampers wherever it can in order to warn the user that
+modifications have been made, and in some cases provide the ability
+to revert those modifications. This is not foolproof, but provides
+some ability to track your changes when on target.
+"""
 import datetime
+from typing import Union, Optional
 
 from pwncat.db import Fact
 from pwncat.modules import ModuleFailed
@@ -13,11 +20,17 @@ class Tamper(Fact):
     :param source: a string describing the module or routine that generated the tamper
     :type source: str
     :param uid: the user ID needed to revert the tamper
+    :type uid: Union[int, str]
     :param timestamp: the datetime that this change occurred
-    :type timestamp: datetime.datetime
+    :type timestamp: Optional[datetime.datetime]
     """
 
-    def __init__(self, source, uid, timestamp=None):
+    def __init__(
+        self,
+        source: str,
+        uid: Union[int, str],
+        timestamp: Optional[datetime.datetime] = None,
+    ):
         super().__init__(source=source, types=["tamper"])
 
         self.uid = uid
@@ -26,9 +39,15 @@ class Tamper(Fact):
 
     @property
     def revertable(self):
+        """ Test if this tamper is currently revertable """
         return False
 
     def revert(self, session: "pwncat.manager.Session"):
+        """Attempt to revert the tamper through the given session.
+
+        :param session: the session on which to operate
+        :type session: pwncat.manager.Session
+        """
         raise ModuleFailed("not reverable")
 
     def _annotate_title(self, session, title):
@@ -53,15 +72,23 @@ class ReplacedFile(Tamper):
     :param source: generating module or routine
     :type source: str
     :param uid: UID needed to revert
+    :type uid: Union[int, str]
     :param path: path to replaced file
-    :type path: str or Path-like
+    :type path: str
     :param data: the original data in the file
-    :type data: str, bytes or None
+    :type data: Optional[Union[str, bytes]]
     :param timestamp: the datetime that this change occurred
-    :type timestamp: datetime.datetime
+    :type timestamp: Optional[datetime.datetime]
     """
 
-    def __init__(self, source, uid, path, data, timestamp=None):
+    def __init__(
+        self,
+        source: str,
+        uid: Union[int, str],
+        path: str,
+        data: Optional[Union[str, bytes]],
+        timestamp: Optional[datetime.datetime] = None,
+    ):
         super().__init__(source, uid, timestamp=timestamp)
 
         if isinstance(data, str):
@@ -100,9 +127,26 @@ class ReplacedFile(Tamper):
 
 
 class CreatedFile(Tamper):
-    """ Tracks a new file created on the target """
+    """Tracks a new file created on the target. This is normally
+    revertable as we just need to delete the file.
 
-    def __init__(self, source, uid, path, timestamp=None):
+    :param source: generating module or routine
+    :type source: str
+    :param uid: UID needed to revert
+    :type uid: Union[int, str]
+    :param path: path to replaced file
+    :type path: str
+    :param timestamp: the datetime that this change occurred
+    :type timestamp: Optional[datetime.datetime]
+    """
+
+    def __init__(
+        self,
+        source: str,
+        uid: Union[int, str],
+        path: str,
+        timestamp: Optional[datetime.datetime] = None,
+    ):
         super().__init__(source, uid, timestamp=timestamp)
 
         self.path = path
@@ -131,9 +175,25 @@ class CreatedFile(Tamper):
 
 class CreatedDirectory(Tamper):
     """Tracks a new directory created on the target. The entire
-    directory will be deleted upon reversion"""
+    directory will be deleted upon revert.
 
-    def __init__(self, source, uid, path, timestamp=None):
+    :param source: generating module or routine
+    :type source: str
+    :param uid: UID needed to revert
+    :type uid: Union[int, str]
+    :param path: path to replaced file
+    :type path: str
+    :param timestamp: the datetime that this change occurred
+    :type timestamp: Optional[datetime.datetime]
+    """
+
+    def __init__(
+        self,
+        source: str,
+        uid: Union[int, str],
+        path: str,
+        timestamp: Optional[datetime.datetime] = None,
+    ):
         super().__init__(source, uid, timestamp=timestamp)
 
         self.path = path

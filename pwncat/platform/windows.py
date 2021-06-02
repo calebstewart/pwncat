@@ -1,4 +1,18 @@
-#!/usr/bin/env python3
+"""
+This platform supports interaction with a Windows target where either a cmd.exe
+or powershell.exe stdio is connected directly to the active channel. pwncat will
+utilize the C2 libraries located at `pwncat-windows-c2 <https://github.com/calebstewart/pwncat-windows-c2>`_
+This will be automatically downloaded to the directory identified by the
+``windows_c2_dir`` configuration which defaults to ``~/.local/share/pwncat/``.
+It will be uploaded and executed via ``Install-Util`` in order to automatically
+bypass AppLocker, and will provide you an unlogged, unconstrained powershell
+session as well as basic process and file IO routines.
+
+When operating in a platform-specific environment, you can safely execute multiple
+processes and open multiple files with this platform. However, you should be
+careful to cleanup all processes and files prior to return from your method
+or code as the C2 will not attempt to garbage collect file or proces handles.
+"""
 import os
 import sys
 import gzip
@@ -13,16 +27,23 @@ import termios
 import readline
 import textwrap
 import subprocess
-from io import (BytesIO, StringIO, RawIOBase, TextIOWrapper, BufferedIOBase,
-                UnsupportedOperation)
+from io import (
+    BytesIO,
+    StringIO,
+    RawIOBase,
+    TextIOWrapper,
+    BufferedIOBase,
+    UnsupportedOperation,
+)
 from typing import List, Union, BinaryIO, Optional
 from subprocess import TimeoutExpired, CalledProcessError
 from dataclasses import dataclass
 
-import pwncat
 import requests
-import pwncat.util
 import pkg_resources
+
+import pwncat
+import pwncat.util
 import pwncat.subprocess
 from pwncat.platform import Path, Platform, PlatformError
 

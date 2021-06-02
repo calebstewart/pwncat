@@ -2,7 +2,7 @@
 
 from pwncat.util import console
 from pwncat.modules import ModuleFailed
-from pwncat.commands.base import Complete, Parameter, CommandDefinition
+from pwncat.commands import Complete, Parameter, CommandDefinition
 
 
 def get_user_choices(command: CommandDefinition):

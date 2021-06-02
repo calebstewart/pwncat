@@ -1,4 +1,9 @@
-#!/usr/bin/env python3
+"""
+A target is the data structure stored in the ZODB. It contains all enumerated
+facts, installed implants, unique ID, last remote address identified and other
+information needed across pwncat sessions to identify or interact with a target.
+No information in this object is specific to a connection protocol or session.
+"""
 import enum
 from typing import List, Tuple, Optional
 

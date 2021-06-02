@@ -5,7 +5,7 @@ import pwncat
 from rich import box
 from rich.table import Table
 from pwncat.util import console
-from pwncat.commands.base import (Complete, Parameter, CommandDefinition,
+from pwncat.commands import (Complete, Parameter, CommandDefinition,
                                   get_module_choices)
 
 

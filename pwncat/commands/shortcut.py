@@ -1,6 +1,6 @@
 import pwncat
 from pwncat.commands import CommandDefinition
-from pwncat.commands.base import Complete, Parameter
+from pwncat.commands import Complete, Parameter
 
 
 class Command(CommandDefinition):

@@ -1,4 +1,12 @@
-#!/usr/bin/env python3
+"""
+A socket bind channel. This is slightly counter-intuitive. In this case
+``bind`` is from an attacker standpoint. The attacking machine will bind, and
+listing for connections from the target. In this case, the target payload
+would have been a reverse shell payload.
+
+The only required argument for a bind channel is the port number. By default,
+the channel will listen on all interfaces (bound to ``0.0.0.0``).
+"""
 import socket
 from typing import Optional
 

@@ -1,4 +1,15 @@
-#!/usr/bin/env python3
+"""
+The Linux platform provides Linux shell support ontop of any channel.
+The Linux platfrom expects the channel to expose a shell whose stdio
+is connected directly to the channel IO. At a minimum stdin and stdout
+must be connected.
+
+Because of the way this platform interacts with the shell directly,
+it is not able to manage multiple active processes. Only as single
+Popen can be running at a time. It is imperative that you call
+``Popen.wait`` or wait for ``Popen.poll`` to return non-Null prior
+to calling any other pwncat methods.
+"""
 import os
 import sys
 import time
@@ -12,12 +23,12 @@ from io import TextIOWrapper, BufferedIOBase, UnsupportedOperation
 from typing import List, Union, BinaryIO, Optional, Generator
 from subprocess import TimeoutExpired, CalledProcessError
 
-import pwncat
 import pkg_resources
+
+import pwncat
 import pwncat.channel
 import pwncat.subprocess
 from pwncat import util
-from pwncat.db import User, Group
 from pwncat.gtfobins import Stream, GTFOBins, Capability, MissingBinary
 from pwncat.platform import Path, Platform, PlatformError
 

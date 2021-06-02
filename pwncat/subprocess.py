@@ -1,4 +1,18 @@
-#!/usr/bin/env python3
+"""
+This provides a subprocess-compatible definition of an internal pwncat
+Popen object. A pwncat Popen object wraps a remote process in a local
+manager which provides an almost-identical interface as the builtin
+subprocess module.
+
+.. note::
+
+    Depending on the platform you are connected to, you may only be
+    able to run a single process at a time. Because of this, you
+    should always ensure the process properly exits and you call
+    ``Popen.wait()`` or recieve a non-None result from ``Popen.poll()``
+    before calling other pwncat methods.
+
+"""
 import io
 from typing import IO, List, Optional
 from subprocess import (

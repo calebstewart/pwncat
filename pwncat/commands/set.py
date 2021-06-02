@@ -2,7 +2,7 @@
 import pwncat
 from colorama import Fore
 from pwncat.util import State, console
-from pwncat.commands.base import Complete, Parameter, CommandDefinition
+from pwncat.commands import Complete, Parameter, CommandDefinition
 
 
 class Command(CommandDefinition):

@@ -1,4 +1,11 @@
-#!/usr/bin/env python3
+"""
+Connect to a listening target server. This is slightly counter intuitive.
+In this case, we are referring to connecting from the attacker perspective.
+The victim would have received a bind shell payload, and is listening for
+connection on a known port.
+
+The only required arguments are ``host`` and ``port``.
+"""
 import os
 import errno
 import fcntl
@@ -14,9 +21,8 @@ from pwncat.channel.socket import Socket
 class Connect(Socket):
     """
     Implements a channel which rides over a shell attached
-    directly to a socket. This channel will listen for incoming
-    connections on the specified port, and assume the resulting
-    connection is a shell from the victim.
+    directly to a socket. This channel will connect to a
+    target at the specified host and port, and assume a shell is connected.
     """
 
     def __init__(self, host: str, port: int, **kwargs):

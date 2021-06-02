@@ -1,4 +1,39 @@
-#!/usr/bin/env python3
+"""
+This module implements the command parser, lexer, highlighter, etc for pwncat.
+Each command is defined as an individual module under ``pwncat/commands`` which
+defines a ``Command`` class that inherits from :class:`pwncat.commands.CommandDefinition`.
+
+Each command is capable of specifying the expected arguments similar to the way
+they specified with argparse. Internally, we use the :class:`Parameter` definitions
+to build an ``argparse`` parser. We also use them to build a lexer capable of
+automatic syntax highlighting at the prompt.
+
+To define a new command, simple create a new module under ``pwncat/commands`` and
+define a class named ``Command``.
+
+Example Custom Command
+----------------------
+
+.. code-block:: python
+    :caption: A Custom Command Placed in ``pwncat/commands``
+
+    class Command(CommandDefinition):
+        \""" Command documentation placed in the docstring \"""
+
+        PROG = "custom"
+        ARGS = {
+            "--option,-o": Parameter(Complete.NONE, help="help info", action="store_true"),
+            "positional": Parameter(
+                Complete.CHOICES,
+                metavar="POSITIONAL",
+                choices=["hello", "world"],
+                help="help information",
+            ),
+        }
+
+        def run(self, manager: "pwncat.manager.Manager", args: "argparse.Namespace"):
+            manager.log("we ran a custom command!")
+"""
 import os
 import re
 import sys
@@ -12,7 +47,8 @@ import traceback
 from io import TextIOWrapper
 from enum import Enum, auto
 from pprint import pprint
-from typing import Any, Dict, List, Type, TextIO, Iterable
+from typing import Any, Dict, List, Type, TextIO, Callable, Iterable
+from functools import partial
 
 import rich.text
 from colorama import Fore
@@ -44,7 +80,269 @@ import pwncat
 import pwncat.db
 from pwncat.util import State, console
 from pwncat.channel import ChannelClosed
-from pwncat.commands.base import Complete, CommandDefinition
+
+
+class Complete(Enum):
+    """
+    Command argument completion options. This defines how tab completion
+    works for an individual command parameter/argument. If you choose to
+    use the ``CHOICES`` type, you must specify the argparse ``choices``
+    argument to the :class:`Parameter` constructor. This argument can
+    either be an iterable or a callable which returns a generator. The
+    callable takes as an argument the manager. This allows you to have
+    contextual tab completions if needed.
+    """
+
+    CHOICES = auto()
+    """ Complete argument from the list of choices specified in ``choices`` parameter """
+    LOCAL_FILE = auto()
+    """ Complete argument as a local file path """
+    REMOTE_FILE = auto()
+    """ Complete argument as a remote file path """
+    NONE = auto()
+    """ Do not provide argument completions """
+
+
+class StoreConstOnce(argparse.Action):
+    """Only allow the user to store a value in the destination once. This prevents
+    users from selection multiple actions in the privesc parser."""
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        if hasattr(self, "__" + self.dest + "_seen"):
+            raise argparse.ArgumentError(self, "only one action may be specified")
+        setattr(namespace, "__" + self.dest + "_seen", True)
+        setattr(namespace, self.dest, self.const)
+
+
+def StoreForAction(action: List[str]) -> Callable:
+    """Generates a custom argparse Action subclass which verifies that the current
+    selected "action" option is one of the provided actions in this function. If
+    not, an error is raised."""
+
+    class StoreFor(argparse.Action):
+        """Store the value if the currently selected action matches the list of
+        actions passed to this function."""
+
+        def __call__(self, parser, namespace, values, option_string=None):
+            if getattr(namespace, "action", None) not in action:
+                raise argparse.ArgumentError(
+                    self,
+                    f"{option_string}: only valid for {action}",
+                )
+
+            setattr(namespace, self.dest, values)
+
+    return StoreFor
+
+
+def StoreConstForAction(action: List[str]) -> Callable:
+    """Generates a custom argparse Action subclass which verifies that the current
+    selected "action" option is one of the provided actions in this function. If
+    not, an error is raised. This stores the constant `const` to the `dest` argument.
+    This is comparable to `store_const`, but checks that you have selected one of
+    the specified actions."""
+
+    class StoreFor(argparse.Action):
+        """Store the value if the currently selected action matches the list of
+        actions passed to this function."""
+
+        def __call__(self, parser, namespace, values, option_string=None):
+            if getattr(namespace, "action", None) not in action:
+                raise argparse.ArgumentError(
+                    self,
+                    f"{option_string}: only valid for {action}",
+                )
+
+            setattr(namespace, self.dest, self.const)
+
+    return StoreFor
+
+
+def get_module_choices(command):
+    """Yields a list of module choices to be used with command argument
+    choices to select a valid module for the current target. For example
+    you could use ``Parameter(Complete.CHOICES, choices=get_module_choices)``"""
+
+    if command.manager.target is None:
+        return
+
+    yield from [
+        module.name.removeprefix("agnostic.").removeprefix(
+            command.manager.target.platform.name + "."
+        )
+        for module in command.manager.target.find_module("*")
+    ]
+
+
+class Parameter:
+    """Generic parameter definition for commands.
+
+    This class allows you to specify the syntax highlighting, tab completion
+    and argparse settings for a command parameter in on go. The ``complete``
+    argument tells pwncat how to tab complete your argument. The ``token``
+    argument is normally ommitted but can be used to change the pygments
+    syntax highlighting for your argument. All other arguments are passed
+    directly to ``argparse`` when constructing the parser.
+
+    :param complete: the completion type
+    :type complete: Complete
+    :param token: the Pygments token to highlight this argument with
+    :type token: Pygments Token
+    :param group: true for a group definition, a string naming the group to be a part of, or none
+    :param mutex: for group definitions, indicates whether this is a mutually exclusive group
+    :param args: positional arguments for ``add_argument`` or ``add_argument_group``
+    :param kwargs: keyword arguments for ``add_argument`` or ``add_argument_group``
+    """
+
+    def __init__(
+        self,
+        complete: Complete,
+        token=Name.Label,
+        group: str = None,
+        *args,
+        **kwargs,
+    ):
+        self.complete = complete
+        self.token = token
+        self.group = group
+        self.args = args
+        self.kwargs = kwargs
+
+
+class Group:
+    """
+    This just wraps the parameters to the add_argument_group and add_mutually_exclusive_group
+    """
+
+    def __init__(self, mutex: bool = False, **kwargs):
+        self.mutex = mutex
+        self.kwargs = kwargs
+
+
+class CommandDefinition:
+    """
+    Generic structure for a local command.
+
+    The docstring for your command class becomes the long-form help for your command.
+    See the above example for a complete custom command definition.
+
+    :param manager: the controlling manager for this command
+    :type manager: pwncat.manager.Manager
+    """
+
+    PROG = "unimplemented"
+    """ The name of your new command """
+    ARGS: Dict[str, Parameter] = {}
+    """ A dictionary of parameter definitions created with the ``Parameter`` class.
+    If this is None, your command will receive the raw argument string and no processing
+    will be done except removing the leading command name.
+    """
+    GROUPS: Dict[str, Group] = {}
+    """ A dictionary mapping group definitions to group names. The parameters to Group
+    are passed directly to either add_argument_group or add_mutually_exclusive_group
+    with the exception of the mutex arg, which determines the group type. """
+    DEFAULTS = {}
+    """ A dictionary of default values (passed directly to ``ArgumentParser.set_defaults``) """
+    LOCAL = False
+    """ Whether this command is purely local or requires an connected remote host """
+
+    # An example definition of arguments
+    # PROG = "command"
+    # ARGS = {
+    #     "--all,-a": parameter(
+    #         Complete.NONE, action="store_true", help="A switch/option"
+    #     ),
+    #     "--file,-f": parameter(Complete.LOCAL_FILE, help="A local file"),
+    #     "--rfile": parameter(Complete.REMOTE_FILE, help="A remote file"),
+    #     "positional": parameter(
+    #         Complete.CHOICES, choices=["a", "b", "c"], help="Choose one!"
+    #     ),
+    # }
+
+    def __init__(self, manager: "pwncat.manager.Manager"):
+        """Initialize a new command instance. Parse the local arguments array
+        into an argparse object."""
+
+        self.manager = manager
+
+        # Create the parser object
+        if self.ARGS is not None:
+            self.parser = argparse.ArgumentParser(
+                prog=self.PROG,
+                description=self.__doc__,
+                formatter_class=argparse.RawDescriptionHelpFormatter,
+            )
+            self.build_parser(self.parser, self.ARGS, self.GROUPS)
+        else:
+            self.parser = None
+
+    def run(self, manager: "pwncat.manager.Manager", args):
+        """
+        This is the "main" for your new command. This should perform the action
+        represented by your command.
+
+        :param manager: the manager to operate on
+        :type manager: pwncat.manager.Manager
+        :param args: the argparse Namespace containing your parsed arguments
+        """
+        raise NotImplementedError
+
+    def build_parser(
+        self,
+        parser: argparse.ArgumentParser,
+        args: Dict[str, Parameter],
+        group_defs: Dict[str, Group],
+    ):
+        """
+        Parse the ARGS and DEFAULTS dictionaries to build an argparse ArgumentParser
+        for this command. You should not need to overload this.
+
+        :param parser: the parser object to add arguments to
+        :param args: the ARGS dictionary
+        """
+
+        groups = {}
+        for name, definition in group_defs.items():
+            if definition.mutex:
+                groups[name] = parser.add_mutually_exclusive_group(**definition.kwargs)
+            else:
+                groups[name] = parser.add_argument_group(**definition.kwargs)
+
+        for arg, param in args.items():
+            names = arg.split(",")
+
+            if param.group is not None and param.group not in groups:
+                raise ValueError(f"{param.group}: no such group")
+
+            if param.group is not None:
+                group = groups[param.group]
+            else:
+                group = parser
+
+            # Patch choice to work with a callable
+            if "choices" in param.kwargs and callable(param.kwargs["choices"]):
+                method = param.kwargs["choices"]
+
+                class wrapper:
+                    def __init__(wself, method):
+                        wself.method = method
+
+                    def __iter__(wself):
+                        yield from wself.method(self)
+
+                param.kwargs["choices"] = wrapper(method)
+
+            # Patch "type" so we can see "self"
+            if (
+                "type" in param.kwargs
+                and isinstance(param.kwargs["type"], tuple)
+                and param.kwargs["type"][0] == "method"
+            ):
+                param.kwargs["type"] = partial(param.kwargs["type"][1], self)
+
+            group.add_argument(*names, *param.args, **param.kwargs)
+
+        parser.set_defaults(**self.DEFAULTS)
 
 
 def resolve_blocks(source: str):
@@ -246,6 +544,7 @@ class CommandParser:
                 break
 
     def run_single(self):
+        """ Execute one Read-Execute iteration. This will prompt the user for input.  """
 
         if self.prompt is None:
             self.setup_prompt()
@@ -257,6 +556,8 @@ class CommandParser:
             return
 
     def run(self):
+        """Execute the pwncat REPL. This will continue running until an :class:`InteractiveExit`
+        exception or a :class:`EOFError` exception are raised."""
 
         if self.prompt is None:
             self.setup_prompt()
@@ -484,6 +785,8 @@ class CommandParser:
 
 
 class CommandLexer(RegexLexer):
+    """Implements a Regular Expression based pygments lexer for dynamically highlighting
+    the pwncat prompt during typing. The tokens are generated from command definitions."""
 
     tokens = {}
 
@@ -555,7 +858,7 @@ class RemotePathCompleter(Completer):
 
 
 class LocalPathCompleter(Completer):
-    """ Complete local file names/paths """
+    """ Complete local file names/paths. """
 
     def get_completions(self, document: Document, complete_event: CompleteEvent):
 
@@ -579,7 +882,8 @@ class LocalPathCompleter(Completer):
 
 
 class CommandCompleter(Completer):
-    """ Complete commands from a given list of commands """
+    """Tab-complete commands and all of their arguments dynamically using the
+    command definitions and their associated argument definitions."""
 
     def __init__(
         self, manager: "pwncat.manager.Manager", commands: List["CommandDefinition"]
@@ -708,10 +1012,3 @@ class CommandCompleter(Completer):
             yield from next_completer.get_completions(document, complete_event)
         elif this_completer is not None:
             yield from this_completer.get_completions(document, complete_event)
-
-
-# Here, we allocate the global parser object and initialize in-memory
-# settings
-parser = None
-# parser: CommandParser = CommandParser()
-# parser.setup_prompt()

@@ -1,13 +1,19 @@
-#!/usr/bin/env python3
+"""
+Generic facts used for standard enumerations. Some fact types are
+used for multiple platforms, so they were separated out here. You
+should not generally need to use these types except as reference
+when interacting with data returned by an enumeration module.
+"""
 import pathlib
 import tempfile
 from typing import IO, Callable, Optional
 
 import rich.markup
+from persistent.list import PersistentList
+
 from pwncat.db import Fact
 from pwncat.channel import ChannelError
 from pwncat.modules import ModuleFailed
-from persistent.list import PersistentList
 from pwncat.facts.tamper import *
 from pwncat.facts.ability import *
 from pwncat.facts.implant import *
@@ -19,6 +25,11 @@ class ArchData(Fact):
     Simply the architecture of the remote machine. This class
     wraps the architecture name in a nicely printable data
     class.
+
+    :param source: module which generated this fact
+    :type source: str
+    :param arch: the name of the architecture
+    :type arch: str
     """
 
     def __init__(self, source, arch):
@@ -33,7 +44,15 @@ class ArchData(Fact):
 
 class HostnameData(Fact):
     """
-    The hostname of this machine.
+    The hostname of this target as retrieved from the target itself.
+    This is not guaranteed to be resolvable, and is simply the name
+    which the  target uses for itself (e.g. from the ``hostname``
+    command).
+
+    :param source: module which generated this fact
+    :type source: str
+    :param hostname: the hostname of the target
+    :type hostname: str
     """
 
     def __init__(self, source, hostname):
@@ -47,7 +66,19 @@ class HostnameData(Fact):
 
 
 class DistroVersionData(Fact):
-    """ OS Distribution and version information """
+    """OS Distribution and version information
+
+    :param source: module which generated this fact
+    :type source: str
+    :param name: the name of the target operating system
+    :type name: str
+    :param ident: identifier for this specific distro
+    :type ident: str
+    :param build_id: the build identifier for this OS
+    :type build_id: str
+    :param version: the version of the installed OS
+    :type version: str
+    """
 
     def __init__(self, source, name, ident, build_id, version):
         super().__init__(source=source, types=["system.distro"])
@@ -68,7 +99,17 @@ class DistroVersionData(Fact):
 class Group(Fact):
     """Basic representation of a user group on the target system. Individual
     platform enumeration modules may subclass this to implement other user
-    properties as needed for their platform."""
+    properties as needed for their platform.
+
+    :param source: module which generated this fact
+    :type source: str
+    :param name: the name of the group
+    :type name: str
+    :param id: the unique group identifier
+    :type id: Union[int, str]
+    :param members: a list of unique UIDs who are members of this group
+    :type members: List[Union[int,str]]
+    """
 
     def __init__(self, source: str, name: str, gid, members):
         super().__init__(["group"], source)
@@ -84,7 +125,19 @@ class Group(Fact):
 class User(Fact):
     """Basic representation of a user on the target system. Individual platform
     enumeration modules may subclass this to implement other user properties as
-    needed for their platform."""
+    needed for their platform.
+
+    :param source: module which generated this fact
+    :type source: str
+    :param name: name of the user
+    :type name: str
+    :param uid: unique identifier for this user
+    :type uid: Union[int, str]
+    :param password: the password if known
+    :type password: Optional[str]
+    :param hash: the password hash if known
+    :type hash: Optional[str]
+    """
 
     def __init__(
         self,
@@ -114,6 +167,17 @@ class PotentialPassword(Fact):
     """A password possible extracted from a remote file
     `filepath` and `lineno` may be None signifying this
     password did not come from a file directly.
+
+    :param source: module which generated this fact
+    :type source: str
+    :param password: the suspected password
+    :type password: str
+    :param filepath: the file where we found the password
+    :type filepath: str
+    :param lineno: the line number where the password was found
+    :type lineno: int
+    :param uid: the user ID for which this password is suspected
+    :type uid: Union[int, str]
     """
 
     def __init__(self, source, password, filepath, lineno, uid):
@@ -122,7 +186,7 @@ class PotentialPassword(Fact):
         self.password: str = password
         self.filepath: str = filepath
         self.lineno: int = lineno
-        self.uid: int = uid  # We are Linux-specific here so this can be a literal UID
+        self.uid: int = uid
 
     def title(self, session):
         if self.password is not None:
@@ -144,7 +208,21 @@ class PrivateKey(Implant):
     only remove the implant types from the fact. It is assumed that
     the key was enumerated and not installed. If connection or escalation
     fails, the `authorized` property is set to False and the implant
-    types are automatically removed."""
+    types are automatically removed.
+
+    :param source: module which generated this fact
+    :type source: str
+    :param path: path to the private key on the target
+    :type path: str
+    :param uid: the user for which the key was found
+    :type uid: Union[int, str]
+    :param content: content of the private key
+    :type content: str
+    :param encrypted: whether the key is encrypted
+    :type encrypted: bool
+    :param authorized: whether this key is authorized for the user
+    :type authorized: bool
+    """
 
     def __init__(self, source, path, uid, content, encrypted, authorized: bool = True):
         super().__init__(
@@ -276,7 +354,7 @@ class PrivateKey(Implant):
 
 class EscalationReplace(Fact):
     """Performs escalation and transforms the current session into the context
-    of the specified user.
+    of the specified user. This is a base class for escalations.
 
     :param source: the name of the generating module
     :type source: str
@@ -303,7 +381,8 @@ class EscalationReplace(Fact):
 
 class EscalationSpawn(Fact):
     """Performs escalation and spawns a new session in the context of the
-    specified user. The execute method will return the new session.
+    specified user. The execute method will return the new session. This
+    is a base class for escalations.
 
     :param source: the name of the generating module
     :type source: str

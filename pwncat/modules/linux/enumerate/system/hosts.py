@@ -14,7 +14,7 @@ from pwncat.modules.enumerate import Schedule, EnumerateModule
 
 class HostData(Fact):
     def __init__(self, source, address, hostnames):
-        super().__init__(source=source, types=["system.mountpoint"])
+        super().__init__(source=source, types=["network.host"])
 
         self.address: str = address
         self.hostnames: List[str] = hostnames

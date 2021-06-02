@@ -22,7 +22,7 @@ from pwncat.util import (
     human_readable_size,
     human_readable_delta,
 )
-from pwncat.commands.base import Complete, Parameter, RemoteFileType, CommandDefinition
+from pwncat.commands import Complete, Parameter, CommandDefinition
 
 
 class Command(CommandDefinition):

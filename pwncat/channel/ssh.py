@@ -1,4 +1,11 @@
-#!/usr/bin/env python3
+"""
+Utilize legitimate authentication credentials to create a channel over
+an SSH connection. This module simply opens an SSH channel, starts a
+shell and grabs a PTY. It then wraps the SSH channel in a pwncat channel.
+
+This module requires a host, user and either a password or identity (key) file.
+An optional port argument is also accepted.
+"""
 import socket
 from typing import Optional
 
@@ -9,12 +16,7 @@ from pwncat.channel import Channel, ChannelError
 
 
 class Ssh(Channel):
-    """
-    Implements a channel which rides over a shell attached
-    directly to a socket. This channel will listen for incoming
-    connections on the specified port, and assume the resulting
-    connection is a shell from the victim.
-    """
+    """ Wrap SSH shell channel in a pwncat channel. """
 
     def __init__(
         self,

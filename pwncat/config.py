@@ -1,4 +1,25 @@
-#!/usr/bin/env python3
+"""
+This module houses the core pwncat configuration classes. pwncat configuration
+is not free-form. There are a specific set of known configuration names which
+can be set, and each one has a specific type. Type-checking is done at assignment
+by executing the callable used as the type for a given configuration. Configuration
+types generally do a good job of converting strings from the interactive promp to
+legitimate values for the configuration being modified. If it cannot be converted,
+a ``ValueError`` is raised.
+
+There is currently no way to augment the configuration items exposed by pwncat.
+This may be added in the future, but currently, any configuration should be
+specific to your module or command.
+
+.. note::
+
+   If a module requires an argument which matches the name of a global configuration,
+   the value from the global configuration will be used as the default. This can be
+   used, for example, to automatically utilize the global values for backdoor users
+   or keys in your modules as configured by the user and decrease the number of
+   required parameters to a module.
+
+"""
 import os
 import re
 import copy
