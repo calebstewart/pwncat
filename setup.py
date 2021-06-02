@@ -12,7 +12,7 @@ dependencies = [
     "prompt-toolkit",
     "pycryptodome",
     "requests",
-    "rich==9.10.0",
+    "rich",
     "python-rapidjson",
     "ZODB",
     "zodburi",

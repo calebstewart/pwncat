@@ -266,15 +266,16 @@ class Session:
             task = self._progress.add_task(*args, **kwargs)
             yield task
         finally:
-            if task is not None:
-                # Delete the task
-                self._progress.remove_task(task)
             # If the progress wasn't started when we entered,
             # ensure it is stopped before we leave. This allows
             # nested tasks.
             if not started:
                 self._progress.stop()
+                if task is not None:
+                    self._progress.remove_task(task)
                 self._progress = None
+            elif task is not None:
+                self._progress.remove_task(task)
 
     def update_task(self, task, *args, **kwargs):
         """Update an active task"""

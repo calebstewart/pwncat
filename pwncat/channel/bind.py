@@ -55,7 +55,6 @@ class Bind(Socket):
             finally:
                 self.server.close()
 
-            progress.update(task_id, visible=False)
             progress.log(
                 f"[green]received[/green] connection from [blue]{address[0]}[/blue]:[cyan]{address[1]}[/cyan]"
             )

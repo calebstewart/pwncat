@@ -14,6 +14,7 @@ from typing import Optional
 
 from rich.progress import Progress, BarColumn
 
+from pwncat.util import console
 from pwncat.channel import Channel, ChannelError, ChannelClosed
 from pwncat.channel.socket import Socket
 
@@ -36,12 +37,12 @@ class Connect(Socket):
             f"connecting to [blue]{host}[/blue]:[cyan]{port}[/cyan]",
             BarColumn(bar_width=None),
             transient=True,
+            console=console,
         ) as progress:
             task_id = progress.add_task("connecting", total=1, start=False)
             # Connect to the remote host
             client = socket.create_connection((host, port))
 
-            progress.update(task_id, visible=False)
             progress.log(
                 f"connection to "
                 f"[blue]{host}[/blue]:[cyan]{port}[/cyan] [green]established[/green]"
