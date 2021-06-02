@@ -1,26 +1,13 @@
 #!/usr/bin/env python3
-from colorama import Fore
-import ipaddress
-import os.path
-import socket
 import re
 
-import paramiko
-from prompt_toolkit import prompt
-from rich.progress import Progress, BarColumn
-
 import pwncat
+from rich import box
+from rich.table import Table
 from pwncat.util import console
-from pwncat.commands.base import (
-    CommandDefinition,
-    Complete,
-    Parameter,
-    StoreForAction,
-    StoreConstOnce,
-)
-
-# from pwncat.persist import PersistenceError
-from pwncat.modules.persist import PersistError
+from rich.progress import Progress
+from pwncat.modules import ModuleFailed
+from pwncat.commands import Complete, Parameter, CommandDefinition
 
 
 class Command(CommandDefinition):
@@ -47,10 +34,6 @@ class Command(CommandDefinition):
 
     PROG = "connect"
     ARGS = {
-        "--config,-c": Parameter(
-            Complete.LOCAL_FILE,
-            help="Path to a configuration script to execute prior to connecting",
-        ),
         "--identity,-i": Parameter(
             Complete.LOCAL_FILE,
             help="The private key for authentication for SSH connections",
@@ -60,6 +43,11 @@ class Command(CommandDefinition):
             action="store_true",
             help="Enable the `bind` protocol (supports netcat-like syntax)",
         ),
+        "--platform,-m": Parameter(
+            Complete.NONE,
+            help="Name of the platform to use (default: linux)",
+            default="linux",
+        ),
         "--port,-p": Parameter(
             Complete.NONE,
             help="Alternative port number argument supporting netcat-like syntax",
@@ -67,7 +55,7 @@ class Command(CommandDefinition):
         "--list": Parameter(
             Complete.NONE,
             action="store_true",
-            help="List all known hosts and their installed persistence",
+            help="List installed implants with remote connection capability",
         ),
         "connection_string": Parameter(
             Complete.NONE,
@@ -84,10 +72,10 @@ class Command(CommandDefinition):
     }
     LOCAL = True
     CONNECTION_PATTERN = re.compile(
-        r"""^(?P<protocol>[-a-zA-Z0-9_]*://)?((?P<user>[^:]*)?(?P<password>:(\\@|[^@])*)?@)?(?P<host>[^:]*)?(?P<port>:[0-9]*)?$"""
+        r"""^(?P<protocol>[-a-zA-Z0-9_]*://)?((?P<user>[^:@]*)?(?P<password>:(\\@|[^@])*)?@)?(?P<host>[^:]*)?(?P<port>:[0-9]*)?$"""
     )
 
-    def run(self, args):
+    def run(self, manager: "pwncat.manager.Manager", args):
 
         protocol = None
         user = None
@@ -95,44 +83,46 @@ class Command(CommandDefinition):
         host = None
         port = None
         try_reconnect = False
-
-        if not args.config and os.path.exists("./pwncatrc"):
-            args.config = "./pwncatrc"
-        elif not args.config and os.path.exists("./data/pwncatrc"):
-            args.config = "./data/pwncatrc"
-
-        if args.config:
-            try:
-                # Load the configuration
-                with open(args.config, "r") as filp:
-                    pwncat.victim.command_parser.eval(filp.read(), args.config)
-            except OSError as exc:
-                console.log(f"[red]error[/red]: {exc}")
-                return
+        used_implant = None
 
         if args.list:
-            # Grab a list of installed persistence methods for all hosts
-            # persist.gather will retrieve entries for all hosts if no
-            # host is currently connected.
-            modules = list(pwncat.modules.run("persist.gather"))
-            # Create a mapping of host hash to host object and array of
-            # persistence methods
-            hosts = {
-                host.hash: (host, [])
-                for host in pwncat.victim.session.query(pwncat.db.Host).all()
-            }
 
-            for module in modules:
-                hosts[module.persist.host.hash][1].append(module)
+            db = manager.db.open()
+            implants = []
 
-            for host_hash, (host, modules) in hosts.items():
-                console.print(
-                    f"[magenta]{host.ip}[/magenta] - "
-                    f"[red]{host.distro}[/red] - "
-                    f"[yellow]{host_hash}[/yellow]"
-                )
-                for module in modules:
-                    console.print(f"  - {str(module)}")
+            table = Table(
+                "ID",
+                "Address",
+                "Platform",
+                "Implant",
+                "User",
+                box=box.MINIMAL_DOUBLE_HEAD,
+            )
+
+            # Locate all installed implants
+            for target in db.root.targets:
+
+                # Collect users
+                users = {}
+                for fact in target.facts:
+                    if "user" in fact.types:
+                        users[fact.id] = fact
+
+                # Collect implants
+                for fact in target.facts:
+                    if "implant.remote" in fact.types:
+                        table.add_row(
+                            target.guid,
+                            target.public_address[0],
+                            target.platform,
+                            fact.source,
+                            users[fact.uid].name,
+                        )
+
+            if not table.rows:
+                console.log("[red]error[/red]: no remote implants found")
+            else:
+                console.print(table)
 
             return
 
@@ -151,7 +141,13 @@ class Command(CommandDefinition):
             return
 
         if (
-            sum([port is not None, args.port is not None, args.pos_port is not None])
+            sum(
+                [
+                    port is not None,
+                    args.port is not None,
+                    args.pos_port is not None,
+                ]
+            )
             > 1
         ):
             console.log(f"[red]error[/red]: multiple ports specified")
@@ -169,183 +165,75 @@ class Command(CommandDefinition):
                 console.log(f"[red]error[/red]: {port}: invalid port number")
                 return
 
-        # Attempt to assume a protocol based on context
-        if protocol is None:
-            if args.listen:
-                protocol = "bind://"
-            elif args.port is not None:
-                protocol = "connect://"
-            elif user is not None:
-                protocol = "ssh://"
-                try_reconnect = True
-            elif host == "" or host == "0.0.0.0":
-                protocol = "bind://"
-            elif args.connection_string is None:
-                self.parser.print_help()
-                return
-            else:
-                protocol = "connect://"
-                try_reconnect = True
-
         if protocol != "ssh://" and args.identity is not None:
             console.log(f"[red]error[/red]: --identity is only valid for ssh protocols")
             return
 
-        if pwncat.victim.client is not None:
-            console.log("connection [red]already active[/red]")
-            return
+        # Attempt to reconnect via installed implants
+        if (
+            protocol is None
+            and password is None
+            and port is None
+            and args.identity is None
+        ):
+            db = manager.db.open()
+            implants = []
 
-        if protocol == "reconnect://" or try_reconnect:
-            level = "[yellow]warning[/yellow]" if try_reconnect else "[red]error[/red]"
+            # Locate all installed implants
+            for target in db.root.targets:
 
-            try:
-                addr = ipaddress.ip_address(socket.gethostbyname(host))
-                row = (
-                    pwncat.victim.session.query(pwncat.db.Host)
-                    .filter_by(ip=str(addr))
-                    .first()
-                )
-                if row is None:
-                    console.log(f"{level}: {str(addr)}: not found in database")
-                    host_hash = None
-                else:
-                    host_hash = row.hash
-            except ValueError:
-                host_hash = host
+                if target.guid != host and target.public_address[0] != host:
+                    continue
 
-            # Reconnect to the given host
-            if host_hash is not None:
-                try:
-                    pwncat.victim.reconnect(host_hash, password, user)
-                    return
-                except Exception as exc:
-                    console.log(f"{level}: {host}: {exc}")
+                # Collect users
+                users = {}
+                for fact in target.facts:
+                    if "user" in fact.types:
+                        users[fact.id] = fact
 
-        if protocol == "reconnect://" and not try_reconnect:
-            # This means reconnection failed, and we had an explicit
-            # reconnect protocol
-            return
-
-        if protocol == "bind://":
-            if not host or host == "":
-                host = "0.0.0.0"
-
-            if port is None:
-                console.log(f"[red]error[/red]: no port specified")
-                return
+                # Collect implants
+                for fact in target.facts:
+                    if "implant.remote" in fact.types:
+                        implants.append((target, users[fact.uid], fact))
 
             with Progress(
-                f"bound to [blue]{host}[/blue]:[cyan]{port}[/cyan]",
-                BarColumn(bar_width=None),
+                "triggering implant",
+                "•",
+                "{task.fields[status]}",
                 transient=True,
+                console=console,
             ) as progress:
-                task_id = progress.add_task("listening", total=1, start=False)
-                # Create the socket server
-                server = socket.create_server((host, port), reuse_port=True)
+                task = progress.add_task("", status="...")
+                for target, implant_user, implant in implants:
+                    # Check correct user
+                    if user is not None and implant_user.name != user:
+                        continue
+                    # Check correct platform
+                    if args.platform is not None and target.platform != args.platform:
+                        continue
 
-                try:
-                    # Wait for a connection
-                    (client, address) = server.accept()
-                except KeyboardInterrupt:
-                    progress.update(task_id, visible=False)
-                    progress.log("[red]aborting[/red] listener")
-                    return
+                    progress.update(
+                        task, status=f"trying [cyan]{implant.source}[/cyan]"
+                    )
 
-                progress.update(task_id, visible=False)
-                progress.log(
-                    f"[green]received[/green] connection from [blue]{address[0]}[/blue]:[cyan]{address[1]}[/cyan]"
-                )
+                    # Attempt to trigger a new session
+                    try:
+                        session = implant.trigger(manager, target)
+                        manager.target = session
+                        used_implant = implant
+                        break
+                    except ModuleFailed:
+                        continue
 
-            pwncat.victim.connect(client)
-        elif protocol == "connect://":
-            if not host:
-                console.log("[red]error[/red]: no host address provided")
-                return
-
-            if port is None:
-                console.log(f"[red]error[/red]: no port specified")
-                return
-
-            with Progress(
-                f"connecting to [blue]{host}[/blue]:[cyan]{port}[/cyan]",
-                BarColumn(bar_width=None),
-                transient=True,
-            ) as progress:
-                task_id = progress.add_task("connecting", total=1, start=False)
-                # Connect to the remote host
-                client = socket.create_connection((host, port))
-
-                progress.update(task_id, visible=False)
-                progress.log(
-                    f"connection to "
-                    f"[blue]{host}[/blue]:[cyan]{port}[/cyan] [green]established[/green]"
-                )
-
-            pwncat.victim.connect(client)
-        elif protocol == "ssh://":
-
-            if port is None:
-                port = 22
-
-            if not user or user is None:
-                self.parser.error("you must specify a user")
-
-            if not (password or args.identity):
-                password = prompt("Password: ", is_password=True)
-
-            try:
-                # Connect to the remote host's ssh server
-                sock = socket.create_connection((host, port))
-            except Exception as exc:
-                console.log(f"[red]error[/red]: {str(exc)}")
-                return
-
-            # Create a paramiko SSH transport layer around the socket
-            t = paramiko.Transport(sock)
-            try:
-                t.start_client()
-            except paramiko.SSHException:
-                sock.close()
-                console.log("[red]error[/red]: ssh negotiation failed")
-                return
-
-            if args.identity:
-                try:
-                    # Load the private key for the user
-                    key = paramiko.RSAKey.from_private_key_file(args.identity)
-                except:
-                    password = prompt("RSA Private Key Passphrase: ", is_password=True)
-                    key = paramiko.RSAKey.from_private_key_file(args.identity, password)
-
-                # Attempt authentication
-                try:
-                    t.auth_publickey(user, key)
-                except paramiko.ssh_exception.AuthenticationException as exc:
-                    console.log(f"[red]error[/red]: authentication failed: {exc}")
-            else:
-                try:
-                    t.auth_password(user, password)
-                except paramiko.ssh_exception.AuthenticationException as exc:
-                    console.log(f"[red]error[/red]: authentication failed: {exc}")
-
-            if not t.is_authenticated():
-                t.close()
-                sock.close()
-                return
-
-            # Open an interactive session
-            chan = t.open_session()
-            chan.get_pty()
-            chan.invoke_shell()
-
-            # Initialize the session!
-            pwncat.victim.connect(chan)
-
-            if user in pwncat.victim.users and password is not None:
-                console.log(f"storing user password")
-                pwncat.victim.users[user].password = password
-            else:
-                console.log("user not found in database; not storing password")
-
+        if used_implant is not None:
+            manager.target.log(f"connected via {used_implant.title(manager.target)}")
         else:
-            console.log(f"[red]error[/red]: {args.action}: invalid action")
+            manager.create_session(
+                platform=args.platform,
+                protocol=protocol,
+                user=user,
+                password=password,
+                host=host,
+                port=port,
+                identity=args.identity,
+            )

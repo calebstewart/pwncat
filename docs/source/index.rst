@@ -29,7 +29,7 @@ You may be familiar with the common method of getting raw terminal access with
 reverse shells. It normally goes something like this:
 
 .. code-block:: bash
-    
+
     # Connect to a remote bind shell
     nc 1.1.1.1 4444
     # Spawn a remote pseudoterminal
@@ -53,7 +53,7 @@ inspiration of this project.
 Where Do I Begin?
 -----------------
 
-``pwncat`` has a lot features, and is easily extensible if you have ideas! Check
+pwncat has a lot features, and is easily extensible if you have ideas! Check
 out the "Basic Usage" section next for examples of connecting to remote hosts.
 If you ever find there is a piece of the documentation missing, check out the help
 documentation at the local prompt, accessed with the ``--help/-h`` parameter of any
@@ -73,7 +73,7 @@ well. Pull requests are always welcome!
     privesc.rst
     persist.rst
     commands/index.rst
-    api/index.rst
+    api/pwncat.rst
 
 Indices and tables
 ==================

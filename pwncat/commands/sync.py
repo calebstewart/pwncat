@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
-import pwncat
-from pwncat.commands.base import CommandDefinition, Complete, Parameter
-from pwncat.util import console
 import os
+
+import pwncat
+from pwncat.util import console
+from pwncat.commands import Complete, Parameter, CommandDefinition
 
 
 class Command(CommandDefinition):
-    """ Synchronize the remote terminal with the local terminal. This will
+    """Synchronize the remote terminal with the local terminal. This will
     attempt to set the remote prompt, terminal width, terminal height, and TERM
     environment variables to enable to cleanest interface to the remote system
-    possible. """
+    possible."""
 
     PROG = "sync"
     ARGS = {
@@ -20,6 +21,9 @@ class Command(CommandDefinition):
     DEFAULTS = {}
 
     def run(self, args):
+
+        manager.log("[red]error[/red]: sync not implemented in new framework (yet)")
+        return
 
         # Get the terminal type
         TERM = os.environ.get("TERM", None)

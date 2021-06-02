@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import pwncat
-from pwncat.commands.base import CommandDefinition, Complete, Parameter
+from pwncat.commands import Complete, Parameter, CommandDefinition
 
 
 class Command(CommandDefinition):
@@ -26,5 +26,6 @@ class Command(CommandDefinition):
     DEFAULTS = {}
     LOCAL = True
 
-    def run(self, args):
-        pwncat.modules.reload(args.path)
+    def run(self, manager: "pwncat.manager.Manager", args):
+
+        manager.load_modules(args.path)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import pwncat
-from pwncat.commands.base import CommandDefinition, Complete, Parameter
-from pwncat import util
+from pwncat.manager import RawModeExit
+from pwncat.commands import Complete, Parameter, CommandDefinition
 
 
 class Command(CommandDefinition):
@@ -10,5 +10,5 @@ class Command(CommandDefinition):
     PROG = "back"
     ARGS = {}
 
-    def run(self, args):
-        pwncat.victim.state = util.State.RAW
+    def run(self, manager: "pwncat.manager.Manager", args):
+        raise RawModeExit

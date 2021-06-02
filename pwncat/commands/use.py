@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 
 import pwncat
-from pwncat.commands.base import CommandDefinition, Complete, Parameter
 from pwncat.util import console
+from pwncat.commands import (Complete, Parameter, CommandDefinition,
+                                  get_module_choices)
 
 
 class Command(CommandDefinition):
     """ Set the currently used module in the config handler """
-
-    def get_module_choices(self):
-        yield from [module.name for module in pwncat.modules.match("*")]
 
     PROG = "use"
     ARGS = {
@@ -22,12 +20,12 @@ class Command(CommandDefinition):
     }
     LOCAL = False
 
-    def run(self, args):
+    def run(self, manager: "pwncat.manager.Manager", args):
 
         try:
-            module = pwncat.modules.find(args.module)
-        except KeyError:
-            console.log(f"[red]error[/red]: {args.module}: invalid module name")
+            module = list(manager.target.find_module(args.module, exact=True))[0]
+        except IndexError:
+            console.log(f"[red]error[/red]: {args.module}: no such module")
             return
 
-        pwncat.config.use(module)
+        manager.target.config.use(module)

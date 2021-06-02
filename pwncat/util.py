@@ -1,33 +1,38 @@
-#!/usr/bin/env python3
+"""
+Various utility methods and classes which don't fit in any other modules or packages.
+"""
+import os
 import re
-from typing import Tuple, BinaryIO, Callable, List, Optional
-from http.server import BaseHTTPRequestHandler, HTTPServer
-from socketserver import TCPServer, BaseRequestHandler
-from prompt_toolkit.shortcuts import ProgressBar
-from functools import partial
-from colorama import Fore, Style
-from io import TextIOWrapper
-from enum import Enum, Flag, auto
-import netifaces
+import sys
+import tty
+import time
+import fcntl
+import random
 import socket
 import string
-import random
-import threading
 import logging
 import termios
-import fcntl
-import time
-import tty
-import sys
-import os
+import threading
+from io import TextIOWrapper
+from enum import Enum, Flag, auto
+from typing import List, Tuple, BinaryIO, Callable, Optional
+from functools import partial
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from socketserver import TCPServer, BaseRequestHandler
 
+import netifaces
+from rich import markup
+from colorama import Fore, Style
 from rich.console import Console
+from prompt_toolkit.shortcuts import ProgressBar
 
-console = Console()
+console = Console(emoji=False)
 
 CTRL_C = b"\x03"
 
 ALPHANUMERIC = string.ascii_letters + string.digits
+
+STORED_TERM_STATE = []
 
 
 class State(Enum):
@@ -96,9 +101,21 @@ class CompilationError(Exception):
             return f"Error during compilation of source files"
 
 
+class RawModeExit(Exception):
+    """Indicates that the user would like to exit the raw mode
+    shell. This is normally raised when the user presses the
+    <prefix>+<C-d> key combination to return to the local prompt."""
+
+
+def strip_markup(styled_text: str) -> str:
+    """ Strip rich markup from text """
+    text = markup.render(styled_text)
+    return text.plain
+
+
 def isprintable(data) -> bool:
     """
-    This is a convenience function to be used rather than the usual 
+    This is a convenience function to be used rather than the usual
     ``str.printable`` boolean value, as that built-in **DOES NOT** consider
     newlines to be part of the printable data set (weird!)
     """
@@ -117,9 +134,9 @@ def human_readable_size(size, decimal_places=2):
 
 
 def human_readable_delta(seconds):
-    """ This produces a human-readable time-delta output suitable for output to
+    """This produces a human-readable time-delta output suitable for output to
     the terminal. It assumes that "seconds" is less than 1 day. I.e. it will only
-    display at most, hours minutes and seconds. """
+    display at most, hours minutes and seconds."""
 
     if seconds < 60:
         return f"{seconds:.2f} seconds"
@@ -138,17 +155,17 @@ def human_readable_delta(seconds):
 
 
 def join(argv: List[str]):
-    """ Join the string much line shlex.join, except assume that each token
+    """Join the string much line shlex.join, except assume that each token
     is expecting double quotes. This allows variable references within the
-    tokens. """
+    tokens."""
 
     return " ".join([quote(x) for x in argv])
 
 
 def quote(token: str):
-    """ Quote the token much like shlex.quote, except don't use single quotes
+    """Quote the token much like shlex.quote, except don't use single quotes
     this will escape any double quotes in the string and wrap it in double
-    quotes. If there are no spaces, it returns the stirng unchanged. """
+    quotes. If there are no spaces, it returns the stirng unchanged."""
     for c in token:
         if c in string.whitespace:
             break
@@ -180,8 +197,8 @@ def escape_markdown(s: str) -> str:
 
 
 def copyfileobj(src, dst, callback, nomv=False):
-    """ Copy a file object to another file object with a callback.
-        This method assumes that both files are binary and support readinto
+    """Copy a file object to another file object with a callback.
+    This method assumes that both files are binary and support readinto
     """
 
     try:
@@ -212,47 +229,17 @@ def copyfileobj(src, dst, callback, nomv=False):
                 callback(n)
 
 
-def with_progress(title: str, target: Callable[[Callable], None], length: int = None):
-    """ A shortcut to displaying a progress bar for various things. It will
-    start a prompt_toolkit progress bar with the given title and a counter 
-    with the given length. Then, it will call `target` with an `on_progress`
-    parameter. This parameter should be called for all progress updates. See
-    the `do_upload` and `do_download` for examples w/ copyfileobj """
-
-    with ProgressBar(title) as pb:
-        counter = pb(range(length))
-        last_update = time.time()
-
-        def on_progress(blocksz):
-            """ Update the progress bar """
-            if blocksz == -1:
-                counter.stopped = True
-                counter.done = True
-                pb.invalidate()
-                return
-
-            counter.items_completed += blocksz
-            if counter.items_completed >= counter.total:
-                counter.done = True
-                counter.stopped = True
-            if (time.time() - last_update) > 0.1:
-                pb.invalidate()
-
-        target(on_progress)
-
-        # https://github.com/prompt-toolkit/python-prompt-toolkit/issues/964
-        time.sleep(0.1)
-
-
 def random_string(length: int = 8):
     """ Create a random alphanumeric string """
-    return "".join(random.choice(ALPHANUMERIC) for _ in range(length))
+    return random.choice(string.ascii_letters) + "".join(
+        random.choice(ALPHANUMERIC) for _ in range(length - 1)
+    )
 
 
-def enter_raw_mode():
-    """ Set stdin/stdout to raw mode to pass data directly. 
+def enter_raw_mode(non_block=True):
+    """Set stdin/stdout to raw mode to pass data directly.
 
-        returns: the old state of the terminal
+    returns: the old state of the terminal
     """
 
     # Ensure we don't have any weird buffering issues
@@ -278,8 +265,11 @@ def enter_raw_mode():
 
     # Remove ECHO from lflag and ensure we won't block
     new[3] &= ~(termios.ECHO | termios.ICANON)
-    new[6][termios.VMIN] = 0
-    new[6][termios.VTIME] = 0
+
+    if non_block:
+        new[6][termios.VMIN] = 0
+        new[6][termios.VTIME] = 0
+
     termios.tcsetattr(fild, termios.TCSADRAIN, new)
 
     # Set raw mode
@@ -289,6 +279,32 @@ def enter_raw_mode():
     fcntl.fcntl(sys.stdin, fcntl.F_SETFL, orig_fl)
 
     return old, orig_fl
+
+
+def push_term_state():
+    """Save the current terminal state on our state stack
+    so we can easily return to the current state."""
+
+    # We save the termios settings and flags
+    STORED_TERM_STATE.append(
+        (
+            sys.stdin,
+            termios.tcgetattr(sys.stdin.fileno()),
+            fcntl.fcntl(sys.stdin, fcntl.F_GETFL),
+        )
+    )
+
+
+def pop_term_state():
+    """
+    Return the terminal to the state that was last pushed
+    """
+
+    try:
+        state = STORED_TERM_STATE.pop()
+        restore_terminal(state[1:])
+    except:
+        pass
 
 
 def restore_terminal(state, new_line=True):
@@ -301,9 +317,9 @@ def restore_terminal(state, new_line=True):
 
 
 def get_ip_addr() -> str:
-    """ Retrieve the current IP address. This will return the first tun/tap
-    interface if availabe. Otherwise, it will return the first "normal" 
-    interface with no preference for wired/wireless. """
+    """Retrieve the current IP address. This will return the first tun/tap
+    interface if availabe. Otherwise, it will return the first "normal"
+    interface with no preference for wired/wireless."""
 
     PROTO = netifaces.AF_INET
     ifaces = [
@@ -335,36 +351,3 @@ def get_ip_addr() -> str:
                 return a["addr"]
 
     return None
-
-
-LAST_LOG_MESSAGE = ("", False)
-PROG_ANIMATION = "/-\\"
-LAST_PROG_ANIM = -1
-
-
-def erase_progress():
-    raise RuntimeError("new-logging: please use the rich module for logging")
-
-
-def log(level, message, overlay=False):
-    raise RuntimeError("new-logging: please use the rich module for logging")
-
-
-def info(message, overlay=False):
-    log("info", message, overlay)
-
-
-def warn(message, overlay=False):
-    log("warn", message, overlay)
-
-
-def error(message, overlay=False):
-    log("error", message, overlay)
-
-
-def success(message, overlay=False):
-    log("success", message, overlay)
-
-
-def progress(message, overlay=True):
-    log("prog", message, overlay)

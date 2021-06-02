@@ -1,8 +1,8 @@
 Run
 ===
 
-The ``run`` command gives you access to all ``pwncat`` modules at runtime. Most functionality in
-``pwncat`` is implemented using modules. This includes privilege escalation, enumeration and
+The ``run`` command gives you access to all pwncat modules at runtime. Most functionality in
+pwncat is implemented using modules. This includes privilege escalation, enumeration and
 persistence. You can locate modules using the ``search`` command or tab-complete their name
 with the ``run`` command.
 
@@ -27,7 +27,7 @@ they are taken from the global configuration.
 Run Within A Context
 --------------------
 
-In ``pwncat``, the ``use`` command can enter a module context. Within a module context, the
+In pwncat, the ``use`` command can enter a module context. Within a module context, the
 pwncat prompt will change from "(pwncat) local$" to "(module_name) local$". In this state,
 you can set module arguments with the ``set`` command. After the arguments are set, you can
 run the module with ``run``. Within a module context, no arguments are required for ``run``,

@@ -5,9 +5,20 @@ on:
 jobs:
   testing:
     runs-on: ubuntu-latest
+
     strategy:
       matrix:
         python-versions: [3.8,3.9]
+
+    services:
+      centos:
+        image: calebjstewart/pwncat-testing:centos
+        ports:
+          - 4444:4444
+      ubuntu:
+        image: calebjstewart/pwncat-testing:ubuntu
+        ports:
+          - 4445:4444
 
     steps:
       - uses: actions/checkout@v2
@@ -20,10 +31,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install flake8 pytest
           pip install -r requirements.txt
-          python setup.py install
+          python setup.py install --user
 #       - name: Lint with flake8
 #         run: |
 #           flake8
       - name: Test with pytest
+        env:
+          CENTOS_HOST: "127.0.0.1"
+          CENTOS_BIND_PORT: "4444"
+          UBUNTU_HOST: "127.0.0.1"
+          UBUNTU_BIND_PORT: "4445"
         run: |
           pytest

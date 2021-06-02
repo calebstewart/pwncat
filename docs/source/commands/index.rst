@@ -11,10 +11,10 @@ Command index
     busybox.rst
     connect.rst
     download.rst
+    escalate.rst
     load.rst
     run.rst
     info.rst
     search.rst
     use.rst
-    tamper.rst
     upload.rst

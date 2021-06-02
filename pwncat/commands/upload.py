@@ -5,29 +5,24 @@ from functools import partial
 
 from colorama import Fore
 from rich.progress import (
-    BarColumn,
-    DownloadColumn,
-    TextColumn,
-    TransferSpeedColumn,
-    TimeRemainingColumn,
-    Progress,
     TaskID,
+    Progress,
+    BarColumn,
+    TextColumn,
+    DownloadColumn,
+    TimeRemainingColumn,
+    TransferSpeedColumn,
 )
 
 import pwncat
 from pwncat.util import (
-    console,
     Access,
+    console,
+    copyfileobj,
     human_readable_size,
     human_readable_delta,
-    copyfileobj,
 )
-from pwncat.commands.base import (
-    CommandDefinition,
-    Complete,
-    Parameter,
-    RemoteFileType,
-)
+from pwncat.commands import Complete, Parameter, CommandDefinition
 
 
 class Command(CommandDefinition):
@@ -36,10 +31,13 @@ class Command(CommandDefinition):
     PROG = "upload"
     ARGS = {
         "source": Parameter(Complete.LOCAL_FILE),
-        "destination": Parameter(Complete.REMOTE_FILE, nargs="?",),
+        "destination": Parameter(
+            Complete.REMOTE_FILE,
+            nargs="?",
+        ),
     }
 
-    def run(self, args):
+    def run(self, manager: "pwncat.manager.Manager", args):
 
         # Create a progress bar for the download
         progress = Progress(
@@ -56,17 +54,17 @@ class Command(CommandDefinition):
 
         if not args.destination:
             args.destination = f"./{os.path.basename(args.source)}"
-        else:
-            access = pwncat.victim.access(args.destination)
-            if Access.DIRECTORY in access:
-                args.destination = os.path.join(
-                    args.destination, os.path.basename(args.source)
-                )
-            elif Access.PARENT_EXIST not in access:
-                console.log(
-                    f"[cyan]{args.destination}[/cyan]: no such file or directory"
-                )
-                return
+        # else:
+        #     access = pwncat.victim.access(args.destination)
+        #     if Access.DIRECTORY in access:
+        #         args.destination = os.path.join(
+        #             args.destination, os.path.basename(args.source)
+        #         )
+        #     elif Access.PARENT_EXIST not in access:
+        #         console.log(
+        #             f"[cyan]{args.destination}[/cyan]: no such file or directory"
+        #         )
+        #         return
 
         try:
             length = os.path.getsize(args.source)
@@ -76,8 +74,8 @@ class Command(CommandDefinition):
                     "upload", filename=args.destination, total=length, start=False
                 )
                 with open(args.source, "rb") as source:
-                    with pwncat.victim.open(
-                        args.destination, "wb", length=length
+                    with manager.target.platform.open(
+                        args.destination, "wb"
                     ) as destination:
                         progress.start_task(task_id)
                         copyfileobj(
