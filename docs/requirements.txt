@@ -10,4 +10,4 @@ zodburi==2.4.0
 jinja2==3.0.1
 paramiko==2.7.2
 sphinx-toolbox==2.11.2
-enum-tools=0.6.4
+enum-tools==0.6.4
