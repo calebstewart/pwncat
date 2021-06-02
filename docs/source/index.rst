@@ -29,7 +29,7 @@ You may be familiar with the common method of getting raw terminal access with
 reverse shells. It normally goes something like this:
 
 .. code-block:: bash
-    
+
     # Connect to a remote bind shell
     nc 1.1.1.1 4444
     # Spawn a remote pseudoterminal
@@ -73,7 +73,8 @@ well. Pull requests are always welcome!
     privesc.rst
     persist.rst
     commands/index.rst
-    api/index.rst
+    extending/index.rst
+    api/modules.rst
 
 Indices and tables
 ==================

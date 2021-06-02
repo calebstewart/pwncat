@@ -24,11 +24,12 @@ from pwncat.platform import PlatformError
 
 def main():
 
-
     # Default log-level is "INFO"
     logging.getLogger().setLevel(logging.INFO)
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description="""Start interactive pwncat session and optionally connect to existing victim via a known platform and channel type. This entrypoint can also be used to list known implants on previous targets."""
+    )
     parser.add_argument(
         "--config",
         "-c",

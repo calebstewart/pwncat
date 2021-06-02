@@ -1350,9 +1350,9 @@ class Linux(Platform):
         :type group: str
         :param password: the password for the current user
         :type password: str
-        :param as_is: indicates to not add `sudo` to the command line
+        :param as_is: indicates to not add ``sudo`` to the command line
         :type as_is: bool
-        :param **popen_kwargs: arguments passed to the ``Popen`` method
+        :param \*\*popen_kwargs: arguments passed to the ``Popen`` method
         """
 
         # This repeats some of the logic from `Popen`, but we need to handle these

@@ -318,7 +318,7 @@ class Path:
         return self.__class__(self._target.abspath(str(self)))
 
     def rglob(self, pattern: str) -> Generator["Path", None, None]:
-        """This is like calling Path.glob() with "**/" added to in the front
+        """This is like calling Path.glob() with "\*\*/" added to in the front
         of the given relative pattern"""
 
         return self.glob("**/" + pattern)
