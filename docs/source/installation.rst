@@ -4,9 +4,9 @@ Installation
 .. toctree::
     :maxdepth: -1
 
-The only system dependency for ``pwncat`` is ``python3`` and ``pip``. For ``pip`` to install all Python dependencies,
+The only system dependency for pwncat is ``python3`` and ``pip``. For ``pip`` to install all Python dependencies,
 you will likely need your distributions Python Development package (``python3-dev`` for Debian-based distributions).
-Once you have a working ``pip`` installation, you can install ``pwncat`` with the provided setup script:
+Once you have a working ``pip`` installation, you can install pwncat with the provided setup script:
 
 .. code-block:: bash
 
@@ -17,7 +17,7 @@ Once you have a working ``pip`` installation, you can install ``pwncat`` with th
     # This allows you to use pwncat outside of the virtual environment
     ln -s /opt/pwncat/bin/pwncat /usr/local/bind
 
-After installation, you can use ``pwncat`` via the installed script:
+After installation, you can use pwncat via the installed script:
 
 .. code-block:: bash
 
@@ -54,8 +54,8 @@ After installation, you can use ``pwncat`` via the installed script:
 Development Environment
 -----------------------
 
-If you would like to develop modules for ``pwncat`` (such as privilege escalation or persistence module), you can use
-the ``setuptools`` "develop" target instead of "install". This installs ``pwncat`` via symlinks, which means any
+If you would like to develop modules for pwncat (such as privilege escalation or persistence module), you can use
+the ``setuptools`` "develop" target instead of "install". This installs pwncat via symlinks, which means any
 modifications of the local code will be reflected in the installed package:
 
 .. code-block:: bash

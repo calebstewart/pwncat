@@ -26,15 +26,15 @@ linux. This can cause hangs if connected to the incorrect platform.
 C2 Channels
 -----------
 
-``pwncat`` allows the use of a few different C2 channels when connecting to a victim. Originally, ``pwncat``
+pwncat allows the use of a few different C2 channels when connecting to a victim. Originally, pwncat
 wrapped a raw socket much like ``netcat`` with some extra features. As the framework was expanded, we have
-moved toward abstracting this command and control layer away from the core ``pwncat`` features to allow
+moved toward abstracting this command and control layer away from the core pwncat features to allow
 more ways of connection. Currently, only raw sockets and ``ssh`` are implemented. You can connect to a victim
 with three different C2 protocols: ``bind``, ``connect``, and ``ssh``. The first two act like netcat. These
 modes simply open a raw socket and assume there is a shell on the other end. In SSH mode, we legitimately
 authenticate to the victim host with provided credentials and utilize the SSH shell channel as our C2 channel.
 
-``pwncat`` exposes these different C2 channel protocols via the ``protocol`` field of the connection string
+pwncat exposes these different C2 channel protocols via the ``protocol`` field of the connection string
 discussed below.
 
 Connecting to a Victim
@@ -48,7 +48,7 @@ Each field in the connection string translates to a parameter passed to the C2 c
 require all the parameters. For example, a ``bind`` or ``connect`` channel doesn't required a username or
 a password.
 
-If the ``protocol`` field is not specified, ``pwncat`` will attempt to figure out the correct protocol
+If the ``protocol`` field is not specified, pwncat will attempt to figure out the correct protocol
 contextually. The following rules apply:
 
 - If a user and host are provided, assume ``ssh`` protocol
@@ -97,7 +97,7 @@ victim machine. This mode is accessed via the ``bind`` protocol.
 Connecting to a Remote SSH Server
 ---------------------------------
 
-If you were able to obtain a valid password or private key for a remote user, you can initiate a ``pwncat``
+If you were able to obtain a valid password or private key for a remote user, you can initiate a pwncat
 session with the remote host over SSH. This mode is accessed via the ``ssh`` protocol. A note about
 protocol assumptions: if there is an installed persistence method for a given user, then specifying only
 a user and host will first try reconnecting via that persistence method. Afterwards, an ssh connection

@@ -53,7 +53,7 @@ inspiration of this project.
 Where Do I Begin?
 -----------------
 
-``pwncat`` has a lot features, and is easily extensible if you have ideas! Check
+pwncat has a lot features, and is easily extensible if you have ideas! Check
 out the "Basic Usage" section next for examples of connecting to remote hosts.
 If you ever find there is a piece of the documentation missing, check out the help
 documentation at the local prompt, accessed with the ``--help/-h`` parameter of any

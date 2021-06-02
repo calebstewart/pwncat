@@ -51,7 +51,10 @@ def main():
         help="Enable the `bind` protocol (supports netcat-style syntax)",
     )
     parser.add_argument(
-        "--platform", "-m", help="Name of the platform to use (default: linux)"
+        "--platform",
+        "-m",
+        help="Name of the platform to use (default: linux)",
+        default="linux",
     )
     parser.add_argument(
         "--port",

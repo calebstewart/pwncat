@@ -60,8 +60,7 @@ class Path:
     """
     A Concrete-Path. An instance of this class is bound to a
     specific victim, and supports all semantics of a standard
-    pathlib concrete Path with the exception of `Path.home` and
-    `Path.cwd`.
+    pathlib concrete Path.
     """
 
     _target: "Platform"
@@ -70,17 +69,18 @@ class Path:
     parts = []
 
     @classmethod
-    def cwd(cls):
+    def cwd(cls) -> "Path":
         """Return a new concrete path referencing the current directory"""
         return cls(".").resolve()
 
     @classmethod
-    def home(cls):
+    def home(cls) -> "Path":
         """Return a new concrete path referencing the current user home directory"""
         return cls("~").resolve()
 
     def writable(self) -> bool:
-        """This is non-standard, but is useful"""
+        """Test if this file is writable based on the stat results
+        and the sessions current user/group ID."""
 
         user = self._target.session.current_user()
         group = self._target.session.find_group(gid=user.gid)
@@ -102,7 +102,8 @@ class Path:
         return False
 
     def readable(self) -> bool:
-        """This is non-standard, but is useful"""
+        """Test if this file is readable based on the stat results and
+        the sessions' current user/group ID."""
 
         user = self._target.session.current_user()
         group = self._target.session.find_group(gid=user.gid)
@@ -124,7 +125,7 @@ class Path:
         return False
 
     def stat(self) -> os.stat_result:
-        """Run `stat` on the path and return a stat result"""
+        """ Request file stat details """
 
         if self._stat is not None:
             return self._stat
@@ -134,12 +135,16 @@ class Path:
         return self._stat
 
     def chmod(self, mode: int):
-        """Execute `chmod` on the remote file to change permissions"""
+        """Modify file unix permissions
+
+        :param mode: unix permission bits
+        :type mode: int
+        """
 
         self._target.chmod(str(self), mode)
 
     def exists(self) -> bool:
-        """Return true if the specified path exists on the remote system"""
+        """ Test if the path exists on the target system """
 
         try:
             self.stat()
@@ -148,7 +153,8 @@ class Path:
             return False
 
     def expanduser(self) -> "Path":
-        """Return a new path object with ~ and ~user expanded"""
+        """Return a new path object which represents the full path to the file
+        expanding any ``~`` or ``~user`` components."""
 
         if not self.parts[0].startswith("~"):
             return self.__class__(self)
@@ -164,7 +170,7 @@ class Path:
 
     def glob(self, pattern: str) -> Generator["Path", None, None]:
         """Glob the given relative pattern in the directory represented
-        by this path, yielding all matching files (of any kind)"""
+        by this path, yielding Path objects for any matching files/directories."""
 
         for name in self._target.listdir(str(self)):
             if fnmatch.fnmatch(name, pattern):
@@ -583,6 +589,9 @@ class Platform(ABC):
         This is mainly used by the concrete Path type to fill in a majority
         of it's methods. If the specified path does not exist or cannot be
         accessed, a FileNotFoundError or PermissionError is raised respectively
+
+        :param path: path to a remote file
+        :type path: str
         """
 
     @abstractmethod
