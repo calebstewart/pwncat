@@ -1,5 +1,7 @@
 # pwncat
 
+![Multiplatform and Multisesson](https://user-images.githubusercontent.com/7529189/120570796-e5c94780-c3e6-11eb-824a-67cdc5f04279.png)
+
 pwncat is a post-exploitation platform ~~for Linux targets~~. It started out as a
 wrapper around basic bind and reverse shells and has grown from there. It
 streamlines common red team operations while staging code from your attacker
@@ -9,6 +11,8 @@ pwncat used to only support Linux, but there has been a lot of work recently
 to support multiple platforms. Currently, there is alpha support for Windows
 targets. Please see the latest [documentation] for details on how to use
 pwncat with a Windows target.
+
+To see pwncat in action, you can check out this asciinema recording: https://asciinema.org/a/wTUDFztq6Fb9ttWYBfBpPf0JN
 
 pwncat intercepts the raw communication with a remote shell and allows the
 user to perform automated actions on the remote host including enumeration,
