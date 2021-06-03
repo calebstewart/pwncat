@@ -1491,7 +1491,7 @@
     {
       "type": "read",
       "stream": "print",
-      "payload": "{command} | | while read line; do echo ${line:28:-27}; done",
+      "payload": "{command} | while read line; do echo ${{line:28:-27}}; done",
       "args": [
         "--raw",
         "-F",
@@ -1580,7 +1580,9 @@
       "payload": "TF=$({mktemp}); echo 'os.execute(\"{shell} -p\")' > $TF; {command}; {rm} -f $TF",
       "input": "reset\n",
       "args": [
-        "--script=$TF"
+        "--script=$TF",
+        "-p 1",
+        "127.0.0.1"
       ]
     }
   ],

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from packaging import version
+
 from pwncat.facts import build_gtfo_ability
 from pwncat.modules import ModuleFailed
 from pwncat.gtfobins import Capability
@@ -20,9 +21,9 @@ class Module(EnumerateModule):
 
         try:
             # Utilize the version enumeration to grab sudo version
-            sudo_info = session.run("enumerate", types="software.sudo.version")[0]
+            sudo_info = session.run("enumerate", types=["software.sudo.version"])[0]
         except IndexError as exc:
-            raise ModuleFailed("no sudo version found") from exc
+            return
 
         # This vulnerability was patched in 1.8.28
         if version.parse(sudo_info.version) >= version.parse("1.8.28"):

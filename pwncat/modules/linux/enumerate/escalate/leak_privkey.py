@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from pwncat.facts import Implant, EscalationReplace
+from pwncat.facts import Implant, PrivateKey, EscalationReplace
 from pwncat.modules import Status, ModuleFailed
 from pwncat.platform.linux import Linux
 from pwncat.modules.enumerate import Schedule, EnumerateModule
@@ -35,7 +35,7 @@ class Module(EnumerateModule):
             authorized = True
 
             try:
-                with ability.open(str(ssh_path / "id_rsa"), "r") as filp:
+                with ability.open(session, str(ssh_path / "id_rsa"), "r") as filp:
                     privkey = filp.read()
             except (ModuleFailed, FileNotFoundError, PermissionError) as exc:
                 yield Status(
@@ -44,7 +44,7 @@ class Module(EnumerateModule):
                 continue
 
             try:
-                with ability.open(str(ssh_path / "id_rsa.pub"), "r") as filp:
+                with ability.open(session, str(ssh_path / "id_rsa.pub"), "r") as filp:
                     pubkey = filp.read()
                 if pubkey.strip() == "":
                     pubkey = None
@@ -55,7 +55,9 @@ class Module(EnumerateModule):
 
             if pubkey is not None and pubkey != "":
                 try:
-                    with ability.open(str(ssh_path / "authorized_keys"), "r") as filp:
+                    with ability.open(
+                        session, str(ssh_path / "authorized_keys"), "r"
+                    ) as filp:
                         authkeys = filp.read()
                     if authkeys.strip() == "":
                         authkeys = None

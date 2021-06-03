@@ -39,7 +39,7 @@ class Module(EnumerateModule):
 
         # Run the command on the remote host
         proc = session.platform.Popen(
-            command, shell=True, text=True, stdout=pwncat.subprocess.PIPE
+            command, shell=True, stdout=pwncat.subprocess.PIPE
         )
 
         # Iterate through the output
@@ -47,7 +47,7 @@ class Module(EnumerateModule):
             for line in filp:
                 try:
                     # Decode the line and separate the filename, line number, and content
-                    line = line.strip().split(":")
+                    line = line.decode("utf-8").strip().split(":")
                 except UnicodeDecodeError:
                     continue
 
