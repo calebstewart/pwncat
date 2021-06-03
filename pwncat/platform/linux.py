@@ -1553,6 +1553,10 @@ class Linux(Platform):
         #  13 number of blocks allocated
         #  14 total size in bytes
 
+        for i in range(len(fields)):
+            if fields[i] == "?":
+                fields[i] = "0"
+
         stat = os.stat_result(
             tuple(
                 [
@@ -1578,43 +1582,51 @@ class Linux(Platform):
         """Perform the equivalent of the stat syscall on
         the remote host"""
 
-        try:
-            result = self.run(
-                [
-                    "stat",
-                    "-L",
-                    "-c",
-                    "%n %s %b %f %u %g %D %i %h %t %T %X %Y %Z %W %o",
-                    path,
-                ],
-                capture_output=True,
-                encoding="utf-8",
-                check=True,
-            )
-        except CalledProcessError as exc:
-            raise FileNotFoundError(path) from exc
+        while True:
+            try:
+                result = self.run(
+                    [
+                        "stat",
+                        "-L",
+                        "-c",
+                        "%n %s %b %f %u %g %D %i %h %t %T %X %Y %Z %W %o",
+                        path,
+                    ],
+                    capture_output=True,
+                    encoding="utf-8",
+                    check=True,
+                )
+            except CalledProcessError as exc:
+                raise FileNotFoundError(path) from exc
 
-        return self._parse_stat(result.stdout)
+            try:
+                return self._parse_stat(result.stdout)
+            except IndexError:
+                pass
 
     def lstat(self, path: str) -> os.stat_result:
         """Perform the equivalent of the lstat syscall"""
 
-        try:
-            result = self.run(
-                [
-                    "stat",
-                    "-c",
-                    "%n %s %b %f %u %g %D %i %h %t %T %X %Y %Z %W %o",
-                    path,
-                ],
-                capture_output=True,
-                encoding="utf-8",
-                check=True,
-            )
-        except CalledProcessError as exc:
-            raise FileNotFoundError(path) from exc
+        while True:
+            try:
+                result = self.run(
+                    [
+                        "stat",
+                        "-c",
+                        "%n %s %b %f %u %g %D %i %h %t %T %X %Y %Z %W %o",
+                        path,
+                    ],
+                    capture_output=True,
+                    encoding="utf-8",
+                    check=True,
+                )
+            except CalledProcessError as exc:
+                raise FileNotFoundError(path) from exc
 
-        return self._parse_stat(result.stdout)
+            try:
+                return self._parse_stat(result.stdout)
+            except IndexError:
+                pass
 
     def abspath(self, path: str) -> str:
         """Attempt to resolve a path to an absolute path"""

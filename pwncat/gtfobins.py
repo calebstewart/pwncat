@@ -503,8 +503,9 @@ class GTFOBins:
 
         while True:
             try:
-                target = target.format(**args)
-                break
+                return target.format(**args)
+            except ValueError as exc:
+                raise ValueError(target) from exc
             except KeyError as exc:
                 # The keyerror has the name in quotes for some reason
                 key = shlex.split(str(exc))[0]
@@ -520,5 +521,3 @@ class GTFOBins:
                     raise MissingBinary(key)
                 # Next time, we have it
                 args[key] = value
-
-        return target

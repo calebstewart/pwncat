@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import time
 
 from pwncat.util import console
 from pwncat.modules import ModuleFailed
@@ -38,6 +39,7 @@ class Link:
         if self.escalation.type == "escalate.replace":
             # Exit out of the subshell
             self.old_session.layers.pop()(self.old_session)
+            time.sleep(0.1)
             self.old_session.platform.refresh_uid()
 
     def __str__(self):
@@ -172,6 +174,8 @@ class Command(CommandDefinition):
                     )
                     result = escalation.escalate(manager.target)
 
+                    time.sleep(0.1)
+
                     manager.target.platform.refresh_uid()
 
                     # Construct the escalation link
@@ -209,6 +213,9 @@ class Command(CommandDefinition):
                         task, status=f"attempting {escalation.title(manager.target)}"
                     )
                     result = escalation.escalate(manager.target)
+
+                    time.sleep(0.1)
+
                     manager.target.platform.refresh_uid()
                     link = Link(manager.target, escalation, result)
 
