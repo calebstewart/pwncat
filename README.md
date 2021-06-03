@@ -1,13 +1,18 @@
 # pwncat
 
-pwncat is a post-exploitation platform for Linux targets. It started out as a
+pwncat is a post-exploitation platform ~~for Linux targets~~. It started out as a
 wrapper around basic bind and reverse shells and has grown from there. It
 streamlines common red team operations while staging code from your attacker
 machine, not the target.
 
+pwncat used to only support Linux, but there has been a lot of work recently
+to support multiple platforms. Currently, there is alpha support for Windows
+targets. Please see the latest [documentation] for details on how to use
+pwncat with a Windows target.
+
 pwncat intercepts the raw communication with a remote shell and allows the
 user to perform automated actions on the remote host including enumeration,
-persistence installation and even privilege escalation.
+implant installation and even privilege escalation.
 
 After receiving a connection, pwncat will setup some common configurations
 for working with remote shells.
@@ -35,6 +40,21 @@ pwncat [documentation] is being built out on Read the Docs. Head there for
 the latest usage and development documentation!
 
 **pwncat requires Python 3.9+.**
+
+## Version Details
+
+Currently, there are two versions of pwncat available. The last stable
+version is `v0.3.1`. There is a tagged commit for that version. It does
+not support multiple platforms or multi-session interaction. The
+documentation for that version is still available on Read the Docs as
+the `stable` version.
+
+The current `master` branch is tentatively `v0.4.0a1`. This version has
+overhauled a lot of the framework to support multiple platforms and 
+multisession environments. Documentation for this version is available
+in the `latest` version on Read the Docs.
+
+**v0.3.1 will not be updated further**
 
 ## Modules
 
@@ -67,13 +87,6 @@ Or, you can install after cloning the repository with:
 ```shell script
 python setup.py install
 ```
-
-`pwncat` depends on a custom fork of `paramiko`. I'm working on removing
-this dependency, but sadly my fork of paramiko was never merged upstream
-so currently that's where we stand. If `pip` decided not to install the
-fork (which happens sometimes), then you will get a message from pwncat
-stating that you have the wrong version with instructions for correcting
-the dependency failure.
 
 It is recommended to install pwncat from a virtual environment.
 
@@ -126,40 +139,17 @@ pwncat c228fc49e515628a0c13bdc4759a12bf
 pwncat 10.10.10.10
 ```
 
-For more information on the syntax and argument handling, see the 
-help information with ``pwncat --help`` or visit the [documentation].
+By default, pwncat **assumes the target platform is Linux**. In order to
+connect to a Windows reverse or bind shell, you must pass the `--platform/-m`
+argument:
 
-### Paramiko
-
-When connecting to a host with SSH, `paramiko` is used to connect. Due to 
-paramiko not implementing the full socket interface, I forked paramiko and
-implemented the features to make it compatible with a built-in socket. I 
-submitted a pull request with `paramiko`. The pull request was accepted but
-has still not been merged. As a result, the `setup.py` script references 
-my custom fork of paramiko. Some users have had issues where python does
-not install the custom fork and instead installs standard paramiko. In this
-case, you will get an error telling you to install the custom fork of
-paramiko. I'm working on fixing the setup script to ensure the correct version
-is installed and in the long run would like to remove this dependency eventually.
-In the meantime, if the fix recommended by pwncat does not work, please 
-comment on issue [#60](https://github.com/calebstewart/pwncat/issues/60) for help.
-
-### base64io
-
-Although not common, there has been an issue with the `setup.py` script not
-installing the `base64io` module. I believe this is similar to the `paramiko`
-issue described above, and can be fixed in the same/similar way. If you get 
-a message that the `base64io` module is not installed, you can install it
-manually with:
-
-```sh
-pip install git+https://github.com/JohnHammond/base64io-python
+``` shell
+pwncat -m windows 10.10.10.10 4444
+pwncat -m windows -lp 4444
 ```
 
-If this does not resolve the issue or you have further problems, please let
-me know on the same issue as `paramiko` (#60 above). Just like paramiko, I
-plan to remove this dependency in an upcoming release, so this will ideally
-go away in the near future.
+For more information on the syntax and argument handling, see the 
+help information with ``pwncat --help`` or visit the [documentation].
 
 ## Docker Image
 
