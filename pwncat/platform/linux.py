@@ -549,9 +549,7 @@ class Linux(Platform):
             bash = self._do_which("bash")
             if bash is not None:
                 self.shell = bash
-                self.session.log(
-                    f"[blue]info[/blue]: upgrading from sh to {self.shell}"
-                )
+                self.session.log(f"upgrading from sh to {self.shell}")
                 self.channel.sendline(f"exec {self.shell}".encode("utf-8"))
 
         self.refresh_uid()
