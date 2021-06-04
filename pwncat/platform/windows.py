@@ -48,7 +48,7 @@ import pwncat.subprocess
 from pwncat.platform import Path, Platform, PlatformError
 
 INTERACTIVE_END_MARKER = b"INTERACTIVE_COMPLETE\r\n"
-PWNCAT_WINDOWS_C2_RELEASE_URL = "https://github.com/calebstewart/pwncat-windows-c2/releases/download/v0.0.2/pwncat-windows-v0.0.2.tar.gz"
+PWNCAT_WINDOWS_C2_RELEASE_URL = "https://github.com/calebstewart/pwncat-windows-c2/releases/download/v0.1.0/pwncat-windows-v0.1.0.tar.gz"
 
 
 class PowershellError(Exception):
@@ -1243,11 +1243,17 @@ function prompt {
         result = self.channel.recvline().strip()
 
         if result.startswith(b"E:S2:EXCEPTION:"):
-            raise Exception(result.split(b"E:S2:EXCEPTION:")[1].decode("utf-8"))
+            raise PlatformError(result.split(b"E:S2:EXCEPTION:")[1].decode("utf-8"))
         elif result.startswith(b"E:PWSH:"):
             raise PowershellError(result.split(b"E:PWSH:")[1].decode("utf-8"))
 
+        # Wait for the command to complete
+        while result != b"DONE":
+            result = self.channel.recvline().strip()
+
         try:
+            # Receive results
+            result = self.channel.recvline().strip()
             while result != b"END":
                 results.append(json.loads(result))
                 result = self.channel.recvline().strip()
