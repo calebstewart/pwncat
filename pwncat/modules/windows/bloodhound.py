@@ -149,7 +149,7 @@ class Module(BaseModule):
         # Try to create a temporary file. We're just going to delete it, but
         # this gives us a tangeable temporary path to put the zip file.
         yield Status("locating a suitable temporary file location")
-        with session.platform.tempfile(suffix=".zip", mode="w") as filp:
+        with session.platform.tempfile(suffix="zip", mode="w") as filp:
             file_path = filp.name
 
         path = session.platform.Path(file_path)
@@ -158,7 +158,8 @@ class Module(BaseModule):
         # Note the local path to the downloaded zip file and set it to our temp
         # file path we just created/deleted.
         output_path = kwargs["ZipFilename"]
-        kwargs["ZipFilename"] = str(path)
+        kwargs["ZipFilename"] = path.parts[-1]
+        kwargs["OutputDirectory"] = str(path.parent)
 
         # Build the arguments
         bloodhound_args = {k: v for k, v in kwargs.items() if v is not None}
@@ -175,10 +176,18 @@ class Module(BaseModule):
 
         # Execute BloodHound
         try:
-            yield Status("executing bloodhound collector")
+            yield Status(f"executing bloodhound collector")
             session.platform.powershell(powershell_command)
         except (ModuleFailed, PowershellError) as exc:
             raise ModuleFailed(f"Invoke-BloodHound: {exc}")
+
+        output_name = path.parts[-1]
+        path_list = list(path.parent.glob(f"**_{output_name}"))
+        if not path_list:
+            raise ModuleFailed("unable to find bloodhound output")
+
+        # There should only be one result
+        path = path_list[0]
 
         # Download the contents of the zip file
         try:
