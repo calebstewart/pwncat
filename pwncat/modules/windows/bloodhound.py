@@ -7,8 +7,10 @@ from pwncat.platform.windows import Windows, PowershellError
 
 
 class Module(BaseModule):
-    """Load the Invoke-BloodHound cmdlet and execute it. Automatically download the
-    resulting zip file to a defined location and remove it from the target."""
+    """
+    Load the Invoke-BloodHound cmdlet and execute it. Automatically download the
+    resulting zip file to a defined location and remove it from the target.
+    """
 
     PLATFORM = [Windows]
     ARGUMENTS = {
