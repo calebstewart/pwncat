@@ -4,6 +4,7 @@ from io import IOBase, BytesIO
 from pathlib import Path
 
 import requests
+
 from pwncat.modules import Bool, Argument, BaseModule, ModuleFailed
 from pwncat.platform.windows import Windows
 
@@ -61,7 +62,7 @@ class Module(BaseModule):
             if r.status_code != 200:
                 raise PSModuleNotFoundError(orig_path)
 
-            return (path.name, BytesIO(r.content))
+            return (path.name, BytesIO(r.content + "\n"))
         else:
             raise PSModuleNotFoundError(orig_path)
 
