@@ -13,38 +13,31 @@ processes and open multiple files with this platform. However, you should be
 careful to cleanup all processes and files prior to return from your method
 or code as the C2 will not attempt to garbage collect file or proces handles.
 """
-import os
-import sys
+import base64
 import gzip
 import json
-import stat
-import time
-import base64
-import shutil
+import os
 import pathlib
+import readline
+import shutil
+import stat
+import subprocess
+import sys
 import tarfile
 import termios
-import readline
 import textwrap
-import subprocess
-from io import (
-    BytesIO,
-    StringIO,
-    RawIOBase,
-    TextIOWrapper,
-    BufferedIOBase,
-    UnsupportedOperation,
-)
-from typing import List, Union, BinaryIO, Optional
-from subprocess import TimeoutExpired, CalledProcessError
+import time
 from dataclasses import dataclass
+from io import (BufferedIOBase, BytesIO, RawIOBase, StringIO, TextIOWrapper,
+                UnsupportedOperation)
+from subprocess import CalledProcessError, TimeoutExpired
+from typing import BinaryIO, List, Optional, Union
 
-import requests
 import pkg_resources
-
 import pwncat
-import pwncat.util
 import pwncat.subprocess
+import pwncat.util
+import requests
 from pwncat.platform import Path, Platform, PlatformError
 
 INTERACTIVE_END_MARKER = b"INTERACTIVE_COMPLETE\r\n"
