@@ -49,7 +49,8 @@ import pwncat.subprocess
 from pwncat.platform import Path, Platform, PlatformError
 
 INTERACTIVE_END_MARKER = b"INTERACTIVE_COMPLETE\r\n"
-PWNCAT_WINDOWS_C2_RELEASE_URL = "https://github.com/calebstewart/pwncat-windows-c2/releases/download/v0.1.0/pwncat-windows-v0.1.0.tar.gz"
+PWNCAT_WINDOWS_C2_VERSION = "v0.1.0"
+PWNCAT_WINDOWS_C2_RELEASE_URL = "https://github.com/calebstewart/pwncat-windows-c2/releases/download/v0.1.0/pwncat-windows-{version}.tar.gz"
 
 
 class PowershellError(Exception):
@@ -466,18 +467,27 @@ function prompt {
         location.mkdir(parents=True, exist_ok=True)
 
         if (
-            not (location / "stageone.dll").exists()
-            or not (location / "stagetwo.dll").exists()
+            not (location / f"stageone-{PWNCAT_WINDOWS_C2_VERSION}.dll").exists()
+            or not (location / f"stagetwo-{PWNCAT_WINDOWS_C2_VERSION}.dll").exists()
         ):
-            self.session.manager.log("Downloading Windows C2 binaries from GitHub...")
-            with requests.get(PWNCAT_WINDOWS_C2_RELEASE_URL, stream=True) as request:
+            self.session.manager.log(
+                f"Downloading Windows C2 binaries ({PWNCAT_WINDOWS_C2_VERSION}) from GitHub..."
+            )
+            with requests.get(
+                PWNCAT_WINDOWS_C2_RELEASE_URL.format(version=PWNCAT_WINDOWS_C2_VERSION),
+                stream=True,
+            ) as request:
                 data = request.raw.read()
                 with tarfile.open(mode="r:gz", fileobj=BytesIO(data)) as tar:
                     with tar.extractfile("stageone.dll") as stageone:
-                        with (location / "stageone.dll").open("wb") as output:
+                        with (
+                            location / f"stageone-{PWNCAT_WINDOWS_C2_VERSION}.dll"
+                        ).open("wb") as output:
                             shutil.copyfileobj(stageone, output)
                     with tar.extractfile("stagetwo.dll") as stagetwo:
-                        with (location / "stagetwo.dll").open("wb") as output:
+                        with (
+                            location / f"stagetwo-{PWNCAT_WINDOWS_C2_VERSION}.dll"
+                        ).open("wb") as output:
                             shutil.copyfileobj(stagetwo, output)
 
     def _bootstrap_stage_two(self):
@@ -511,11 +521,11 @@ function prompt {
         loader_encoded_name = pwncat.util.random_string()
         stageone = (
             pathlib.Path(self.session.config["windows_c2_dir"]).expanduser()
-            / "stageone.dll"
+            / f"stageone-{PWNCAT_WINDOWS_C2_VERSION}.dll"
         )
         stagetwo = (
             pathlib.Path(self.session.config["windows_c2_dir"]).expanduser()
-            / "stagetwo.dll"
+            / f"stagetwo-{PWNCAT_WINDOWS_C2_VERSION}.dll"
         )
 
         # Read the loader
