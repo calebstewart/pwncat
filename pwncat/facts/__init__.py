@@ -119,7 +119,7 @@ class Group(Fact):
         self.members: PersistentList = PersistentList(members)
 
     def __repr__(self):
-        return f"""Group(gid={self.id}, name={repr(self.name)}, members={repr(self.members)})"""
+        return f"""Group(gid={repr(self.id)}, name={repr(self.name)}, members={repr(self.members)})"""
 
 
 class User(Fact):

@@ -115,8 +115,10 @@ class WindowsGroup(Group):
         description: str,
         principal_source: str,
         members: List[str],
+        domain: Optional[str] = None,
     ):
         super().__init__(source=source, name=name, gid=gid, members=members)
 
         self.group_description: str = description
         self.principal_source: str = principal_source
+        self.domain: Optional[str] = domain
