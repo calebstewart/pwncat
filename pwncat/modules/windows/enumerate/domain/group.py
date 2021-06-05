@@ -32,8 +32,20 @@ class DomainGroup(WindowsGroup):
         self.distinguishedname: Optional[str] = data.get("distinguishedname") or None
         self.objectcategory: str = data.get("objectcategory")
 
-    def __repr__(self):
-        return f"""DomainGroup(gid={repr(self.id)}, name={repr(self.name)}, domain={repr(self.domain)}, members={repr(self.members)})"""
+    def title(self, session: "pwncat.manager.Session"):
+
+        members = []
+        for uid in self.members:
+            user = session.find_user(uid=uid)
+            if user is None:
+                user = session.find_group(gid=uid)
+
+            if user is None:
+                members.append(f"UID({repr(uid)})")
+            else:
+                members.append(user.name)
+
+        return f"""DomainGroup(gid={repr(self.id)}, name={repr(self.name)}, domain={repr(self.domain)}, members={repr(members)})"""
 
 
 class Module(EnumerateModule):
