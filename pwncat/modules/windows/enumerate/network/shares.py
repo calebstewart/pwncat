@@ -13,6 +13,10 @@ from pwncat.platform.windows import PowershellError, Windows
 
 
 """
+TODO: This should use csvreader.
+"""
+
+"""
 TODO: We could parse the `type` here and determine if we have access to
 non-default network shares?
 https://docs.microsoft.com/en-us/windows/win32/cimwin32prov/getaccessmask-method-in-class-win32-share

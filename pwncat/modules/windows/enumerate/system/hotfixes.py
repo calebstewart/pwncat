@@ -12,6 +12,10 @@ from pwncat.platform import PlatformError
 from pwncat.platform.windows import PowershellError, Windows
 
 
+"""
+TODO: This should use csvreader.
+"""
+
 class HotfixData(Fact):
     def __init__(
         self, source, caption: str, hotfixid: str, tag: str, installed_on: str

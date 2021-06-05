@@ -12,6 +12,10 @@ from pwncat.platform import PlatformError
 from pwncat.platform.windows import PowershellError, Windows
 
 
+"""
+TODO: This should use csvreader.
+"""
+
 class MountedDrive(Fact):
     def __init__(self, source, av_name: str, exe_path: str):
         super().__init__(source=source, types=["protection.antivirus"])

@@ -12,6 +12,10 @@ from pwncat.platform import PlatformError
 from pwncat.platform.windows import PowershellError, Windows
 
 
+"""
+TODO: This needs to be converted to use WMIC, and CSVreader.
+"""
+
 class ProcessData(Fact):
     def __init__(
         self,
@@ -48,20 +52,26 @@ class Module(EnumerateModule):
 
     PROVIDES = ["system.processes"]
     PLATFORM = [Windows]
+    SCHEDULE = Schedule.ALWAYS
 
     def enumerate(self, session):
 
         proc = session.platform.Popen(
             ["tasklist", "/V", "/FO", "CSV"],
             stderr=pwncat.subprocess.DEVNULL,
-            stdout=pwncat.subprocess.PIPE,
-            text=True,
+            stdout=pwncat.subprocess.PIPE
         )
 
         # Process the standard output from the command
         with proc.stdout as stream:
             for line in stream:
-                line = line.strip()
+                try:
+                    line = line.strip().decode('utf-8')
+                except UnicodeDecodeError as exc:
+                    try:
+                        line = line.strip().decode('utf-16')
+                    except UnicodeDecodeError as exc:
+                        continue
 
                 if (
                     not line

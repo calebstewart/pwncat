@@ -12,6 +12,10 @@ from pwncat.platform import PlatformError
 from pwncat.platform.windows import PowershellError, Windows
 
 
+"""
+TODO: This should use csvreader.
+"""
+
 class MountedDrive(Fact):
     def __init__(
         self, source, drive_letter: str, tag: str, drive_name: str, system_name: str
