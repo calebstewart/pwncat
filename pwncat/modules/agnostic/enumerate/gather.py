@@ -6,11 +6,13 @@ import collections
 from io import IOBase
 from pathlib import Path
 
-import pwncat.modules
 from rich import markup
+from rich.progress import Progress
+
+import pwncat.modules
 from pwncat import util
 from pwncat.util import console, strip_markup
-from rich.progress import Progress
+from pwncat.modules import ModuleFailed
 from pwncat.modules.enumerate import EnumerateModule
 
 
@@ -95,7 +97,12 @@ class Module(pwncat.modules.BaseModule):
                 if not types or any(
                     any(fnmatch.fnmatch(t2, t1) for t2 in fact.types) for t1 in types
                 ):
-                    yield fact
+                    if output is None:
+                        yield fact
+                    elif item.type not in facts:
+                        facts[item.type] = [item]
+                    else:
+                        facts[item.type].append(item)
 
         for module in modules:
 
@@ -119,13 +126,20 @@ class Module(pwncat.modules.BaseModule):
             yield pwncat.modules.Status(module.name)
 
             # Iterate over facts from the sub-module with our progress manager
-            for item in module.run(session, types=types, cache=False):
-                if output is None:
-                    yield item
-                elif item.type not in facts:
-                    facts[item.type] = [item]
-                else:
-                    facts[item.type].append(item)
+            try:
+                for item in module.run(session, types=types, cache=False):
+                    if output is None:
+                        yield item
+                    elif item.type not in facts:
+                        facts[item.type] = [item]
+                    else:
+                        for fact in facts[item.type]:
+                            if fact == item:
+                                break
+                        else:
+                            facts[item.type].append(item)
+            except ModuleFailed as exc:
+                session.log(f"[red]{module.name}[/red]: {str(exc)}")
 
         # We didn't ask for a report output file, so don't write one.
         # Because output is none, the results were already returned

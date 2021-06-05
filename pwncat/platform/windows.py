@@ -17,6 +17,11 @@ import base64
 import gzip
 import json
 import os
+import stat
+import time
+import base64
+import shutil
+import signal
 import pathlib
 import readline
 import shutil
@@ -719,10 +724,11 @@ function prompt {
                     data = input()
                     self.channel.send(data.encode("utf-8") + b"\r")
                 except KeyboardInterrupt:
-                    sys.stdout.write("\n")
-                    self.session.manager.log(
-                        "[yellow]warning[/yellow]: Ctrl-C does not work for windows targets"
-                    )
+                    if not interactive_complete.is_set():
+                        sys.stdout.write("\n")
+                        self.session.manager.log(
+                            "[yellow]warning[/yellow]: Ctrl-C does not work for windows targets"
+                        )
         except EOFError:
             self.channel.send(b"\rexit\r")
             self.channel.recvuntil(INTERACTIVE_END_MARKER)
@@ -784,7 +790,9 @@ function prompt {
             if INTERACTIVE_END_MARKER[self.interactive_tracker] == b:
                 self.interactive_tracker += 1
                 if self.interactive_tracker == len(INTERACTIVE_END_MARKER):
-                    self.channel.recvline()
+                    # NOTE: this is a dirty hack to trigger the main input thread
+                    # to leave interactive mode, because it's bound in an input call
+                    os.kill(os.getpid(), signal.SIGINT)
                     raise pwncat.manager.RawModeExit
             else:
                 self.interactive_tracker = 0
