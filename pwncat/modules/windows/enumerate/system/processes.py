@@ -38,8 +38,8 @@ class ProcessData(Fact):
         out = f"[cyan]{rich.markup.escape(self.process_name)}[/cyan] (PID [blue]{self.pid}[/blue]) status [yellow]{rich.markup.escape(self.status)}[/yellow] as user [magenta]{self.user_name}[/magenta]"
         if "NT AUTHORITY\\SYSTEM" in self.user_name:
             out = out.replace("[magenta]", "[red]").replace("[/magenta]", "[/red]")
-        if self.status == "Unknown":
-            out = f"[dim]{out}[/dim]"
+        if self.status == "Running":
+            out = out.replace("[yellow]", "[green]").replace("[/yellow]", "[/green]")
         return out
 
 
