@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
+import subprocess
 
 import rich.markup
 
 import pwncat
 from pwncat.db import Fact
 from pwncat.util import Init
+from pwncat.modules import Status, ModuleFailed
+from pwncat.subprocess import CalledProcessError
 from pwncat.platform.linux import Linux
 from pwncat.modules.enumerate import Schedule, EnumerateModule
 
@@ -50,6 +53,37 @@ class ServiceData(Fact):
         return line
 
 
+def build_service_data(session, source, service):
+    """ Build a service data object from a dictionary """
+
+    # Grab the user name if available
+    user = service.get("User", None).strip()
+
+    # Resolve to user object
+    if user is not None:
+        user = session.find_user(name=user)
+
+    # If the user existed, grab the ID
+    if user is not None:
+        uid = user.id
+    else:
+        # Otherwise, assume it was root
+        uid = 0
+
+    try:
+        pid = int(service.get("MainPID", None))
+    except ValueError:
+        pid = None
+
+    return ServiceData(
+        source=source,
+        name=service["Id"].strip(),
+        uid=uid,
+        state=service.get("SubState", "unknown").strip(),
+        pid=pid,
+    )
+
+
 class Module(EnumerateModule):
     """Enumerate systemd services on the victim"""
 
@@ -66,32 +100,38 @@ class Module(EnumerateModule):
                 return
             break
 
-        # Request the list of services
-        # For the generic call, we grab the name, PID, user, and state
-        # of each process. If some part of pwncat needs more, it can
-        # request it specifically.
+        # Ensure we build the user cache
+        session.find_user(uid=0)
 
-        data = session.platform.run(
-            "systemctl show --type=service --no-pager --all --value --property Id --property MainPID --property UID --property SubState \\*",
-            capture_output=True,
-            text=True,
-            check=True,
-        )
+        try:
+            # List all services and grab the details
+            proc = session.platform.Popen(
+                "systemctl list-units --type=service --no-pager --all --no-legend --plain | cut -d' ' -f1 | xargs systemctl show --no-pager --all --property Id --property User --property MainPID --property SubState",
+                shell=True,
+                stdout=subprocess.PIPE,
+                text=True,
+            )
 
-        if data.stdout:
-            data = data.stdout.split("\n\n")
+            service = {}
 
-            for segment in data:
-                section = segment.split("\n")
-                try:
-                    pid = int(section[0])
-                except ValueError as exc:
+            for line in proc.stdout:
+                if line.strip() == "":
+                    # We can only build a service structure if we know the name
+                    if "Id" in service and service["Id"].strip() != "":
+                        yield build_service_data(session, self.name, service)
+
+                    # Reset service dict
+                    service = {}
                     continue
-                if section[1] == "[not set]":
-                    uid = 0
-                else:
-                    uid = int(section[1])
-                name = section[2].removesuffix(".service")
-                state = section[3]
 
-                yield ServiceData(self.name, name, uid, state, pid)
+                # Store the key-value pair in the dict
+                name, *value = line.split("=")
+                value = "=".join(value)
+                service[name] = value
+
+        finally:
+            try:
+                proc.wait(2)
+            except TimeoutError:
+                proc.kill()
+                proc.wait()
