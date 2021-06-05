@@ -40,7 +40,7 @@ class Module(BaseModule):
             r = requests.get(path, stream=True)
             if r.status_code != 200:
                 raise PSModuleNotFoundError(path)
-            return path.split("/")[-1], BytesIO(r.content)
+            return path.split("/")[-1], BytesIO(r.content + b"\n")
 
         orig_path = path
         path = Path(path)
@@ -62,7 +62,7 @@ class Module(BaseModule):
             if r.status_code != 200:
                 raise PSModuleNotFoundError(orig_path)
 
-            return (path.name, BytesIO(r.content + "\n"))
+            return (path.name, BytesIO(r.content + b"\n"))
         else:
             raise PSModuleNotFoundError(orig_path)
 
