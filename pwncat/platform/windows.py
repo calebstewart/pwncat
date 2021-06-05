@@ -1283,8 +1283,6 @@ function prompt {
 
         if result.startswith(b"E:S2:EXCEPTION:"):
             raise PlatformError(result.split(b"E:S2:EXCEPTION:")[1].decode("utf-8"))
-        elif result.startswith(b"E:PWSH:"):
-            raise PowershellError(result.split(b"E:PWSH:")[1].decode("utf-8"))
 
         # Wait for the command to complete
         while result != b"DONE":
@@ -1293,6 +1291,8 @@ function prompt {
         try:
             # Receive results
             result = self.channel.recvline().strip()
+            if result.startswith(b"E:PWSH:"):
+                raise PowershellError(result.split(b"E:PWSH:")[1].decode("utf-8"))
             while result != b"END":
                 results.append(json.loads(result))
                 result = self.channel.recvline().strip()

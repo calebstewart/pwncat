@@ -60,6 +60,7 @@ class WindowsUser(User):
         password_last_set: Optional[datetime],
         last_logon: Optional[datetime],
         principal_source: str,
+        domain: Optional[str] = None,
         password: Optional[str] = None,
         hash: Optional[str] = None,
     ):
@@ -78,6 +79,15 @@ class WindowsUser(User):
         self.password_last_set: Optional[datetime] = password_last_set
         self.last_logon: Optional[datetime] = last_logon
         self.principal_source: str = principal_source
+        self.domain: Optional[str] = domain
+
+    def __repr__(self):
+        if self.password is None and self.hash is None:
+            return f"""User(uid={self.id}, name={repr(self.name)}, domain={repr(self.domain)})"""
+        elif self.password is not None:
+            return f"""User(uid={repr(self.id)}, name={repr(self.name)}, domain={repr(self.domain)}, password={repr(self.password)})"""
+        else:
+            return f"""User(uid={repr(self.id)}, name={repr(self.name)}, domain={repr(self.domain)}, hash={repr(self.hash)})"""
 
 
 class WindowsGroup(Group):
