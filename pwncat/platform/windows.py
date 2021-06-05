@@ -760,6 +760,7 @@ function prompt {
             return
         if not value:
             self._interactive = False
+            self.refresh_uid()
 
     def process_output(self, data: bytes):
         """Process stdout while in interactive mode. This is called
@@ -870,6 +871,37 @@ function prompt {
         self.user_info = self.powershell(
             "[System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value"
         )[0]
+
+        # Check if we are an administrator
+        try:
+            result = self.powershell(
+                "(New-Object System.Security.Principal.WindowsPrincipal([System.Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)"
+            )
+
+            if not result:
+                # this failed... so let's not raise an exception because that
+                # would break a lot of stuff
+                self._is_admin = False
+
+            self._is_admin = result[0]
+        except PowershellError as exc:
+            # it failed, so safely ignore and continue
+            self._is_admin = False
+
+        # Check if we are SYSTEM
+        try:
+            username = self.powershell("[System.Environment]::UserName")
+
+            if not username:
+                # this failed... so let's not raise an exception because that
+                # would break a lot of stuff
+                self._is_system = False
+
+            self._is_system = bool(username[0].strip() == "SYSTEM")
+
+        except PowershellError as exc:
+            # it failed, so safely ignore and continue
+            self._is_system = False
 
     def getuid(self):
         """Retrieve the cached User ID"""
@@ -1219,19 +1251,7 @@ function prompt {
         Determine if our current user is an administrator user
         """
 
-        # This is ripped from here
-        # https://petri.com/how-to-check-a-powershell-script-is-running-with-admin-privileges
-        try:
-            result = self.powershell(
-                "(New-Object System.Security.Principal.WindowsPrincipal([System.Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)"
-            )
-
-            if not result:
-                raise PlatformError("failed to determine admin privileges")
-
-            return result[0]
-        except PowershellError as exc:
-            raise PlatformError(f"failed to determine admin privileges: {exc}")
+        return self._is_admin
 
     def is_system(self) -> bool:
         """
@@ -1240,18 +1260,7 @@ function prompt {
         but we implement it just in face
         """
 
-        # This is ripped from here
-        # https://www.optimizationcore.com/scripting/ways-get-current-logged-user-powershell/
-        try:
-            username = self.powershell("[System.Environment]::UserName")
-
-            if not username:
-                raise PlatformError("failed to determine username")
-
-            return username[0].strip() == "SYSTEM"
-
-        except PowershellError as exc:
-            raise PlatformError(f"failed to determine username: {exc}")
+        return self._is_system
 
     def powershell(self, script: Union[str, BinaryIO], depth: int = 1):
         """Execute a powershell script in the context of the C2. The results

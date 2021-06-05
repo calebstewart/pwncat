@@ -148,7 +148,7 @@ class Session:
                 return user
 
     def iter_users(self):
-        """ Iterate over the users for the target """
+        """Iterate over the users for the target"""
 
         yield from self.run("enumerate.gather", progress=False, types=["user"])
 
@@ -162,7 +162,7 @@ class Session:
                 return group
 
     def iter_groups(self, members: Optional[List[Union[str, int]]] = None):
-        """ Iterate over groups for the target """
+        """Iterate over groups for the target"""
 
         for group in self.run("enumerate.gather", progress=False, types=["group"]):
             if members is None or any(m in group.members for m in members):
@@ -232,6 +232,13 @@ class Session:
         from other sessions, if we aren't active."""
 
         self.manager.log(f"{self.platform}:", *args, **kwargs)
+
+    def print(self, *args, **kwargs):
+        """Log to the console. This utilizes the active sessions
+        progress instance to log without messing up progress output
+        from other sessions, if we aren't active."""
+
+        self.manager.print(f"{self.platform}:", *args, **kwargs)
 
     @contextlib.contextmanager
     def task(self, *args, **kwargs):

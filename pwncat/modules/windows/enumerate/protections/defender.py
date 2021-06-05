@@ -30,7 +30,7 @@ class DefenderData(Fact):
         if self.enabled:
             return "Windows Defender is [bold red]enabled[/bold red]"
 
-        return "[green]Windows Defender is [bold green]disabled[/bold green]"
+        return "Windows Defender is [bold green]disabled[/bold green]"
 
     def description(self, session):
         output = []
