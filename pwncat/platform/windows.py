@@ -48,11 +48,11 @@ import pwncat.subprocess
 from pwncat.platform import Path, Platform, PlatformError
 
 INTERACTIVE_END_MARKER = b"INTERACTIVE_COMPLETE\r\n"
-PWNCAT_WINDOWS_C2_RELEASE_URL = "https://github.com/calebstewart/pwncat-windows-c2/releases/download/v0.0.2/pwncat-windows-v0.0.2.tar.gz"
+PWNCAT_WINDOWS_C2_RELEASE_URL = "https://github.com/calebstewart/pwncat-windows-c2/releases/download/v0.1.0/pwncat-windows-v0.1.0.tar.gz"
 
 
 class PowershellError(Exception):
-    """ Executing a powershell script caused an error """
+    """Executing a powershell script caused an error"""
 
     def __init__(self, errors):
         self.errors = json.loads(errors)
@@ -92,7 +92,7 @@ class stat_result:
 
 
 class WindowsFile(RawIOBase):
-    """ Wrapper around file handles on Windows """
+    """Wrapper around file handles on Windows"""
 
     def __init__(self, platform: "Windows", mode: str, handle: int, name: str = None):
         self.platform = platform
@@ -109,7 +109,7 @@ class WindowsFile(RawIOBase):
         return "w" in self.mode
 
     def close(self):
-        """ Close a file handle on the remote host """
+        """Close a file handle on the remote host"""
 
         if not self.is_open:
             return
@@ -121,7 +121,7 @@ class WindowsFile(RawIOBase):
         return
 
     def readall(self):
-        """ Read until EOF """
+        """Read until EOF"""
 
         data = b""
 
@@ -159,7 +159,7 @@ class WindowsFile(RawIOBase):
         return count
 
     def write(self, data: bytes):
-        """ Write data to this file """
+        """Write data to this file"""
 
         if self.eof:
             return 0
@@ -270,7 +270,7 @@ class PopenWindows(pwncat.subprocess.Popen):
         self.returncode = -1
 
     def poll(self):
-        """ Poll if the process has completed and get return code """
+        """Poll if the process has completed and get return code"""
 
         if self.returncode is not None:
             return self.returncode
@@ -443,7 +443,7 @@ class Windows(Platform):
         self.channel.send(f"{typ}\n{method}\n".encode("utf-8"))
 
     def setup_prompt(self):
-        """ Set a prompt method for powershell to ensure our prompt looks pretty :) """
+        """Set a prompt method for powershell to ensure our prompt looks pretty :)"""
 
         self.powershell(
             """
@@ -627,7 +627,7 @@ function prompt {
             self.session.log("[yellow]warning[/yellow]: failed to disable AMSI!")
 
     def get_pty(self):
-        """ We don't need to do this for windows """
+        """We don't need to do this for windows"""
 
     def Popen(
         self,
@@ -807,7 +807,7 @@ function prompt {
         errors: str = None,
         newline: str = None,
     ):
-        """ Mimick the built-in open method. """
+        """Mimick the built-in open method."""
 
         # Ensure all mode properties are valid
         for char in mode:
@@ -872,7 +872,7 @@ function prompt {
         )[0]
 
     def getuid(self):
-        """ Retrieve the cached User ID """
+        """Retrieve the cached User ID"""
 
         return self.user_info
 
@@ -917,7 +917,7 @@ function prompt {
             raise FileNotFoundError(path) from exc
 
     def chdir(self, path: str):
-        """ Change the current working directory """
+        """Change the current working directory"""
 
         try:
             result = self.powershell(f'$_ = (pwd) ; cd "{path}" ; $_ | Select Path')
@@ -1018,7 +1018,7 @@ function prompt {
                 raise PermissionError(path)
 
     def lstat(self):
-        """ Perform stat on a link instead of the target of the link. """
+        """Perform stat on a link instead of the target of the link."""
 
         raise PlatformError("lstat not implemented for Windows")
 
@@ -1036,7 +1036,7 @@ function prompt {
         self.new_item(ItemType="Directory", Path=path)
 
     def readlink(self):
-        """ Read the target of a filesystem link """
+        """Read the target of a filesystem link"""
 
         raise PlatformError("readlink not implemented for Windows")
 
@@ -1138,7 +1138,7 @@ function prompt {
     def tempfile(
         self, mode: str, length: Optional[int] = 8, suffix: Optional[str] = None
     ):
-        """ Create a temporary file in a safe directory. Optionally provide a suffix """
+        """Create a temporary file in a safe directory. Optionally provide a suffix"""
 
         if suffix is None:
             suffix = ""
@@ -1176,7 +1176,7 @@ function prompt {
             raise PermissionError(path)
 
     def umask(self, mask: Optional[int] = None):
-        """ Set or retrieve the current umask value """
+        """Set or retrieve the current umask value"""
 
         raise NotImplementedError("windows platform does not support umask")
 
@@ -1214,6 +1214,45 @@ function prompt {
         except PowershellError as exc:
             raise OSError from exc
 
+    def is_admin(self) -> bool:
+        """
+        Determine if our current user is an administrator user
+        """
+
+        # This is ripped from here
+        # https://petri.com/how-to-check-a-powershell-script-is-running-with-admin-privileges
+        try:
+            result = self.powershell(
+                "(New-Object System.Security.Principal.WindowsPrincipal([System.Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)"
+            )
+
+            if not result:
+                raise PlatformError("failed to determine admin privileges")
+
+            return result[0]
+        except PowershellError as exc:
+            raise PlatformError(f"failed to determine admin privileges: {exc}")
+
+    def is_system(self) -> bool:
+        """
+        Determine if our current user is SYSTEM
+        We might not need this, because the users name SHOULD be system...
+        but we implement it just in face
+        """
+
+        # This is ripped from here
+        # https://www.optimizationcore.com/scripting/ways-get-current-logged-user-powershell/
+        try:
+            username = self.powershell("[System.Environment]::UserName")
+
+            if not username:
+                raise PlatformError("failed to determine username")
+
+            return username[0].strip() == "SYSTEM"
+
+        except PowershellError as exc:
+            raise PlatformError(f"failed to determine username: {exc}")
+
     def powershell(self, script: Union[str, BinaryIO], depth: int = 1):
         """Execute a powershell script in the context of the C2. The results
         of the command are automatically serialized with ``ConvertTo-Json``.
@@ -1243,11 +1282,17 @@ function prompt {
         result = self.channel.recvline().strip()
 
         if result.startswith(b"E:S2:EXCEPTION:"):
-            raise Exception(result.split(b"E:S2:EXCEPTION:")[1].decode("utf-8"))
+            raise PlatformError(result.split(b"E:S2:EXCEPTION:")[1].decode("utf-8"))
         elif result.startswith(b"E:PWSH:"):
             raise PowershellError(result.split(b"E:PWSH:")[1].decode("utf-8"))
 
+        # Wait for the command to complete
+        while result != b"DONE":
+            result = self.channel.recvline().strip()
+
         try:
+            # Receive results
+            result = self.channel.recvline().strip()
             while result != b"END":
                 results.append(json.loads(result))
                 result = self.channel.recvline().strip()
