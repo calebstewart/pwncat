@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+import os.path
+
+import pkg_resources
 
 from pwncat.modules import Result, Status, Argument, BaseModule, ModuleFailed
 from pwncat.platform.windows import Windows, PowershellError
@@ -105,9 +108,13 @@ class Module(BaseModule):
         for url in self.MODULES[group]:
             yield Status(f"loading {url.split('/')[-1]}")
 
+            path = pkg_resources.resource_filename(
+                "pwncat", os.path.join("data/PowerSploit", url)
+            )
+
             try:
                 # Attempt to load the script in the PowerShell context.
-                session.run("manage.powershell.import", path=self.POWERSPLOIT_URL + url)
+                session.run("manage.powershell.import", path=path)
             except PowershellError as exc:
                 # We failed, but continue loading other scripts. Just let the user know.
                 session.log(f"while loading {url.split('/')[-1]}: {str(exc)}")

@@ -9,10 +9,11 @@ from pwncat.modules.enumerate import Schedule, EnumerateModule
 
 
 class DomainObject(Fact):
-    def __init__(self, source: str, data: Dict):
+    def __init__(self, source: str, data: Dict, sid: str):
         super().__init__(source=source, types=["domain.details"])
 
         self.domain = data
+        self.sid = sid
 
     def __getitem__(self, name: str):
         """ Shortcut for getting properties from the `self.domain` property. """
@@ -29,6 +30,7 @@ class DomainObject(Fact):
         output.append(
             f"Domain Controllers: [cyan]{'[/cyan][cyan]'.join(self['DomainControllers'])}[/cyan]"
         )
+        output.append(f"SID: {repr(self.sid)}")
 
         return "\n".join(output)
 
@@ -54,4 +56,10 @@ class Module(EnumerateModule):
             # Doesn't appear to be a domain joined computer
             return
 
-        yield DomainObject(self.name, domain)
+        try:
+            yield Status("requesting domain sid")
+            sid = session.platform.powershell("Get-DomainSID")[0]
+        except (IndexError, PowershellError) as exc:
+            sid = None
+
+        yield DomainObject(self.name, domain, sid)
