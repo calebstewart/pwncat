@@ -13,7 +13,7 @@ from pwncat.platform.windows import PowershellError, Windows
 
 
 class UACData(Fact):
-    def __init__(self, source, registry_values=Dict):
+    def __init__(self, source, registry_values:Dict):
         super().__init__(source=source, types=["protections.uac"])
 
         self.registry_values: bool = registry_values

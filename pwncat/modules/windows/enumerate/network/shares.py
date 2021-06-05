@@ -12,6 +12,12 @@ from pwncat.platform import PlatformError
 from pwncat.platform.windows import PowershellError, Windows
 
 
+"""
+TODO: We could parse the `type` here and determine if we have access to
+non-default network shares?
+https://docs.microsoft.com/en-us/windows/win32/cimwin32prov/getaccessmask-method-in-class-win32-share
+"""
+
 class NetworkShare(Fact):
     def __init__(self, source, name: str, caption: str, tag: str, install_date: str, path:str, status:str, share_type:str):
         super().__init__(source=source, types=["network.shares"])
