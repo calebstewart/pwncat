@@ -44,6 +44,35 @@ class ProcessData(Fact):
         if self.owner == "":
             self.owner = None
 
+    def kill(self, session):
+        """ Attempt to kill the process """
+
+        try:
+            session.platform.powershell(f"(Get-Process -Id {self.pid}).Kill()")
+        except PowershellError as exc:
+            raise ModuleFailed(f"failed to kill process {self.pid}") from exc
+
+    def wait(self, timeout: int = -1):
+        """
+        Wait for the process to exit.
+
+        :param timeout: The amount of time , in milliseconds, to wait for the associated process to exit.
+            0 specifies an immediate exit. -1 specifies an infinite wait.
+        :type timeout: int
+        :raises:
+            TimeoutError: the process did not exit within the timeout specified
+            PermissionError: you do not have permission to wait for the specified process or the process does not exist
+        """
+
+        try:
+            result = session.platform.powershell(
+                f"(Get-Process -Id {self.pid}).WaitForExit({timeout})"
+            )
+            if not result or not result[0]:
+                raise TimeoutError(self)
+        except PowershellError:
+            raise PermissionError(f"cannot wait for process w/ pid {self.pid}")
+
     def title(self, session):
         """ Build a formatted description for this process """
 
