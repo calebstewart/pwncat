@@ -118,8 +118,21 @@ class Group(Fact):
         self.id = gid
         self.members: PersistentList = PersistentList(members)
 
-    def __repr__(self):
-        return f"""Group(gid={self.id}, name={repr(self.name)}, members={repr(self.members)})"""
+    def title(self, session: "pwncat.manager.Session"):
+
+        members = []
+        for uid in self.members:
+            user = session.find_user(uid=uid)
+
+            if user is None and not isinstance(uid, int):
+                user = session.find_group(gid=uid)
+
+            if user is None:
+                members.append(f"UID({repr(uid)})")
+            else:
+                members.append(user.name)
+
+        return f"""Group(gid={repr(self.id)}, name={repr(self.name)}, members={repr(members)})"""
 
 
 class User(Fact):

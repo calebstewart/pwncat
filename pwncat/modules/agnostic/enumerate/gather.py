@@ -68,10 +68,15 @@ class Module(pwncat.modules.BaseModule):
             default=True,
             help="Return cached results along with new facts (default: True)",
         ),
+        "exclude": pwncat.modules.Argument(
+            pwncat.modules.List(str),
+            default=None,
+            help="glob pattern of module names to exclude",
+        ),
     }
     PLATFORM = None
 
-    def run(self, session, output, modules, types, clear, cache):
+    def run(self, session, output, modules, types, clear, cache, exclude):
         """Perform a enumeration of the given moduels and save the output"""
 
         module_names = modules
@@ -81,6 +86,13 @@ class Module(pwncat.modules.BaseModule):
         for name in module_names:
             modules = modules | set(
                 list(session.find_module(f"enumerate.{name}", base=EnumerateModule))
+            )
+
+        if exclude is not None and exclude:
+            modules = (
+                module
+                for module in modules
+                if not any(fnmatch.fnmatch(module.name, e) for e in exclude)
             )
 
         if clear:

@@ -13,39 +13,36 @@ processes and open multiple files with this platform. However, you should be
 careful to cleanup all processes and files prior to return from your method
 or code as the C2 will not attempt to garbage collect file or proces handles.
 """
-import os
-import sys
+import base64
 import gzip
 import json
+import os
 import stat
 import time
 import base64
 import shutil
 import signal
 import pathlib
+import readline
+import shutil
+import stat
+import subprocess
+import sys
 import tarfile
 import termios
-import readline
 import textwrap
-import subprocess
-from io import (
-    BytesIO,
-    StringIO,
-    RawIOBase,
-    TextIOWrapper,
-    BufferedIOBase,
-    UnsupportedOperation,
-)
-from typing import List, Union, BinaryIO, Optional
-from subprocess import TimeoutExpired, CalledProcessError
+import time
 from dataclasses import dataclass
+from io import (BufferedIOBase, BytesIO, RawIOBase, StringIO, TextIOWrapper,
+                UnsupportedOperation)
+from subprocess import CalledProcessError, TimeoutExpired
+from typing import BinaryIO, List, Optional, Union
 
-import requests
 import pkg_resources
-
 import pwncat
-import pwncat.util
 import pwncat.subprocess
+import pwncat.util
+import requests
 from pwncat.platform import Path, Platform, PlatformError
 
 INTERACTIVE_END_MARKER = b"INTERACTIVE_COMPLETE\r\n"
@@ -772,6 +769,7 @@ function prompt {
             return
         if not value:
             self._interactive = False
+            self.refresh_uid()
 
     def process_output(self, data: bytes):
         """Process stdout while in interactive mode. This is called
@@ -884,6 +882,37 @@ function prompt {
         self.user_info = self.powershell(
             "[System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value"
         )[0]
+
+        # Check if we are an administrator
+        try:
+            result = self.powershell(
+                "(New-Object System.Security.Principal.WindowsPrincipal([System.Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)"
+            )
+
+            if not result:
+                # this failed... so let's not raise an exception because that
+                # would break a lot of stuff
+                self._is_admin = False
+
+            self._is_admin = result[0]
+        except PowershellError as exc:
+            # it failed, so safely ignore and continue
+            self._is_admin = False
+
+        # Check if we are SYSTEM
+        try:
+            username = self.powershell("[System.Environment]::UserName")
+
+            if not username:
+                # this failed... so let's not raise an exception because that
+                # would break a lot of stuff
+                self._is_system = False
+
+            self._is_system = bool(username[0].strip() == "SYSTEM")
+
+        except PowershellError as exc:
+            # it failed, so safely ignore and continue
+            self._is_system = False
 
     def getuid(self):
         """Retrieve the cached User ID"""
@@ -1233,19 +1262,7 @@ function prompt {
         Determine if our current user is an administrator user
         """
 
-        # This is ripped from here
-        # https://petri.com/how-to-check-a-powershell-script-is-running-with-admin-privileges
-        try:
-            result = self.powershell(
-                "(New-Object System.Security.Principal.WindowsPrincipal([System.Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)"
-            )
-
-            if not result:
-                raise PlatformError("failed to determine admin privileges")
-
-            return result[0]
-        except PowershellError as exc:
-            raise PlatformError(f"failed to determine admin privileges: {exc}")
+        return self._is_admin
 
     def is_system(self) -> bool:
         """
@@ -1254,18 +1271,7 @@ function prompt {
         but we implement it just in face
         """
 
-        # This is ripped from here
-        # https://www.optimizationcore.com/scripting/ways-get-current-logged-user-powershell/
-        try:
-            username = self.powershell("[System.Environment]::UserName")
-
-            if not username:
-                raise PlatformError("failed to determine username")
-
-            return username[0].strip() == "SYSTEM"
-
-        except PowershellError as exc:
-            raise PlatformError(f"failed to determine username: {exc}")
+        return self._is_system
 
     def powershell(self, script: Union[str, BinaryIO], depth: int = 1):
         """Execute a powershell script in the context of the C2. The results

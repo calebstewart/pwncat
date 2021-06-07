@@ -68,6 +68,8 @@ class Schedule(Enum):
 
     ALWAYS = auto()
     """ Execute the enumeration every time the module is executed """
+    NOSAVE = auto()
+    """ Similar to always, except that no enumerated information will be saved to the database """
     PER_USER = auto()
     """ Execute the enumeration once per user on the target """
     ONCE = auto()
@@ -162,7 +164,7 @@ class EnumerateModule(BaseModule):
 
         # Yield all the know facts which have already been enumerated
         if cache and types:
-            yield from (
+            cached = [
                 f
                 for f in target.facts
                 if f.source == self.name
@@ -170,9 +172,13 @@ class EnumerateModule(BaseModule):
                     any(fnmatch.fnmatch(item_type, req_type) for req_type in types)
                     for item_type in f.types
                 )
-            )
+            ]
         elif cache:
-            yield from (f for f in target.facts if f.source == self.name)
+            cached = [f for f in target.facts if f.source == self.name]
+        else:
+            cached = []
+
+        yield from cached
 
         # Check if the module is scheduled to run now
         if (self.name in target.enumerate_state) and (
@@ -187,26 +193,29 @@ class EnumerateModule(BaseModule):
         for item in self.enumerate(session):
 
             # Allow non-fact status updates
-            if isinstance(item, Status):
+            if isinstance(item, Status) or self.SCHEDULE == Schedule.NOSAVE:
                 yield item
                 continue
 
             # Only add the item if it doesn't exist
             for f in target.facts:
                 if f == item:
-                    yield Status(item.title(session))
                     break
             else:
                 target.facts.append(item)
 
-                # Don't yield the actual fact if we didn't ask for this type
-                if not types or any(
-                    any(fnmatch.fnmatch(item_type, req_type) for req_type in types)
-                    for item_type in item.types
-                ):
-                    yield item
+            # Don't yield the actual fact if we didn't ask for this type
+            if not types or any(
+                any(fnmatch.fnmatch(item_type, req_type) for req_type in types)
+                for item_type in item.types
+            ):
+                for c in cached:
+                    if item == c:
+                        break
                 else:
-                    yield Status(item.title(session))
+                    yield item
+            else:
+                yield Status(item.title(session))
 
         # Update state for restricted modules
         if self.SCHEDULE == Schedule.ONCE:

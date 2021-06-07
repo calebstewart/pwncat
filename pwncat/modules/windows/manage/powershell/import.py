@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 import os
-from io import IOBase, BytesIO
+from io import BytesIO, IOBase
 from pathlib import Path
 
 import requests
-
-from pwncat.modules import Bool, Argument, BaseModule, ModuleFailed
+from pwncat.modules import Argument, BaseModule, Bool, ModuleFailed
 from pwncat.platform.windows import Windows
 
 
@@ -33,7 +32,7 @@ class Module(BaseModule):
         self.imported_modules = []
 
     def resolve_psmodule(self, session: "pwncat.manager.Session", path: str):
-        """ Resolve a module name into a file-like object """
+        """Resolve a module name into a file-like object"""
 
         if path.startswith("http://") or path.startswith("https://"):
             # Load from a URL
