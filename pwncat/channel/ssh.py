@@ -6,6 +6,7 @@ shell and grabs a PTY. It then wraps the SSH channel in a pwncat channel.
 This module requires a host, user and either a password or identity (key) file.
 An optional port argument is also accepted.
 """
+import os
 import socket
 from typing import Optional
 
@@ -56,7 +57,9 @@ class Ssh(Channel):
             try:
                 # Load the private key for the user
                 if isinstance(identity, str):
-                    key = paramiko.RSAKey.from_private_key_file(identity)
+                    key = paramiko.RSAKey.from_private_key_file(
+                        os.path.expanduser(identity)
+                    )
                 else:
                     key = paramiko.RSAKey.from_private_key(identity)
             except:

@@ -130,7 +130,6 @@ def main():
             args.connection_string is not None
             or args.pos_port is not None
             or args.port is not None
-            or args.platform is not None
             or args.listen
             or args.identity is not None
         ):
