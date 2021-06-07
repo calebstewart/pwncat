@@ -55,7 +55,10 @@ class Ssh(Channel):
         if identity is not None:
             try:
                 # Load the private key for the user
-                key = paramiko.RSAKey.from_private_key_file(identity)
+                if isinstance(identity, str):
+                    key = paramiko.RSAKey.from_private_key_file(identity)
+                else:
+                    key = paramiko.RSAKey.from_private_key(identity)
             except:
                 password = prompt("RSA Private Key Passphrase: ", is_password=True)
                 try:

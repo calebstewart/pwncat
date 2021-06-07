@@ -143,11 +143,14 @@ def main():
 
             if args.connection_string:
                 m = connect.Command.CONNECTION_PATTERN.match(args.connection_string)
-                protocol = m.group("protocol")
+                protocol = m.group("protocol").removesuffix("://")
                 user = m.group("user")
                 password = m.group("password")
                 host = m.group("host")
                 port = m.group("port")
+
+            if host is not None and host == "":
+                host = None
 
             if protocol is not None and args.listen:
                 console.log(
@@ -180,7 +183,7 @@ def main():
                     console.log(f"[red]error[/red]: {port}: invalid port number")
                     return
 
-            if protocol != "ssh://" and args.identity is not None:
+            if protocol != "ssh" and args.identity is not None:
                 console.log(
                     f"[red]error[/red]: --identity is only valid for ssh protocols"
                 )
