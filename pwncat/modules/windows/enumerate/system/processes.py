@@ -1,54 +1,87 @@
 #!/usr/bin/env python3
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
+
+import rich.markup
 
 import pwncat
-import rich.markup
 from pwncat import util
 from pwncat.db import Fact
-from pwncat.modules import ModuleFailed
-from pwncat.modules.enumerate import EnumerateModule, Schedule
+from pwncat.modules import Status, ModuleFailed
 from pwncat.platform import PlatformError
-from pwncat.platform.windows import PowershellError, Windows
+from pwncat.platform.windows import Windows, PowershellError
+from pwncat.modules.enumerate import Schedule, EnumerateModule
 
-
-"""
-TODO: This needs to be converted to use WMIC, and CSVreader.
-"""
 
 class ProcessData(Fact):
+    """ Remote process information """
+
     def __init__(
         self,
-        source,
-        process_name: str,
+        source: str,
+        name: str,
         pid: int,
-        session_name: str,
-        status: str,
-        user_name: str,
+        session: Optional[int],
+        owner: str,
+        state: int,
+        path: str,
+        commandline: str,
+        handle: int,
     ):
         super().__init__(source=source, types=["system.processes"])
 
-        self.process_name: str = process_name
-
+        self.name: str = name
         self.pid: int = pid
+        self.session: int = session
+        self.owner: str = owner
+        self.state: int = state
+        self.path: str = path
+        self.commandline: str = commandline
+        self.handle: int = handle
 
-        self.session_name: str = session_name
-
-        self.status: str = status
-
-        self.user_name: str = user_name
+        if self.path == "":
+            self.path = None
+        if self.owner == "":
+            self.owner = None
 
     def title(self, session):
-        out = f"[cyan]{rich.markup.escape(self.process_name)}[/cyan] (PID [blue]{self.pid}[/blue]) status [yellow]{rich.markup.escape(self.status)}[/yellow] as user [magenta]{self.user_name}[/magenta]"
-        if "NT AUTHORITY\\SYSTEM" in self.user_name:
-            out = out.replace("[magenta]", "[red]").replace("[/magenta]", "[/red]")
-        if self.status == "Running":
-            out = out.replace("[yellow]", "[green]").replace("[/yellow]", "[/green]")
-        return out
+        """ Build a formatted description for this process """
+
+        out = "[cyan]{name}[/cyan] (PID [blue]{pid}[/blue]) is {state} "
+
+        state = "[green]running[/green]"
+        if self.state == 7:
+            state = "[red]terminated[/red]"
+        elif self.state == 8:
+            state = "[yellow]stopped[/red]"
+
+        if self.owner is None:
+            color = "yellow"
+            owner = "unknown"
+        else:
+            color = "magenta"
+
+            owner = session.find_user(uid=self.owner)
+            if owner is None:
+                owner = session.find_group(gid=self.owner)
+            if owner is None:
+                owner = f"SID({repr(self.owner)})"
+            else:
+                owner = owner.name
+
+        out += "owned by [{color}]{owner}[/{color}]"
+
+        return out.format(
+            name=rich.markup.escape(self.name),
+            pid=self.pid,
+            owner=owner,
+            color=color,
+            state=state,
+        )
 
 
 class Module(EnumerateModule):
-    """Enumerate the current Windows Defender settings on the target"""
+    """ Retrieve a list of current processes running on the target """
 
     PROVIDES = ["system.processes"]
     PLATFORM = [Windows]
@@ -56,46 +89,37 @@ class Module(EnumerateModule):
 
     def enumerate(self, session):
 
-        proc = session.platform.Popen(
-            ["tasklist", "/V", "/FO", "CSV"],
-            stderr=pwncat.subprocess.DEVNULL,
-            stdout=pwncat.subprocess.PIPE
-        )
+        script = """
+Get-WmiObject -Class Win32_Process | % {
+    [PSCustomObject]@{
+        commandline=$_.CommandLine;
+        description=$_.Description;
+        path=$_.ExecutablePath;
+        state=$_.ExecutionState;
+        handle=$_.Handle;
+        name=$_.Name;
+        id=$_.ProcessId;
+        session=$_.SessionId;
+        owner=$_.GetOwnerSid().Sid;
+    }
+}
+        """
 
-        # Process the standard output from the command
-        with proc.stdout as stream:
-            for line in stream:
-                try:
-                    line = line.strip().decode('utf-8')
-                except UnicodeDecodeError as exc:
-                    try:
-                        line = line.strip().decode('utf-16')
-                    except UnicodeDecodeError as exc:
-                        continue
+        try:
+            yield Status("requesting process list...")
+            processes = session.platform.powershell(script, depth=2)[0]
+        except (IndexError, PowershellError) as exc:
+            raise ModuleFailed(f"failed to get running processes: {exc}")
 
-                if (
-                    not line
-                    or '"Image Name","PID","Session Name","Session#","Mem Usage","Status","User Name","CPU Time","Window Title"'
-                    in line
-                ):
-                    continue
-
-                (
-                    process_name,
-                    pid,
-                    session_name,
-                    _,
-                    _,
-                    status,
-                    user_name,
-                    _,
-                    _,
-                ) = (x.strip('"') for x in line.split('",'))
-
-                pid = int(pid)
-
-                yield ProcessData(
-                    self.name, process_name, pid, session_name, status, user_name
-                )
-
-        proc.wait()
+        for proc in processes:
+            yield ProcessData(
+                source=self.name,
+                name=proc["name"],
+                pid=proc["id"],
+                session=proc.get("session"),
+                owner=proc["owner"],
+                state=proc["state"],
+                commandline=proc["commandline"],
+                path=proc["path"],
+                handle=proc["handle"],
+            )
