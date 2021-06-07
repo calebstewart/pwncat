@@ -143,11 +143,14 @@ def main():
 
             if args.connection_string:
                 m = connect.Command.CONNECTION_PATTERN.match(args.connection_string)
-                protocol = m.group("protocol").removesuffix("://")
+                protocol = m.group("protocol")
                 user = m.group("user")
                 password = m.group("password")
                 host = m.group("host")
                 port = m.group("port")
+
+            if protocol is not None:
+                protocol = protocol.removesuffix("://")
 
             if host is not None and host == "":
                 host = None
