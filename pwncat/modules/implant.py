@@ -1,36 +1,43 @@
-#!/usr/bin/env python3
+"""
+pwncat supports abstract local and remote implants. Implants provide a way for
+pwncat to either remotely reconnect or locally escalate privileges. Escalation
+modules should be placed organizationally under the `implant/` package.
+
+An implant module implements a single method named ``install`` and can take
+any arbitrary arguments. The install method must return an :class:`Implant`
+subclass. This class is what tracks implant installation, and allows for
+triggering and removing the implant.
+
+After installation, the :class:`Implant` object is added to the database
+and can be located using the ``enumerate`` module and searching for
+``implant.*`` fact types.
+
+For examples of implant modules, see the ``pam`` and ``passwd`` built-in
+implants located in ``pwncat/modules/linux/implant/``.
+"""
 from typing import List
 
-from pwncat.util import console
 from rich.prompt import Prompt
+
+from pwncat.util import console
 from pwncat.facts import Implant, ImplantType
 from pwncat.modules import Bool, Status, Argument, BaseModule, ModuleFailed
 
 
 class ImplantModule(BaseModule):
     """
-    Base class for all persistence modules.
+    Base class for all implant modules.
 
-    Persistence modules should inherit from this class, and implement
-    the ``install``, ``remove``, and ``escalate`` methods. All modules must
-    take a ``user`` argument. If the module is a "system" module, and
-    can only be installed as root, then an error should be raised for
-    any "user" that is not root.
+    Implants must implement the :func:``install`` method and cannot
+    override the :func:`run` method. The install method takes the same
+    arguments as the standard :func:`run` method, including all your
+    custom arguments.
 
-    If you need your own arguments to a module, you can define your
-    arguments like this:
-
-    .. code-block:: python
-
-        ARGUMENTS = {
-            **PersistModule.ARGUMENTS,
-            "your_arg": Argument(str)
-        }
-
-    All arguments **must** be picklable. They are stored in the database
-    as a SQLAlchemy PickleType containing a dictionary of name-value
-    pairs.
-
+    The install method must be a generator which yields :class:`Status`
+    instances, and returns a :class:`Implant` object. Implant objects
+    track the installed implant, and also provide methods for triggering,
+    escalation and removal. Check the documentation for the :class:`Implant`
+    class for more details.
     """
 
     """ Defines where this implant module is useful (either remote
@@ -67,8 +74,8 @@ class ImplantModule(BaseModule):
         The implant will be automatically added to the database. Arguments aside
         from `remove` and `escalate` are passed directly to the install method.
 
-        :param user: the user to install persistence as. In the case of ALL_USERS persistence, this should be ignored.
-        :type user: str
+        :param session: the session on which to operate
+        :type session: pwncat.manager.Session
         :param kwargs: Any custom arguments defined in your ``ARGUMENTS`` dictionary.
         :raises ModuleFailed: installation failed.
         """

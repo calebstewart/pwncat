@@ -137,7 +137,7 @@ Get-WmiObject -Class Win32_Process | % {
 
         try:
             yield Status("requesting process list...")
-            processes = session.platform.powershell(script, depth=2)[0]
+            processes = session.platform.powershell(script)[0]
         except (IndexError, PowershellError) as exc:
             raise ModuleFailed(f"failed to get running processes: {exc}")
 
