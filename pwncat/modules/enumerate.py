@@ -68,6 +68,8 @@ class Schedule(Enum):
 
     ALWAYS = auto()
     """ Execute the enumeration every time the module is executed """
+    NOSAVE = auto()
+    """ Similar to always, except that no enumerated information will be saved to the database """
     PER_USER = auto()
     """ Execute the enumeration once per user on the target """
     ONCE = auto()
@@ -191,7 +193,7 @@ class EnumerateModule(BaseModule):
         for item in self.enumerate(session):
 
             # Allow non-fact status updates
-            if isinstance(item, Status):
+            if isinstance(item, Status) or self.SCHEDULE == Schedule.NOSAVE:
                 yield item
                 continue
 

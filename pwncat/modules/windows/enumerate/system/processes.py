@@ -114,7 +114,8 @@ class Module(EnumerateModule):
 
     PROVIDES = ["system.processes"]
     PLATFORM = [Windows]
-    SCHEDULE = Schedule.ALWAYS
+    # We don't save process results. They're volatile. Maybe this should be `Schedule.ALWAYS` anyway though? :shrug:
+    SCHEDULE = Schedule.NOSAVE
 
     def enumerate(self, session):
 
