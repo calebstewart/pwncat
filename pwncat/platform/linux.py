@@ -575,7 +575,7 @@ class Linux(Platform):
             return
 
         pty_command = None
-        shell = self.getenv("SHELL")
+        shell = self.shell
 
         if pty_command is None:
             script_path = self.which("script")
