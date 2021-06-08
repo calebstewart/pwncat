@@ -109,12 +109,15 @@ class Module(pwncat.modules.BaseModule):
                 if not types or any(
                     any(fnmatch.fnmatch(t2, t1) for t2 in fact.types) for t1 in types
                 ):
+                    if fact.type not in facts:
+                        facts[fact.type] = [fact]
+                    else:
+                        facts[fact.type].append(fact)
+
                     if output is None:
                         yield fact
-                    elif item.type not in facts:
-                        facts[item.type] = [item]
                     else:
-                        facts[item.type].append(item)
+                        yield Status(fact.title(session))
 
         for module in modules:
 
@@ -139,17 +142,23 @@ class Module(pwncat.modules.BaseModule):
 
             # Iterate over facts from the sub-module with our progress manager
             try:
-                for item in module.run(session, types=types, cache=False):
-                    if output is None:
-                        yield item
-                    elif item.type not in facts:
+                for item in module.run(session, types=types):
+                    if item.type not in facts:
                         facts[item.type] = [item]
+                        if output is None:
+                            yield item
+                        else:
+                            yield Status(item.title(session))
                     else:
                         for fact in facts[item.type]:
                             if fact == item:
                                 break
                         else:
                             facts[item.type].append(item)
+                            if output is None:
+                                yield item
+                            else:
+                                yield Status(item.title(session))
             except ModuleFailed as exc:
                 session.log(f"[red]{module.name}[/red]: {str(exc)}")
 
