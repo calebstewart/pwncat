@@ -16,8 +16,8 @@ with pwncat.manager.Manager("data/pwncatrc") as manager:
 
     # Establish a session
     # session = manager.create_session("windows", host="192.168.56.10", port=4444)
-    # session = manager.create_session("windows", host="192.168.122.11", port=4444)
+    session = manager.create_session("windows", host="192.168.122.11", port=4444)
     # session = manager.create_session("linux", host="pwncat-ubuntu", port=4444)
-    session = manager.create_session("linux", host="127.0.0.1", port=4445)
+    # session = manager.create_session("linux", host="127.0.0.1", port=4445)
 
-    session.platform.su("john", "asdfasdfasdf")
+    print(session.platform.Path("./nonexistent.txt").resolve())
