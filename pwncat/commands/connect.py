@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 import re
 
-import pwncat
 from rich import box
 from rich.table import Table
-from pwncat.util import console
 from rich.progress import Progress
+
+import pwncat
+from pwncat.util import console
 from pwncat.modules import ModuleFailed
 from pwncat.commands import Complete, Parameter, CommandDefinition
 
@@ -134,6 +135,12 @@ class Command(CommandDefinition):
             host = m.group("host")
             port = m.group("port")
 
+        if protocol is not None:
+            protocol = protocol.removesuffix("://")
+
+        if host is not None and host == "":
+            host = None
+
         if protocol is not None and args.listen:
             console.log(
                 f"[red]error[/red]: --listen is not compatible with an explicit connection string"
@@ -165,7 +172,7 @@ class Command(CommandDefinition):
                 console.log(f"[red]error[/red]: {port}: invalid port number")
                 return
 
-        if protocol != "ssh://" and args.identity is not None:
+        if protocol != "ssh" and args.identity is not None:
             console.log(f"[red]error[/red]: --identity is only valid for ssh protocols")
             return
 
