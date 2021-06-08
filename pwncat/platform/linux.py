@@ -551,6 +551,7 @@ class Linux(Platform):
                 self.shell = bash
                 self.session.log(f"upgrading from sh to {self.shell}")
                 self.channel.sendline(f"exec {self.shell}".encode("utf-8"))
+                time.sleep(0.5)
 
         self.refresh_uid()
 
