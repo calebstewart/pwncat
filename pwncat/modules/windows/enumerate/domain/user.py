@@ -82,6 +82,10 @@ class Module(EnumerateModule):
     def enumerate(self, session: "pwncat.manager.Session"):
         """ Perform enumeration """
 
+        # Check that we are in a domain
+        if not session.run("enumerate", types=["domain.details"]):
+            return
+
         # Ensure we have PowerView loaded
         yield Status("loading powersploit recon")
         session.run("powersploit", group="recon")

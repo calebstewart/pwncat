@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
-from typing import List, Any, Dict
+from typing import Any, Dict, List
 
+import rich.markup
 
 import pwncat
-import rich.markup
 from pwncat import util
 from pwncat.db import Fact
 from pwncat.platform.windows import Windows, PowershellError
@@ -38,6 +38,9 @@ class DefenderData(Fact):
             output.append("[bold]Excluded paths:[/bold]")
             for path in self._configuration["ExclusionPath"]:
                 output.append(f" - {rich.markup.escape(path)}")
+
+        if not output:
+            return None
 
         return "\n".join(output)
 
