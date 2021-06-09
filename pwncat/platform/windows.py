@@ -13,41 +13,44 @@ processes and open multiple files with this platform. However, you should be
 careful to cleanup all processes and files prior to return from your method
 or code as the C2 will not attempt to garbage collect file or proces handles.
 """
-import base64
+import os
+import sys
 import gzip
 import json
-import os
 import stat
 import time
 import base64
 import shutil
 import signal
 import pathlib
-import readline
-import shutil
-import stat
-import subprocess
-import sys
 import tarfile
 import termios
+import readline
 import textwrap
-import time
+import subprocess
+from io import (
+    BytesIO,
+    StringIO,
+    RawIOBase,
+    TextIOWrapper,
+    BufferedIOBase,
+    UnsupportedOperation,
+)
+from typing import List, Union, BinaryIO, Optional
+from subprocess import TimeoutExpired, CalledProcessError
 from dataclasses import dataclass
-from io import (BufferedIOBase, BytesIO, RawIOBase, StringIO, TextIOWrapper,
-                UnsupportedOperation)
-from subprocess import CalledProcessError, TimeoutExpired
-from typing import BinaryIO, List, Optional, Union
 
-import pkg_resources
-import pwncat
-import pwncat.subprocess
-import pwncat.util
 import requests
+import pkg_resources
+
+import pwncat
+import pwncat.util
+import pwncat.subprocess
 from pwncat.platform import Path, Platform, PlatformError
 
 INTERACTIVE_END_MARKER = b"INTERACTIVE_COMPLETE\r\n"
-PWNCAT_WINDOWS_C2_VERSION = "v0.1.0"
-PWNCAT_WINDOWS_C2_RELEASE_URL = "https://github.com/calebstewart/pwncat-windows-c2/releases/download/v0.1.0/pwncat-windows-{version}.tar.gz"
+PWNCAT_WINDOWS_C2_VERSION = "v0.1.1"
+PWNCAT_WINDOWS_C2_RELEASE_URL = "https://github.com/calebstewart/pwncat-windows-c2/releases/download/{version}/pwncat-windows-{version}.tar.gz"
 
 
 class PowershellError(Exception):
@@ -954,8 +957,10 @@ function prompt {
         """
 
         try:
-            result = self.powershell(f'Resolve-Path -Path "{path}" | Select Path')
-            return result[0]["Path"]
+            result = self.powershell(
+                f'$ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath("{path}")'
+            )
+            return result[0]
         except PowershellError as exc:
             raise FileNotFoundError(path) from exc
 
