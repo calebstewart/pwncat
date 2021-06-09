@@ -172,10 +172,6 @@ class Command(CommandDefinition):
                 console.log(f"[red]error[/red]: {port}: invalid port number")
                 return
 
-        if protocol != "ssh" and args.identity is not None:
-            console.log(f"[red]error[/red]: --identity is only valid for ssh protocols")
-            return
-
         # Attempt to reconnect via installed implants
         if (
             protocol is None
