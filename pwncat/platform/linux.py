@@ -540,6 +540,19 @@ class Linux(Platform):
         else:
             self.has_pty = False
 
+        self.shell = self.getenv("SHELL")
+        if self.shell == "" or self.shell is None:
+            self.shell = "/bin/sh"
+
+        if os.path.basename(self.shell) == "sh":
+            # Try to find a better shell
+            bash = self._do_which("bash")
+            if bash is not None:
+                self.shell = bash
+                self.session.log(f"upgrading from sh to {self.shell}")
+                self.channel.sendline(f"exec {self.shell}".encode("utf-8"))
+                time.sleep(0.5)
+
         self.refresh_uid()
 
     def exit(self):
@@ -562,7 +575,7 @@ class Linux(Platform):
             return
 
         pty_command = None
-        shell = self.getenv("SHELL")
+        shell = self.shell
 
         if pty_command is None:
             script_path = self.which("script")
@@ -1504,13 +1517,24 @@ class Linux(Platform):
             TERM = os.environ.get("TERM", "xterm")
             columns, rows = os.get_terminal_size(0)
 
+            # `sh` normally doesn't support colors
+            if os.path.basename(self.shell) != "sh":
+                prompt = """'$(command printf "\\[\\033[01;31m\\](remote)\\[\\033[0m\\] \\[\\033[01;33m\\]$(whoami)@$(hostname)\\[\\033[0m\\]:\\[\\033[1;36m\\]$PWD\\[\\033[0m\\]\\$ ")'"""
+            else:
+                self.session.log(
+                    f"[yellow]warning[/yellow]: [blue]{self.shell}[/blue] does not support interactivity (e.g. color, arrows keys)."
+                )
+                prompt = (
+                    """'$(command printf "(remote) $(whoami)@$(hostname):$PWD\\$ ")'"""
+                )
+
             command = (
                 " ; ".join(
                     [
                         " stty sane",
                         f" stty rows {rows} columns {columns}",
                         f" export TERM='{TERM}'",
-                        """export PS1='$(command printf "\\[\\033[01;31m\\](remote)\\[\\033[0m\\] \\[\\033[01;33m\\]$(whoami)@$(hostname)\\[\\033[0m\\]:\\[\\033[1;36m\\]$PWD\\[\\033[0m\\]\\$ ")'""",
+                        f"""export PS1={prompt}""",
                     ]
                 )
                 + "\n"
