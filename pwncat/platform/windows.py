@@ -25,6 +25,7 @@ import signal
 import pathlib
 import tarfile
 import termios
+import binascii
 import readline
 import textwrap
 import subprocess
@@ -49,16 +50,25 @@ import pwncat.subprocess
 from pwncat.platform import Path, Platform, PlatformError
 
 INTERACTIVE_END_MARKER = b"INTERACTIVE_COMPLETE\r\n"
-PWNCAT_WINDOWS_C2_VERSION = "v0.1.1"
+PWNCAT_WINDOWS_C2_VERSION = "v0.2.0"
 PWNCAT_WINDOWS_C2_RELEASE_URL = "https://github.com/calebstewart/pwncat-windows-c2/releases/download/{version}/pwncat-windows-{version}.tar.gz"
 
 
 class PowershellError(Exception):
     """Executing a powershell script caused an error"""
 
-    def __init__(self, errors):
-        self.errors = json.loads(errors)
-        super().__init__(self.errors[0]["Message"])
+    def __init__(self, msg):
+        super().__init__(msg)
+
+        self.message = msg
+
+
+class ProtocolError(Exception):
+    def __init__(self, code: int, message: str):
+        self.code = code
+        self.message = message
+
+        super().__init__(self.message)
 
 
 @dataclass
@@ -116,8 +126,7 @@ class WindowsFile(RawIOBase):
         if not self.is_open:
             return
 
-        self.platform.run_method("File", "close")
-        self.platform.channel.sendline(str(self.handle).encode("utf-8"))
+        self.platform.run_method("File", "close", self.handle)
         self.is_open = False
 
         return
@@ -140,25 +149,24 @@ class WindowsFile(RawIOBase):
         if self.eof:
             return 0
 
-        self.platform.run_method("File", "read")
-        self.platform.channel.sendline(str(self.handle).encode("utf-8"))
-        self.platform.channel.sendline(str(len(b)).encode("utf-8"))
-        count = int(self.platform.channel.recvuntil(b"\n").strip())
+        try:
+            result = self.platform.run_method("File", "read", self.handle, len(b))
+        except ProtocolError as exc:
 
-        if count == 0:
+            # ERROR_BROKEN_PIPE
+            if exc.code == 0x6D:
+                self.eof = True
+                return 0
+
+            raise IOError(exc.message) from exc
+
+        data = base64.b64decode(result["data"])
+        b[: len(data)] = data
+
+        if len(data) == 0:
             self.eof = True
-            return 0
 
-        n = 0
-        while n < count:
-            try:
-                n += self.platform.channel.recvinto(b[n:])
-            except NotImplementedError:
-                data = self.platform.channel.recv(count - n)
-                b[n : n + len(data)] = data
-                n += len(data)
-
-        return count
+        return len(data)
 
     def write(self, data: bytes):
         """Write data to this file"""
@@ -170,16 +178,18 @@ class WindowsFile(RawIOBase):
         while nwritten < len(data):
             chunk = data[nwritten:]
 
-            payload = BytesIO()
-            with gzip.GzipFile(fileobj=payload, mode="wb") as gz:
-                gz.write(chunk)
+            try:
+                result = self.platform.run_method(
+                    "File", "write", self.handle, base64.b64encode(data)
+                )
+            except ProtocolError as exc:
+                # ERROR_BROKEN_PIPE
+                if exc.code == 0x6D:
+                    self.eof = True
+                    break
+                raise IOError(exc.message) from exc
 
-            self.platform.run_method("File", "write")
-            self.platform.channel.sendline(str(self.handle).encode("utf-8"))
-            self.platform.channel.sendline(base64.b64encode(payload.getbuffer()))
-            nwritten += int(
-                self.platform.channel.recvuntil(b"\n").strip().decode("utf-8")
-            )
+            nwritten += result["count"]
 
         return nwritten
 
@@ -200,19 +210,18 @@ class PopenWindows(pwncat.subprocess.Popen):
         encoding,
         errors,
         bufsize,
-        handle,
-        stdio,
+        result,
     ):
         super().__init__()
 
         self.platform = platform
-        self.handle = handle
-        self.stdio = stdio
+        self.handle = result["handle"]
+        self.stdio = [result["stdin"], result["stdout"], result["stderr"]]
         self.returncode = None
 
-        self.stdin = WindowsFile(platform, "w", stdio[0])
-        self.stdout = WindowsFile(platform, "r", stdio[1])
-        self.stderr = WindowsFile(platform, "r", stdio[2])
+        self.stdin = WindowsFile(platform, "w", result["stdin"])
+        self.stdout = WindowsFile(platform, "r", result["stdout"])
+        self.stderr = WindowsFile(platform, "r", result["stderr"])
 
         if stdout != subprocess.PIPE:
             self.stdout.close()
@@ -266,9 +275,7 @@ class PopenWindows(pwncat.subprocess.Popen):
         if self.returncode is not None:
             return
 
-        self.platform.run_method("Process", "kill")
-        self.platform.channel.sendline(str(self.handle).encode("utf-8"))
-        self.platform.channel.sendline(b"0")
+        self.platform.run_method("Process", "kill", self.handle, 0)
         self.returncode = -1
 
     def poll(self):
@@ -277,15 +284,13 @@ class PopenWindows(pwncat.subprocess.Popen):
         if self.returncode is not None:
             return self.returncode
 
-        self.platform.run_method("Process", "poll")
-        self.platform.channel.sendline(str(self.handle).encode("utf-8"))
-        result = self.platform.channel.recvuntil(b"\n").strip().decode("utf-8")
+        try:
+            result = self.platform.run_method("Process", "poll", self.handle)
+        except ProtocolError as exc:
+            raise RuntimeError(exc.message)
 
-        if result == "E":
-            raise RuntimeError(f"process {self.handle}: failed to get exit status")
-
-        if result != "R":
-            self.returncode = int(result)
+        if result["stopped"]:
+            self.returncode = result["code"] or 0
             return self.returncode
 
     def wait(self, timeout: float = None):
@@ -430,19 +435,59 @@ class Windows(Platform):
 
         self.run_method("StageTwo", "exit")
 
-    def run_method(self, typ: str, method: str):
-        """Run a method reflectively from the loaded StageTwo assembly. This
-        can technically run any .Net method, but doesn't implement a way to
-        abstractly pass arguments. Instead, all the StageTwo methods take
-        arguments through stdin.
+    def parse_response(self, data: bytes):
+        """ Parse a line of data from the C2 """
+
+        with gzip.GzipFile(
+            fileobj=BytesIO(base64.b64decode(data.decode("utf-8").strip())),
+            mode="rb",
+        ) as gz:
+            result = json.loads(gz.read().decode("utf-8"))
+
+        return result
+
+    def run_method(self, typ: str, method: str, *args, wait: bool = True):
+        """
+        Execute a method within the pwncat-windows-c2. You must specify the type
+        and method arguments. Arguments are passed via json encoding so any valid
+        JSON types should be passed correctly onto the C2. Named arguments are not
+        supported. Results are returned as a dictionary. In the case of an error,
+        a ProtocolError is raised with the error code and message.
 
         :param typ: The type name where the method you'd like to execute resides
         :type typ: str
         :param method: The name of the method you'd like to execute
         :type method: str
+        :param \*args: the positional arguments for the method you are calling
+        :type \*args: correct type for given method
         """
 
-        self.channel.send(f"{typ}\n{method}\n".encode("utf-8"))
+        command = [typ, method, *args]
+        payload = BytesIO()
+
+        # compress command arguments
+        with gzip.GzipFile(fileobj=payload, mode="wb") as gz:
+            gz.write(json.dumps(command).encode("utf-8"))
+
+        # Send the command
+        thing = base64.b64encode(payload.getbuffer())
+        self.channel.sendline(thing)
+
+        if wait:
+
+            # Receive the response
+            while True:
+                try:
+                    result = self.parse_response(self.channel.recvline())
+                    break
+                except (gzip.BadGzipFile, binascii.Error) as exc:
+                    continue
+
+            # Raise an appropriate error if needed
+            if result["error"] != 0:
+                raise ProtocolError(result["error"], result.get("message", ""))
+
+            return result["result"]
 
     def setup_prompt(self):
         """Set a prompt method for powershell to ensure our prompt looks pretty :)"""
@@ -679,24 +724,13 @@ function prompt {
         elif not isinstance(args, str):
             raise ValueError("expected command string or list of arguments")
 
-        self.run_method("Process", "start")
-        self.channel.sendline(args.encode("utf-8"))
-
-        hProcess = self.channel.recvuntil(b"\n").strip().decode("utf-8")
-        if hProcess == "E:IN":
-            raise RuntimeError("failed to open stdin pipe")
-        if hProcess == "E:OUT":
-            raise RuntimeError("failed to open stdout pipe")
-        if hProcess == "E:ERR":
-            raise RuntimeError("failed to open stderr pipe")
-        if hProcess == "E:PROC":
-            raise FileNotFoundError("executable or command not found")
-
-        # Collect process properties
-        hProcess = int(hProcess)
-        stdio = []
-        for i in range(3):
-            stdio.append(int(self.channel.recvuntil(b"\n").strip().decode("utf-8")))
+        try:
+            result = self.run_method("Process", "start", args)
+        except ProtocolError as exc:
+            if "pipe" in exc.message:
+                raise OSError(exc.message)
+            else:
+                raise FileNotFoundError(exc.message)
 
         return PopenWindows(
             self,
@@ -708,8 +742,7 @@ function prompt {
             encoding,
             errors,
             bufsize,
-            hProcess,
-            stdio,
+            result,
         )
 
     def get_host_hash(self):
@@ -762,15 +795,28 @@ function prompt {
         # Reset the tracker
 
         if value:
-            self.run_method("PowerShell", "start")
+            try:
+                self.run_method("PowerShell", "start", wait=False)
+            except ProtocolError as exc:
+                raise PlatformError(exc.message)
+
+            # Wait for the powershell runspace to be up and running
             output = self.channel.recvline()
             if not output.strip().startswith(b"INTERACTIVE_START"):
                 self.interactive_tracker = len(INTERACTIVE_END_MARKER)
-                raise PlatformError(f"no interactive start message: {output}")
+                result = self.parse_response(output)
+                raise PlatformError(result["message"])
+
             self._interactive = True
             self.interactive_tracker = 0
             return
         if not value:
+
+            # Receive the method response
+            data = self.parse_response(self.channel.recvline())
+            if data["error"] != 0:
+                self.session.log(data["message"])
+
             self._interactive = False
             self.refresh_uid()
 
@@ -837,17 +883,12 @@ function prompt {
         if "b" not in mode:
             buffering = -1
 
-        self.run_method("File", "open")
-        self.channel.sendline(str(path).encode("utf-8"))
-        self.channel.sendline(mode.encode("utf-8"))
-        result = self.channel.recvuntil(b"\n").strip()
-
         try:
-            handle = int(result)
-        except ValueError:
-            raise FileNotFoundError(f"{str(path)}: {result}")
+            result = self.run_method("File", "open", path, mode)
+        except ProtocolError as exc:
+            raise FileNotFoundError(f"{path}: {exc.message}")
 
-        stream = WindowsFile(self, mode, handle, name=path)
+        stream = WindowsFile(self, mode, result["handle"], name=path)
 
         if "b" not in mode:
             stream = TextIOWrapper(
@@ -1291,37 +1332,14 @@ function prompt {
         :type depth: int
         """
 
-        if isinstance(script, str):
-            script = BytesIO(script.encode("utf-8"))
-
-        payload = BytesIO()
-
-        with gzip.GzipFile(fileobj=payload, mode="wb") as gz:
-            shutil.copyfileobj(script, gz)
-
-        self.run_method("PowerShell", "run")
-        self.channel.sendline(base64.b64encode(payload.getbuffer()))
-        self.channel.sendline(str(depth).encode("utf-8"))
-
-        results = []
-        result = self.channel.recvline().strip()
-
-        if result.startswith(b"E:S2:EXCEPTION:"):
-            raise PlatformError(result.split(b"E:S2:EXCEPTION:")[1].decode("utf-8"))
-
-        # Wait for the command to complete
-        while result != b"DONE":
-            result = self.channel.recvline().strip()
+        if not isinstance(script, str):
+            script = script.read()
+        if isinstance(script, bytes):
+            script = script.decode("utf-8")
 
         try:
-            # Receive results
-            result = self.channel.recvline().strip()
-            if result.startswith(b"E:PWSH:"):
-                raise PowershellError(result.split(b"E:PWSH:")[1].decode("utf-8"))
-            while result != b"END":
-                results.append(json.loads(result))
-                result = self.channel.recvline().strip()
-        except json.JSONDecodeError as exc:
-            raise PlatformError(result)
+            result = self.run_method("PowerShell", "run", script, depth)
+        except ProtocolError as exc:
+            raise PowershellError(exc.message)
 
-        return results
+        return [json.loads(x) for x in result["output"]]

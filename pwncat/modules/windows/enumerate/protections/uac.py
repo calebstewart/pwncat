@@ -2,18 +2,19 @@
 
 from typing import Any, Dict, List
 
-import pwncat
 import rich.markup
+
+import pwncat
 from pwncat import util
 from pwncat.db import Fact
 from pwncat.modules import ModuleFailed
-from pwncat.modules.enumerate import EnumerateModule, Schedule
 from pwncat.platform import PlatformError
-from pwncat.platform.windows import PowershellError, Windows
+from pwncat.platform.windows import Windows, PowershellError
+from pwncat.modules.enumerate import Schedule, EnumerateModule
 
 
 class UACData(Fact):
-    def __init__(self, source, registry_values:Dict):
+    def __init__(self, source, registry_values: Dict):
         super().__init__(source=source, types=["protections.uac"])
 
         self.registry_values: bool = registry_values
@@ -117,7 +118,7 @@ class Module(EnumerateModule):
                 registry_values[registry_value] = registry_type(result[0])
 
             except PowershellError as exc:
-                if "does not exist" in exc.errors[0]["Message"]:
+                if "does not exist" in exc.message:
                     registry_values[registry_value] = registry_type(0)
                 else:
                     raise ModuleFailed(
