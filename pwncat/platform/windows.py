@@ -25,6 +25,7 @@ import signal
 import pathlib
 import tarfile
 import termios
+import binascii
 import readline
 import textwrap
 import subprocess
@@ -475,7 +476,12 @@ class Windows(Platform):
         if wait:
 
             # Receive the response
-            result = self.parse_response(self.channel.recvline())
+            while True:
+                try:
+                    result = self.parse_response(self.channel.recvline())
+                    break
+                except (gzip.BadGzipFile, binascii.Error) as exc:
+                    continue
 
             # Raise an appropriate error if needed
             if result["error"] != 0:
