@@ -2,31 +2,34 @@
 
 from typing import Any, Dict, List
 
-import pwncat
 import rich.markup
+
+import pwncat
 from pwncat import util
 from pwncat.db import Fact
 from pwncat.modules import ModuleFailed
-from pwncat.modules.enumerate import EnumerateModule, Schedule
 from pwncat.platform import PlatformError
-from pwncat.platform.windows import PowershellError, Windows
+from pwncat.platform.windows import Windows, PowershellError
+from pwncat.modules.enumerate import Schedule, EnumerateModule
 
 
 class LSAProtectionData(Fact):
-    def __init__(self, source, active:bool):
+    def __init__(self, source, active: bool):
         super().__init__(source=source, types=["protections.lsa"])
 
         self.active: bool = active
 
-
     def title(self, session):
-        out = "LSA Protection is " 
-        out += "[bold red]active[/bold red]" if self.active else "[bold green]inactive[/bold green]" 
+        out = "LSA Protection is "
+        out += (
+            "[bold red]active[/bold red]"
+            if self.active
+            else "[bold green]inactive[/bold green]"
+        )
         return out
 
     def description(self, session):
         return None
-       
 
 
 class Module(EnumerateModule):
@@ -37,11 +40,9 @@ class Module(EnumerateModule):
 
     def enumerate(self, session):
 
-
         registry_value = "RunAsPPL"
         registry_key = "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\LSA"
 
-    
         try:
             result = session.platform.powershell(
                 f"Get-ItemPropertyValue {registry_key} -Name {registry_value}"
@@ -55,8 +56,8 @@ class Module(EnumerateModule):
             status = bool(result[0])
 
         except PowershellError as exc:
-            if "does not exist" in exc.errors[0]["Message"]:
-                status = bool(0) # default
+            if "does not exist" in exc.message:
+                status = bool(0)  # default
             else:
                 raise ModuleFailed(
                     f"could not retrieve registry value {registry_value}: {exc}"
