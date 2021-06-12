@@ -301,7 +301,7 @@ class Path:
         """Open the file pointed to by the path, like Platform.open"""
 
         return self._target.open(
-            self,
+            str(self),
             mode=mode,
             buffering=buffering,
             encoding=encoding,
@@ -525,6 +525,11 @@ class Platform(ABC):
 
         self.Path = RemotePath
         """ A concrete Path object for this platform conforming to pathlib.Path """
+
+    @property
+    def manager(self):
+        """ Shortcut to accessing the manager """
+        return self.session.manager
 
     def interactive_loop(self, interactive_complete: "threading.Event"):
         """Handles interactive piping of data between victim and attacker. If

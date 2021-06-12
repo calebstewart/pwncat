@@ -43,6 +43,7 @@ class Fact(Result, persistent.Persistent):
         self.types: PersistentList = types
         # The original procedure that found this fact
         self.source: str = source
+        self.hidden: bool = False
 
     def __eq__(self, o):
         """This is probably a horrible idea.

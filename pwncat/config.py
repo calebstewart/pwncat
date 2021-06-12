@@ -27,8 +27,10 @@ import ipaddress
 from typing import Any, Dict, List, Union
 
 from prompt_toolkit.keys import ALL_KEYS, Keys
-from prompt_toolkit.input.ansi_escape_sequences import (ANSI_SEQUENCES,
-                                                        REVERSE_ANSI_SEQUENCES)
+from prompt_toolkit.input.ansi_escape_sequences import (
+    ANSI_SEQUENCES,
+    REVERSE_ANSI_SEQUENCES,
+)
 
 from pwncat.modules import BaseModule
 
@@ -72,6 +74,9 @@ def local_file_type(value: str) -> str:
 def local_dir_type(value: str) -> str:
     """ Ensure the path specifies a local directory """
 
+    # Expand ~ in the path
+    value = os.path.expanduser(value)
+
     if not os.path.isdir(value):
         raise ValueError(f"{value}: no such file or directory")
     return value
@@ -109,7 +114,7 @@ class Config:
             "cross": {"value": None, "type": str},
             "psmodules": {"value": ".", "type": local_dir_type},
             "verbose": {"value": False, "type": bool_type},
-            "windows_c2_dir": {
+            "plugin_path": {
                 "value": "~/.local/share/pwncat",
                 "type": local_dir_type,
             },

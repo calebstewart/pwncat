@@ -257,7 +257,7 @@ class Session:
         try:
             # Ensure this bar is started if we are the selected
             # target.
-            if self.manager.target == self and not started:
+            if not started:
                 self._progress = rich.progress.Progress(
                     "{task.fields[platform]}",
                     "•",
