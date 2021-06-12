@@ -1,0 +1,37 @@
+# Automatically pull down the required versions of windows plugins
+# and bundle them up for releases. This makes staging on non-internet
+# connected systems easier.
+name: publish
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Setup Python 3.9
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.9"
+      - name: Install pwncat Module
+        run: "python setup.py install"
+      - name: Download and Archive Plugins
+        run: |
+          # Have pwncat download all plugins needed
+          pwncat --download-plugins
+
+          # They are stored in ~/.local/share/pwncat by default
+          tar czvf pwncat-plugins.tar.gz --transform='s|.*pwncat/||' ~/.local/share/pwncat/*
+
+      - name: Publish Plugins
+        uses: softprops/action-gh-release@v1
+        with:
+          files: "pwncat-plugins.tar.gz"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

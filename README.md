@@ -43,6 +43,30 @@ the latest usage and development documentation!
 
 **pwncat requires Python 3.9+.**
 
+## Windows Support
+
+pwncat now supports windows starting at `v0.4.0a1`. The Windows platform
+utilizes a .Net-based C2 library which is loaded automatically. Windows
+targets should connect with either a `cmd.exe` or `powershell.exe` shell, and
+pwncat will take care of the rest.
+
+The libraries implementing the C2 are implemented at [pwncat-windows-c2].
+The DLLs for the C2 will be automatically downloaded from the targeted release
+for you. If you do not have internet connectivity on your target machine,
+you can tell pwncat to prestage the DLLs using the `--download-plugins`
+argument. If you are running a release version of pwncat, you can also download
+a tarball of all built-in plugins from the releases page.
+
+The plugins are stored by default in `~/.local/share/pwncat`, however this is
+configurable with the `plugin_path` configuration. If you download the packaged
+set of plugins from the releases page, you should extract it to the path pointed
+to by `plugin_path`.
+
+Aside from the main C2 DLLs, other plugins may also be available. Currently,
+the only provided default plugins are the C2 and an implementation of [BadPotato].
+pwncat can reflectively load .Net binaries to be used a plugins for the C2.
+For more information on Windows C2 plugins, please see the [documentation].
+
 ## Version Details
 
 Currently, there are two versions of pwncat available. The last stable
@@ -243,3 +267,5 @@ contribute to making `pwncat` behave better on BSD, you are more then welcome to
 reach out or just fork the repo. As always, pull requests are welcome!
 
 [documentation]: https://pwncat.readthedocs.io/en/latest
+[pwncat-windows-c2]: https://github.com/calebstewart/pwncat-windows-c2
+[BadPotato]: https://github.com/calebstewart/pwncat-badpotato

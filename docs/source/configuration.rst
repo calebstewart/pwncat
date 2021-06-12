@@ -92,11 +92,6 @@ command specified in quotes, or a script block specified in braces as with the
 
 .. code-block:: bash
 
-    # Enter the local prompt for a single command, then return to raw terminal
-    # mode
-    bind c "set state single"
-    # Enumerate privilege escalation methods
-    bind p "privesc -l"
     bind t {
         # Just an example of a block
         run report

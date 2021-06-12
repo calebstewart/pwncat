@@ -67,6 +67,7 @@ well. Pull requests are always welcome!
 
     installation.rst
     usage.rst
+    windows.rst
     configuration.rst
     modules.rst
     enum.rst
