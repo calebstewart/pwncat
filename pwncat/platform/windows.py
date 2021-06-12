@@ -463,7 +463,9 @@ class Windows(Platform):
         Open the given plugin DLL for reading and return an open file object.
         If the given name matches a builtin plugin, it will be used. If a
         builtin plugin is not available, it will be downloaded from it's URL
-        and saved in the provided plugin path.
+        and saved in the provided plugin path. If the name does not match a
+        provided plugin DLL, it is interpreted as a path and attempted to be
+        opened.
 
         :param name: name of the plugin being requested
         :type name: str
@@ -589,6 +591,8 @@ class Windows(Platform):
 
         if wait:
 
+            keyboard_interrupt = False
+
             # Receive the response
             while True:
                 try:
@@ -596,6 +600,14 @@ class Windows(Platform):
                     break
                 except (gzip.BadGzipFile, binascii.Error) as exc:
                     continue
+                except KeyboardInterrupt:
+                    self.session.log(
+                        "[yellow]warning[/yellow]: waiting for command to complete"
+                    )
+                    keyboard_interrupt = True
+
+            if keyboard_interrupt:
+                raise KeyboardInterrupt
 
             # Raise an appropriate error if needed
             if result["error"] != 0:
@@ -678,14 +690,6 @@ function prompt {
         chunk_sz = 1900
 
         loader_encoded_name = pwncat.util.random_string()
-        stageone = (
-            pathlib.Path(self.session.config["windows_c2_dir"]).expanduser()
-            / f"stageone-{PWNCAT_WINDOWS_C2_VERSION}.dll"
-        )
-        stagetwo = (
-            pathlib.Path(self.session.config["windows_c2_dir"]).expanduser()
-            / f"stagetwo-{PWNCAT_WINDOWS_C2_VERSION}.dll"
-        )
 
         # Read the loader
         # with stageone.open("rb") as filp:
@@ -1482,11 +1486,31 @@ function prompt {
         """
         Reflectively load a .Net C2 plugin from the attacker machine. The
         plugin DLL should implement the ``Plugin`` class and method interface.
+        The name argument can either be a path to a local DLL or the name of a
+        DLL provided by a built-in plugin. Built-in plugins will be automatically
+        downloaded if not present in the directory pointed to by the ``plugin_path``
+        configuration.
+
+        Plugins are also deduplicated prior to loading on the victim. If a given
+        DLL name or a file with a matching hash has already been loaded, the existing
+        plugin object is returned, and the DLL is not loaded again.
+
+        The return :class:`DotNetPlugin` class is capable of cleanly translating method
+        calls to the methods within the loaded DLL. For example, if ``plugin.dll`` defined
+        a method named ``foo``, which took a single string argument, you could call it with:
+
+        .. code-block:: python
+
+            plugin = session.platform.dotnet_load("./plugin.dll")
+            result = plugin.foo("Hello World!")
+
+        Plugins can take as parameters and return any JSON-serializable objects.
 
         :param name: name or path to the DLL to upload
         :type name: str
         :param content: content of the DLL to load or file-like object, if not present on disk
         :type content: Optional[Union[bytes, BytesIO]]
+        :rtype: DotNetPlugin
         """
 
         try:
