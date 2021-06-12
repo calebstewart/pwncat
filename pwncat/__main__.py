@@ -31,6 +31,11 @@ def main():
         description="""Start interactive pwncat session and optionally connect to existing victim via a known platform and channel type. This entrypoint can also be used to list known implants on previous targets."""
     )
     parser.add_argument(
+        "--download-plugins",
+        action="store_true",
+        help="Pre-download all Windows builtin plugins and exit immediately",
+    )
+    parser.add_argument(
         "--config",
         "-c",
         type=argparse.FileType("r"),
@@ -82,6 +87,15 @@ def main():
 
     # Create the session manager
     with pwncat.manager.Manager(args.config) as manager:
+
+        if args.download_plugins:
+            for plugin_info in pwncat.platform.Windows.PLUGIN_INFO:
+                with pwncat.platform.Windows.open_plugin(
+                    manager, plugin_info.provides[0]
+                ):
+                    pass
+
+            return
 
         if args.list:
 
