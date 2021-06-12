@@ -62,6 +62,7 @@ class WindowsUser(User):
         principal_source: str,
         password: Optional[str] = None,
         hash: Optional[str] = None,
+        well_known: bool = False,
     ):
         super().__init__(
             source=source, name=name, uid=uid, password=password, hash=hash
@@ -78,6 +79,7 @@ class WindowsUser(User):
         self.password_last_set: Optional[datetime] = password_last_set
         self.last_logon: Optional[datetime] = last_logon
         self.principal_source: str = principal_source
+        self.hidden: bool = well_known
 
     def __repr__(self):
         if self.password is None and self.hash is None:

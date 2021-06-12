@@ -301,7 +301,7 @@ class Path:
         """Open the file pointed to by the path, like Platform.open"""
 
         return self._target.open(
-            self,
+            str(self),
             mode=mode,
             buffering=buffering,
             encoding=encoding,

@@ -4,12 +4,7 @@ import textwrap
 import pwncat
 import pwncat.modules
 from pwncat.util import console
-from pwncat.commands import (
-    Complete,
-    Parameter,
-    CommandDefinition,
-    get_module_choices,
-)
+from pwncat.commands import Complete, Parameter, CommandDefinition, get_module_choices
 
 
 class Command(CommandDefinition):
@@ -91,6 +86,11 @@ class Command(CommandDefinition):
         except pwncat.modules.InvalidArgument as exc:
             console.log(f"[red]error[/red]: invalid argument: {exc}")
             return
+
+        if isinstance(result, list):
+            result = [r for r in result if not r.hidden]
+        elif result.hidden:
+            result = None
 
         if args.raw:
             console.print(result)

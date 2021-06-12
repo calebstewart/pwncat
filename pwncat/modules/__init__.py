@@ -136,6 +136,9 @@ class Result:
     :func:`category` method helps when organizing output with the ``run``
     command."""
 
+    hidden: bool = False
+    """ Hide results from automatic display with the ``run`` command """
+
     def category(self, session) -> str:
         """Return a "category" of object. Categories will be grouped.
         If this returns None or is not defined, this result will be "uncategorized"
