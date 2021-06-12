@@ -73,6 +73,7 @@ class Command(CommandDefinition):
                 task_id = progress.add_task(
                     "upload", filename=args.destination, total=length, start=False
                 )
+
                 with open(args.source, "rb") as source:
                     with manager.target.platform.open(
                         args.destination, "wb"

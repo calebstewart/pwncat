@@ -460,8 +460,7 @@ class LinuxWriter(BufferedIOBase):
 
         # Indicate EOF
         self.popen.stdin.write(b"\x04")
-        if self.since_newline:
-            self.popen.stdin.write(b"\x04")
+        self.popen.stdin.write(b"\x04")
 
         try:
             # Check for completion
