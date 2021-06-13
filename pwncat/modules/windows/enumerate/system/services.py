@@ -2,19 +2,20 @@
 
 from typing import Any, Dict, List
 
-import pwncat
 import rich.markup
+
+import pwncat
 from pwncat import util
 from pwncat.db import Fact
 from pwncat.modules import ModuleFailed
-from pwncat.modules.enumerate import EnumerateModule, Schedule
 from pwncat.platform import PlatformError
-from pwncat.platform.windows import PowershellError, Windows
-
+from pwncat.platform.windows import Windows, PowershellError
+from pwncat.modules.enumerate import Schedule, EnumerateModule
 
 """
 TODO: This should use csvreader.
 """
+
 
 class ServicesData(Fact):
     def __init__(
@@ -46,7 +47,6 @@ class ServicesData(Fact):
         else:
             out += f"([magenta]{self.start_mode}[/magenta] start)"
         return out
-        
 
 
 class Module(EnumerateModule):
@@ -58,7 +58,13 @@ class Module(EnumerateModule):
     def enumerate(self, session):
 
         proc = session.platform.Popen(
-            ["wmic.exe", "service", "get", "Caption,ProcessId,State,StartMode", "/format:csv"],
+            [
+                "wmic.exe",
+                "service",
+                "get",
+                "Caption,ProcessId,State,StartMode",
+                "/format:csv",
+            ],
             stderr=pwncat.subprocess.DEVNULL,
             stdout=pwncat.subprocess.PIPE,
             text=True,
@@ -69,19 +75,15 @@ class Module(EnumerateModule):
             for line in stream:
                 line = line.strip()
 
-                if (
-                    not line
-                    or 'Node,Caption,ProcessId,StartMode,State'
-                    in line
-                ):
+                if not line or "Node,Caption,ProcessId,StartMode,State" in line:
                     continue
 
-                _, name, pid, start_mode, status = (x.strip('"') for x in line.split(','))
+                _, name, pid, start_mode, status = (
+                    x.strip('"') for x in line.split(",")
+                )
 
                 pid = int(pid)
 
-                yield ServicesData(
-                    self.name, name, pid, start_mode, status
-                )
+                yield ServicesData(self.name, name, pid, start_mode, status)
 
         proc.wait()

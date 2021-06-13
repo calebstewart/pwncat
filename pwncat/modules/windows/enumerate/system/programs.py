@@ -2,26 +2,25 @@
 
 from typing import Any, Dict, List
 
-import pwncat
 import rich.markup
+
+import pwncat
 from pwncat import util
 from pwncat.db import Fact
 from pwncat.modules import ModuleFailed
-from pwncat.modules.enumerate import EnumerateModule, Schedule
 from pwncat.platform import PlatformError
-from pwncat.platform.windows import PowershellError, Windows
+from pwncat.platform.windows import Windows, PowershellError
+from pwncat.modules.enumerate import Schedule, EnumerateModule
 
 
 class InstalledProgramData(Fact):
-    def __init__(self, source, path:bool):
+    def __init__(self, source, path: bool):
         super().__init__(source=source, types=["system.programs"])
 
         self.path: bool = path
 
-
     def title(self, session):
         return f"{rich.markup.escape(repr(self.path))}"
-       
 
 
 class Module(EnumerateModule):
@@ -38,14 +37,12 @@ class Module(EnumerateModule):
             )[0]
 
             if not isinstance(program_files, list):
-                program_files= [program_files]
+                program_files = [program_files]
 
             for path in program_files:
                 yield InstalledProgramData(self.name, path["FullName"])
 
-
-
-        except (PowershellError,IndexError) as exc:
+        except (PowershellError, IndexError) as exc:
             raise ModuleFailed(
                 f"failed to list program file directories: {exc}"
             ) from exc

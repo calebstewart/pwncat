@@ -3,8 +3,9 @@ import subprocess
 import dataclasses
 from typing import Any
 
-import pwncat
 import rich.markup
+
+import pwncat
 from pwncat import util
 from pwncat.db import Fact
 from pwncat.modules import Status

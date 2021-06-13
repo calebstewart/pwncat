@@ -3,8 +3,9 @@ import json
 import dataclasses
 from typing import List, Optional
 
-import pwncat
 import pkg_resources
+
+import pwncat
 from pwncat import util
 from pwncat.db import Fact
 from pwncat.facts import ArchData, HostnameData

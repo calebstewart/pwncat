@@ -2,19 +2,20 @@
 
 from typing import Any, Dict, List
 
-import pwncat
 import rich.markup
+
+import pwncat
 from pwncat import util
 from pwncat.db import Fact
 from pwncat.modules import ModuleFailed
-from pwncat.modules.enumerate import EnumerateModule, Schedule
 from pwncat.platform import PlatformError
-from pwncat.platform.windows import PowershellError, Windows
-
+from pwncat.platform.windows import Windows, PowershellError
+from pwncat.modules.enumerate import Schedule, EnumerateModule
 
 """
 TODO: This should use csvreader.
 """
+
 
 class HotfixData(Fact):
     def __init__(

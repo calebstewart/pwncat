@@ -3,6 +3,7 @@ import io
 import hashlib
 
 import pkg_resources
+
 from pwncat.facts import Implant, CreatedFile
 from pwncat.modules import Status, Argument, ModuleFailed
 from pwncat.platform import PlatformError

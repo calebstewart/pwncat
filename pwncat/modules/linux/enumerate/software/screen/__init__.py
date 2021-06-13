@@ -4,8 +4,9 @@ import re
 import shlex
 import dataclasses
 
-import pwncat
 import rich.markup
+
+import pwncat
 from pwncat.db import Fact
 from pwncat.subprocess import CalledProcessError
 from pwncat.platform.linux import Linux

@@ -3,8 +3,9 @@ import re
 import dataclasses
 from typing import List, Optional, Generator
 
-import pwncat
 import rich.markup
+
+import pwncat
 from pwncat import util
 from pwncat.db import Fact
 from pwncat.facts import build_gtfo_ability

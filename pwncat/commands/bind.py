@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 import string
 
-import pwncat
 from colorama import Fore
+from prompt_toolkit.keys import ALL_KEYS, Keys
+from prompt_toolkit.input.ansi_escape_sequences import REVERSE_ANSI_SEQUENCES
+
+import pwncat
 from pwncat.util import console
 from pwncat.config import KeyType
-from prompt_toolkit.keys import ALL_KEYS, Keys
 from pwncat.commands import Complete, Parameter, CommandDefinition
-from prompt_toolkit.input.ansi_escape_sequences import REVERSE_ANSI_SEQUENCES
 
 
 class Command(CommandDefinition):

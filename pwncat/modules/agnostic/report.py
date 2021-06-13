@@ -7,8 +7,9 @@ from typing import List
 import jinja2
 import rich.box
 from rich.table import Table
-from pwncat.util import console, strip_markup
 from rich.markdown import Markdown
+
+from pwncat.util import console, strip_markup
 from pwncat.modules import Bool, Argument, BaseModule, ModuleFailed
 
 

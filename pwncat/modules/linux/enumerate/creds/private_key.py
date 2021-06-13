@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 import time
 
-import pwncat
 import rich.markup
+from Crypto.PublicKey import RSA
+
+import pwncat
 from pwncat.facts import PrivateKey
 from pwncat.modules import Status
-from Crypto.PublicKey import RSA
 from pwncat.platform.linux import Linux
 from pwncat.modules.enumerate import Schedule, EnumerateModule
 

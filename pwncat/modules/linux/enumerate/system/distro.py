@@ -2,8 +2,9 @@
 import dataclasses
 from typing import List
 
-import pwncat
 import rich.markup
+
+import pwncat
 from pwncat import util
 from pwncat.db import Fact
 from pwncat.facts import DistroVersionData

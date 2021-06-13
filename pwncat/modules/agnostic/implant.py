@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
-from pwncat.util import console
 from rich.prompt import Prompt
+
+from pwncat.util import console
 from pwncat.facts import Implant, KeepImplantFact
 from pwncat.modules import Bool, Status, Argument, BaseModule, ModuleFailed
 

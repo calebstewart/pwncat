@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 import textwrap
 
-import pwncat
 from rich import box
 from rich.table import Table, Column
+
+import pwncat
 from pwncat.util import console
 from pwncat.commands import Complete, Parameter, CommandDefinition
 

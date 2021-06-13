@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 
-from pwncat.facts import ArchData, DistroVersionData, HostnameData
-from pwncat.facts.windows import WindowsUser
-from pwncat.modules import ModuleFailed, Status
-from pwncat.modules.enumerate import EnumerateModule, Schedule
-from pwncat.platform.windows import PowershellError, Windows
 from pwncat.util import random_string
+from pwncat.facts import ArchData, HostnameData, DistroVersionData
+from pwncat.modules import Status, ModuleFailed
+from pwncat.facts.windows import WindowsUser
+from pwncat.platform.windows import Windows, PowershellError
+from pwncat.modules.enumerate import Schedule, EnumerateModule
 
 
 class Module(EnumerateModule):

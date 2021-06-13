@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from pwncat.facts import EscalationReplace, EscalationSpawn, Implant, ImplantType
+from pwncat.facts import Implant, ImplantType, EscalationSpawn, EscalationReplace
 from pwncat.modules.enumerate import Schedule, EnumerateModule
 
 
