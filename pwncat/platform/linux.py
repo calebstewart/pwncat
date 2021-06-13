@@ -415,7 +415,7 @@ class LinuxWriter(BufferedIOBase):
             for idx, c in enumerate(b):
 
                 # Track when the last new line was
-                if c == 0x0A:
+                if c == 0x0D:
                     self.since_newline = 0
                 else:
                     self.since_newline += 1
@@ -460,7 +460,8 @@ class LinuxWriter(BufferedIOBase):
 
         # Indicate EOF
         self.popen.stdin.write(b"\x04")
-        self.popen.stdin.write(b"\x04")
+        if self.since_newline != 0:
+            self.popen.stdin.write(b"\x04")
 
         try:
             # Check for completion

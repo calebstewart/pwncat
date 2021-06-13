@@ -84,6 +84,12 @@ class Command(CommandDefinition):
                             destination,
                             lambda count: progress.update(task_id, advance=count),
                         )
+                        progress.update(task_id, filename="draining buffers...")
+                        progress.stop_task(task_id)
+
+                    progress.start_task(task_id)
+                    progress.update(task_id, filename=args.destination)
+
             elapsed = time.time() - started
             console.log(
                 f"uploaded [cyan]{human_readable_size(length)}[/cyan] "
