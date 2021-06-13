@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
 import os
 import time
-from functools import partial
 
-from colorama import Fore
 from rich.progress import (
-    TaskID,
     Progress,
     BarColumn,
     TextColumn,
@@ -16,7 +13,6 @@ from rich.progress import (
 
 import pwncat
 from pwncat.util import (
-    Access,
     console,
     copyfileobj,
     human_readable_size,

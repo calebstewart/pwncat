@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import pwncat
 from pwncat.manager import RawModeExit
-from pwncat.commands import Complete, Parameter, CommandDefinition
+from pwncat.commands import CommandDefinition
 
 
 class Command(CommandDefinition):

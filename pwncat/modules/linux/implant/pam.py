@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 import io
 import hashlib
+from subprocess import CalledProcessError
 
 import pkg_resources
 
+import pwncat
 from pwncat.facts import Implant, CreatedFile
 from pwncat.modules import Status, Argument, ModuleFailed
 from pwncat.platform import PlatformError
@@ -44,7 +46,7 @@ class PamImplant(Implant):
                     contents = filp.readlines()
                 with (config_path / config).open("w") as filp:
                     filp.writelines(line for line in contents if line != self.line)
-            except (PermissionError, FileNotFoundError) as exc:
+            except (PermissionError, FileNotFoundError):
                 continue
 
         # Remove the module
@@ -169,7 +171,7 @@ class Module(ImplantModule):
             except (PermissionError, FileNotFoundError):
                 continue
 
-            contains_rootok = any("pam_rootok" in line for line in content)
+            any("pam_rootok" in line for line in content)
             for i, line in enumerate(content):
                 if "pam_rootok" in line:
                     content.insert(i + 1, added_line)

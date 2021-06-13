@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
-from pwncat.modules import Status, ModuleFailed
+import pwncat
+from pwncat.modules import ModuleFailed
 from pwncat.facts.windows import WindowsUser
 from pwncat.platform.windows import Windows, PowershellError
 from pwncat.modules.enumerate import Schedule, EnumerateModule

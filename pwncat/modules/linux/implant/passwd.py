@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import crypt
 
+import pwncat
 from pwncat.facts import Implant, ImplantType
 from pwncat.modules import Status, Argument, ModuleFailed
 from pwncat.platform.linux import Linux
@@ -35,13 +36,13 @@ class PasswdImplant(Implant):
         try:
             with session.platform.open("/etc/passwd", "r") as filp:
                 passwd_contents = [line for line in filp if line != self.added_line]
-        except (FileNotFoundError, PermissionError) as filp:
+        except (FileNotFoundError, PermissionError):
             raise ModuleFailed("failed to read /etc/passwd")
 
         try:
             with session.platform.open("/etc/passwd", "w") as filp:
                 filp.writelines(passwd_contents)
-        except (FileNotFoundError, PermissionError) as filp:
+        except (FileNotFoundError, PermissionError):
             raise ModuleFailed("failed to write /etc/passwd")
 
     def title(self, session: "pwncat.manager.Session"):

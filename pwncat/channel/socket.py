@@ -21,9 +21,7 @@ import socket
 import functools
 from typing import Optional
 
-from rich.progress import Progress, BarColumn
 
-from pwncat.util import console
 from pwncat.channel import Channel, ChannelError, ChannelClosed
 
 

@@ -83,7 +83,6 @@ class Command(CommandDefinition):
         password = None
         host = None
         port = None
-        try_reconnect = False
         used_implant = None
 
         if args.list:
@@ -143,7 +142,7 @@ class Command(CommandDefinition):
 
         if protocol is not None and args.listen:
             console.log(
-                f"[red]error[/red]: --listen is not compatible with an explicit connection string"
+                "[red]error[/red]: --listen is not compatible with an explicit connection string"
             )
             return
 
@@ -157,7 +156,7 @@ class Command(CommandDefinition):
             )
             > 1
         ):
-            console.log(f"[red]error[/red]: multiple ports specified")
+            console.log("[red]error[/red]: multiple ports specified")
             return
 
         if args.port is not None:
@@ -168,7 +167,7 @@ class Command(CommandDefinition):
         if port is not None:
             try:
                 port = int(port.lstrip(":"))
-            except:
+            except ValueError:
                 console.log(f"[red]error[/red]: {port}: invalid port number")
                 return
 

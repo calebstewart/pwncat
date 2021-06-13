@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import pwncat
 from pwncat.modules import Status, ModuleFailed
 from pwncat.facts.linux import LinuxUser
 from pwncat.platform.linux import Linux
@@ -49,7 +50,7 @@ class Module(EnumerateModule):
                         users[name] = user
                         yield Status(user)
 
-                    except Exception as exc:
+                    except Exception:
                         # Bad passwd line
                         continue
         except (FileNotFoundError, PermissionError) as exc:
@@ -82,7 +83,7 @@ class Module(EnumerateModule):
                         users[name].inactive_period = int(inactive_period)
                         users[name].expiration = int(expir_date)
                         users[name].reserved = reserved
-                    except:
+                    except (ValueError, IndexError):
                         continue
         except (FileNotFoundError, PermissionError):
             pass

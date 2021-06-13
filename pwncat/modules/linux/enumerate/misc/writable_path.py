@@ -1,12 +1,8 @@
 #!/usr/bin/env python3
-import os
-import stat
 
 import rich.markup
 
-import pwncat
 from pwncat.db import Fact
-from pwncat.util import Access
 from pwncat.platform.linux import Linux
 from pwncat.modules.enumerate import Schedule, EnumerateModule
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
-from pwncat.modules import Status, Argument, BaseModule, ModuleFailed
+import pwncat
+from pwncat.modules import Status, BaseModule, ModuleFailed
 
 
 class Module(BaseModule):

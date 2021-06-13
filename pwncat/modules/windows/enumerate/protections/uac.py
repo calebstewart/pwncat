@@ -1,16 +1,11 @@
 #!/usr/bin/env python3
 
-from typing import Any, Dict, List
+from typing import Dict
 
-import rich.markup
-
-import pwncat
-from pwncat import util
 from pwncat.db import Fact
 from pwncat.modules import ModuleFailed
-from pwncat.platform import PlatformError
 from pwncat.platform.windows import Windows, PowershellError
-from pwncat.modules.enumerate import Schedule, EnumerateModule
+from pwncat.modules.enumerate import EnumerateModule
 
 
 class UACData(Fact):
@@ -51,7 +46,7 @@ class UACData(Fact):
                 )
 
             local_account = self.registry_values["LocalAccountTokenFilterPolicy"]
-            if local_account == False:
+            if not local_account:
                 output.append(
                     f"'LocalAccountTokenFilterPolicy' = {local_account} (default): [red]only the built-in admin can perform admin tasks without UAC[/red]"
                 )
@@ -61,7 +56,7 @@ class UACData(Fact):
                 )
 
             filter_token = self.registry_values["FilterAdministratorToken"]
-            if filter_token == False:
+            if not filter_token:
                 output.append(
                     f"'FilterAdministratorToken' = {local_account} (default): [yellow]the built-in admin [bold]can[/bold] do remote administration[/yellow]"
                 )

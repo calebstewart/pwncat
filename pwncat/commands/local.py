@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 import subprocess
 
-from pwncat.commands import Complete, CommandDefinition
+import pwncat
+from pwncat.commands import CommandDefinition
 
 
 class Command(CommandDefinition):

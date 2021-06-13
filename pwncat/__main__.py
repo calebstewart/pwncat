@@ -1,18 +1,11 @@
 #!/usr/bin/env python3
-import os
 import sys
-import shlex
 import logging
 import argparse
-import warnings
-import selectors
-from io import TextIOWrapper
-from pathlib import Path
 
 from rich import box
 from rich.table import Table
 from rich.progress import Progress, SpinnerColumn
-from paramiko.buffered_pipe import BufferedPipe
 
 import pwncat.manager
 from pwncat.util import console
@@ -152,7 +145,6 @@ def main():
             password = None
             host = None
             port = None
-            try_reconnect = False
 
             if args.connection_string:
                 m = connect.Command.CONNECTION_PATTERN.match(args.connection_string)
@@ -170,7 +162,7 @@ def main():
 
             if protocol is not None and args.listen:
                 console.log(
-                    f"[red]error[/red]: --listen is not compatible with an explicit connection string"
+                    "[red]error[/red]: --listen is not compatible with an explicit connection string"
                 )
                 return
 
@@ -184,7 +176,7 @@ def main():
                 )
                 > 1
             ):
-                console.log(f"[red]error[/red]: multiple ports specified")
+                console.log("[red]error[/red]: multiple ports specified")
                 return
 
             if args.port is not None:
@@ -195,7 +187,7 @@ def main():
             if port is not None:
                 try:
                     port = int(port.lstrip(":"))
-                except:
+                except ValueError:
                     console.log(f"[red]error[/red]: {port}: invalid port number")
                     return
 

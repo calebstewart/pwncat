@@ -1,16 +1,12 @@
 #!/usr/bin/env python3
 
-from typing import Any, Dict, List
 
 import rich.markup
 
-import pwncat
-from pwncat import util
 from pwncat.db import Fact
 from pwncat.modules import ModuleFailed
-from pwncat.platform import PlatformError
 from pwncat.platform.windows import Windows, PowershellError
-from pwncat.modules.enumerate import Schedule, EnumerateModule
+from pwncat.modules.enumerate import EnumerateModule
 
 
 class EnvironmentData(Fact):
@@ -34,16 +30,16 @@ class Module(EnumerateModule):
 
         try:
             result = session.platform.powershell(
-                f"Get-ChildItem env:\\ | Select Name,Value"
+                "Get-ChildItem env:\\ | Select Name,Value"
             )
 
             if not result:
-                raise ModuleFailed(f"failed to retrieve env: PSDrive")
+                raise ModuleFailed("failed to retrieve env: PSDrive")
 
             environment = result[0]
 
         except PowershellError as exc:
-            raise ModuleFailed(f"failed to retrieve env: PSDrive") from exc
+            raise ModuleFailed("failed to retrieve env: PSDrive") from exc
 
         for pair in environment:
             yield EnvironmentData(self.name, pair["Name"], pair["Value"])

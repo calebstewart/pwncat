@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
 import os
 import re
-import dataclasses
 
-import rich.markup
 
-import pwncat
 from pwncat.db import Fact
 from pwncat.modules import Status
 from pwncat.subprocess import CalledProcessError
@@ -93,7 +90,7 @@ class Module(EnumerateModule):
             )
             user_entries = proc.stdout
 
-        except CalledProcessError as exc:
+        except CalledProcessError:
             # The crontab command doesn't exist :(
             return
 

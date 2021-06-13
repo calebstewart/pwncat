@@ -15,13 +15,9 @@ and can be located using the ``enumerate`` module and searching for
 For examples of implant modules, see the ``pam`` and ``passwd`` built-in
 implants located in ``pwncat/modules/linux/implant/``.
 """
-from typing import List
 
-from rich.prompt import Prompt
-
-from pwncat.util import console
-from pwncat.facts import Implant, ImplantType
-from pwncat.modules import Bool, Status, Argument, BaseModule, ModuleFailed
+import pwncat
+from pwncat.modules import Status, BaseModule
 
 
 class ImplantModule(BaseModule):
@@ -56,7 +52,7 @@ class ImplantModule(BaseModule):
         for installation, escalation, connection, and removal. The standard interface
         of this method allows abstract interactions across all persistence modules."""
 
-        yield Status(f"installing implant")
+        yield Status("installing implant")
         implant = yield from self.install(session, **kwargs)
 
         # Register the installed implant as an enumerable fact

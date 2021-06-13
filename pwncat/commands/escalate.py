@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import time
 
+import pwncat
 from pwncat.util import console
 from pwncat.modules import ModuleFailed
 from pwncat.commands import Complete, Parameter, CommandDefinition
@@ -136,7 +137,7 @@ class Command(CommandDefinition):
 
         attempted = []
         chain = []
-        original_user = manager.target.current_user()
+        manager.target.current_user()
         original_session = manager.target
         failed = []
 
@@ -198,7 +199,7 @@ class Command(CommandDefinition):
 
                     return result
                 except ModuleFailed:
-                    failed.append(e)
+                    failed.append(escalation)
 
             if not args.recursive:
                 manager.target.log(
@@ -228,4 +229,4 @@ class Command(CommandDefinition):
                     attempted.append(escalation.uid)
                     break
                 except ModuleFailed:
-                    failed.append(e)
+                    failed.append(escalation)

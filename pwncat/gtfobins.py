@@ -6,10 +6,9 @@ database to identify ways to read/write files as well as during escalation
 with things like SETUID binaries and sudo rules. A full list of all supported
 binaries can be seen in ``pwncat/data/gtfobins.json``.
 """
-import io
 import os
 import shlex
-from enum import Enum, Flag, auto
+from enum import Flag, auto
 from typing import IO, Any, Dict, List, Tuple, BinaryIO, Callable, Generator
 
 import rapidjson as json
@@ -238,39 +237,10 @@ class MethodWrapper:
         if self.stream is Stream.RAW or self.stream is Stream.PRINT:
             return pipe
         else:
+            # NOTE: we should remove these from gtfobins.json
             raise RuntimeError(
-                f"{self.stream.name}: we haven't implemented streaming of encodings besides base64"
+                f"{self.stream.name}: non raw or print streams are no longer supported"
             )
-
-        wrapped = Base64IO(pipe)
-        original_close = wrapped.close
-        original_write = wrapped.write
-
-        def close_wrapper():
-            """This is a dirty hack because Base64IO doesn't close the underlying
-            stream when it closes. We want to assume this, so we wrap the function
-            with one that will close the underlying stream. We need to close
-            the Base64IO stream first, since data may be waiting to get decoded
-            and sent."""
-            original_close()
-            pipe.close()
-
-        def write_wrapper(data: bytes):
-            """This is another nasty hack. The underlying Base64IO object
-            erroneously returns the number of base64 bytes written, not the number
-            if source bytes written. This causes other Python IO classes to raise
-            an exception. We know our underlying socket will block on sending
-            data, so all data will be sent. Again, this is gross, but it makes
-            the python stdlib happy."""
-            n = original_write(data, line_length=76)
-            return min(len(data), (n * 3) // 4)
-
-        wrapped.close = close_wrapper
-        wrapped.write = write_wrapper
-        # We want this, but it may cause issues
-        wrapped.name = pipe.name
-
-        return wrapped
 
     def build(self, gtfo: "GTFOBins", **kwargs) -> Tuple[str, str, str]:
         """Build the payload for this method and binary path. Depending on

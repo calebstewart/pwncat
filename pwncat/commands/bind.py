@@ -1,11 +1,6 @@
 #!/usr/bin/env python3
-import string
 
-from colorama import Fore
-from prompt_toolkit.keys import ALL_KEYS, Keys
-from prompt_toolkit.input.ansi_escape_sequences import REVERSE_ANSI_SEQUENCES
 
-import pwncat
 from pwncat.util import console
 from pwncat.config import KeyType
 from pwncat.commands import Complete, Parameter, CommandDefinition

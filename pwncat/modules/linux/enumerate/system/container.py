@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
-import dataclasses
-from typing import List
 
-import pwncat
-from pwncat import util
 from pwncat.db import Fact
 from pwncat.subprocess import CalledProcessError
 from pwncat.platform.linux import Linux
-from pwncat.modules.enumerate import Schedule, EnumerateModule
+from pwncat.modules.enumerate import EnumerateModule
 
 
 class ContainerData(Fact):
@@ -42,7 +38,7 @@ class Module(EnumerateModule):
 
         try:
             proc = session.platform.run(
-                f'find / -maxdepth 3 -name "*dockerenv*" -exec ls -la {{}} \\; 2>/dev/null',
+                'find / -maxdepth 3 -name "*dockerenv*" -exec ls -la {{}} \\; 2>/dev/null',
                 capture_output=True,
                 text=True,
             )
@@ -52,7 +48,7 @@ class Module(EnumerateModule):
                     yield "system.container", ContainerData(self.name, "docker")
                     return
 
-        except CalledProcessError as exc:
+        except CalledProcessError:
             # We couldn't read in from a .dockerenv file
             pass
 

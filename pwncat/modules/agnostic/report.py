@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
 import os
 import datetime
-import textwrap
 from typing import List
 
 import jinja2
-import rich.box
-from rich.table import Table
 from rich.markdown import Markdown
 
+import pwncat
 from pwncat.util import console, strip_markup
 from pwncat.modules import Bool, Argument, BaseModule, ModuleFailed
 

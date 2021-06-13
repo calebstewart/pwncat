@@ -18,11 +18,10 @@ import os
 import sys
 import fnmatch
 import pkgutil
-import selectors
 import threading
 import contextlib
 from io import TextIOWrapper
-from typing import Dict, List, Tuple, Union, Optional
+from typing import Dict, List, Union, Optional
 
 import ZODB
 import zodburi
@@ -537,7 +536,7 @@ class Manager:
 
         # This is required to ensure multi-byte key-sequences are read
         # properly
-        old_stdin = sys.stdin
+        sys.stdin
         sys.stdin = TextIOWrapper(
             os.fdopen(sys.stdin.fileno(), "br", buffering=0),
             write_through=True,
@@ -575,7 +574,7 @@ class Manager:
 
                     data = self.target.platform.channel.recv(4096)
 
-                    if data != b"" and data != None:
+                    if data != b"" and data is not None:
                         try:
                             data = self.target.platform.process_output(data)
                             sys.stdout.buffer.write(data)
@@ -588,7 +587,6 @@ class Manager:
             output_thread = threading.Thread(target=output_thread_main)
             output_thread.start()
 
-            has_prefix = False
             channel_closed = False
 
             try:

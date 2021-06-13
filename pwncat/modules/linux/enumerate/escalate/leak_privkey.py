@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
-from pwncat.facts import Implant, PrivateKey, EscalationReplace
+import pwncat
+from pwncat.facts import PrivateKey
 from pwncat.modules import Status, ModuleFailed
 from pwncat.platform.linux import Linux
 from pwncat.modules.enumerate import Schedule, EnumerateModule
@@ -37,7 +38,7 @@ class Module(EnumerateModule):
             try:
                 with ability.open(session, str(ssh_path / "id_rsa"), "r") as filp:
                     privkey = filp.read()
-            except (ModuleFailed, FileNotFoundError, PermissionError) as exc:
+            except (ModuleFailed, FileNotFoundError, PermissionError):
                 yield Status(
                     f"leaking key for [blue]{user.name}[/blue] [red]failed[/red]"
                 )
@@ -48,7 +49,7 @@ class Module(EnumerateModule):
                     pubkey = filp.read()
                 if pubkey.strip() == "":
                     pubkey = None
-            except (ModuleFailed, FileNotFoundError, PermissionError) as exc:
+            except (ModuleFailed, FileNotFoundError, PermissionError):
                 yield Status(
                     f"leaking pubkey [red]failed[/red] for [blue]{user.name}[/blue]"
                 )
@@ -61,7 +62,7 @@ class Module(EnumerateModule):
                         authkeys = filp.read()
                     if authkeys.strip() == "":
                         authkeys = None
-                except (ModuleFailed, FileNotFoundError, PermissionError) as exc:
+                except (ModuleFailed, FileNotFoundError, PermissionError):
                     yield Status(
                         f"leaking authorized keys [red]failed[/red] for [blue]{user.name}[/blue]"
                     )

@@ -6,16 +6,12 @@ connection on a known port.
 
 The only required arguments are ``host`` and ``port``.
 """
-import os
-import errno
-import fcntl
 import socket
-from typing import Optional
 
 from rich.progress import Progress, BarColumn
 
 from pwncat.util import console
-from pwncat.channel import Channel, ChannelError, ChannelClosed
+from pwncat.channel import ChannelError
 from pwncat.channel.socket import Socket
 
 
@@ -39,7 +35,7 @@ class Connect(Socket):
             transient=True,
             console=console,
         ) as progress:
-            task_id = progress.add_task("connecting", total=1, start=False)
+            progress.add_task("connecting", total=1, start=False)
             # Connect to the remote host
             client = socket.create_connection((host, port))
 

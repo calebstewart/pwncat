@@ -132,7 +132,7 @@ class Command(CommandDefinition):
 
         # Show uncategorized results first
         if uncategorized:
-            console.print(f"[bold]Uncategorized Results[/bold]")
+            console.print("[bold]Uncategorized Results[/bold]")
             for result in uncategorized:
                 console.print("- " + result.title(manager.target))
 

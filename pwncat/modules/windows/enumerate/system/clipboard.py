@@ -1,16 +1,12 @@
 #!/usr/bin/env python3
 
-from typing import Any, Dict, List
 
 import rich.markup
 
-import pwncat
-from pwncat import util
 from pwncat.db import Fact
 from pwncat.modules import ModuleFailed
-from pwncat.platform import PlatformError
 from pwncat.platform.windows import Windows, PowershellError
-from pwncat.modules.enumerate import Schedule, EnumerateModule
+from pwncat.modules.enumerate import EnumerateModule
 
 
 class ClipboardData(Fact):
@@ -20,7 +16,7 @@ class ClipboardData(Fact):
         self.contents: bool = contents
 
     def title(self, session):
-        return f"Current clipboard contents:"
+        return "Current clipboard contents:"
 
     def description(self, session):
         return f"[yellow]{rich.markup.escape(self.contents)}[/yellow]"
@@ -35,7 +31,7 @@ class Module(EnumerateModule):
     def enumerate(self, session):
 
         try:
-            result = session.platform.powershell(f"Get-Clipboard")
+            result = session.platform.powershell("Get-Clipboard")
 
             if not result:
                 return
@@ -46,6 +42,6 @@ class Module(EnumerateModule):
                 contents = result[0]
 
         except PowershellError as exc:
-            raise ModuleFailed(f"failed to retrieve clipboard contents") from exc
+            raise ModuleFailed("failed to retrieve clipboard contents") from exc
 
         yield ClipboardData(self.name, contents)

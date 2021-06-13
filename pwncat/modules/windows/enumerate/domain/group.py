@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-from typing import Any, Dict, List, Optional
-from collections import namedtuple
+from typing import Dict, List, Optional
 
-from pwncat.db import Fact
-from pwncat.modules import Status, ModuleFailed
+import pwncat
+from pwncat.modules import Status
 from pwncat.facts.windows import WindowsGroup
 from pwncat.platform.windows import Windows, PowershellError
 from pwncat.modules.enumerate import Schedule, EnumerateModule
@@ -75,7 +74,7 @@ class Module(EnumerateModule):
         try:
             yield Status("requesting domain groups")
             groups = session.platform.powershell("Get-DomainGroup")[0]
-        except (IndexError, PowershellError) as exc:
+        except (IndexError, PowershellError):
             # Doesn't appear to be a domain joined group
             return
 
@@ -95,7 +94,7 @@ class Module(EnumerateModule):
                 if isinstance(members, dict):
                     members = [members]
 
-            except (IndexError, PowershellError) as exc:
+            except (IndexError, PowershellError):
                 members = []
 
             members = [member["MemberSID"] for member in members]

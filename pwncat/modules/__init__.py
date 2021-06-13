@@ -31,19 +31,13 @@ Example Module
             session.log(f"ran {self.name}")
 
 """
-import enum
 import typing
-import fnmatch
 import inspect
-import pkgutil
 import functools
-from typing import Any, Dict, List, Type, Callable, Optional
+from typing import Any, Dict, Callable, Optional
 from dataclasses import dataclass
 
-from rich.progress import Progress
-
 import pwncat
-from pwncat.util import console
 
 LOADED_MODULES = {}
 

@@ -8,11 +8,10 @@ The only required argument for a bind channel is the port number. By default,
 the channel will listen on all interfaces (bound to ``0.0.0.0``).
 """
 import socket
-from typing import Optional
 
 from rich.progress import Progress, BarColumn
 
-from pwncat.channel import Channel, ChannelError
+from pwncat.channel import ChannelError
 from pwncat.channel.socket import Socket
 
 
@@ -30,7 +29,7 @@ class Bind(Socket):
             host = "0.0.0.0"
 
         if port is None:
-            raise ChannelError(self, f"no port specified")
+            raise ChannelError(self, "no port specified")
 
         super().__init__(client=None, host=host, port=port, **kwargs)
 
@@ -44,7 +43,7 @@ class Bind(Socket):
             BarColumn(bar_width=None),
             transient=True,
         ) as progress:
-            task_id = progress.add_task("listening", total=1, start=False)
+            progress.add_task("listening", total=1, start=False)
 
             try:
                 # Wait for a connection

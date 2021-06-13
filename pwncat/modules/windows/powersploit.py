@@ -3,6 +3,7 @@ import os.path
 
 import pkg_resources
 
+import pwncat
 from pwncat.modules import Result, Status, Argument, BaseModule, ModuleFailed
 from pwncat.platform.windows import Windows, PowershellError
 
