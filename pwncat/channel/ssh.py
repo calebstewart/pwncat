@@ -13,7 +13,7 @@ from typing import Optional
 import paramiko
 from prompt_toolkit import prompt
 
-from pwncat.channel import Channel, ChannelError
+from pwncat.channel import Channel, ChannelError, ChannelClosed
 
 
 class Ssh(Channel):
@@ -62,11 +62,11 @@ class Ssh(Channel):
                     )
                 else:
                     key = paramiko.RSAKey.from_private_key(identity)
-            except:
+            except paramiko.ssh_exception.SSHException:
                 password = prompt("RSA Private Key Passphrase: ", is_password=True)
                 try:
                     key = paramiko.RSAKey.from_private_key_file(identity, password)
-                except:
+                except paramiko.ssh_exception.SSHException:
                     raise ChannelError("invalid private key or passphrase")
 
             # Attempt authentication

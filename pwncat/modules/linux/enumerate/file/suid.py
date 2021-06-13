@@ -1,19 +1,11 @@
 #!/usr/bin/env python3
 import subprocess
-import dataclasses
-from typing import Any
 
 import rich.markup
 
 import pwncat
-from pwncat import util
 from pwncat.db import Fact
-from pwncat.modules import Status
-from pwncat.gtfobins import Stream, Capability, BinaryNotFound
 from pwncat.facts.ability import (
-    GTFOExecute,
-    GTFOFileRead,
-    GTFOFileWrite,
     build_gtfo_ability,
 )
 from pwncat.platform.linux import Linux
@@ -66,12 +58,10 @@ class Module(EnumerateModule):
             text=True,
         )
 
-        facts = []
         try:
             with proc.stdout as stream:
                 for path in stream:
                     # Parse out owner ID and path
-                    original_path = path
                     path = path.strip().split(" ")
                     uid, path = int(path[0]), " ".join(path[1:])
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from typing import List
 
 from rich.prompt import Prompt
 
@@ -81,7 +82,7 @@ class Module(BaseModule):
                     implant.types.remove("implant.replace")
                     implant.types.remove("implant.spawn")
                     nremoved += 1
-                except ModuleFailed as exc:
+                except ModuleFailed:
                     session.log(
                         f"[red]error[/red]: removal failed: {implant.title(session)}"
                     )

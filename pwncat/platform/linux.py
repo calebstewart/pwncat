@@ -11,7 +11,6 @@ Popen can be running at a time. It is imperative that you call
 to calling any other pwncat methods.
 """
 import os
-import sys
 import time
 import shlex
 import shutil
@@ -787,7 +786,7 @@ class Linux(Platform):
         if export:
             command.append("export")
         command.append(f"{pwncat.util.quote(name)}={pwncat.util.quote(value)}")
-        proc = self.run(command, capture_output=False, check=True)
+        self.run(command, capture_output=False, check=True)
 
     def compile(
         self,
@@ -839,7 +838,6 @@ class Linux(Platform):
             arch_fact = self.session.run("enumerate", types=["system.arch"])[0]
         except IndexError:
             arch_fact = None
-            pass
 
         if cross is not None and os.path.isfile(cross) and arch_fact is not None:
             # Attempt compilation locally
@@ -888,7 +886,7 @@ class Linux(Platform):
                     os.unlink(path)
 
             # We have a compiled executable. We now need to upload it.
-            length = os.path.getsize(local_output)
+            os.path.getsize(local_output)
             with open(local_output, "rb") as source:
                 # Decide on a name
                 if output is not None:
@@ -904,7 +902,7 @@ class Linux(Platform):
 
             try:
                 self.run(["chmod", "+x", remote_path], check=True)
-            except pwncat.subprocess.CalledProcessError as exc:
+            except pwncat.subprocess.CalledProcessError:
                 self.session.log(
                     "[yellow]warning[/yellow]: failed to set executable bit on compiled binary"
                 )
@@ -1103,7 +1101,7 @@ class Linux(Platform):
                 check=True,
             )
             return proc.stdout.strip()
-        except CalledProcessError as exc:
+        except CalledProcessError:
             raise FileNotFoundError(str(path))
 
     def open(
@@ -1137,7 +1135,7 @@ class Linux(Platform):
 
         # Ensure all mode properties are valid
         if any(c not in "rwb" for c in mode):
-            raise PlatformError(f"{char}: unknown file mode")
+            raise PlatformError(f"{mode}: unknown file mode")
 
         # Save this just in case we are opening a text-mode stream
         line_buffering = buffering == -1 or buffering == 1
@@ -1359,7 +1357,7 @@ class Linux(Platform):
         as_is: bool = False,
         **popen_kwargs,
     ):
-        """
+        r"""
         Run the specified command as the specified user and group. On unix-like systems
         the normally translates to the ``sudo`` command. The command is executed using
         the ``self.popen`` method. All arguments not documented here are passed directly
@@ -1482,7 +1480,7 @@ class Linux(Platform):
             ):
                 # End the process (with C-c)
                 proc.kill()
-                raise PermissionError(f"incorrect password or sudo permissions")
+                raise PermissionError("incorrect password or sudo permissions")
 
         return proc
 
@@ -1707,7 +1705,7 @@ class Linux(Platform):
 
         try:
             self.run(["chown", f"{uid}:{gid}", path], check=True)
-        except CalledProcessError as exc:
+        except CalledProcessError:
             raise PermissionError("failed to change ownership")
 
     def mkdir(self, path: str, mode: int = 0o777, parents: bool = False):

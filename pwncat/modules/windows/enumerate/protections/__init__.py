@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
+import pwncat
 from pwncat.util import random_string
 from pwncat.facts import ArchData, HostnameData, DistroVersionData
-from pwncat.modules import Status, ModuleFailed
-from pwncat.facts.windows import WindowsUser
+from pwncat.modules import ModuleFailed
 from pwncat.platform.windows import Windows, PowershellError
 from pwncat.modules.enumerate import Schedule, EnumerateModule
 

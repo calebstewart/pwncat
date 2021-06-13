@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-from typing import Any, Dict
-from collections import namedtuple
+from typing import Dict
 
+import pwncat
 from pwncat.db import Fact
-from pwncat.modules import Status, ModuleFailed
+from pwncat.modules import Status
 from pwncat.platform.windows import Windows, PowershellError
 from pwncat.modules.enumerate import Schedule, EnumerateModule
 
@@ -44,7 +44,7 @@ class Module(EnumerateModule):
         try:
             yield Status("requesting domain sites")
             sites = session.platform.powershell("Get-DomainSite")[0]
-        except (IndexError, PowershellError) as exc:
+        except (IndexError, PowershellError):
             # Doesn't appear to be a domain joined site
             return
 

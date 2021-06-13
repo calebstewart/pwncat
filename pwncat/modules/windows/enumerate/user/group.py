@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
-from pwncat.modules import Status, ModuleFailed
+import pwncat
+from pwncat.modules import ModuleFailed
 from pwncat.facts.windows import WindowsGroup
 from pwncat.platform.windows import Windows, PowershellError
 from pwncat.modules.enumerate import Schedule, EnumerateModule
@@ -34,7 +35,7 @@ class Module(EnumerateModule):
                         if isinstance(members[0], list)
                         else [members[0]["SID"]["Value"]]
                     )
-            except PowershellError as exc:
+            except PowershellError:
                 members = []
 
             yield WindowsGroup(

@@ -43,32 +43,25 @@ import shlex
 import pkgutil
 import termios
 import argparse
-import traceback
 from io import TextIOWrapper
 from enum import Enum, auto
-from pprint import pprint
-from typing import Any, Dict, List, Type, TextIO, Callable, Iterable
+from typing import Dict, List, Type, Callable, Iterable
 from functools import partial
 
 import rich.text
-from colorama import Fore
+from pygments import token
 from prompt_toolkit import ANSI, PromptSession
-from pygments.lexer import RegexLexer, include, bygroups
-from pygments.style import Style
-from pygments.token import *
+from pygments.lexer import RegexLexer
 from pygments.styles import get_style_by_name
 from prompt_toolkit.lexers import PygmentsLexer
 from prompt_toolkit.styles import Style, merge_styles
-from prompt_toolkit.history import History, InMemoryHistory
+from prompt_toolkit.history import History
 from prompt_toolkit.document import Document
-from prompt_toolkit.shortcuts import ProgressBar, confirm
 from prompt_toolkit.completion import (
     Completer,
     Completion,
     CompleteEvent,
-    PathCompleter,
     WordCompleter,
-    NestedCompleter,
     merge_completers,
 )
 from prompt_toolkit.key_binding import KeyBindings
@@ -78,7 +71,7 @@ from prompt_toolkit.application.current import get_app
 
 import pwncat
 import pwncat.db
-from pwncat.util import State, console
+from pwncat.util import console
 from pwncat.channel import ChannelClosed
 
 
@@ -197,7 +190,7 @@ class Parameter:
     def __init__(
         self,
         complete: Complete,
-        token=Name.Label,
+        token=token.Name.Label,
         group: str = None,
         *args,
         **kwargs,
@@ -395,7 +388,7 @@ def resolve_blocks(source: str):
         i += 1
 
     if in_brace:
-        raise ValueError(f"mismatched braces")
+        raise ValueError("mismatched braces")
     if inside_quotes:
         raise ValueError("missing ending quote")
 
@@ -796,7 +789,9 @@ class CommandLexer(RegexLexer):
 
         root = []
         for command in commands:
-            root.append(("^" + re.escape(command.PROG), Name.Function, command.PROG))
+            root.append(
+                ("^" + re.escape(command.PROG), token.Name.Function, command.PROG)
+            )
             mode = []
             if command.ARGS is not None:
                 for args, param in command.ARGS.items():
@@ -809,22 +804,22 @@ class CommandLexer(RegexLexer):
                         else:
                             # Don't enter param state
                             mode.append((r"\s+" + re.escape(arg), param.token))
-                mode.append((r"\s+(\-\-help|\-h)", Name.Label))
-            mode.append((r"\"", String, "string"))
-            mode.append((r".", Text))
+                mode.append((r"\s+(\-\-help|\-h)", token.Name.Label))
+            mode.append((r"\"", token.String, "string"))
+            mode.append((r".", token.Text))
             cls.tokens[command.PROG] = mode
 
-        root.append((r".", Text))
+        root.append((r".", token.Text))
         cls.tokens["root"] = root
         cls.tokens["param"] = [
-            (r"\"", String, "string"),
-            (r"\s", Text, "#pop"),
-            (r"[^\s]", Text),
+            (r"\"", token.String, "string"),
+            (r"\s", token.Text, "#pop"),
+            (r"[^\s]", token.Text),
         ]
         cls.tokens["string"] = [
-            (r"[^\"\\]+", String),
-            (r"\\.", String.Escape),
-            ('"', String, "#pop"),
+            (r"[^\"\\]+", token.String),
+            (r"\\.", token.String.Escape),
+            ('"', token.String, "#pop"),
         ]
 
         return cls

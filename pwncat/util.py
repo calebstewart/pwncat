@@ -5,26 +5,17 @@ import os
 import re
 import sys
 import tty
-import time
 import fcntl
 import random
-import socket
 import string
-import logging
 import termios
-import threading
 from io import TextIOWrapper
 from enum import Enum, Flag, auto
-from typing import List, Tuple, BinaryIO, Callable, Optional
-from functools import partial
-from http.server import HTTPServer, BaseHTTPRequestHandler
-from socketserver import TCPServer, BaseRequestHandler
+from typing import List, Optional
 
 import netifaces
 from rich import markup
-from colorama import Fore, Style
 from rich.console import Console
-from prompt_toolkit.shortcuts import ProgressBar
 
 console = Console(emoji=False)
 
@@ -96,9 +87,9 @@ class CompilationError(Exception):
         :return: str
         """
         if self.source_error:
-            return f"No working local or remote compiler found"
+            return "No working local or remote compiler found"
         else:
-            return f"Error during compilation of source files"
+            return "Error during compilation of source files"
 
 
 class RawModeExit(Exception):
@@ -303,7 +294,7 @@ def pop_term_state():
     try:
         state = STORED_TERM_STATE.pop()
         restore_terminal(state[1:])
-    except:
+    except IndexError:
         pass
 
 
@@ -329,7 +320,6 @@ def get_ip_addr() -> str:
         and not iface.startswith("lo")
         and not iface.startswith("docker")
     ]
-    targets = []
 
     # look for a tun/tap interface
     for iface in ifaces:

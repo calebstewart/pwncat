@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-from typing import Any, Dict
-from collections import namedtuple
+from typing import Dict
 
+import pwncat
 from pwncat.db import Fact
-from pwncat.modules import Status, ModuleFailed
+from pwncat.modules import Status
 from pwncat.platform.windows import Windows, PowershellError
 from pwncat.modules.enumerate import Schedule, EnumerateModule
 
@@ -52,14 +52,14 @@ class Module(EnumerateModule):
         try:
             yield Status("requesting domain details")
             domain = session.platform.powershell("Get-Domain")[0]
-        except (IndexError, PowershellError) as exc:
+        except (IndexError, PowershellError):
             # Doesn't appear to be a domain joined computer
             return
 
         try:
             yield Status("requesting domain sid")
             sid = session.platform.powershell("Get-DomainSID")[0]
-        except (IndexError, PowershellError) as exc:
+        except (IndexError, PowershellError):
             sid = None
 
         yield DomainObject(self.name, domain, sid)

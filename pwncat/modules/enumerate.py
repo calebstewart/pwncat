@@ -49,7 +49,6 @@ Example Enumerate Module
             yield CustomFactObject(self.name)
 
 """
-import time
 import typing
 import fnmatch
 from enum import Enum, auto
@@ -60,7 +59,6 @@ import pwncat
 from pwncat.db import Fact
 from pwncat.modules import List, Status, Argument, BaseModule
 from pwncat.platform import Platform
-from pwncat.platform.linux import Linux
 
 
 class Schedule(Enum):
@@ -221,7 +219,7 @@ class EnumerateModule(BaseModule):
         if self.SCHEDULE == Schedule.ONCE:
             target.enumerate_state[self.name] = True
         elif self.SCHEDULE == Schedule.PER_USER:
-            if not self.name in target.enumerate_state:
+            if self.name not in target.enumerate_state:
                 target.enumerate_state[self.name] = persistent.list.PersistentList()
             target.enumerate_state[self.name].append(session.platform.getuid())
 

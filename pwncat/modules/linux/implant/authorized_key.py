@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
 import os
-import time
-import shutil
-import socket
 import pathlib
-import subprocess
 
+import pwncat
 from pwncat.facts import PrivateKey
 from pwncat.modules import Status, Argument, ModuleFailed
 from pwncat.platform.linux import Linux

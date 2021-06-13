@@ -1,18 +1,11 @@
 #!/usr/bin/env python3
 import fnmatch
-import inspect
-import itertools
-import collections
 from io import IOBase
-from pathlib import Path
-
-from rich import markup
-from rich.progress import Progress
 
 import pwncat.modules
 from pwncat import util
-from pwncat.util import console, strip_markup
-from pwncat.modules import ModuleFailed
+from pwncat.util import strip_markup
+from pwncat.modules import Status, ModuleFailed
 from pwncat.modules.enumerate import EnumerateModule
 
 

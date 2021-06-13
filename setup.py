@@ -1,10 +1,6 @@
 #!/usr/bin/env python
 
-from setuptools import find_packages
-from setuptools import setup
-from setuptools.command.install import install
-import shutil, os, stat
-import binascii
+from setuptools import setup, find_packages
 
 dependencies = [
     "netifaces",

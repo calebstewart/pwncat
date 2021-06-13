@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 import rich.markup
 
-import pwncat
-from pwncat import util
 from pwncat.db import Fact
+from pwncat.modules import ModuleFailed
 from pwncat.platform.windows import Windows, PowershellError
-from pwncat.modules.enumerate import Schedule, EnumerateModule
+from pwncat.modules.enumerate import EnumerateModule
 
 
 class DefenderData(Fact):

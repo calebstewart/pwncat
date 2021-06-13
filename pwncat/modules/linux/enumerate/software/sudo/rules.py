@@ -1,20 +1,16 @@
 #!/usr/bin/env python3
 import re
-import dataclasses
-from typing import List, Optional, Generator
+from typing import List, Optional
 
 import rich.markup
 
-import pwncat
-from pwncat import util
 from pwncat.db import Fact
 from pwncat.facts import build_gtfo_ability
-from pwncat.gtfobins import Capability
 from pwncat.platform.linux import Linux
 from pwncat.modules.enumerate import Schedule, EnumerateModule
 
 """
-TODO: This should end up yielding an escalation ability, since sudo 
+TODO: This should end up yielding an escalation ability, since sudo
 will... inherently give us the potential to run things as the root user.
 We can implement that later after all the enumeration modules are set.
 """
@@ -83,12 +79,12 @@ class SudoSpec(Fact):
         display += f"[yellow]{'[/yellow], [yellow]'.join((rich.markup.escape(c) for c in self.commands))}[/yellow] as "
 
         if self.runas_user == "root":
-            display += f"[red]root[/red]"
+            display += "[red]root[/red]"
         elif self.runas_user is not None:
             display += f"[blue]{rich.markup.escape(self.runas_user)}[/blue]"
 
         if self.runas_group == "root":
-            display += f":[red]root[/red]"
+            display += ":[red]root[/red]"
         elif self.runas_group is not None:
             display += f"[cyan]{rich.markup.escape(self.runas_group)}[/cyan]"
 

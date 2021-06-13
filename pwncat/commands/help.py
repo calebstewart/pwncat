@@ -6,7 +6,7 @@ from rich.table import Table, Column
 
 import pwncat
 from pwncat.util import console
-from pwncat.commands import Complete, Parameter, CommandParser, CommandDefinition
+from pwncat.commands import CommandDefinition, Complete, Parameter
 
 
 class Command(CommandDefinition):

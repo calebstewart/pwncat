@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
 import json
-import dataclasses
 from typing import List, Optional
 
 import pkg_resources
 
-import pwncat
-from pwncat import util
 from pwncat.db import Fact
 from pwncat.facts import ArchData, HostnameData
 from pwncat.platform.linux import Linux
@@ -55,7 +52,7 @@ class KernelVulnerabilityData(Fact):
         self.link: Optional[str] = link
         self.cve: Optional[str] = cve
         # All exploits are assumed working, but can be marked as not working
-        working: bool = True
+        self.working: bool = True
 
     def title(self, title):
         line = f"[red]{self.name}[/red]"

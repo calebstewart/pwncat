@@ -8,6 +8,7 @@ some ability to track your changes when on target.
 import datetime
 from typing import Union, Optional
 
+import pwncat
 from pwncat.db import Fact
 from pwncat.modules import ModuleFailed
 

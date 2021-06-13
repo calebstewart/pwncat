@@ -2,6 +2,7 @@
 import shlex
 import shutil
 
+import pwncat
 from pwncat.modules import Bool, List, Status, Argument, BaseModule, ModuleFailed
 from pwncat.platform.windows import Windows, PowershellError
 
@@ -176,7 +177,7 @@ class Module(BaseModule):
 
         # Execute BloodHound
         try:
-            yield Status(f"executing bloodhound collector")
+            yield Status("executing bloodhound collector")
             session.platform.powershell(powershell_command)
         except (ModuleFailed, PowershellError) as exc:
             raise ModuleFailed(f"Invoke-BloodHound: {exc}")
@@ -205,5 +206,5 @@ class Module(BaseModule):
             raise ModuleFailed("bloodhound failed or access to output was denied")
 
         # Delete the zip from the target
-        yield Status(f"deleting collected results from target")
+        yield Status("deleting collected results from target")
         path.unlink()

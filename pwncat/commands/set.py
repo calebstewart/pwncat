@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
-from colorama import Fore
 
-import pwncat
-from pwncat.util import State, console
+from pwncat.util import console
 from pwncat.commands import Complete, Parameter, CommandDefinition
 
 

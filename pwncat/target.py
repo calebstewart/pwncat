@@ -5,11 +5,11 @@ information needed across pwncat sessions to identify or interact with a target.
 No information in this object is specific to a connection protocol or session.
 """
 import enum
-from typing import List, Tuple, Optional
+from typing import Tuple, Optional
 
 import persistent
 import persistent.list
-from BTrees.OOBTree import OOBTree, TreeSet
+from BTrees.OOBTree import OOBTree
 
 
 class NAT(enum.Enum):

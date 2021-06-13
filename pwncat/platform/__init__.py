@@ -29,11 +29,10 @@ a session-specific path object by utilizing the ``session.platform.Path`` proper
 """
 import os
 import sys
-import enum
 import stat
 import fnmatch
 import logging
-import pathlib
+import threading
 import logging.handlers
 from abc import ABC, abstractmethod
 from typing import List, Type, Union, BinaryIO, Optional, Generator
@@ -44,7 +43,6 @@ from rich.logging import RichHandler
 import pwncat
 import pwncat.channel
 import pwncat.subprocess
-from pwncat.util import console
 
 PLATFORM_TYPES = {}
 """ A dictionary of platform names mapping to their class
@@ -353,7 +351,7 @@ class Path:
         return self.__class__(self._target.abspath(str(self)))
 
     def rglob(self, pattern: str) -> Generator["Path", None, None]:
-        """This is like calling Path.glob() with "\*\*/" added to in the front
+        r"""This is like calling Path.glob() with "\*\*/" added to in the front
         of the given relative pattern"""
 
         return self.glob("**/" + pattern)
@@ -538,7 +536,7 @@ class Platform(ABC):
         the python readline module exists in the windows platform. Linux uses
         this default implementation."""
 
-        old_stdin = sys.stdin
+        sys.stdin
         has_prefix = False
 
         pwncat.util.push_term_state()
@@ -657,7 +655,7 @@ class Platform(ABC):
 
         """
         TODO: We should do something about the `which` statement that is sometimes
-        passed in, if we were using busybox. 
+        passed in, if we were using busybox.
         """
 
         if not isinstance(name, str):
@@ -904,23 +902,6 @@ class Platform(ABC):
         raise NotImplementedError(f"sudo not implemented for platform {self.name}")
 
     @abstractmethod
-    def stat(self, path: str) -> os.stat_result:
-        """Perform the equivalent of the stat syscall on
-        the remote host"""
-
-    @abstractmethod
-    def lstat(self, path: str) -> os.stat_result:
-        """Perform the equivalent of the lstat syscall"""
-
-    @abstractmethod
-    def abspath(self, path: str) -> str:
-        """Attempt to resolve a path to an absolute path"""
-
-    @abstractmethod
-    def readlink(self, path: str):
-        """Attempt to read the target of a link"""
-
-    @abstractmethod
     def umask(self, mask: int = None):
         """Set or retrieve the current umask value"""
 
@@ -1022,8 +1003,8 @@ def create(
     return find(platform)(channel, log)
 
 
-from pwncat.platform.linux import Linux
-from pwncat.platform.windows import Windows
+from pwncat.platform.linux import Linux  # noqa: E402
+from pwncat.platform.windows import Windows  # noqa: E402
 
 register(Linux)
 register(Windows)

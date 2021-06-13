@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import pwncat
 from pwncat.facts import PotentialPassword
 from pwncat.platform.linux import Linux
 from pwncat.modules.enumerate import Schedule, EnumerateModule
@@ -9,7 +8,7 @@ from pwncat.modules.enumerate import Schedule, EnumerateModule
 TODO: This module is specifically used to check if we have passwords set
 from previously running a paired PAM persistence backdoor. If the persistence
 isn't in place already, there is no reason to run this enumeration module.
-The persistence module has not been re-implemented in the new platforms 
+The persistence module has not been re-implemented in the new platforms
 framework so this can't be updated just yet.
 """
 

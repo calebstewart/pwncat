@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
-from typing import Any, Dict
-from collections import namedtuple
 
-from pwncat.db import Fact
-from pwncat.modules import Status, ModuleFailed
+import pwncat
+from pwncat.modules import Status
 from pwncat.platform.windows import Windows, PowershellError
 from pwncat.modules.enumerate import Schedule, EnumerateModule
 
@@ -29,7 +27,7 @@ class Module(EnumerateModule):
         try:
             yield Status("requesting domain file servers")
             names = session.platform.powershell("Get-DomainFileServer")[0]
-        except (IndexError, PowershellError) as exc:
+        except (IndexError, PowershellError):
             return
 
         if not isinstance(names, list):

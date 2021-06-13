@@ -4,20 +4,36 @@ used for multiple platforms, so they were separated out here. You
 should not generally need to use these types except as reference
 when interacting with data returned by an enumeration module.
 """
+import time
 import pathlib
 import tempfile
-from typing import IO, Callable, Optional
+import subprocess
+from typing import Callable, Optional
 
 import rich.markup
 from persistent.list import PersistentList
 
+import pwncat
 from pwncat.db import Fact
 from pwncat.channel import ChannelError
 from pwncat.modules import ModuleFailed
-from pwncat.facts.tamper import *
-from pwncat.facts.ability import *
-from pwncat.facts.implant import *
-from pwncat.facts.escalate import *
+from pwncat.facts.tamper import (  # noqa: F401
+    Tamper,
+    CreatedFile,
+    ReplacedFile,
+    CreatedDirectory,
+)
+from pwncat.facts.ability import (  # noqa: F401
+    GTFOExecute,
+    GTFOFileRead,
+    SpawnAbility,
+    GTFOFileWrite,
+    ExecuteAbility,
+    FileReadAbility,
+    FileWriteAbility,
+    build_gtfo_ability,
+)
+from pwncat.facts.implant import Implant, ImplantType, KeepImplantFact  # noqa: F401
 
 
 class ArchData(Fact):

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-import os
-from io import IOBase, BytesIO
+from io import BytesIO
 from pathlib import Path
 
 import requests
 
+import pwncat
 from pwncat.modules import Bool, Argument, BaseModule, ModuleFailed
 from pwncat.platform.windows import Windows
 

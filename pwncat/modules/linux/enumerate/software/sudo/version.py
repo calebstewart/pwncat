@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 import re
-import dataclasses
 
 import rich.markup
 
-import pwncat
 from pwncat.db import Fact
 from pwncat.subprocess import CalledProcessError
 from pwncat.platform.linux import Linux
@@ -27,7 +25,7 @@ class SudoVersion(Fact):
     def title(self, session):
         result = f"[yellow]sudo[/yellow] version [cyan]{rich.markup.escape(self.version)}[/cyan]"
         if self.vulnerable:
-            result += f" (may be [red]vulnerable[/red])"
+            result += " (may be [red]vulnerable[/red])"
         return result
 
     def description(self, session):
@@ -35,7 +33,7 @@ class SudoVersion(Fact):
         if self.vulnerable:
             result = result.rstrip("\n") + "\n\n"
             result += (
-                f'This version may be vulnerable. Check against "searchsploit sudo"'
+                'This version may be vulnerable. Check against "searchsploit sudo"'
             )
         return result
 

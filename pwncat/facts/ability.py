@@ -6,15 +6,14 @@ This module also defines classes and methods which make building abilities
 from GTFOBins methods simpler, since they are used in multiple places within
 pwncat.
 """
-import shlex
 import functools
 import subprocess
 from io import TextIOWrapper
-from typing import IO, Any, Union, Callable, Optional
+from typing import IO, Union, Callable, Optional
 
 import pwncat.subprocess
 from pwncat.db import Fact
-from pwncat.gtfobins import Stream, Capability
+from pwncat.gtfobins import Capability
 from pwncat.platform.linux import LinuxReader, LinuxWriter
 
 
@@ -25,7 +24,7 @@ def build_gtfo_ability(
     source_uid: Optional[Union[int, str]] = None,
     **kwargs,
 ) -> Union["GTFOFileRead", "GTFOFileWrite", "GTFOExecute"]:
-    """Build a escalation ability from a GTFOBins method. This will return
+    r"""Build a escalation ability from a GTFOBins method. This will return
     one of of the GTFO ability classes based on the capabilties exposed by
     the given GTFOBins method.
 
@@ -188,7 +187,7 @@ class SpawnAbility(Fact):
 
 
 class GTFOFileRead(FileReadAbility):
-    """Utilize a GTFO Method Wrapper to implement the FileReadAbility.
+    r"""Utilize a GTFO Method Wrapper to implement the FileReadAbility.
 
     :param source: generating module name
     :type source: str
@@ -269,7 +268,7 @@ class GTFOFileRead(FileReadAbility):
         user = session.find_user(uid=self.uid)
         source_user = session.find_user(uid=self.source_uid)
 
-        if source_user == None:
+        if source_user is None:
             source_user = "[green]ANY[green]"
         else:
             source_user = f"[blue]{source_user.name}[/blue]"
@@ -285,7 +284,7 @@ class GTFOFileRead(FileReadAbility):
 
 
 class GTFOFileWrite(FileWriteAbility):
-    """Utilize a GTFO Method Wrapper to implement the FileWriteAbility
+    r"""Utilize a GTFO Method Wrapper to implement the FileWriteAbility
 
     :param source: generating module name
     :type source: str
@@ -366,7 +365,7 @@ class GTFOFileWrite(FileWriteAbility):
         user = session.find_user(uid=self.uid)
         source_user = session.find_user(uid=self.source_uid)
 
-        if source_user == None:
+        if source_user is None:
             source_user = "[green]ANY[green]"
         else:
             source_user = f"[blue]{source_user.name}[/blue]"
@@ -382,7 +381,7 @@ class GTFOFileWrite(FileWriteAbility):
 
 
 class GTFOExecute(ExecuteAbility):
-    """Execute a remote binary with a given GTFObins capability
+    r"""Execute a remote binary with a given GTFObins capability
 
     :param source: generating module name
     :type source: str
@@ -456,7 +455,7 @@ class GTFOExecute(ExecuteAbility):
         user = session.find_user(uid=self.uid)
         source_user = session.find_user(uid=self.source_uid)
 
-        if source_user == None:
+        if source_user is None:
             source_user = "[green]ANY[green]"
         else:
             source_user = f"[blue]{source_user.name}[/blue]"

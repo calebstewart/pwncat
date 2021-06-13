@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
 import subprocess
 
-import rich.markup
 
-import pwncat
 from pwncat.db import Fact
 from pwncat.util import Init
-from pwncat.modules import Status, ModuleFailed
-from pwncat.subprocess import CalledProcessError
 from pwncat.platform.linux import Linux
 from pwncat.modules.enumerate import Schedule, EnumerateModule
 

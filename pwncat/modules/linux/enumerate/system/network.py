@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
-import dataclasses
 
 import rich.markup
 
-import pwncat
 from pwncat.db import Fact
 from pwncat.platform.linux import Linux
 from pwncat.modules.enumerate import Schedule, EnumerateModule
@@ -36,7 +34,9 @@ class Module(EnumerateModule):
             output = session.platform.run("ip addr", capture_output=True, text=True)
             if output.stdout:
                 output = (
-                    l for l in output.stdout.replace("\r\n", "\n").split("\n") if l
+                    line
+                    for line in output.stdout.replace("\r\n", "\n").split("\n")
+                    if line
                 )
 
                 interface = None

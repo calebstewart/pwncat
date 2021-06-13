@@ -18,6 +18,8 @@ from io import DEFAULT_BUFFER_SIZE, RawIOBase, BufferedReader, BufferedWriter
 from abc import ABC, abstractmethod
 from typing import Type, Union, Optional
 
+import pwncat
+
 CHANNEL_TYPES = {}
 
 
@@ -594,10 +596,10 @@ def create(protocol: Optional[str] = None, **kwargs) -> Channel:
                 raise
 
 
-from pwncat.channel.ssh import Ssh
-from pwncat.channel.bind import Bind
-from pwncat.channel.socket import Socket
-from pwncat.channel.connect import Connect
+from pwncat.channel.ssh import Ssh  # noqa: E402
+from pwncat.channel.bind import Bind  # noqa: E402
+from pwncat.channel.socket import Socket  # noqa: E402
+from pwncat.channel.connect import Connect  # noqa: E402
 
 register("socket", Socket)
 register("bind", Bind)

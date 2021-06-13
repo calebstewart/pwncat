@@ -1,4 +1,3 @@
-import pwncat
 from pwncat.commands import Complete, Parameter, CommandDefinition
 
 

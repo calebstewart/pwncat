@@ -2,18 +2,16 @@
 import os
 import re
 import shlex
-import dataclasses
 
 import rich.markup
 
 import pwncat
 from pwncat.db import Fact
-from pwncat.subprocess import CalledProcessError
 from pwncat.platform.linux import Linux
 from pwncat.modules.enumerate import Schedule, EnumerateModule
 
 """
-TODO: This should realistically yield an ability (which can be used for 
+TODO: This should realistically yield an ability (which can be used for
 privilege escalation)... but we can implement that later.
 """
 

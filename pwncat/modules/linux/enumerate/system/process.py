@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
 import shlex
-import dataclasses
 from typing import List
 
-import rich.markup
 
-import pwncat
 from pwncat.db import Fact
 from pwncat.platform.linux import Linux
 from pwncat.modules.enumerate import Schedule, EnumerateModule
@@ -77,7 +74,7 @@ class Module(EnumerateModule):
 
                         try:
                             pid, ppid, uid, username, *argv = entities
-                        except ValueError as exc:
+                        except ValueError:
                             # We couldn't parse some line for some reason?
                             continue
 

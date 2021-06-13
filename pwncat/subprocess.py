@@ -13,9 +13,8 @@ subprocess module.
     before calling other pwncat methods.
 
 """
-import io
 from typing import IO, List, Optional
-from subprocess import (
+from subprocess import (  # noqa: F401
     PIPE,
     DEVNULL,
     TimeoutExpired,
@@ -23,8 +22,6 @@ from subprocess import (
     CompletedProcess,
     CalledProcessError,
 )
-
-import pwncat
 
 
 class Popen:

@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
-import dataclasses
 from typing import Dict
 
 import rich.markup
 
-import pwncat
 from pwncat.db import Fact
 from pwncat.platform.linux import Linux
 from pwncat.modules.enumerate import Schedule, EnumerateModule
@@ -18,11 +16,11 @@ class SELinuxState(Fact):
         self.status: Dict[str, str] = status
 
     def title(self, session):
-        result = f"SELinux is "
+        result = "SELinux is "
         if self.state == "enabled":
-            result += f"[red]enabled[/red]"
+            result += "[red]enabled[/red]"
         elif self.state == "disabled":
-            result += f"[green]disabled[/green]"
+            result += "[green]disabled[/green]"
         else:
             result += f"[yellow]{rich.markup.escape(self.state)}[/yellow]"
         return result

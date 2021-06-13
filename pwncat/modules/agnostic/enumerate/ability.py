@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-from typing import BinaryIO, Optional
+from typing import Optional
 
+import pwncat
 from pwncat.db import Fact
 
 
