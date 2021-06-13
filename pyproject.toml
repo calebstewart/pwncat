@@ -1,5 +1,6 @@
 [tool.isort]
 profile = "black"
+length_sort = true
 
 [tool.pytest.ini_options]
 minversion = "6.0"
