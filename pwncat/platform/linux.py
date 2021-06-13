@@ -458,19 +458,21 @@ class LinuxWriter(BufferedIOBase):
             self.detach()
             return
 
-        # Indicate EOF
-        self.popen.stdin.write(b"\x04")
-        if self.since_newline != 0:
-            self.popen.stdin.write(b"\x04")
-
-        try:
-            # Check for completion
-            self.popen.wait(timeout=100)
-        except pwncat.subprocess.TimeoutExpired:
-            # Nope, force terminate with C-c
-            # self.popen.terminate()
-            # Cleanup
-            self.popen.wait()
+        # The number of C-d's needed to trigger an EOF in
+        # the process and exit is inconsistent based on the
+        # previous input. So, instead of trying to be deterministic,
+        # we simply send one and check. We do this until we find
+        # the ending delimeter and then exit. If the `on_close`
+        # hook was setup properly, this should be fine.
+        while True:
+            try:
+                self.popen.stdin.write(b"\x04")
+                self.popen.stdin.flush()
+                # Check for completion
+                self.popen.wait(timeout=0.1)
+                break
+            except pwncat.subprocess.TimeoutExpired:
+                continue
 
         # Ensure we don't touch stdio again
         self.detach()
