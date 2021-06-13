@@ -22,6 +22,13 @@ from pwncat.commands import connect
 from pwncat.platform import PlatformError
 
 
+def existing_file(path):
+    path = os.path.expanduser(path)
+    if os.path.isfile(path):
+        return path
+    raise NotADirectoryError(path)
+
+
 def main():
 
     # Default log-level is "INFO"
@@ -45,7 +52,7 @@ def main():
     parser.add_argument(
         "--identity",
         "-i",
-        type=argparse.FileType("r"),
+        type=existing_file,
         default=None,
         help="Private key for SSH authentication",
     )
