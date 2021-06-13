@@ -547,7 +547,7 @@ class Linux(Platform):
         # This doesn't make sense, but happened for some people (see issue #116)
         if os.path.basename(self.shell) == "nologin":
             self.shell = "/bin/sh"
-            self.channel.sendline(" export SHELL=/bin/sh")
+            self.channel.sendline(b" export SHELL=/bin/sh")
 
         if os.path.basename(self.shell) == "sh":
             # Try to find a better shell
