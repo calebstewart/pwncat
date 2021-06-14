@@ -8,7 +8,9 @@ RUN set -eux \
 		linux-headers \
 		openssl-dev \
 		python3 \
-		python3-dev
+		python3-dev \
+		musl-dev \
+		cargo
 
 # Install pip
 RUN set -eux \
@@ -16,7 +18,7 @@ RUN set -eux \
 
 # Ensure pip is up to date
 RUN set -eux \
-	&& python3 -m pip install -U pip setuptools wheel
+	&& python3 -m pip install -U pip setuptools wheel setuptools_rust
 
 # Copy pwncat source
 COPY . /pwncat
@@ -24,7 +26,6 @@ COPY . /pwncat
 # Setup pwncat
 RUN set -eux \
 	&& cd /pwncat \
-  && python3 -m pip install -r requirements.txt \
 	&& python3 setup.py install
 
 # Cleanup
@@ -44,6 +45,8 @@ RUN set -eux \
 
 COPY --from=builder /usr/bin/pwncat /usr/bin/pwncat
 COPY --from=builder /usr/lib/python3.8 /usr/lib/python3.8
+
+RUN python3 -m pwncat --download-plugins
 
 # Set working directory
 WORKDIR /work
