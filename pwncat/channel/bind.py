@@ -51,6 +51,8 @@ class Bind(Socket):
                 self._socket_connected(client)
             except KeyboardInterrupt:
                 raise ChannelError(self, "listener aborted")
+            except socket.error as exc:
+                raise ChannelError(self, str(exc))
             finally:
                 self.server.close()
 

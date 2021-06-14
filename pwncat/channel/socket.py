@@ -15,12 +15,12 @@ utilize this class to instantiate a session via an established socket.
         manager.interactive()
 """
 import os
+import ssl
 import errno
 import fcntl
 import socket
 import functools
 from typing import Optional
-
 
 from pwncat.channel import Channel, ChannelError, ChannelClosed
 
@@ -92,9 +92,12 @@ class Socket(Channel):
             while written < len(data):
                 try:
                     written += self.client.send(data[written:])
-                except BlockingIOError:
+                except (BlockingIOError, ssl.SSLWantWriteError, ssl.SSLWantReadError):
                     pass
         except BrokenPipeError as exc:
+            self._connected = False
+            raise ChannelClosed(self) from exc
+        except (ssl.SSLEOFError, ssl.SSLSyscallError, ssl.SSLZeroReturnError):
             self._connected = False
             raise ChannelClosed(self) from exc
 
@@ -125,6 +128,11 @@ class Socket(Channel):
         try:
             data = data + self.client.recv(count)
             return data
+        except ssl.SSLWantReadError:
+            return data
+        except (ssl.SSLEOFError, ssl.SSLSyscallError, ssl.SSLZeroReturnError):
+            self._connected = False
+            raise ChannelClosed(self) from exc
         except socket.error as exc:
             if exc.args[0] == errno.EAGAIN or exc.args[0] == errno.EWOULDBLOCK:
                 return data
