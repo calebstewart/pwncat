@@ -486,6 +486,11 @@ class Linux(Platform):
 
     name = "linux"
     PATH_TYPE = pathlib.PurePosixPath
+    PROMPTS = {
+        "sh": """'$(command printf "(remote) $(whoami)@$(hostname):$PWD\\$ ")'""",
+        "zsh": '''"%{$fg[red]%}(remote) %{$fg[yellow]%}%n@%M%{$reset_color%}:%{$fg[cyan]%}%~%{$reset_color%}$%b "''',
+        "default": """'$(command printf "\\[\\033[01;31m\\](remote)\\[\\033[0m\\] \\[\\033[01;33m\\]$(whoami)@$(hostname)\\[\\033[0m\\]:\\[\\033[1;36m\\]$PWD\\[\\033[0m\\]\\$ ")'""",
+    }
 
     def __init__(self, session, channel: pwncat.channel.Channel, *args, **kwargs):
         super().__init__(session, channel, *args, **kwargs)
@@ -1522,16 +1527,12 @@ class Linux(Platform):
             TERM = os.environ.get("TERM", "xterm")
             columns, rows = os.get_terminal_size(0)
 
-            # `sh` normally doesn't support colors
-            if os.path.basename(self.shell) != "sh":
-                prompt = """'$(command printf "\\[\\033[01;31m\\](remote)\\[\\033[0m\\] \\[\\033[01;33m\\]$(whoami)@$(hostname)\\[\\033[0m\\]:\\[\\033[1;36m\\]$PWD\\[\\033[0m\\]\\$ ")'"""
-            else:
-                self.session.log(
-                    f"[yellow]warning[/yellow]: [blue]{self.shell}[/blue] does not support interactivity (e.g. color, arrows keys)."
-                )
-                prompt = (
-                    """'$(command printf "(remote) $(whoami)@$(hostname):$PWD\\$ ")'"""
-                )
+            prompt = self.PROMPTS.get(
+                os.path.basename(self.shell), self.PROMPTS["default"]
+            )
+
+            # Drain any remaining output from the commands run by pwncat
+            self.channel.drain()
 
             command = (
                 " ; ".join(
@@ -1546,7 +1547,14 @@ class Linux(Platform):
             )
             self.logger.info(command.rstrip("\n"))
             self.channel.send(command.encode("utf-8"))
-            self.channel.drain()
+
+            try:
+                # Try to remove the echo of the above command, if it exists
+                echo_check = self.channel.peek(len(command), timeout=0.5)
+                if b"stty" in echo_check:
+                    self.channel.recvline()
+            except pwncat.channel.ChannelTimeout:
+                pass
 
         self._interactive = value
 
