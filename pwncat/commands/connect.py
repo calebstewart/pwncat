@@ -58,6 +58,10 @@ class Command(CommandDefinition):
             action="store_true",
             help="List installed implants with remote connection capability",
         ),
+        "--connection,--conn": Parameter(
+            Complete.NONE,
+            help="Certificate for SSL-encrypted listeners",
+        ),
         "connection_string": Parameter(
             Complete.NONE,
             metavar="[protocol://][user[:password]@][host][:port]",
@@ -73,7 +77,7 @@ class Command(CommandDefinition):
     }
     LOCAL = True
     CONNECTION_PATTERN = re.compile(
-        r"""^(?P<protocol>[-a-zA-Z0-9_]*://)?((?P<user>[^:@]*)?(?P<password>:(\\@|[^@])*)?@)?(?P<host>[^:]*)?(?P<port>:[0-9]*)?$"""
+        r"""^(?P<protocol>[-a-zA-Z0-9_]*://)?((?P<user>[^:@]*)?(?P<password>:(\\@|[^@])*)?@)?(?P<host>[^:]*)?(?P<port>:[0-9]*)?(\?(?P<querystring>.*))?$"""
     )
 
     def run(self, manager: "pwncat.manager.Manager", args):
