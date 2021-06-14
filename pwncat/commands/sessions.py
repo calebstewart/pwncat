@@ -73,6 +73,7 @@ class Command(CommandDefinition):
 
         if args.session_id < 0 or args.session_id >= len(manager.sessions):
             console.log(f"[red]error[/red]: {args.session_id}: no such session!")
+            return
 
         session = manager.sessions[args.session_id]
 
