@@ -28,6 +28,12 @@ class Bind(Socket):
         if not host or host == "":
             host = "0.0.0.0"
 
+        if isinstance(port, str):
+            try:
+                port = int(port)
+            except ValueError:
+                raise ChannelError(self, "invalid port number")
+
         if port is None:
             raise ChannelError(self, "no port specified")
 
