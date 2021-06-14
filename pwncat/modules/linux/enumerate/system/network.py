@@ -31,7 +31,9 @@ class Module(EnumerateModule):
     def enumerate(self, session):
 
         try:
-            output = session.platform.run("ip addr", capture_output=True, text=True)
+            output = session.platform.run(
+                ["ip", "-c=never", "addr"], capture_output=True, text=True
+            )
             if output.stdout:
                 output = (
                     line
