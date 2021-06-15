@@ -32,7 +32,7 @@ class Link:
 
         if self.escalation.type == "escalate.spawn":
             self.result.log(
-                "leaving behind open session as [cyan]{self.old_session.current_user().name}[/cyan]"
+                f"leaving behind open session as [cyan]{self.old_session.current_user().name}[/cyan]"
             )
 
         self.old_session.manager.target = self.old_session
@@ -163,7 +163,7 @@ class Command(CommandDefinition):
                     continue
                 except IndexError:
                     manager.target.log(
-                        "[red]error[/red]: no working escalation paths found for {user.name}"
+                        f"[red]error[/red]: no working escalation paths found for {user.name}"
                     )
                     break
 
