@@ -203,6 +203,12 @@ class PopenLinux(pwncat.subprocess.Popen):
             except BlockingIOError:
                 time.sleep(0.1)
 
+        # Check if there's any data left buffered
+        if self.stdout:
+            new_data = self.stdout.read()
+            if new_data is not None:
+                data += new_data
+
         return (data, empty)
 
     def kill(self):
@@ -488,6 +494,7 @@ class Linux(Platform):
     PATH_TYPE = pathlib.PurePosixPath
     PROMPTS = {
         "sh": """'$(command printf "(remote) $(whoami)@$(hostname):$PWD\\$ ")'""",
+        "dash": """'$(command printf "(remote) $(whoami)@$(hostname):$PWD\\$ ")'""",
         "zsh": """'%B%F{red}(remote) %B%F{yellow}%n@%M%B%F{reset}:%B%F{cyan}%(6~.%-1~/…/%4~.%5~)%B%(#.%b%F{white}#.%b%F{white}$)%b%F{reset} '""",
         "default": """'$(command printf "\\[\\033[01;31m\\](remote)\\[\\033[0m\\] \\[\\033[01;33m\\]$(whoami)@$(hostname)\\[\\033[0m\\]:\\[\\033[1;36m\\]$PWD\\[\\033[0m\\]\\$ ")'""",
     }
@@ -546,21 +553,20 @@ class Linux(Platform):
         else:
             self.has_pty = False
 
-        self.shell = self.getenv("SHELL")
         if self.shell == "" or self.shell is None:
             self.shell = "/bin/sh"
 
         # This doesn't make sense, but happened for some people (see issue #116)
-        if os.path.basename(self.shell) == "nologin":
+        if os.path.basename(self.shell) in ["nologin", "false", "sync", "git-shell"]:
             self.shell = "/bin/sh"
             self.channel.sendline(b" export SHELL=/bin/sh")
 
-        if os.path.basename(self.shell) == "sh":
+        if os.path.basename(self.shell) in ["sh", "dash"]:
             # Try to find a better shell
             bash = self._do_which("bash")
             if bash is not None:
+                self.session.log(f"upgrading from {self.shell} to {bash}")
                 self.shell = bash
-                self.session.log(f"upgrading from sh to {self.shell}")
                 self.channel.sendline(f"exec {self.shell}".encode("utf-8"))
                 time.sleep(0.5)
 
@@ -1035,6 +1041,8 @@ class Linux(Platform):
             command += f" 2>{stderr}"
         elif stderr == pwncat.subprocess.DEVNULL:
             command += " 2>/dev/null"
+        elif stderr == pwncat.subprocess.PIPE:
+            command += " 2>&1"
 
         if isinstance(stdin, str):
             command += f" 0<{stdin}"
@@ -1518,6 +1526,17 @@ class Linux(Platform):
             self.logger.info(command.rstrip("\n"))
             self.channel.send(command.encode("utf-8"))
             self.channel.drain()
+            self._interactive = False
+
+            # Update self.shell just in case the user changed shells
+            try:
+                # Get the PID of the running shell
+                pid = self.getenv("$")
+                # Grab the path to the executable representing the shell
+                self.shell = self.Path("/proc", pid, "exe").readlink()
+            except (FileNotFoundError, PermissionError):
+                # Fall back to SHELL even though it's not really trustworthy
+                self.shell = self.getenv("SHELL")
         else:
 
             # Going interactive requires a pty
@@ -1556,7 +1575,7 @@ class Linux(Platform):
             except pwncat.channel.ChannelTimeout:
                 pass
 
-        self._interactive = value
+            self._interactive = True
 
     def whoami(self):
         """Get the name of the current user"""

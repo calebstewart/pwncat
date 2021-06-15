@@ -184,7 +184,7 @@ class ChannelFile(RawIOBase):
                 n = len(data)
 
             if n == 0 and not self.blocking:
-                raise BlockingIOError
+                return None
 
         obj = bytes(b[:n])
 
