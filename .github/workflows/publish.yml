@@ -29,9 +29,19 @@ jobs:
           # They are stored in ~/.local/share/pwncat by default
           tar czvf pwncat-plugins.tar.gz --transform='s|.*pwncat/||' ~/.local/share/pwncat/*
 
+      - name: Extract Release Body
+        run: |
+          # Grab tag name without the `v`
+          version=$(git describe --tags --abbrev=0 | sed 's/v//')
+
+          # build a changelog with just logs from this release
+          cat CHANGELOG.md | sed -n '/^## \['"$version"'\]/,/^## /p' > this_version_changelog.md | head -n -2
+          echo "" >> this_version_changelog.md
+          echo "[Full Changelog](https://github.com/calebstewart/pwncat/blob/v$version/CHANGELOG.md)" >> this_version_changelog.md
       - name: Publish Plugins
         uses: softprops/action-gh-release@v1
         with:
           files: "pwncat-plugins.tar.gz"
+          body_path: this_version_changelog.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
