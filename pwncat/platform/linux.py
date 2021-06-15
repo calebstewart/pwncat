@@ -140,9 +140,9 @@ class PopenLinux(pwncat.subprocess.Popen):
             if result == b"" and self.stdout_raw.raw.eof:
                 self._receive_returncode()
                 return self.returncode
-        # except ValueError:
-        #     self._receive_returncode()
-        #     return self.returncode
+        except ValueError:
+            self._receive_returncode()
+            return self.returncode
         except BlockingIOError:
             return None
 
