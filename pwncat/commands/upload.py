@@ -12,12 +12,7 @@ from rich.progress import (
 )
 
 import pwncat
-from pwncat.util import (
-    console,
-    copyfileobj,
-    human_readable_size,
-    human_readable_delta,
-)
+from pwncat.util import console, copyfileobj, human_readable_size, human_readable_delta
 from pwncat.commands import Complete, Parameter, CommandDefinition
 
 

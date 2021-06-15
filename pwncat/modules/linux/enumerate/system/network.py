@@ -3,6 +3,7 @@
 import rich.markup
 
 from pwncat.db import Fact
+from pwncat.subprocess import CalledProcessError
 from pwncat.platform.linux import Linux
 from pwncat.modules.enumerate import Schedule, EnumerateModule
 
@@ -32,32 +33,36 @@ class Module(EnumerateModule):
 
         try:
             output = session.platform.run(
-                ["ip", "-c=never", "addr"], capture_output=True, text=True
+                ["ip", "-c=never", "addr"], capture_output=True, text=True, check=True
             )
-            if output.stdout:
-                output = (
-                    line
-                    for line in output.stdout.replace("\r\n", "\n").split("\n")
-                    if line
+        except CalledProcessError:
+            try:
+                output = session.platform.run(
+                    ["ip", "addr"], capture_output=True, text=True, check=True
                 )
-
-                interface = None
-
-                for line in output:
-                    if not line.startswith(" "):
-                        interface = line.split(":")[1].strip()
-                        continue
-
-                    if interface is None:
-                        # This shouldn't happen. The first line should be an interface
-                        # definition, but just in case
-                        continue
-
-                    line = line.strip()
-                    if line.startswith("inet"):
-                        address = line.split(" ")[1]
-                        yield InterfaceData(self.name, interface, address)
-
-            return
+            except CalledProcessError:
+                return
         except FileNotFoundError:
-            pass
+            return
+
+        if output.stdout:
+            output = (
+                line for line in output.stdout.replace("\r\n", "\n").split("\n") if line
+            )
+
+            interface = None
+
+            for line in output:
+                if not line.startswith(" "):
+                    interface = line.split(":")[1].strip()
+                    continue
+
+                if interface is None:
+                    # This shouldn't happen. The first line should be an interface
+                    # definition, but just in case
+                    continue
+
+                line = line.strip()
+                if line.startswith("inet"):
+                    address = line.split(" ")[1]
+                    yield InterfaceData(self.name, interface, address)
