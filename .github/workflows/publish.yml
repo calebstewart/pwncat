@@ -36,7 +36,7 @@ jobs:
 
           # build a changelog with just logs from this release
           echo "## Changelog" >> this_version_changelog.md
-          cat CHANGELOG.md | sed -n '/^## \['"$version"'\]/,/^## /p' > this_version_changelog.md | head -n -1 | tail -n +3
+          cat CHANGELOG.md | sed -n '/^## \['"$version"'\]/,/^## /p' | head -n -1 | tail -n +2 >> this_version_changelog.md
           echo "[Full Changelog](https://github.com/calebstewart/pwncat/blob/v$version/CHANGELOG.md)" >> this_version_changelog.md
       - name: Publish Plugins
         uses: softprops/action-gh-release@v1
