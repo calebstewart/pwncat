@@ -7,14 +7,14 @@ from pwncat.modules.enumerate import EnumerateModule
 
 
 class ContainerData(Fact):
-    def __init__(self, source, type):
+    def __init__(self, source, system):
         super().__init__(source=source, types=["system.container"])
 
-        self.type: str = type
+        self.system: str = system
         """ what type of container? either docker or lxd """
 
     def title(self, session):
-        return f"[yellow]{self.type}[/yellow]"
+        return f"[yellow]{self.system}[/yellow]"
 
 
 class Module(EnumerateModule):
@@ -45,7 +45,7 @@ class Module(EnumerateModule):
 
             if proc.stdout:
                 if proc.stdout.strip() != "":
-                    yield "system.container", ContainerData(self.name, "docker")
+                    yield ContainerData(self.name, "docker")
                     return
 
         except CalledProcessError:
