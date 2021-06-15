@@ -248,7 +248,7 @@ def main():
                         continue
 
                     # Collect users
-                    userss = {}
+                    users = {}
                     for fact in target.facts:
                         if "user" in fact.types:
                             users[fact.id] = fact
