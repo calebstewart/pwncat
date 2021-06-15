@@ -22,6 +22,27 @@ to do. We can't read your mind, and English isn't perfect. If you are
 interested in or willing to help implement your new feature, please explicitly
 let us know. This will help in prioritizing the issue.
 
+## Submitting Pull Requests
+
+When submitting a pull request, ensure you have read through and comply with
+these contributing rules. The pull request template should guide you through
+the things that need done before merging code.
+
+For help with running pre-merge tools, see the styling and formatting section
+below. For running pytest test cases, see the testing section.
+
+Before submitting your changes in a pull request, please add a brief one-line
+summary to the `CHANGELOG.md` file under the `[Unreleased]` heading. This makes
+releases more straightforward and bug fixes and features are added along the way.
+For information on the format of the changelog, see
+[Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+
+If you are submitting a bug fix, annotate this with `Fixes #XXX` replacing the
+`XXX` with the issue number. This ensures that the issue will be closed once
+the bug fix is merged. If your bug fix does not **completely** fix the issue,
+do not use the `Fixes` keyword. Instead, mention the issue by number in your
+pull request to ensure the link between the issue and pull request is clear.
+
 ## Versioning
 
 pwncat follows Semantic Versioning. You can learn about the basics of semver

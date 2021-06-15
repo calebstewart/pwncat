@@ -13,6 +13,8 @@ and simply didn't have the time to go back and retroactively create one.
 - Fixed `ChannelFile.recvinto` which will no longer raise `BlockingIOError` (#126, #131)
 - Fixed sessions command with invalid session ID (#130)
 - Fixed zsh shell prompt color syntax (#130)
+- Added Pull Request template
+- Added CONTRIBUTING.md
 
 ## [0.4.1] - 2021-06-14
 ### Added
