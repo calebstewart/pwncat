@@ -100,7 +100,7 @@ class Socket(Channel):
         except BrokenPipeError as exc:
             self._connected = False
             raise ChannelClosed(self) from exc
-        except (ssl.SSLEOFError, ssl.SSLSyscallError, ssl.SSLZeroReturnError):
+        except (ssl.SSLEOFError, ssl.SSLSyscallError, ssl.SSLZeroReturnError) as exc:
             self._connected = False
             raise ChannelClosed(self) from exc
 
@@ -133,7 +133,7 @@ class Socket(Channel):
             return data
         except ssl.SSLWantReadError:
             return data
-        except (ssl.SSLEOFError, ssl.SSLSyscallError, ssl.SSLZeroReturnError):
+        except (ssl.SSLEOFError, ssl.SSLSyscallError, ssl.SSLZeroReturnError) as exc:
             self._connected = False
             raise ChannelClosed(self) from exc
         except socket.error as exc:

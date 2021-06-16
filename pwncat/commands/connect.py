@@ -237,7 +237,10 @@ class Command(CommandDefinition):
                 task = progress.add_task("", status="...")
                 for target, implant_user, implant in implants:
                     # Check correct query_args["user"]
-                    if query_args["user"] is not None and implant_user.name != user:
+                    if (
+                        query_args["user"] is not None
+                        and implant_user.name != query_args["user"]
+                    ):
                         continue
                     # Check correct platform
                     if (
