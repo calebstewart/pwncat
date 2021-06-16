@@ -1,4 +1,4 @@
-FROM alpine:latest as builder
+FROM alpine:3.13.5 as builder
 
 # Install python3 and development files
 RUN set -eux \
@@ -12,17 +12,14 @@ RUN set -eux \
 		musl-dev \
 		cargo
 
-# Install pip
-RUN set -eux \
-	&& python3 -m ensurepip
-
 # Copy pwncat source
 COPY . /pwncat
 
 # Setup virtual environment
 RUN set -eux \
 	&& python3 -m venv /opt/pwncat \
-	&& /opt/pwncat/bin/python3 -m pip install -U pip setuptools wheel setuptools_rust
+	&& /opt/pwncat/bin/python -m ensurepip \
+	&& /opt/pwncat/bin/python -m pip install -U pip setuptools wheel setuptools_rust
 
 # Setup pwncat
 RUN set -eux \
@@ -35,7 +32,7 @@ RUN set -eux \
 	&& find /opt/pwncat/lib -type d -name '__pycache__' -print0 | xargs -0 -n1 rm -rf || true
 
 
-FROM alpine:latest as final
+FROM alpine:3.13.5 as final
 
 RUN set -eux \
 	&& apk add --no-cache \
