@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import subprocess
 
-
 from pwncat.db import Fact
 from pwncat.util import Init
 from pwncat.platform.linux import Linux

@@ -5,9 +5,7 @@ import rich.markup
 
 import pwncat
 from pwncat.db import Fact
-from pwncat.facts.ability import (
-    build_gtfo_ability,
-)
+from pwncat.facts.ability import build_gtfo_ability
 from pwncat.platform.linux import Linux
 from pwncat.modules.enumerate import Schedule, EnumerateModule
 

@@ -14,11 +14,7 @@ from rich.progress import (
 import pwncat
 from pwncat import util
 from pwncat.util import console
-from pwncat.commands import (
-    Complete,
-    Parameter,
-    CommandDefinition,
-)
+from pwncat.commands import Complete, Parameter, CommandDefinition
 
 
 class Command(CommandDefinition):

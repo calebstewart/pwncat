@@ -1041,8 +1041,6 @@ class Linux(Platform):
             command += f" 2>{stderr}"
         elif stderr == pwncat.subprocess.DEVNULL:
             command += " 2>/dev/null"
-        elif stderr == pwncat.subprocess.PIPE:
-            command += " 2>&1"
 
         if isinstance(stdin, str):
             command += f" 0<{stdin}"

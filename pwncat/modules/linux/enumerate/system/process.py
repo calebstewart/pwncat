@@ -2,7 +2,6 @@
 import shlex
 from typing import List
 
-
 from pwncat.db import Fact
 from pwncat.platform.linux import Linux
 from pwncat.modules.enumerate import Schedule, EnumerateModule

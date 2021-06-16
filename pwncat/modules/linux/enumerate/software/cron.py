@@ -2,7 +2,6 @@
 import os
 import re
 
-
 from pwncat.db import Fact
 from pwncat.modules import Status
 from pwncat.subprocess import CalledProcessError

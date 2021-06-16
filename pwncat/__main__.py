@@ -2,6 +2,7 @@
 import sys
 import logging
 import argparse
+import importlib.metadata
 
 from rich import box
 from rich.table import Table
@@ -22,6 +23,9 @@ def main():
 
     parser = argparse.ArgumentParser(
         description="""Start interactive pwncat session and optionally connect to existing victim via a known platform and channel type. This entrypoint can also be used to list known implants on previous targets."""
+    )
+    parser.add_argument(
+        "--version", "-v", action="store_true", help="Show version number and exit"
     )
     parser.add_argument(
         "--download-plugins",
@@ -77,6 +81,11 @@ def main():
         help="Alternative port number to support netcat-style syntax",
     )
     args = parser.parse_args()
+
+    # Print the version number and exit.
+    if args.version:
+        print(importlib.metadata.version("pwncat"))
+        return
 
     # Create the session manager
     with pwncat.manager.Manager(args.config) as manager:
