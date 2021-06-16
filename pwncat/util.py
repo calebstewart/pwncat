@@ -27,7 +27,7 @@ STORED_TERM_STATE = []
 
 
 class State(Enum):
-    """ The current PtyHandler state """
+    """The current PtyHandler state"""
 
     NORMAL = auto()
     RAW = auto()
@@ -36,7 +36,7 @@ class State(Enum):
 
 
 class Access(Flag):
-    """ Check if you are able to read/write/execute a file """
+    """Check if you are able to read/write/execute a file"""
 
     NONE = 0
     EXISTS = auto()
@@ -63,7 +63,7 @@ class Init(Enum):
 
 
 class CommandSystemExit(Exception):
-    """ A command has requested that we exit pwncat (mostly used for exit command) """
+    """A command has requested that we exit pwncat (mostly used for exit command)"""
 
 
 class CompilationError(Exception):
@@ -99,7 +99,7 @@ class RawModeExit(Exception):
 
 
 def strip_markup(styled_text: str) -> str:
-    """ Strip rich markup from text """
+    """Strip rich markup from text"""
     text = markup.render(styled_text)
     return text.plain
 
@@ -221,7 +221,7 @@ def copyfileobj(src, dst, callback, nomv=False):
 
 
 def random_string(length: int = 8):
-    """ Create a random alphanumeric string """
+    """Create a random alphanumeric string"""
     return random.choice(string.ascii_letters) + "".join(
         random.choice(ALPHANUMERIC) for _ in range(length - 1)
     )
@@ -299,7 +299,7 @@ def pop_term_state():
 
 
 def restore_terminal(state, new_line=True):
-    """ restore the stdio state from the result of "enter_raw_mode" """
+    """restore the stdio state from the result of "enter_raw_mode" """
     termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, state[0])
     # tty.setcbreak(sys.stdin)
     fcntl.fcntl(sys.stdin, fcntl.F_SETFL, state[1])

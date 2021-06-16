@@ -296,7 +296,9 @@ def main():
 
                 # Close each session based on its ``session_id``
                 for session_id in session_ids:
-                    progress.update(task, status=str(manager.sessions[session_id].platform))
+                    progress.update(
+                        task, status=str(manager.sessions[session_id].platform)
+                    )
                     manager.sessions[session_id].close()
 
                 progress.update(task, status="done!", completed=100)

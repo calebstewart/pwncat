@@ -12,7 +12,7 @@ class Module(BaseModule):
     PLATFORM = None
 
     def run(self, session: "pwncat.manager.Session"):
-        """ Iterate over all tampers and revert what we can """
+        """Iterate over all tampers and revert what we can"""
 
         current_user = session.current_user()
 

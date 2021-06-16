@@ -15,7 +15,7 @@ class Module(EnumerateModule):
     SCHEDULE = Schedule.ALWAYS
 
     def enumerate(self, session: "pwncat.manager.Session"):
-        """ Locate usable file read abilities and generate escalations """
+        """Locate usable file read abilities and generate escalations"""
 
         # Ensure users are already cached
         list(session.iter_users())

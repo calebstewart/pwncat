@@ -6,7 +6,7 @@ from pwncat.commands import CommandDefinition
 
 
 class Command(CommandDefinition):
-    """ Run a local shell command on your attacking machine """
+    """Run a local shell command on your attacking machine"""
 
     PROG = "local"
     ARGS = None

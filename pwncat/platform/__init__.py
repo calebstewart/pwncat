@@ -123,7 +123,7 @@ class Path:
         return False
 
     def stat(self) -> os.stat_result:
-        """ Request file stat details """
+        """Request file stat details"""
 
         if self._stat is not None:
             return self._stat
@@ -142,7 +142,7 @@ class Path:
         self._target.chmod(str(self), mode)
 
     def exists(self) -> bool:
-        """ Test if the path exists on the target system """
+        """Test if the path exists on the target system"""
 
         try:
             self.stat()
@@ -526,7 +526,7 @@ class Platform(ABC):
 
     @property
     def manager(self):
-        """ Shortcut to accessing the manager """
+        """Shortcut to accessing the manager"""
         return self.session.manager
 
     def interactive_loop(self, interactive_complete: "threading.Event"):
@@ -566,11 +566,11 @@ class Platform(ABC):
 
     @abstractmethod
     def exit(self):
-        """ Exit this session """
+        """Exit this session"""
 
     @abstractmethod
     def refresh_uid(self) -> Union[int, str]:
-        """ Refresh the cached UID of the current session. """
+        """Refresh the cached UID of the current session."""
 
     @abstractmethod
     def getuid(self) -> Union[int, str]:

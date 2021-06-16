@@ -53,7 +53,7 @@ class ChannelClosed(ChannelError):
         super().__init__(ch, "channel unexpectedly closed")
 
     def cleanup(self, manager: "pwncat.manager.Manager"):
-        """ Cleanup this channel from the manager """
+        """Cleanup this channel from the manager"""
 
         # If we don't have a session, there's nothing to do
         session = manager.find_session_by_channel(self.channel)
@@ -120,7 +120,7 @@ class ChannelFile(RawIOBase):
 
     @property
     def blocking(self) -> bool:
-        """ Indicates whether to act like a blocking file or not. """
+        """Indicates whether to act like a blocking file or not."""
         return self._blocking
 
     @blocking.setter
@@ -128,15 +128,15 @@ class ChannelFile(RawIOBase):
         self._blocking = value
 
     def readable(self) -> bool:
-        """ Test if this is a readable file. """
+        """Test if this is a readable file."""
         return "r" in self.mode
 
     def writable(self) -> bool:
-        """ Test if this is writable file. """
+        """Test if this is writable file."""
         return "w" in self.mode
 
     def close(self):
-        """ Close the file for reading/writing. This method calls the on_close hook. """
+        """Close the file for reading/writing. This method calls the on_close hook."""
 
         if self.eof:
             return
@@ -147,7 +147,7 @@ class ChannelFile(RawIOBase):
             self.on_close(self)
 
     def readall(self):
-        """ Read all data until EOF """
+        """Read all data until EOF"""
 
         data = b""
 
@@ -351,7 +351,7 @@ class Channel(ABC):
         """
 
     def drain(self):
-        """ Drain any buffered data until there is nothing left """
+        """Drain any buffered data until there is nothing left"""
 
         while True:
             data = self.recv(4096)

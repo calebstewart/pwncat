@@ -11,7 +11,7 @@ from pwncat.modules.linux.implant.passwd import PasswdImplant
 
 
 class AppendPasswd(EscalationReplace):
-    """ Escalation through adding a new user to /etc/passwd """
+    """Escalation through adding a new user to /etc/passwd"""
 
     def __init__(self, source, ability):
         super().__init__(source=source, source_uid=ability.source_uid, uid=ability.uid)
@@ -73,7 +73,7 @@ class AppendPasswd(EscalationReplace):
 
 
 class Module(EnumerateModule):
-    """ Check for possible methods of escalation via modiying /etc/passwd """
+    """Check for possible methods of escalation via modiying /etc/passwd"""
 
     PROVIDES = ["escalate.replace"]
     SCHEDULE = Schedule.PER_USER

@@ -43,7 +43,7 @@ LOADED_MODULES = {}
 
 
 class NoValue:
-    """ Indicates that the module argument has no default value and is required. """
+    """Indicates that the module argument has no default value and is required."""
 
 
 class ModuleFailed(Exception):

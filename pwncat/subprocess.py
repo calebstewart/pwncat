@@ -108,7 +108,7 @@ class Popen:
         """
 
     def terminate(self):
-        """ Stop the child. """
+        """Stop the child."""
 
     def kill(self):
-        """ Kills the child """
+        """Kills the child"""

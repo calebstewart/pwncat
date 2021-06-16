@@ -17,7 +17,7 @@ class Module(EnumerateModule):
     SCHEDULE = Schedule.PER_USER
 
     def enumerate(self, session: "pwncat.manager.Session"):
-        """ Check for vulnerability """
+        """Check for vulnerability"""
 
         try:
             # Utilize the version enumeration to grab sudo version

@@ -15,7 +15,7 @@ from pwncat.db import Fact
 
 
 class ImplantType(enum.Flag):
-    """ Type of implant which was installed """
+    """Type of implant which was installed"""
 
     SPAWN = enum.auto()
     """ Capable of spawning a new session to escalate privileges locally """

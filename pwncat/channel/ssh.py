@@ -17,7 +17,7 @@ from pwncat.channel import Channel, ChannelError, ChannelClosed
 
 
 class Ssh(Channel):
-    """ Wrap SSH shell channel in a pwncat channel. """
+    """Wrap SSH shell channel in a pwncat channel."""
 
     def __init__(
         self,

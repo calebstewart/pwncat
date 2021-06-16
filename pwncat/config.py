@@ -61,14 +61,14 @@ class KeyType:
 
 
 def local_file_type(value: str) -> str:
-    """ Ensure the local file exists """
+    """Ensure the local file exists"""
     if not os.path.isfile(value):
         raise ValueError(f"{value}: no such file or directory")
     return value
 
 
 def local_dir_type(value: str) -> str:
-    """ Ensure the path specifies a local directory """
+    """Ensure the path specifies a local directory"""
 
     # Expand ~ in the path
     value = os.path.expanduser(value)
@@ -143,7 +143,7 @@ class Config:
         return new
 
     def binding(self, name_or_value: Union[str, bytes]) -> str:
-        """ Get a key binding by it's key name or key value. """
+        """Get a key binding by it's key name or key value."""
 
         if isinstance(name_or_value, bytes):
             binding = [
@@ -157,7 +157,7 @@ class Config:
         return self.bindings[key]
 
     def set(self, name: str, value: Any, glob: bool = False):
-        """ Set a config value """
+        """Set a config value"""
 
         if (
             (glob and name not in self.values)
@@ -176,7 +176,7 @@ class Config:
             self.locals[name] = self.module.ARGUMENTS[name].type(value)
 
     def get(self, name: str, default=None):
-        """ get a value """
+        """get a value"""
 
         try:
             return self[name]
@@ -191,13 +191,13 @@ class Config:
         self.module = module
 
     def back(self):
-        """ Remove the currently used module and clear locals """
+        """Remove the currently used module and clear locals"""
 
         self.locals = {}
         self.module = None
 
     def __getitem__(self, name: str) -> Any:
-        """ Get a configuration item """
+        """Get a configuration item"""
 
         if name in self.locals:
             return self.locals[name]
@@ -205,7 +205,7 @@ class Config:
         return self.values[name]["value"]
 
     def __setitem__(self, name: str, value: Any):
-        """ Set a configuration item """
+        """Set a configuration item"""
         return self.set(name, value, glob=False)
 
     def __iter__(self):

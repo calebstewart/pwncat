@@ -49,7 +49,7 @@ class ServiceData(Fact):
 
 
 def build_service_data(session, source, service):
-    """ Build a service data object from a dictionary """
+    """Build a service data object from a dictionary"""
 
     # Grab the user name if available
     user = service.get("User", None).strip()
