@@ -14,6 +14,7 @@ and simply didn't have the time to go back and retroactively create one.
 ### Changed
 - Changed session tracking so session IDs aren't reused
 - Changed zsh prompt to match CWD of other shell prompts
+- Improved exception handling in `Manager.interactive`
 
 ## [0.4.2] - 2021-06-15
 Quick patch release due to corrected bug in `ChannelFile` which caused command
