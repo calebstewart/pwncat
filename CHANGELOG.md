@@ -9,10 +9,16 @@ and simply didn't have the time to go back and retroactively create one.
 
 ## [Unreleased]
 
+## [0.4.2] - 2021-06-15
+Quick patch release due to corrected bug in `ChannelFile` which caused command
+output to be empty in some situations.
+
+### Fixed
 - Fixed `linux.enumerate.system.network` to work with old and new style `ip`.
 - Fixed `ChannelFile.recvinto` which will no longer raise `BlockingIOError` ([#126](https://github.com/calebstewart/pwncat/issues/126), [#131](https://github.com/calebstewart/pwncat/issues/131))
 - Fixed sessions command with invalid session ID ([#130](https://github.com/calebstewart/pwncat/issues/130))
 - Fixed zsh shell prompt color syntax ([#130](https://github.com/calebstewart/pwncat/issues/130))
+### Added
 - Added Pull Request template
 - Added CONTRIBUTING.md
 - Added `--version` option to entrypoint to retrieve pwncat version
