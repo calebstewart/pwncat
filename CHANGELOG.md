@@ -8,6 +8,8 @@ The Changelog starts with v0.4.1, because we did not keep one before that,
 and simply didn't have the time to go back and retroactively create one.
 
 ## [Unreleased]
+### Fixed
+- Pinned container base image to alpine 3.13.5 and installed to virtualenv ([#134](https://github.com/calebstewart/pwncat/issues/134))
 
 ## [0.4.2] - 2021-06-15
 Quick patch release due to corrected bug in `ChannelFile` which caused command
