@@ -630,12 +630,9 @@ class Manager:
 
         session = Session(self, platform, channel, **kwargs)
 
-        # increment the ``session_id`` variable upon adding a new session
-        # this may cause issues when a session is not properly configured
-        # for example when the victim machine disconnects or terminates the parent process
-        # in that case, we have already incremented the ``session_id``
-        # thus the ``session_id`` for the bad session is no longer in use
-        # check other modules to prevent this from happening
+        # Increment the ``session_id`` variable upon adding a new session
+        # Session constructor will automatically grab the current
+        # ``session_id`` from the ``manager`` object passed as the first argument
 
         self.session_id += 1
 
