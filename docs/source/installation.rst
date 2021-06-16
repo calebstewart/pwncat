@@ -13,7 +13,8 @@ Once you have a working ``pip`` installation, you can install pwncat with the pr
     # A virtual environment is recommended
     python -m venv /opt/pwncat
     # Install pwncat within the virtual environment
-    /opt/pwncat/bin/pip install git+https://github.com/calebstewart/pwncat
+    # Replace `latest` with a versioned tag if needed (e.g. `v0.4.0`)
+    /opt/pwncat/bin/pip install 'git+https://github.com/calebstewart/pwncat@latest#egg=pwncat'
     # This allows you to use pwncat outside of the virtual environment
     ln -s /opt/pwncat/bin/pwncat /usr/local/bin
 
