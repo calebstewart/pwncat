@@ -40,15 +40,15 @@ class Command(CommandDefinition):
         if args.list or (not args.kill and args.session_id is None):
             table = Table(title="Active Sessions", box=box.MINIMAL_DOUBLE_HEAD)
 
-            table.add_column("")
+            table.add_column("ID")
             table.add_column("User")
             table.add_column("Host ID")
             table.add_column("Platform")
             table.add_column("Type")
             table.add_column("Address")
 
-            for ident, session in enumerate(manager.sessions):
-                ident = str(ident)
+            for session_id, session in manager.sessions.items():
+                ident = str(session_id)
                 kwargs = {"style": ""}
                 if session is manager.target:
                     ident = "*" + ident
@@ -71,7 +71,8 @@ class Command(CommandDefinition):
             console.log("[red]error[/red]: no session id specified")
             return
 
-        if args.session_id < 0 or args.session_id >= len(manager.sessions):
+        # check if a session with the provided ``session_id`` exists or not
+        if args.session_id not in manager.sessions:
             console.log(f"[red]error[/red]: {args.session_id}: no such session!")
             return
 

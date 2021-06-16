@@ -58,6 +58,7 @@ class Session:
         channel: Optional[Channel] = None,
         **kwargs,
     ):
+        self.id = manager.session_id
         self.manager = manager
         self.background = None
         self._db_session = None
@@ -87,7 +88,7 @@ class Session:
             )
 
         # Register this session with the manager
-        self.manager.sessions.append(self)
+        self.manager.sessions[self.id] = self
         self.manager.target = self
 
         # Initialize the host reference
@@ -290,10 +291,10 @@ class Session:
 
     def died(self):
 
-        if self not in self.manager.sessions:
+        if self.id not in self.manager.sessions:
             return
 
-        self.manager.sessions.remove(self)
+        del self.manager.sessions[self.id]
 
         if self.manager.target == self:
             self.manager.target = None
@@ -343,7 +344,8 @@ class Manager:
 
     def __init__(self, config: str = None):
         self.config = Config()
-        self.sessions: List[Session] = []
+        self.session_id = 0  # start with 0-indexed session IDs
+        self.sessions: Dict[int, Session] = {}
         self.modules: Dict[str, pwncat.modules.BaseModule] = {}
         self._target = None
         self.parser = CommandParser(self)
@@ -415,8 +417,12 @@ class Manager:
     def __exit__(self, _, __, ___):
         """Ensure all sessions are closed"""
 
-        while self.sessions:
-            self.sessions[0].close()
+        # Retrieve the existing session IDs list
+        session_ids = list(self.sessions.keys())
+
+        # Close each session based on its ``session_id``
+        for session_id in session_ids:
+            self.sessions[session_id].close()
 
     def open_database(self):
         """Create the internal engine and session builder
@@ -503,7 +509,7 @@ class Manager:
 
     @target.setter
     def target(self, value: Session):
-        if value is not None and value not in self.sessions:
+        if value is not None and value not in self.sessions.values():
             raise ValueError("invalid target")
         self._target = value
 
@@ -623,6 +629,16 @@ class Manager:
         """
 
         session = Session(self, platform, channel, **kwargs)
+
+        # increment the ``session_id`` variable upon adding a new session
+        # this may cause issues when a session is not properly configured
+        # for example when the victim machine disconnects or terminates the parent process
+        # in that case, we have already incremented the ``session_id``
+        # thus the ``session_id`` for the bad session is no longer in use
+        # check other modules to prevent this from happening
+
+        self.session_id += 1
+
         return session
 
     def _process_input(self, data: bytes, has_prefix: bool):
