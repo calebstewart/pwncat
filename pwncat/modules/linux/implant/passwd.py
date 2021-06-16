@@ -9,7 +9,7 @@ from pwncat.modules.implant import ImplantModule
 
 
 class PasswdImplant(Implant):
-    """ Implant tracker for a user added directly to /etc/passwd """
+    """Implant tracker for a user added directly to /etc/passwd"""
 
     def __init__(self, source, user, password, added_line):
         super().__init__(source=source, types=["implant.replace"], uid=0)
@@ -19,7 +19,7 @@ class PasswdImplant(Implant):
         self.added_line = added_line
 
     def escalate(self, session: "pwncat.manager.Session"):
-        """ Escalate privileges to the fake root account """
+        """Escalate privileges to the fake root account"""
 
         try:
             session.platform.su(self.user, password=self.password)
@@ -28,7 +28,7 @@ class PasswdImplant(Implant):
             raise ModuleFailed(f"authentication as {self.user} failed")
 
     def remove(self, session: "pwncat.manager.Session"):
-        """ Remove the added line """
+        """Remove the added line"""
 
         if session.platform.getuid() != 0:
             raise ModuleFailed("removal requires root privileges")
@@ -50,7 +50,7 @@ class PasswdImplant(Implant):
 
 
 class Module(ImplantModule):
-    """ Add a user to /etc/passwd with a known password and UID/GID of 0. """
+    """Add a user to /etc/passwd with a known password and UID/GID of 0."""
 
     TYPE = ImplantType.REPLACE
     PLATFORM = [Linux]
@@ -74,7 +74,7 @@ class Module(ImplantModule):
         backdoor_pass,
         shell,
     ):
-        """ Add the new user """
+        """Add the new user"""
 
         if session.current_user().id != 0:
             raise ModuleFailed("installation required root privileges")

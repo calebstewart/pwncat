@@ -8,7 +8,7 @@ from pwncat.modules.enumerate import Schedule, EnumerateModule
 
 
 class Module(EnumerateModule):
-    """ Enumerate users from a windows target """
+    """Enumerate users from a windows target"""
 
     PROVIDES = ["user"]
     PLATFORM = [Windows]

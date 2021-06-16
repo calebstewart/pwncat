@@ -279,12 +279,12 @@ class PrivateKey(Implant):
         return self.content
 
     def remove(self, session: "pwncat.manager.Session"):
-        """ Remove the implant types from this private key """
+        """Remove the implant types from this private key"""
 
         raise KeepImplantFact()
 
     def escalate(self, session: "pwncat.manager.Session"):
-        """ Escalate to the owner of this private key with a local ssh call """
+        """Escalate to the owner of this private key with a local ssh call"""
 
         if not self.authorized:
             raise ModuleFailed("key is not authorized or failed")
@@ -342,7 +342,7 @@ class PrivateKey(Implant):
     def trigger(
         self, manager: "pwncat.manager.Manager", target: "pwncat.target.Target"
     ):
-        """ Connect remotely to this target with the specified user and key """
+        """Connect remotely to this target with the specified user and key"""
 
         if not self.authorized:
             raise ModuleFailed("key is not authorized or failed")

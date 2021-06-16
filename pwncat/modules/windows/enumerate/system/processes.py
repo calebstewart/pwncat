@@ -11,7 +11,7 @@ from pwncat.modules.enumerate import Schedule, EnumerateModule
 
 
 class ProcessData(Fact):
-    """ Remote process information """
+    """Remote process information"""
 
     def __init__(
         self,
@@ -42,7 +42,7 @@ class ProcessData(Fact):
             self.owner = None
 
     def kill(self, session):
-        """ Attempt to kill the process """
+        """Attempt to kill the process"""
 
         try:
             session.platform.powershell(f"(Get-Process -Id {self.pid}).Kill()")
@@ -71,7 +71,7 @@ class ProcessData(Fact):
             raise PermissionError(f"cannot wait for process w/ pid {self.pid}")
 
     def title(self, session):
-        """ Build a formatted description for this process """
+        """Build a formatted description for this process"""
 
         out = "[cyan]{name}[/cyan] (PID [blue]{pid}[/blue]) is {state} "
 
@@ -107,7 +107,7 @@ class ProcessData(Fact):
 
 
 class Module(EnumerateModule):
-    """ Retrieve a list of current processes running on the target """
+    """Retrieve a list of current processes running on the target"""
 
     PROVIDES = ["system.processes"]
     PLATFORM = [Windows]

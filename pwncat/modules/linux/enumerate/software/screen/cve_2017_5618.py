@@ -13,7 +13,7 @@ from pwncat.modules.enumerate import Schedule, EnumerateModule
 
 
 class CVE_2017_5618(ExecuteAbility):
-    """ Exploit CVE-2017-5618 """
+    """Exploit CVE-2017-5618"""
 
     def __init__(self, source: str, screen):
         super().__init__(source=source, source_uid=None, uid=0)
@@ -21,7 +21,7 @@ class CVE_2017_5618(ExecuteAbility):
         self.screen = screen
 
     def shell(self, session: "pwncat.manager.Session"):
-        """ Execute a shell """
+        """Execute a shell"""
 
         # Write the rootshell source code
         rootshell_source = textwrap.dedent(
@@ -151,20 +151,20 @@ class CVE_2017_5618(ExecuteAbility):
         return lambda s: s.platform.channel.send(b"exit\n")
 
     def title(self, session):
-        """ Grab the description for this fact """
+        """Grab the description for this fact"""
 
         return f"[cyan]{self.screen.path}[/cyan] vulnerable to [red]CVE-2017-5618[/red]"
 
 
 class Module(EnumerateModule):
-    """ Identify systems vulnerable to CVE-2017-5618 """
+    """Identify systems vulnerable to CVE-2017-5618"""
 
     PROVIDES = ["ability.execute"]
     PLATFORM = [Linux]
     SCHEDULE = Schedule.PER_USER
 
     def enumerate(self, session: "pwncat.manager.Session"):
-        """ check for vulnerable screen versions """
+        """check for vulnerable screen versions"""
 
         for screen in session.run("enumerate", types=["software.screen.version"]):
             if not screen.vulnerable or (screen.perms & 0o4000) == 0:

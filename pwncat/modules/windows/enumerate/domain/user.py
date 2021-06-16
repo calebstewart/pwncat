@@ -10,7 +10,7 @@ from pwncat.modules.enumerate import Schedule, EnumerateModule
 
 
 class DomainUser(WindowsUser):
-    """ Builds on Windows Groups to add domain specific information """
+    """Builds on Windows Groups to add domain specific information"""
 
     def __init__(
         self,
@@ -72,14 +72,14 @@ class DomainUser(WindowsUser):
 
 
 class Module(EnumerateModule):
-    """ Retrieve information on all domain computers """
+    """Retrieve information on all domain computers"""
 
     PLATFORM = [Windows]
     PROVIDES = ["domain.user", "user"]
     SCHEDULE = Schedule.ONCE
 
     def enumerate(self, session: "pwncat.manager.Session"):
-        """ Perform enumeration """
+        """Perform enumeration"""
 
         # Check that we are in a domain
         if not session.run("enumerate", types=["domain.details"]):

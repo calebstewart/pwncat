@@ -20,7 +20,7 @@ def get_user_choices(command: CommandDefinition):
 
 
 class Link:
-    """ Link in the escalation chain """
+    """Link in the escalation chain"""
 
     def __init__(self, old_session, escalation, result):
 
@@ -32,7 +32,7 @@ class Link:
 
         if self.escalation.type == "escalate.spawn":
             self.result.log(
-                "leaving behind open session as [cyan]{self.old_session.current_user().name}[/cyan]"
+                f"leaving behind open session as [cyan]{self.old_session.current_user().name}[/cyan]"
             )
 
         self.old_session.manager.target = self.old_session
@@ -133,7 +133,7 @@ class Command(CommandDefinition):
             console.log("[yellow]warning[/yellow]: no direct escalations found")
 
     def do_escalate(self, manager: "pwncat.manager.Manager", task, user, args):
-        """ Execute escalations until we find one that works """
+        """Execute escalations until we find one that works"""
 
         attempted = []
         chain = []
@@ -163,7 +163,7 @@ class Command(CommandDefinition):
                     continue
                 except IndexError:
                     manager.target.log(
-                        "[red]error[/red]: no working escalation paths found for {user.name}"
+                        f"[red]error[/red]: no working escalation paths found for {user.name}"
                     )
                     break
 

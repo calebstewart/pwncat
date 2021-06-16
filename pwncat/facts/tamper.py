@@ -40,7 +40,7 @@ class Tamper(Fact):
 
     @property
     def revertable(self):
-        """ Test if this tamper is currently revertable """
+        """Test if this tamper is currently revertable"""
         return False
 
     def revert(self, session: "pwncat.manager.Session"):

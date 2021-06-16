@@ -15,7 +15,7 @@ class ComputerObject(Fact):
         self.computer = data
 
     def __getitem__(self, name: str):
-        """ Shortcut for getting properties from the `self.domain` property. """
+        """Shortcut for getting properties from the `self.domain` property."""
 
         return self.computer[name]
 
@@ -23,14 +23,14 @@ class ComputerObject(Fact):
         return f"[blue]{self['dnshostname']}[/blue] ([cyan]{self['name']}[/cyan])"
 
     def is_dc(self):
-        """ Query if this computer object is a domain controller """
+        """Query if this computer object is a domain controller"""
 
         uac = self.computer.get("useraccountcontrol") or 0
 
         return (uac & 0x2000) > 0
 
     def is_rodc(self):
-        """ Query if this computer object is a read only domain controller """
+        """Query if this computer object is a read only domain controller"""
 
         uac = self.computer.get("useraccountcontrol") or 0
 
@@ -57,14 +57,14 @@ class ComputerObject(Fact):
 
 
 class Module(EnumerateModule):
-    """ Retrieve information on all domain computers """
+    """Retrieve information on all domain computers"""
 
     PLATFORM = [Windows]
     PROVIDES = ["domain.computer"]
     SCHEDULE = Schedule.ONCE
 
     def enumerate(self, session: "pwncat.manager.Session"):
-        """ Perform enumeration """
+        """Perform enumeration"""
 
         # Check that we are in a domain
         if not session.run("enumerate", types=["domain.details"]):
