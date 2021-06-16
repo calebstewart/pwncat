@@ -495,7 +495,7 @@ class Linux(Platform):
     PROMPTS = {
         "sh": """'$(command printf "(remote) $(whoami)@$(hostname):$PWD\\$ ")'""",
         "dash": """'$(command printf "(remote) $(whoami)@$(hostname):$PWD\\$ ")'""",
-        "zsh": """'%B%F{red}(remote) %B%F{yellow}%n@%M%B%F{reset}:%B%F{cyan}%(6~.%-1~/…/%4~.%5~)%B%(#.%b%F{white}#.%b%F{white}$)%b%F{reset} '""",
+        "zsh": """'%B%F{red}(remote) %B%F{yellow}%n@%M%B%F{reset}:%B%F{cyan}$PWD%B%(#.%b%F{white}#.%b%F{white}$)%b%F{reset} '""",
         "default": """'$(command printf "\\[\\033[01;31m\\](remote)\\[\\033[0m\\] \\[\\033[01;33m\\]$(whoami)@$(hostname)\\[\\033[0m\\]:\\[\\033[1;36m\\]$PWD\\[\\033[0m\\]\\$ ")'""",
     }
 
