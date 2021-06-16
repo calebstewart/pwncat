@@ -36,9 +36,9 @@ import pwncat.modules.enumerate
 from pwncat.util import RawModeExit, console
 from pwncat.config import Config
 from pwncat.target import Target
-from pwncat.channel import Channel, ChannelClosed
+from pwncat.channel import Channel, ChannelError, ChannelClosed
 from pwncat.commands import CommandParser
-from pwncat.platform import Platform
+from pwncat.platform import Platform, PlatformError
 
 
 class InteractiveExit(Exception):
@@ -319,9 +319,13 @@ class Session:
         while self.layers:
             self.layers.pop()(self)
 
-        self.platform.exit()
-
-        self.platform.channel.close()
+        try:
+            self.platform.exit()
+            self.platform.channel.close()
+        except (PlatformError, ChannelError) as exc:
+            self.log(
+                f"[yellow]warning[/yellow]: unexpected exception while closing: {exc}"
+            )
 
         self.died()
 
@@ -574,48 +578,47 @@ class Manager:
 
             interactive_complete = threading.Event()
 
-            def output_thread_main():
+            def output_thread_main(target: Session):
 
                 while not interactive_complete.is_set():
+                    try:
+                        data = target.platform.channel.recv(4096)
 
-                    data = self.target.platform.channel.recv(4096)
+                        if data != b"" and data is not None:
+                            try:
+                                data = target.platform.process_output(data)
+                                sys.stdout.buffer.write(data)
+                                sys.stdout.buffer.flush()
+                            except RawModeExit:
+                                interactive_complete.set()
+                        else:
+                            interactive_complete.wait(timeout=0.1)
 
-                    if data != b"" and data is not None:
-                        try:
-                            data = self.target.platform.process_output(data)
-                            sys.stdout.buffer.write(data)
-                            sys.stdout.buffer.flush()
-                        except RawModeExit:
-                            interactive_complete.set()
-                    else:
-                        interactive_complete.wait(timeout=0.1)
+                    except ChannelError:
+                        interactive_complete.set()
 
-            output_thread = threading.Thread(target=output_thread_main)
+            output_thread = threading.Thread(
+                target=output_thread_main, args=[self.target]
+            )
             output_thread.start()
 
-            channel_closed = False
-
             try:
-                self.target.platform.interactive_loop(interactive_complete)
-            except RawModeExit:
-                pass
+                try:
+                    self.target.platform.interactive_loop(interactive_complete)
+                except RawModeExit:
+                    pass
+                self.target.platform.interactive = False
             except ChannelClosed:
-                channel_closed = True
                 self.log(
                     f"[yellow]warning[/yellow]: {self.target.platform}: connection reset"
                 )
+                self.target.died()
             except Exception:
                 pwncat.util.console.print_exception()
 
             # Trigger thread to exit
             interactive_complete.set()
             output_thread.join()
-
-            # Exit interactive mode
-            if channel_closed:
-                self.target.died()
-            else:
-                self.target.platform.interactive = False
 
     def create_session(self, platform: str, channel: Channel = None, **kwargs):
         """
