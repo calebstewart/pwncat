@@ -15,7 +15,7 @@ class SiteObject(Fact):
         self.site = data
 
     def __getitem__(self, name: str):
-        """ Shortcut for getting properties from the `self.site` property. """
+        """Shortcut for getting properties from the `self.site` property."""
 
         return self.site[name]
 
@@ -24,14 +24,14 @@ class SiteObject(Fact):
 
 
 class Module(EnumerateModule):
-    """ Retrieve information on all domain computers """
+    """Retrieve information on all domain computers"""
 
     PLATFORM = [Windows]
     PROVIDES = ["domain.site"]
     SCHEDULE = Schedule.ONCE
 
     def enumerate(self, session: "pwncat.manager.Session"):
-        """ Perform enumeration """
+        """Perform enumeration"""
 
         # Check that we are in a domain
         if not session.run("enumerate", types=["domain.details"]):

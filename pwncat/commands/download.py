@@ -18,7 +18,7 @@ from pwncat.commands import Complete, Parameter, CommandDefinition
 
 
 class Command(CommandDefinition):
-    """ Download a file from the remote host to the local host"""
+    """Download a file from the remote host to the local host"""
 
     PROG = "download"
     ARGS = {

@@ -24,7 +24,7 @@ class PamImplant(Implant):
         self.log = log
 
     def escalate(self, session: "pwncat.manager.Session"):
-        """ Escalate to root with the pam implant """
+        """Escalate to root with the pam implant"""
 
         try:
             session.platform.su("root", password=self.password)
@@ -32,7 +32,7 @@ class PamImplant(Implant):
             raise ModuleFailed(str(exc)) from exc
 
     def remove(self, session: "pwncat.manager.Session"):
-        """ Remove the installed implant """
+        """Remove the installed implant"""
 
         if session.current_user().id != 0:
             raise ModuleFailed("root permissions required to remove pam module")
@@ -85,7 +85,7 @@ class Module(ImplantModule):
     }
 
     def install(self, session: "pwncat.manager.Session", password, log):
-        """ install the pam module """
+        """install the pam module"""
 
         if session.current_user().id != 0:
             raise ModuleFailed("root permissions required to install pam module")

@@ -221,7 +221,7 @@ class DotNetPlugin(object):
         return functools.partial(self.run, key)
 
     def run(self, method: str, *args):
-        """ Execute a method within the plugin """
+        """Execute a method within the plugin"""
 
         return self.platform.run_method("Reflection", "call", self.ident, method, args)
 
@@ -415,7 +415,7 @@ class PopenWindows(pwncat.subprocess.Popen):
 
 @dataclass
 class BuiltinPluginInfo:
-    """ Tells pwncat where to find a builtin plugin """
+    """Tells pwncat where to find a builtin plugin"""
 
     name: str
     """ A friendly name used when loading the plugin """
@@ -541,7 +541,7 @@ class Windows(Platform):
         self.run_method("StageTwo", "exit")
 
     def parse_response(self, data: bytes):
-        """ Parse a line of data from the C2 """
+        """Parse a line of data from the C2"""
 
         with gzip.GzipFile(
             fileobj=BytesIO(base64.b64decode(data.decode("utf-8").strip())),
@@ -1432,7 +1432,7 @@ function prompt {
             return False
 
     def revert_to_self(self):
-        """ Revert any impersonations and return to the original user """
+        """Revert any impersonations and return to the original user"""
 
         return self.impersonate(0)
 

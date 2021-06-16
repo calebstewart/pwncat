@@ -290,9 +290,16 @@ def main():
                 transient=True,
             ) as progress:
                 task = progress.add_task("task", status="...")
-                while manager.sessions:
-                    progress.update(task, status=str(manager.sessions[0].platform))
-                    manager.sessions[0].close()
+
+                # Retrieve the existing session IDs list
+                session_ids = list(manager.sessions.keys())
+
+                # Close each session based on its ``session_id``
+                for session_id in session_ids:
+                    progress.update(
+                        task, status=str(manager.sessions[session_id].platform)
+                    )
+                    manager.sessions[session_id].close()
 
                 progress.update(task, status="done!", completed=100)
 

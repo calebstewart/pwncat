@@ -15,7 +15,7 @@ class Module(EnumerateModule):
     SCHEDULE = Schedule.ONCE
 
     def enumerate(self, session: "pwncat.manager.Session"):
-        """ Yield WindowsGroup objects """
+        """Yield WindowsGroup objects"""
 
         try:
             groups = session.platform.powershell("Get-LocalGroup")

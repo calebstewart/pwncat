@@ -495,7 +495,7 @@ class Linux(Platform):
     PROMPTS = {
         "sh": """'$(command printf "(remote) $(whoami)@$(hostname):$PWD\\$ ")'""",
         "dash": """'$(command printf "(remote) $(whoami)@$(hostname):$PWD\\$ ")'""",
-        "zsh": """'%B%F{red}(remote) %B%F{yellow}%n@%M%B%F{reset}:%B%F{cyan}%(6~.%-1~/…/%4~.%5~)%B%(#.%b%F{white}#.%b%F{white}$)%b%F{reset} '""",
+        "zsh": """'%B%F{red}(remote) %B%F{yellow}%n@%M%B%F{reset}:%B%F{cyan}$PWD%B%(#.%b%F{white}#.%b%F{white}$)%b%F{reset} '""",
         "default": """'$(command printf "\\[\\033[01;31m\\](remote)\\[\\033[0m\\] \\[\\033[01;33m\\]$(whoami)@$(hostname)\\[\\033[0m\\]:\\[\\033[1;36m\\]$PWD\\[\\033[0m\\]\\$ ")'""",
     }
 
@@ -573,7 +573,7 @@ class Linux(Platform):
         self.refresh_uid()
 
     def exit(self):
-        """ Exit this session """
+        """Exit this session"""
 
         self.channel.send(b"exit\n")
 
@@ -776,7 +776,7 @@ class Linux(Platform):
             raise PlatformError(str(exc)) from exc
 
     def getuid(self):
-        """ Retrieve the current cached uid """
+        """Retrieve the current cached uid"""
         return self._uid
 
     def getenv(self, name: str):
@@ -1731,7 +1731,7 @@ class Linux(Platform):
             self.run(["chmod", oct(mode)[2:], path])
 
     def chown(self, path: str, uid: int, gid: int):
-        """ Change ownership of a file """
+        """Change ownership of a file"""
 
         try:
             self.run(["chown", f"{uid}:{gid}", path], check=True)

@@ -42,7 +42,7 @@ class Module(BaseModule):
     }
 
     def generate_markdown_table(self, data: List[List], headers: bool = False):
-        """ Generate a markdown table from the given data and headers """
+        """Generate a markdown table from the given data and headers"""
 
         # Get column widths
         widths = [
@@ -73,7 +73,7 @@ class Module(BaseModule):
         return "  \n".join(rows)
 
     def run(self, session: "pwncat.manager.Session", output, template, fmt, custom):
-        """ Perform enumeration and optionally write report """
+        """Perform enumeration and optionally write report"""
 
         if custom:
             env = jinja2.Environment(

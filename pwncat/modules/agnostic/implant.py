@@ -25,7 +25,7 @@ class Module(BaseModule):
     }
 
     def run(self, session, remove, escalate):
-        """ Perform the requested action """
+        """Perform the requested action"""
 
         if (not remove and not escalate) or (remove and escalate):
             raise ModuleFailed("expected one of escalate or remove")

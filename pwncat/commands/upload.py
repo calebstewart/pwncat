@@ -17,7 +17,7 @@ from pwncat.commands import Complete, Parameter, CommandDefinition
 
 
 class Command(CommandDefinition):
-    """ Upload a file from the local host to the remote host"""
+    """Upload a file from the local host to the remote host"""
 
     PROG = "upload"
     ARGS = {

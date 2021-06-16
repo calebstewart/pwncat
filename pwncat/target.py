@@ -13,7 +13,7 @@ from BTrees.OOBTree import OOBTree
 
 
 class NAT(enum.Enum):
-    """ Indicates the current known state of NAT on the target host """
+    """Indicates the current known state of NAT on the target host"""
 
     UNKNOWN = enum.auto()
     """ We currently don't have enough information to determine if NAT is used """

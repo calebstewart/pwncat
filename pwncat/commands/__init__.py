@@ -396,20 +396,20 @@ def resolve_blocks(source: str):
 
 
 class DatabaseHistory(History):
-    """ Yield history from the host entry in the database """
+    """Yield history from the host entry in the database"""
 
     def __init__(self, manager):
         super().__init__()
         self.manager = manager
 
     def load_history_strings(self) -> Iterable[str]:
-        """ Load the history from the database """
+        """Load the history from the database"""
 
         with self.manager.db.transaction() as conn:
             yield from reversed(conn.root.history)
 
     def store_string(self, string: str) -> None:
-        """ Store a command in the database """
+        """Store a command in the database"""
 
         with self.manager.db.transaction() as conn:
             conn.root.history.append(string)
@@ -423,7 +423,7 @@ class CommandParser:
     command mode."""
 
     def __init__(self, manager: "pwncat.manager.Manager"):
-        """ We need to dynamically load commands from pwncat.commands """
+        """We need to dynamically load commands from pwncat.commands"""
 
         self.manager = manager
         self.commands: List["CommandDefinition"] = []
@@ -460,7 +460,7 @@ class CommandParser:
 
         @bindings.add("c-q")
         def _(event):
-            """ Exit interactive mode """
+            """Exit interactive mode"""
 
             get_app().exit(exception=pwncat.manager.InteractiveExit())
 
@@ -483,7 +483,7 @@ class CommandParser:
         )
 
     def _render_toolbar(self):
-        """ Render the formatted text for the bottom toolbar """
+        """Render the formatted text for the bottom toolbar"""
 
         if self.manager.target is None:
             markup_result = "Active Session: [red]None[/red]"
@@ -537,7 +537,7 @@ class CommandParser:
                 break
 
     def run_single(self):
-        """ Execute one Read-Execute iteration. This will prompt the user for input.  """
+        """Execute one Read-Execute iteration. This will prompt the user for input."""
 
         if self.prompt is None:
             self.setup_prompt()
@@ -605,7 +605,7 @@ class CommandParser:
                 continue
 
     def dispatch_line(self, line: str, prog_name: str = None):
-        """ Parse the given line of command input and dispatch a command """
+        """Parse the given line of command input and dispatch a command"""
 
         # Account for blank or whitespace only lines
         line = line.strip()
@@ -785,7 +785,7 @@ class CommandLexer(RegexLexer):
 
     @classmethod
     def build(cls, commands: List["CommandDefinition"]) -> Type["CommandLexer"]:
-        """ Build the RegexLexer token list from the command definitions """
+        """Build the RegexLexer token list from the command definitions"""
 
         root = []
         for command in commands:
@@ -826,7 +826,7 @@ class CommandLexer(RegexLexer):
 
 
 class RemotePathCompleter(Completer):
-    """ Complete remote file names/paths """
+    """Complete remote file names/paths"""
 
     def __init__(self, manager: "pwncat.manager.Manager", *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -853,7 +853,7 @@ class RemotePathCompleter(Completer):
 
 
 class LocalPathCompleter(Completer):
-    """ Complete local file names/paths. """
+    """Complete local file names/paths."""
 
     def get_completions(self, document: Document, complete_event: CompleteEvent):
 
@@ -883,7 +883,7 @@ class CommandCompleter(Completer):
     def __init__(
         self, manager: "pwncat.manager.Manager", commands: List["CommandDefinition"]
     ):
-        """ Construct a new command completer """
+        """Construct a new command completer"""
 
         self.layers = {}
         local_file_completer = LocalPathCompleter()
@@ -918,7 +918,7 @@ class CommandCompleter(Completer):
     def get_completions(
         self, document: Document, complete_event: CompleteEvent
     ) -> Iterable[Completion]:
-        """ Get a list of completions for the given document """
+        """Get a list of completions for the given document"""
 
         text = document.text_before_cursor.lstrip()
         try:

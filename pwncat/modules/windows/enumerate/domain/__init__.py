@@ -16,7 +16,7 @@ class DomainObject(Fact):
         self.sid = sid
 
     def __getitem__(self, name: str):
-        """ Shortcut for getting properties from the `self.domain` property. """
+        """Shortcut for getting properties from the `self.domain` property."""
 
         return self.domain[name]
 
@@ -36,14 +36,14 @@ class DomainObject(Fact):
 
 
 class Module(EnumerateModule):
-    """ Retrieve domain membership information """
+    """Retrieve domain membership information"""
 
     PLATFORM = [Windows]
     PROVIDES = ["domain.details"]
     SCHEDULE = Schedule.ONCE
 
     def enumerate(self, session: "pwncat.manager.Session"):
-        """ Perform enumeration """
+        """Perform enumeration"""
 
         # Ensure we have PowerView loaded
         yield Status("loading powersploit recon")

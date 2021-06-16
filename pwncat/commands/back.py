@@ -5,7 +5,7 @@ from pwncat.commands import CommandDefinition
 
 
 class Command(CommandDefinition):
-    """ Return to the remote terminal """
+    """Return to the remote terminal"""
 
     PROG = "back"
     ARGS = {}

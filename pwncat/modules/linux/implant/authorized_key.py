@@ -10,7 +10,7 @@ from pwncat.modules.implant import ImplantModule
 
 
 class AuthorizedKeyImplant(PrivateKey):
-    """ A public key added to a user's authorized keys file """
+    """A public key added to a user's authorized keys file"""
 
     def __init__(self, source, user, key, pubkey):
         super().__init__(
@@ -25,12 +25,12 @@ class AuthorizedKeyImplant(PrivateKey):
         self.pubkey = pubkey
 
     def title(self, session: "pwncat.manager.Session"):
-        """ Provide a human-readable description """
+        """Provide a human-readable description"""
         user = session.find_user(uid=self.uid)
         return f"backdoor public key added to [blue]{user.name}[/blue] authorized_keys"
 
     def description(self, session: "pwncat.manager.Session"):
-        """ We don't want to print the whole key, since we installed it. """
+        """We don't want to print the whole key, since we installed it."""
         return None
 
     def remove(self, session: "pwncat.manager.Session"):
