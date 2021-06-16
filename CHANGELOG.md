@@ -9,6 +9,18 @@ and simply didn't have the time to go back and retroactively create one.
 
 ## [Unreleased]
 
+## [0.4.3] - 2021-06-17
+Quick patch release introducing changes in the handling of `sessions` under `manager`
+to use `Dict[int, Session]` instead, replacing `List[Session]`
+allowing unique identification of each session by its ID
+
+### Changed
+- Changed session tracking so session IDs aren't reused
+- Changed zsh prompt to match CWD of other shell prompts
+
+### Fixed
+- Fixed syntax for f-strings in escalation command
+
 ## [0.4.2] - 2021-06-15
 Quick patch release due to corrected bug in `ChannelFile` which caused command
 output to be empty in some situations.
