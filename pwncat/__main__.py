@@ -39,6 +39,17 @@ def main():
         default=None,
         help="Custom configuration file (default: ./pwncatrc)",
     )
+    parser.add_argument("--ssl", action="store_true", help="Connect or listen with SSL")
+    parser.add_argument(
+        "--ssl-cert",
+        default=None,
+        help="Certificate for SSL-encrypted listeners (PEM)",
+    )
+    parser.add_argument(
+        "--ssl-key",
+        default=None,
+        help="Key for SSL-encrypted listeners (PEM)",
+    )
     parser.add_argument(
         "--identity",
         "-i",
@@ -149,36 +160,74 @@ def main():
             or args.listen
             or args.identity is not None
         ):
-            protocol = None
-            user = None
-            password = None
-            host = None
-            port = None
+            query_args = {}
+            query_args["protocol"] = None
+            query_args["user"] = None
+            query_args["password"] = None
+            query_args["host"] = None
+            query_args["port"] = None
+            query_args["platform"] = args.platform
+            query_args["identity"] = args.identity
+            query_args["certfile"] = args.ssl_cert
+            query_args["keyfile"] = args.ssl_key
+            query_args["ssl"] = args.ssl
+            querystring = None
 
             if args.connection_string:
                 m = connect.Command.CONNECTION_PATTERN.match(args.connection_string)
-                protocol = m.group("protocol")
-                user = m.group("user")
-                password = m.group("password")
-                host = m.group("host")
-                port = m.group("port")
+                query_args["protocol"] = m.group("protocol")
+                query_args["user"] = m.group("user")
+                query_args["password"] = m.group("password")
+                query_args["host"] = m.group("host")
+                query_args["port"] = m.group("port")
+                querystring = m.group("querystring")
 
-            if protocol is not None:
-                protocol = protocol.removesuffix("://")
+                if query_args["protocol"] is not None:
+                    query_args["protocol"] = query_args["protocol"].removesuffix("://")
 
-            if host is not None and host == "":
-                host = None
+            if querystring is not None:
+                for arg in querystring.split("&"):
+                    if arg.find("=") == -1:
+                        continue
 
-            if protocol is not None and args.listen:
+                    key, *value = arg.split("=")
+
+                    if key in query_args and query_args[key] is not None:
+                        console.log(f"[red]error[/red]: multiple values for {key}")
+                        return
+
+                    query_args[key] = "=".join(value)
+
+            if query_args["host"] is not None and query_args["host"] == "":
+                query_args["host"] = None
+
+            if query_args["protocol"] is not None and args.listen:
                 console.log(
                     "[red]error[/red]: --listen is not compatible with an explicit connection string"
                 )
                 return
 
             if (
+                query_args["certfile"] is None and query_args["keyfile"] is not None
+            ) or (query_args["certfile"] is not None and query_args["keyfile"] is None):
+                console.log(
+                    "[red]error[/red]: both a ssl certificate and key file are required"
+                )
+                return
+
+            if query_args["certfile"] is not None or query_args["keyfile"] is not None:
+                query_args["ssl"] = True
+
+            if query_args["protocol"] is not None and args.ssl:
+                console.log(
+                    "[red]error[/red]: --ssl is incompatible with an explicit protocol"
+                )
+                return
+
+            if (
                 sum(
                     [
-                        port is not None,
+                        query_args["port"] is not None,
                         args.port is not None,
                         args.pos_port is not None,
                     ]
@@ -189,22 +238,24 @@ def main():
                 return
 
             if args.port is not None:
-                port = args.port
+                query_args["port"] = args.port
             if args.pos_port is not None:
-                port = args.pos_port
+                query_args["port"] = args.pos_port
 
-            if port is not None:
+            if query_args["port"] is not None:
                 try:
-                    port = int(port.lstrip(":"))
+                    query_args["port"] = int(query_args["port"].lstrip(":"))
                 except ValueError:
-                    console.log(f"[red]error[/red]: {port}: invalid port number")
+                    console.log(
+                        f"[red]error[/red]: {query_args['port'].lstrip(':')}: invalid port number"
+                    )
                     return
 
             # Attempt to reconnect via installed implants
             if (
-                protocol is None
-                and password is None
-                and port is None
+                query_args["protocol"] is None
+                and query_args["password"] is None
+                and query_args["port"] is None
                 and args.identity is None
             ):
                 db = manager.db.open()
@@ -213,7 +264,10 @@ def main():
                 # Locate all installed implants
                 for target in db.root.targets:
 
-                    if target.guid != host and target.public_address[0] != host:
+                    if (
+                        target.guid != query_args["host"]
+                        and target.public_address[0] != query_args["host"]
+                    ):
                         continue
 
                     # Collect users
@@ -236,13 +290,16 @@ def main():
                 ) as progress:
                     task = progress.add_task("", status="...")
                     for target, implant_user, implant in implants:
-                        # Check correct user
-                        if user is not None and implant_user.name != user:
+                        # Check correct query_args["user"]
+                        if (
+                            query_args["user"] is not None
+                            and implant_user.name != query_args["user"]
+                        ):
                             continue
                         # Check correct platform
                         if (
-                            args.platform is not None
-                            and target.platform != args.platform
+                            query_args["platform"] is not None
+                            and target.platform != query_args["platform"]
                         ):
                             continue
 
@@ -267,13 +324,7 @@ def main():
             else:
                 try:
                     manager.create_session(
-                        platform=args.platform,
-                        protocol=protocol,
-                        user=user,
-                        password=password,
-                        host=host,
-                        port=port,
-                        identity=args.identity,
+                        **query_args,
                     )
                 except (ChannelError, PlatformError) as exc:
                     manager.log(f"connection failed: {exc}")

@@ -14,6 +14,11 @@ and simply didn't have the time to go back and retroactively create one.
 ### Changed
 - Changed session tracking so session IDs aren't reused
 - Changed zsh prompt to match CWD of other shell prompts
+### Added
+- Added `ssl-bind` and `ssl-connect` channel protocols for encrypted shells
+- Added `ncat`-style ssl arguments to entrypoint and `connect` command
+- Added query-string arguments to connection strings for both the entrypoint
+  and the `connect` command.
 
 ## [0.4.2] - 2021-06-15
 Quick patch release due to corrected bug in `ChannelFile` which caused command
