@@ -584,12 +584,16 @@ def create(protocol: Optional[str] = None, **kwargs) -> Channel:
                 if (
                     kwargs.get("certfile") is not None
                     or kwargs.get("keyfile") is not None
+                    or kwargs.get("ssl")
                 ):
                     protocols.append("ssl-bind")
                 else:
                     protocols.append("bind")
             else:
-                protocols.append("connect")
+                if kwargs.get("ssl"):
+                    protocols.append("ssl-connect")
+                else:
+                    protocols.append("connect")
     else:
         protocols = [protocol]
 

@@ -39,11 +39,16 @@ def main():
         default=None,
         help="Custom configuration file (default: ./pwncatrc)",
     )
+    parser.add_argument("--ssl", action="store_true", help="Connect or listen with SSL")
     parser.add_argument(
-        "--certificate",
-        "--cert",
+        "--ssl-cert",
         default=None,
-        help="Certificate for SSL-encrypted listeners",
+        help="Certificate for SSL-encrypted listeners (PEM)",
+    )
+    parser.add_argument(
+        "--ssl-key",
+        default=None,
+        help="Key for SSL-encrypted listeners (PEM)",
     )
     parser.add_argument(
         "--identity",
@@ -163,8 +168,9 @@ def main():
             query_args["port"] = None
             query_args["platform"] = args.platform
             query_args["identity"] = args.identity
-            query_args["certfile"] = args.certificate
-            query_args["keyfile"] = args.certificate
+            query_args["certfile"] = args.ssl_cert
+            query_args["keyfile"] = args.ssl_key
+            query_args["ssl"] = args.ssl
             querystring = None
 
             if args.connection_string:
@@ -198,6 +204,23 @@ def main():
             if query_args["protocol"] is not None and args.listen:
                 console.log(
                     "[red]error[/red]: --listen is not compatible with an explicit connection string"
+                )
+                return
+
+            if (
+                query_args["certfile"] is None and query_args["keyfile"] is not None
+            ) or (query_args["certfile"] is not None and query_args["keyfile"] is None):
+                console.log(
+                    "[red]error[/red]: both a ssl certificate and key file are required"
+                )
+                return
+
+            if query_args["certfile"] is not None or query_args["keyfile"] is not None:
+                query_args["ssl"] = True
+
+            if query_args["protocol"] is not None and args.ssl:
+                console.log(
+                    "[red]error[/red]: --ssl is incompatible with an explicit protocol"
                 )
                 return
 

@@ -58,9 +58,15 @@ class Command(CommandDefinition):
             action="store_true",
             help="List installed implants with remote connection capability",
         ),
-        "--certificate,--cert": Parameter(
-            Complete.NONE,
-            help="Certificate for SSL-encrypted listeners",
+        "--ssl-cert": Parameter(
+            Complete.LOCAL_FILE,
+            help="Certificate for SSL-encrypted listeners (PEM)",
+        ),
+        "--ssl-key": Parameter(
+            Complete.LOCAL_FILE, help="Key for SSL-encrypted listeners (PEM)"
+        ),
+        "--ssl": Parameter(
+            Complete.NONE, action="store_true", help="Connect or listen with SSL"
         ),
         "connection_string": Parameter(
             Complete.NONE,
@@ -90,8 +96,9 @@ class Command(CommandDefinition):
         query_args["port"] = None
         query_args["platform"] = args.platform
         query_args["identity"] = args.identity
-        query_args["certfile"] = args.certificate
-        query_args["keyfile"] = args.certificate
+        query_args["certfile"] = args.ssl_cert
+        query_args["keyfile"] = args.ssl_key
+        query_args["ssl"] = args.ssl
         querystring = None
         used_implant = None
 
@@ -170,6 +177,17 @@ class Command(CommandDefinition):
             )
             return
 
+        if (query_args["certfile"] is None and query_args["keyfile"] is not None) or (
+            query_args["certfile"] is not None and query_args["keyfile"] is None
+        ):
+            console.log(
+                "[red]error[/red]: both a ssl certificate and key file are required"
+            )
+            return
+
+        if query_args["certfile"] is not None or query_args["keyfile"] is not None:
+            query_args["ssl"] = True
+
         if (
             sum(
                 [
@@ -182,6 +200,8 @@ class Command(CommandDefinition):
         ):
             console.log("[red]error[/red]: multiple ports specified")
             return
+
+        console.log(args.pos_port)
 
         if args.port is not None:
             query_args["port"] = args.port
