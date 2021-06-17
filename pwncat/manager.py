@@ -574,9 +574,8 @@ class Manager:
                 self.log("no active session, returning to local prompt")
                 continue
 
-            self.target.platform.interactive = True
-
             interactive_complete = threading.Event()
+            output_thread = None
 
             def output_thread_main(target: Session):
 
@@ -597,12 +596,14 @@ class Manager:
                     except ChannelError:
                         interactive_complete.set()
 
-            output_thread = threading.Thread(
-                target=output_thread_main, args=[self.target]
-            )
-            output_thread.start()
-
             try:
+                self.target.platform.interactive = True
+
+                output_thread = threading.Thread(
+                    target=output_thread_main, args=[self.target]
+                )
+                output_thread.start()
+
                 try:
                     self.target.platform.interactive_loop(interactive_complete)
                 except RawModeExit:
@@ -615,10 +616,10 @@ class Manager:
                 self.target.died()
             except Exception:
                 pwncat.util.console.print_exception()
-
-            # Trigger thread to exit
-            interactive_complete.set()
-            output_thread.join()
+            finally:
+                interactive_complete.set()
+                if output_thread is not None:
+                    output_thread.join()
 
     def create_session(self, platform: str, channel: Channel = None, **kwargs):
         """
