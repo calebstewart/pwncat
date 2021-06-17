@@ -549,6 +549,11 @@ class Platform(ABC):
                 data = sys.stdin.buffer.read(64)
                 has_prefix = self.session.manager._process_input(data, has_prefix)
 
+        except KeyboardInterrupt:
+            # This is a hack to allow the output thread to signal completion
+            # We are in raw mode so this couldn't have come from a user pressing
+            # C-d.
+            pass
         finally:
             pwncat.util.pop_term_state()
             sys.stdin.reconfigure(line_buffering=False)

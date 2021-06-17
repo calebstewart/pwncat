@@ -16,6 +16,8 @@ even if there was an uncaught exception. The normal method of creating a manager
 """
 import os
 import sys
+import queue
+import signal
 import fnmatch
 import pkgutil
 import threading
@@ -576,8 +578,9 @@ class Manager:
 
             interactive_complete = threading.Event()
             output_thread = None
+            channel_error = None
 
-            def output_thread_main(target: Session):
+            def output_thread_main(target: Session, exception_queue: queue.SimpleQueue):
 
                 while not interactive_complete.is_set():
                     try:
@@ -593,14 +596,19 @@ class Manager:
                         else:
                             interactive_complete.wait(timeout=0.1)
 
-                    except ChannelError:
+                    except ChannelError as exc:
+                        exception_queue.put(exc)
                         interactive_complete.set()
+                        # This is a hack to get the interactive loop out of a blocking
+                        # read call. The interactive loop will receive a KeyboardInterrupt
+                        os.kill(os.getpid(), signal.SIGINT)
 
             try:
                 self.target.platform.interactive = True
 
+                exception_queue = queue.Queue(maxsize=1)
                 output_thread = threading.Thread(
-                    target=output_thread_main, args=[self.target]
+                    target=output_thread_main, args=[self.target, exception_queue]
                 )
                 output_thread.start()
 
@@ -608,6 +616,12 @@ class Manager:
                     self.target.platform.interactive_loop(interactive_complete)
                 except RawModeExit:
                     pass
+
+                try:
+                    raise exception_queue.get(block=False)
+                except queue.Empty:
+                    pass
+
                 self.target.platform.interactive = False
             except ChannelClosed:
                 self.log(
@@ -619,6 +633,7 @@ class Manager:
             finally:
                 interactive_complete.set()
                 if output_thread is not None:
+                    output_thread.join()
                     output_thread.join()
 
     def create_session(self, platform: str, channel: Channel = None, **kwargs):
