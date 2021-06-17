@@ -557,84 +557,90 @@ class Manager:
 
         while self.interactive_running:
 
-            # This is it's own main loop that will continue until
-            # it catches a C-d sequence.
             try:
-                self.parser.run()
-            except InteractiveExit:
 
-                if self.sessions and not confirm(
-                    "There are active sessions. Are you sure?"
-                ):
+                # This is it's own main loop that will continue until
+                # it catches a C-d sequence.
+                try:
+                    self.parser.run()
+                except InteractiveExit:
+
+                    if self.sessions and not confirm(
+                        "There are active sessions. Are you sure?"
+                    ):
+                        continue
+
+                    self.log("closing interactive prompt")
+                    break
+
+                # We can't enter raw mode without a session
+                if self.target is None:
+                    self.log("no active session, returning to local prompt")
                     continue
 
-                self.log("closing interactive prompt")
-                break
+                interactive_complete = threading.Event()
+                output_thread = None
 
-            # We can't enter raw mode without a session
-            if self.target is None:
-                self.log("no active session, returning to local prompt")
-                continue
+                def output_thread_main(
+                    target: Session, exception_queue: queue.SimpleQueue
+                ):
 
-            interactive_complete = threading.Event()
-            output_thread = None
-            channel_error = None
+                    while not interactive_complete.is_set():
+                        try:
+                            data = target.platform.channel.recv(4096)
 
-            def output_thread_main(target: Session, exception_queue: queue.SimpleQueue):
+                            if data != b"" and data is not None:
+                                try:
+                                    data = target.platform.process_output(data)
+                                    sys.stdout.buffer.write(data)
+                                    sys.stdout.buffer.flush()
+                                except RawModeExit:
+                                    interactive_complete.set()
+                            else:
+                                interactive_complete.wait(timeout=0.1)
 
-                while not interactive_complete.is_set():
+                        except ChannelError as exc:
+                            exception_queue.put(exc)
+                            interactive_complete.set()
+                            # This is a hack to get the interactive loop out of a blocking
+                            # read call. The interactive loop will receive a KeyboardInterrupt
+                            os.kill(os.getpid(), signal.SIGINT)
+
+                try:
+                    self.target.platform.interactive = True
+
+                    exception_queue = queue.Queue(maxsize=1)
+                    output_thread = threading.Thread(
+                        target=output_thread_main, args=[self.target, exception_queue]
+                    )
+                    output_thread.start()
+
                     try:
-                        data = target.platform.channel.recv(4096)
+                        self.target.platform.interactive_loop(interactive_complete)
+                    except RawModeExit:
+                        pass
 
-                        if data != b"" and data is not None:
-                            try:
-                                data = target.platform.process_output(data)
-                                sys.stdout.buffer.write(data)
-                                sys.stdout.buffer.flush()
-                            except RawModeExit:
-                                interactive_complete.set()
-                        else:
-                            interactive_complete.wait(timeout=0.1)
+                    try:
+                        raise exception_queue.get(block=False)
+                    except queue.Empty:
+                        pass
 
-                    except ChannelError as exc:
-                        exception_queue.put(exc)
-                        interactive_complete.set()
-                        # This is a hack to get the interactive loop out of a blocking
-                        # read call. The interactive loop will receive a KeyboardInterrupt
-                        os.kill(os.getpid(), signal.SIGINT)
-
-            try:
-                self.target.platform.interactive = True
-
-                exception_queue = queue.Queue(maxsize=1)
-                output_thread = threading.Thread(
-                    target=output_thread_main, args=[self.target, exception_queue]
-                )
-                output_thread.start()
-
-                try:
-                    self.target.platform.interactive_loop(interactive_complete)
-                except RawModeExit:
-                    pass
-
-                try:
-                    raise exception_queue.get(block=False)
-                except queue.Empty:
-                    pass
-
-                self.target.platform.interactive = False
-            except ChannelClosed:
-                self.log(
-                    f"[yellow]warning[/yellow]: {self.target.platform}: connection reset"
-                )
-                self.target.died()
-            except Exception:
+                    self.target.platform.interactive = False
+                except ChannelClosed:
+                    self.log(
+                        f"[yellow]warning[/yellow]: {self.target.platform}: connection reset"
+                    )
+                    self.target.died()
+                finally:
+                    interactive_complete.set()
+                    if output_thread is not None:
+                        output_thread.join()
+                        output_thread.join()
+            except:  # noqa: E722
+                # We don't want to die because of an uncaught exception, but
+                # at least let the user know something happened. This should
+                # probably be configurable somewhere.
                 pwncat.util.console.print_exception()
-            finally:
-                interactive_complete.set()
-                if output_thread is not None:
-                    output_thread.join()
-                    output_thread.join()
 
     def create_session(self, platform: str, channel: Channel = None, **kwargs):
         """

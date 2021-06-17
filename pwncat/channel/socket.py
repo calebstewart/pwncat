@@ -127,7 +127,7 @@ class Socket(Channel):
                 self._connected = False
                 raise ChannelClosed(self)
             return data + new_data
-        except BlockingIOError as exc:
+        except BlockingIOError:
             return data
         except socket.error as exc:
             if exc.args[0] == errno.EAGAIN or exc.args[0] == errno.EWOULDBLOCK:
