@@ -32,7 +32,7 @@ def connect_required(method):
     @functools.wraps(method)
     def _wrapper(self, *args, **kwargs):
         if not self.connected:
-            raise ChannelError(self, "channel not connected")
+            raise ChannelClosed(self)
         return method(self, *args, **kwargs)
 
     return _wrapper
@@ -136,8 +136,10 @@ class Socket(Channel):
             self._connected = False
             raise ChannelClosed(self) from exc
 
-    @connect_required
     def close(self):
+        if not self._connected:
+            return
+
         self._connected = False
         self.client.close()
 
