@@ -641,6 +641,21 @@ class Manager:
 
         return session
 
+    def find_session_by_channel(self, channel: Channel):
+        """
+        Locate a session by it's channel object. This is mainly used when a ChannelError
+        is raised in order to locate the misbehaving session object from the exception
+        data.
+
+        :param channel: the channel you are looking for
+        :type channel: Channel
+        :rtype: Session
+        """
+
+        for session in self.sessions.values():
+            if session.platform.channel is channel:
+                return session
+
     def _process_input(self, data: bytes, has_prefix: bool):
         """Process stdin data from the user in raw mode"""
 

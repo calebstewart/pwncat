@@ -122,7 +122,12 @@ class Socket(Channel):
             return data
 
         try:
-            data = data + self.client.recv(count)
+            new_data = self.client.recv(count)
+            if new_data == b"":
+                self._connected = False
+                raise ChannelClosed(self)
+            return data + new_data
+        except BlockingIOError as exc:
             return data
         except socket.error as exc:
             if exc.args[0] == errno.EAGAIN or exc.args[0] == errno.EWOULDBLOCK:
