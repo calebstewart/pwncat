@@ -118,9 +118,9 @@ def isprintable(data) -> bool:
 
 def human_readable_size(size, decimal_places=2):
     for unit in ["B", "KiB", "MiB", "GiB", "TiB"]:
-        if size < 1024.0:
+        if size < 1000.0:
             return f"{size:.{decimal_places}f}{unit}"
-        size /= 1024.0
+        size /= 1000.0
     return f"{size:.{decimal_places}f}{unit}"
 
 
