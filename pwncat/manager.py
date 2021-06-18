@@ -653,7 +653,11 @@ class Manager:
         specified platform.
         """
 
-        session = Session(self, platform, channel, **kwargs)
+        try:
+            session = Session(self, platform, channel, **kwargs)
+        except ChannelError as exc:
+            self.log(f"[red]error:[/red] {exc}")
+            return None
 
         # Increment the ``session_id`` variable upon adding a new session
         # Session constructor will automatically grab the current

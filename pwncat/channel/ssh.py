@@ -34,7 +34,7 @@ class Ssh(Channel):
             port = 22
 
         if not user or user is None:
-            raise ChannelError("you must specify a user")
+            raise ChannelError(self, "you must specify a user")
 
         if password is None and identity is None:
             password = prompt("Password: ", is_password=True)
@@ -43,7 +43,7 @@ class Ssh(Channel):
             # Connect to the remote host's ssh server
             sock = socket.create_connection((host, port))
         except Exception as exc:
-            raise ChannelError(str(exc))
+            raise ChannelError(self, str(exc))
 
         # Create a paramiko SSH transport layer around the socket
         t = paramiko.Transport(sock)
@@ -51,7 +51,7 @@ class Ssh(Channel):
             t.start_client()
         except paramiko.SSHException:
             sock.close()
-            raise ChannelError("ssh negotiation failed")
+            raise ChannelError(self, "ssh negotiation failed")
 
         if identity is not None:
             try:
@@ -67,23 +67,23 @@ class Ssh(Channel):
                 try:
                     key = paramiko.RSAKey.from_private_key_file(identity, password)
                 except paramiko.ssh_exception.SSHException:
-                    raise ChannelError("invalid private key or passphrase")
+                    raise ChannelError(self, "invalid private key or passphrase")
 
             # Attempt authentication
             try:
                 t.auth_publickey(user, key)
             except paramiko.ssh_exception.AuthenticationException as exc:
-                raise ChannelError(str(exc))
+                raise ChannelError(self, str(exc))
         else:
             try:
                 t.auth_password(user, password)
             except paramiko.ssh_exception.AuthenticationException as exc:
-                raise ChannelError(str(exc))
+                raise ChannelError(self, str(exc))
 
         if not t.is_authenticated():
             t.close()
             sock.close()
-            raise ChannelError("authentication failed")
+            raise ChannelError(self, "authentication failed")
 
         # Open an interactive session
         chan = t.open_session()
