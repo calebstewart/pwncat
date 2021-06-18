@@ -643,7 +643,7 @@ class Manager:
                 pwncat.util.console.print_exception()
 
     def create_session(self, platform: str, channel: Channel = None, **kwargs):
-        """
+        r"""
         Create a new session from a new or existing channel. The platform specified
         should be the name registered name (e.g. ``linux``) of a platform class. If
         no existing channel is provided, the keyword arguments are used to construct
