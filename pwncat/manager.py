@@ -644,20 +644,23 @@ class Manager:
 
     def create_session(self, platform: str, channel: Channel = None, **kwargs):
         """
-        Open a new session from a new or existing platform. If the platform
-        is a string, a new platform is created using ``create_platform`` and
-        a session is built around the platform. In that case, the arguments
-        are the same as for ``create_platform``.
+        Create a new session from a new or existing channel. The platform specified
+        should be the name registered name (e.g. ``linux``) of a platform class. If
+        no existing channel is provided, the keyword arguments are used to construct
+        a new channel.
 
-        A new Session object is returned which contains the created or
-        specified platform.
+        :param platform: name of the platform to use
+        :type platform: str
+        :param channel: A pre-constructed channel (default: None)
+        :type channel: Optional[Channel]
+        :param \*\*kwargs: keyword arguments for constructing a new channel
+        :rtype: Session
+        :raises:
+            ChannelError: there was an error while constructing the new channel
+            PlatformError: construction of a platform around the channel failed
         """
 
-        try:
-            session = Session(self, platform, channel, **kwargs)
-        except ChannelError as exc:
-            self.log(f"[red]error:[/red] {exc}")
-            return None
+        session = Session(self, platform, channel, **kwargs)
 
         # Increment the ``session_id`` variable upon adding a new session
         # Session constructor will automatically grab the current
