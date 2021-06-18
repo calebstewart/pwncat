@@ -11,6 +11,7 @@ and simply didn't have the time to go back and retroactively create one.
 ### Fixed
 - Pinned container base image to alpine 3.13.5 and installed to virtualenv ([#134](https://github.com/calebstewart/pwncat/issues/134))
 - Fixed syntax for f-strings in escalation command
+- Re-added `readline` import for windows platform after being accidentally removed
 ### Changed
 - Changed session tracking so session IDs aren't reused
 - Changed zsh prompt to match CWD of other shell prompts
