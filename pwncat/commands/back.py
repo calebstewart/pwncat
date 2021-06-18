@@ -11,4 +11,6 @@ class Command(CommandDefinition):
     ARGS = {}
 
     def run(self, manager: "pwncat.manager.Manager", args):
-        raise RawModeExit
+        # This is caught by ``CommandParser.run`` which interprets
+        # it as a `C-d` sequence, and returns to the remote prompt.
+        raise EOFError
