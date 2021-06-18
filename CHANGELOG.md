@@ -15,6 +15,8 @@ and simply didn't have the time to go back and retroactively create one.
 ### Changed
 - Changed session tracking so session IDs aren't reused
 - Changed zsh prompt to match CWD of other shell prompts
+- Improved exception handling throughout framework ([#133](https://github.com/calebstewart/pwncat/issues/133))
+- Added explicit permission checks when opening files
 - Changed LinuxWriter close routine again to account for needed EOF signals ([#140](https://github.com/calebstewart/pwncat/issues/140))
 ### Added
 - Added better file io test cases

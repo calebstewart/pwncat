@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import pwncat
-from pwncat.modules import ModuleFailed
+from pwncat.modules import Status, ModuleFailed
 from pwncat.facts.linux import LinuxGroup
 from pwncat.platform.linux import Linux
 from pwncat.modules.enumerate import Schedule, EnumerateModule
@@ -20,6 +20,7 @@ class Module(EnumerateModule):
         users = {user.gid: user for user in session.run("enumerate", types=["user"])}
 
         group_file = session.platform.Path("/etc/group")
+        groups = []
 
         try:
             with group_file.open("r") as filp:
@@ -34,13 +35,17 @@ class Module(EnumerateModule):
                             members.append(users[gid].name)
 
                         # Build a group object
-                        group = LinuxGroup(self.name, group_name, hash, gid, members)
+                        groups.append(
+                            LinuxGroup(self.name, group_name, hash, gid, members)
+                        )
 
-                        yield group
+                        yield Status(group_name)
 
                     except (KeyError, ValueError, IndexError):
                         # Bad group line
                         continue
+
+            yield from groups
 
         except (FileNotFoundError, PermissionError) as exc:
             raise ModuleFailed(str(exc)) from exc

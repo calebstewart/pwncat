@@ -13,7 +13,6 @@ processes and open multiple files with this platform. However, you should be
 careful to cleanup all processes and files prior to return from your method
 or code as the C2 will not attempt to garbage collect file or proces handles.
 """
-import os
 import sys
 import gzip
 import json
@@ -47,7 +46,7 @@ PWNCAT_WINDOWS_C2_VERSION = "v0.2.1"
 PWNCAT_WINDOWS_C2_RELEASE_URL = "https://github.com/calebstewart/pwncat-windows-c2/releases/download/{version}/pwncat-windows-{version}.tar.gz"
 
 
-class PowershellError(Exception):
+class PowershellError(PlatformError):
     """Executing a powershell script caused an error"""
 
     def __init__(self, msg):
@@ -56,7 +55,7 @@ class PowershellError(Exception):
         self.message = msg
 
 
-class ProtocolError(Exception):
+class ProtocolError(PlatformError):
     def __init__(self, code: int, message: str):
         self.code = code
         self.message = message
@@ -909,7 +908,7 @@ function prompt {
         transformed = bytearray(b"")
         has_cr = False
 
-        for b in data:
+        for idx, b in enumerate(data):
 
             # Basically, we just transform bare \r to \r\n
             if has_cr and b != ord("\n"):
@@ -925,10 +924,9 @@ function prompt {
             if INTERACTIVE_END_MARKER[self.interactive_tracker] == b:
                 self.interactive_tracker += 1
                 if self.interactive_tracker == len(INTERACTIVE_END_MARKER):
-                    # NOTE: this is a dirty hack to trigger the main input thread
-                    # to leave interactive mode, because it's bound in an input call
-                    os.kill(os.getpid(), signal.SIGINT)
-                    raise pwncat.manager.RawModeExit
+                    self.interactive_tracker = 0
+                    self.channel.unrecv(data[idx + 1 :])
+                    raise pwncat.util.RawModeExit
             else:
                 self.interactive_tracker = 0
 

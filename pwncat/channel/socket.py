@@ -21,7 +21,7 @@ import socket
 import functools
 from typing import Optional
 
-from pwncat.channel import Channel, ChannelError, ChannelClosed
+from pwncat.channel import Channel, ChannelClosed
 
 
 def connect_required(method):
@@ -32,7 +32,7 @@ def connect_required(method):
     @functools.wraps(method)
     def _wrapper(self, *args, **kwargs):
         if not self.connected:
-            raise ChannelError(self, "channel not connected")
+            raise ChannelClosed(self)
         return method(self, *args, **kwargs)
 
     return _wrapper
@@ -122,7 +122,12 @@ class Socket(Channel):
             return data
 
         try:
-            data = data + self.client.recv(count)
+            new_data = self.client.recv(count)
+            if new_data == b"":
+                self._connected = False
+                raise ChannelClosed(self)
+            return data + new_data
+        except BlockingIOError:
             return data
         except socket.error as exc:
             if exc.args[0] == errno.EAGAIN or exc.args[0] == errno.EWOULDBLOCK:
@@ -131,8 +136,10 @@ class Socket(Channel):
             self._connected = False
             raise ChannelClosed(self) from exc
 
-    @connect_required
     def close(self):
+        if not self._connected:
+            return
+
         self._connected = False
         self.client.close()
 

@@ -7,8 +7,10 @@ from rich.progress import Progress
 
 import pwncat
 from pwncat.util import console
+from pwncat.channel import ChannelError
 from pwncat.modules import ModuleFailed
 from pwncat.commands import Complete, Parameter, CommandDefinition
+from pwncat.platform import PlatformError
 
 
 class Command(CommandDefinition):
@@ -224,18 +226,21 @@ class Command(CommandDefinition):
                         manager.target = session
                         used_implant = implant
                         break
-                    except ModuleFailed:
+                    except (ChannelError, PlatformError, ModuleFailed):
                         continue
 
         if used_implant is not None:
             manager.target.log(f"connected via {used_implant.title(manager.target)}")
         else:
-            manager.create_session(
-                platform=args.platform,
-                protocol=protocol,
-                user=user,
-                password=password,
-                host=host,
-                port=port,
-                identity=args.identity,
-            )
+            try:
+                manager.create_session(
+                    platform=args.platform,
+                    protocol=protocol,
+                    user=user,
+                    password=password,
+                    host=host,
+                    port=port,
+                    identity=args.identity,
+                )
+            except (ChannelError, PlatformError) as exc:
+                manager.log(f"connection failed: {exc}")

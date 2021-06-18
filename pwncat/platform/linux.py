@@ -11,6 +11,7 @@ Popen can be running at a time. It is imperative that you call
 to calling any other pwncat methods.
 """
 import os
+import stat
 import time
 import shlex
 import shutil
@@ -414,6 +415,9 @@ class LinuxWriter(BufferedIOBase):
         if self.popen is None:
             raise UnsupportedOperation("writer is detached")
 
+        if self.popen.poll() is not None:
+            raise PermissionError("file write failed")
+
         if self.popen.platform.has_pty:
             # Control sequences need escaping
             translated = []
@@ -484,6 +488,49 @@ class LinuxWriter(BufferedIOBase):
         self.detach()
 
 
+class LinuxPath(pathlib.PurePosixPath):
+    """Special cases for Linux remote paths"""
+
+    def readable(self):
+        """Test if a file is readable"""
+
+        uid = self._target._id["euid"]
+        gid = self._target._id["egid"]
+        groups = self._target._id["groups"]
+
+        file_uid = self.stat().st_uid
+        file_gid = self.stat().st_gid
+        file_mode = self.stat().st_mode
+
+        if uid == file_uid and (file_mode & stat.S_IRUSR):
+            return True
+        elif (gid == file_gid or file_gid in groups) and (file_mode & stat.S_IRGRP):
+            return True
+        elif file_mode & stat.S_IROTH:
+            return True
+
+        return False
+
+    def writable(self):
+
+        uid = self._target._id["euid"]
+        gid = self._target._id["egid"]
+        groups = self._target._id["groups"]
+
+        file_uid = self.stat().st_uid
+        file_gid = self.stat().st_gid
+        file_mode = self.stat().st_mode
+
+        if uid == file_uid and (file_mode & stat.S_IWUSR):
+            return True
+        elif (gid == file_gid or file_gid in groups) and (file_mode & stat.S_IWGRP):
+            return True
+        elif file_mode & stat.S_IWOTH:
+            return True
+
+        return False
+
+
 class Linux(Platform):
     """
     Concrete platform class abstracting interaction with a GNU/Linux remote
@@ -492,7 +539,7 @@ class Linux(Platform):
     """
 
     name = "linux"
-    PATH_TYPE = pathlib.PurePosixPath
+    PATH_TYPE = LinuxPath
     PROMPTS = {
         "sh": """'$(command printf "(remote) $(whoami)@$(hostname):$PWD\\$ ")'""",
         "dash": """'$(command printf "(remote) $(whoami)@$(hostname):$PWD\\$ ")'""",
@@ -508,7 +555,7 @@ class Linux(Platform):
         self.name = "linux"
         self.command_running = None
 
-        self._uid = None
+        self._id = None
 
         # This causes an stty to be sent.
         # If we aren't in a pty, it doesn't matter.
@@ -664,7 +711,7 @@ class Linux(Platform):
                 )
                 hostname = result.stdout.strip()
             except CalledProcessError:
-                hostname = self.channel.getpeername()[0]
+                hostname = self.channel.host
 
             try:
                 self.session.update_task(
@@ -767,10 +814,20 @@ class Linux(Platform):
             while True:
                 try:
                     proc = self.run(
-                        ["id", "-ru"], capture_output=True, text=True, check=True
+                        "(id -ru;id -u;id -g;id -rg;id -G;)",
+                        capture_output=True,
+                        text=True,
+                        check=True,
                     )
-                    self._uid = int(proc.stdout.rstrip("\n"))
-                    return self._uid
+                    idents = proc.stdout.split("\n")
+                    self._id = {
+                        "ruid": int(idents[0].strip()),
+                        "euid": int(idents[1].strip()),
+                        "rgid": int(idents[2].strip()),
+                        "egid": int(idents[3].strip()),
+                        "groups": [int(g.strip()) for g in idents[4].split(" ")],
+                    }
+                    return self._id["ruid"]
                 except ValueError:
                     continue
         except CalledProcessError as exc:
@@ -778,7 +835,7 @@ class Linux(Platform):
 
     def getuid(self):
         """Retrieve the current cached uid"""
-        return self._uid
+        return self._id["ruid"]
 
     def getenv(self, name: str):
 
@@ -1154,6 +1211,24 @@ class Linux(Platform):
         if any(c not in "rwb" for c in mode):
             raise PlatformError(f"{mode}: unknown file mode")
 
+        if isinstance(path, str):
+            path = self.Path(path)
+
+        if "r" in mode and not path.exists():
+            raise FileNotFoundError(f"No such file or directory: {str(path)}")
+        if "r" in mode and not path.readable():
+            raise PermissionError(f"Permission Denied: {str(path)}")
+
+        if "w" in mode:
+            parent = path.parent
+
+            if "w" in mode and path.exists() and not path.writable():
+                raise PermissionError(f"Permission Denied: {str(path)}")
+            if "w" in mode and not path.exists() and not parent.writable():
+                raise PermissionError(f"Permission Denied: {str(path)}")
+            if "w" in mode and not path.exists() and not parent.exists():
+                raise FileNotFoundError(f"No such file or directory: {str(path)}")
+
         # Save this just in case we are opening a text-mode stream
         line_buffering = buffering == -1 or buffering == 1
 
@@ -1175,7 +1250,7 @@ class Linux(Platform):
                 except MissingBinary:
                     pass
             else:
-                raise PlatformError("no available gtfobins writiers")
+                raise PlatformError("no available gtfobins writers")
 
             popen = self.Popen(
                 payload,
@@ -1204,7 +1279,7 @@ class Linux(Platform):
                 except MissingBinary:
                     pass
             else:
-                raise PlatformError("no available gtfobins writiers")
+                raise PlatformError("no available gtfobins writers")
 
             popen = self.Popen(
                 payload,
