@@ -21,7 +21,7 @@ import socket
 import functools
 from typing import Optional
 
-from pwncat.channel import Channel, ChannelError, ChannelClosed
+from pwncat.channel import Channel, ChannelClosed
 
 
 def connect_required(method):
