@@ -420,7 +420,7 @@ class LinuxWriter(BufferedIOBase):
             for idx, c in enumerate(b):
 
                 # Track when the last new line was
-                if c == 0x0D:
+                if c == 0x0A:
                     self.since_newline = 0
                 else:
                     self.since_newline += 1
@@ -432,7 +432,7 @@ class LinuxWriter(BufferedIOBase):
                 # Track all characters in translated buffer
                 translated.append(c)
 
-                if self.since_newline >= 4095:
+                if self.since_newline >= 2048:
                     # Flush read immediately to prevent truncation of line
                     translated.append(0x04)
                     self.since_newline = 0
@@ -463,21 +463,22 @@ class LinuxWriter(BufferedIOBase):
             self.detach()
             return
 
-        # The number of C-d's needed to trigger an EOF in
-        # the process and exit is inconsistent based on the
-        # previous input. So, instead of trying to be deterministic,
-        # we simply send one and check. We do this until we find
-        # the ending delimeter and then exit. If the `on_close`
-        # hook was setup properly, this should be fine.
-        while True:
-            try:
-                self.popen.stdin.write(b"\x04")
-                self.popen.stdin.flush()
-                # Check for completion
-                self.popen.wait(timeout=0.1)
-                break
-            except pwncat.subprocess.TimeoutExpired:
-                continue
+        # Trigger EOF in remote process
+        self.popen.platform.channel.send(b"\x04")
+        self.popen.platform.channel.send(b"\x04")
+        if self.since_newline != 0:
+            self.popen.platform.channel.send(b"\x04")
+            self.popen.platform.channel.send(b"\x04")
+
+        # Wait for the process to exit
+        try:
+            self.popen.wait()
+        except KeyboardInterrupt:
+            # We *should* wait for the process to send the return codes.
+            # however, if the user wants to stop this process, we should
+            # at least attempt to do whatever cleanup we can.
+            self.popen.kill()
+            self.popen.wait()
 
         # Ensure we don't touch stdio again
         self.detach()

@@ -45,17 +45,6 @@ class Command(CommandDefinition):
 
         if not args.destination:
             args.destination = f"./{os.path.basename(args.source)}"
-        # else:
-        #     access = pwncat.victim.access(args.destination)
-        #     if Access.DIRECTORY in access:
-        #         args.destination = os.path.join(
-        #             args.destination, os.path.basename(args.source)
-        #         )
-        #     elif Access.PARENT_EXIST not in access:
-        #         console.log(
-        #             f"[cyan]{args.destination}[/cyan]: no such file or directory"
-        #         )
-        #         return
 
         try:
             length = os.path.getsize(args.source)
