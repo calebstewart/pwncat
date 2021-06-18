@@ -1249,7 +1249,7 @@ class Linux(Platform):
                 except MissingBinary:
                     pass
             else:
-                raise PlatformError("no available gtfobins writiers")
+                raise PlatformError("no available gtfobins writers")
 
             popen = self.Popen(
                 payload,
@@ -1278,7 +1278,7 @@ class Linux(Platform):
                 except MissingBinary:
                     pass
             else:
-                raise PlatformError("no available gtfobins writiers")
+                raise PlatformError("no available gtfobins writers")
 
             popen = self.Popen(
                 payload,
