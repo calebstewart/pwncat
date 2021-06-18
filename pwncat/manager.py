@@ -590,12 +590,9 @@ class Manager:
                             data = target.platform.channel.recv(4096)
 
                             if data != b"" and data is not None:
-                                try:
-                                    data = target.platform.process_output(data)
-                                    sys.stdout.buffer.write(data)
-                                    sys.stdout.buffer.flush()
-                                except RawModeExit:
-                                    interactive_complete.set()
+                                data = target.platform.process_output(data)
+                                sys.stdout.buffer.write(data)
+                                sys.stdout.buffer.flush()
                             else:
                                 interactive_complete.wait(timeout=0.1)
 
@@ -604,6 +601,9 @@ class Manager:
                             interactive_complete.set()
                             # This is a hack to get the interactive loop out of a blocking
                             # read call. The interactive loop will receive a KeyboardInterrupt
+                            os.kill(os.getpid(), signal.SIGINT)
+                        except RawModeExit:
+                            interactive_complete.set()
                             os.kill(os.getpid(), signal.SIGINT)
 
                 try:
