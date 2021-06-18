@@ -14,6 +14,9 @@ and simply didn't have the time to go back and retroactively create one.
 ### Changed
 - Changed session tracking so session IDs aren't reused
 - Changed zsh prompt to match CWD of other shell prompts
+- Changed LinuxWriter close routine again to account for needed EOF signals ([#140](https://github.com/calebstewart/pwncat/issues/140))
+### Added
+- Added better file io test cases
 
 ## [0.4.2] - 2021-06-15
 Quick patch release due to corrected bug in `ChannelFile` which caused command
