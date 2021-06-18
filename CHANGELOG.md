@@ -11,11 +11,15 @@ and simply didn't have the time to go back and retroactively create one.
 ### Fixed
 - Pinned container base image to alpine 3.13.5 and installed to virtualenv ([#134](https://github.com/calebstewart/pwncat/issues/134))
 - Fixed syntax for f-strings in escalation command
+- Re-added `readline` import for windows platform after being accidentally removed
 ### Changed
 - Changed session tracking so session IDs aren't reused
 - Changed zsh prompt to match CWD of other shell prompts
 - Improved exception handling throughout framework ([#133](https://github.com/calebstewart/pwncat/issues/133))
 - Added explicit permission checks when opening files
+- Changed LinuxWriter close routine again to account for needed EOF signals ([#140](https://github.com/calebstewart/pwncat/issues/140))
+### Added
+- Added better file io test cases
 
 ## [0.4.2] - 2021-06-15
 Quick patch release due to corrected bug in `ChannelFile` which caused command
