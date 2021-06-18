@@ -14,7 +14,7 @@ and simply didn't have the time to go back and retroactively create one.
 ### Changed
 - Changed session tracking so session IDs aren't reused
 - Changed zsh prompt to match CWD of other shell prompts
-- Improved exception handling in `Manager.interactive` ([#133](https://github.com/calebstewart/pwncat/issues/133))
+- Improved exception handling throughout framework ([#133](https://github.com/calebstewart/pwncat/issues/133))
 - Added explicit permission checks when opening files
 
 ## [0.4.2] - 2021-06-15
