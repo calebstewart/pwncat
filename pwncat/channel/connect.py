@@ -42,6 +42,9 @@ class Connect(Socket):
             # then we capture the GAI (getaddrinfo) exception and raise it as ChannelError
             # so that it is handled properly by the parent methods
 
+            # We also try to catch ConnectionRefusedError after it
+            # this is caused when a wrong port number is used
+
             try:
                 client = socket.create_connection((host, port))
             except socket.gaierror:
