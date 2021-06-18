@@ -26,6 +26,7 @@ import hashlib
 import pathlib
 import tarfile
 import binascii
+import readline  # noqa: F401
 import functools
 import threading
 import subprocess
