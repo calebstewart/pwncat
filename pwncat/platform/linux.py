@@ -710,7 +710,7 @@ class Linux(Platform):
                 )
                 hostname = result.stdout.strip()
             except CalledProcessError:
-                hostname = self.channel.getpeername()[0]
+                hostname = self.channel.host
 
             try:
                 self.session.update_task(
