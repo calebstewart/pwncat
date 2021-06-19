@@ -19,12 +19,11 @@ with pwncat.manager.Manager("data/pwncatrc") as manager:
     # session = manager.create_session("windows", host="192.168.56.10", port=4444)
     # session = manager.create_session("windows", host="192.168.122.11", port=4444)
     # session = manager.create_session("linux", host="pwncat-ubuntu", port=4444)
-    session = manager.create_session("linux", host="127.0.0.1", port=4444)
+    # session = manager.create_session("linux", host="127.0.0.1", port=4444)
+    session = manager.create_session(
+        "linux", certfile="/tmp/cert.pem", keyfile="/tmp/cert.pem", port=4444
+    )
 
     # session.platform.powershell("amsiutils")
-
-    with open("/tmp/random", "rb") as source:
-        with session.platform.open("/tmp/random", "wb") as destination:
-            shutil.copyfileobj(source, destination)
 
     manager.interactive()

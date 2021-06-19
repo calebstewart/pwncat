@@ -15,6 +15,7 @@ utilize this class to instantiate a session via an established socket.
         manager.interactive()
 """
 import os
+import ssl
 import errno
 import fcntl
 import socket
@@ -47,6 +48,9 @@ class Socket(Channel):
     """
 
     def __init__(self, client: socket.socket = None, **kwargs):
+
+        if isinstance(client, str):
+            raise ChannelError(self, f"expected socket object not {repr(type(client))}")
 
         if client is not None:
             # Report host and port number to base channel
@@ -91,9 +95,12 @@ class Socket(Channel):
             while written < len(data):
                 try:
                     written += self.client.send(data[written:])
-                except BlockingIOError:
+                except (BlockingIOError, ssl.SSLWantWriteError, ssl.SSLWantReadError):
                     pass
         except BrokenPipeError as exc:
+            self._connected = False
+            raise ChannelClosed(self) from exc
+        except (ssl.SSLEOFError, ssl.SSLSyscallError, ssl.SSLZeroReturnError) as exc:
             self._connected = False
             raise ChannelClosed(self) from exc
 
@@ -124,6 +131,11 @@ class Socket(Channel):
         try:
             data = data + self.client.recv(count)
             return data
+        except ssl.SSLWantReadError:
+            return data
+        except (ssl.SSLEOFError, ssl.SSLSyscallError, ssl.SSLZeroReturnError) as exc:
+            self._connected = False
+            raise ChannelClosed(self) from exc
         except socket.error as exc:
             if exc.args[0] == errno.EAGAIN or exc.args[0] == errno.EWOULDBLOCK:
                 return data
