@@ -22,7 +22,7 @@ import socket
 import functools
 from typing import Optional
 
-from pwncat.channel import Channel, ChannelClosed
+from pwncat.channel import Channel, ChannelError, ChannelClosed
 
 
 def connect_required(method):
