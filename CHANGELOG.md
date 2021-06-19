@@ -13,6 +13,7 @@ and simply didn't have the time to go back and retroactively create one.
 - Added `ncat`-style ssl arguments to entrypoint and `connect` command
 - Added query-string arguments to connection strings for both the entrypoint
   and the `connect` command.
+- Added Enumeration States to allow session-bound enumerations
 
 ## [0.4.3] - 2021-06-18
 Patch fix release. Major fixes are the correction of file IO for LinuxWriters and

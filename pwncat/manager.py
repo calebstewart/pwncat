@@ -41,6 +41,7 @@ from pwncat.target import Target
 from pwncat.channel import Channel, ChannelError, ChannelClosed
 from pwncat.commands import CommandParser
 from pwncat.platform import Platform, PlatformError
+from pwncat.modules.enumerate import Scope
 
 
 class InteractiveExit(Exception):
@@ -68,6 +69,8 @@ class Session:
         self.module_depth = 0
         self.showing_progress = True
         self.layers = []
+        self.enumerate_state = {}
+        self.facts = []
 
         self._progress = None
 
@@ -170,15 +173,23 @@ class Session:
             if members is None or any(m in group.members for m in members):
                 yield group
 
-    def register_fact(self, fact: "pwncat.db.Fact"):
+    def register_fact(
+        self,
+        fact: "pwncat.db.Fact",
+        scope: Scope = Scope.HOST,
+        commit: bool = False,
+    ):
         """Register a fact with this session's target. This is useful when
         a fact is generated during execution of a command or module, but is
         not associated with a specific enumeration module. It can still be
         queried with the base `enumerate` module by it's type."""
 
-        if fact not in self.target.facts:
+        if scope is Scope.HOST and fact not in self.target.facts:
             self.target.facts.append(fact)
-            self.db.transaction_manager.commit()
+            if commit:
+                self.db.transaction_manager.commit()
+        elif scope is Scope.SESSION and fact not in self.facts:
+            self.facts.append(fact)
 
     def run(self, module: str, **kwargs):
         """Run a module on this session"""

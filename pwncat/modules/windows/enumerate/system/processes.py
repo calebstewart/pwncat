@@ -7,7 +7,7 @@ import rich.markup
 from pwncat.db import Fact
 from pwncat.modules import Status, ModuleFailed
 from pwncat.platform.windows import Windows, PowershellError
-from pwncat.modules.enumerate import Schedule, EnumerateModule
+from pwncat.modules.enumerate import Scope, Schedule, EnumerateModule
 
 
 class ProcessData(Fact):
@@ -112,7 +112,8 @@ class Module(EnumerateModule):
     PROVIDES = ["system.processes"]
     PLATFORM = [Windows]
     # We don't save process results. They're volatile. Maybe this should be `Schedule.ALWAYS` anyway though? :shrug:
-    SCHEDULE = Schedule.NOSAVE
+    SCHEDULE = Schedule.ALWAYS
+    SCOPE = Scope.NONE
 
     def enumerate(self, session):
 
