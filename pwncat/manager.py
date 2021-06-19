@@ -15,15 +15,18 @@ even if there was an uncaught exception. The normal method of creating a manager
 
 """
 import os
+import ssl
 import sys
 import queue
 import signal
+import socket
 import fnmatch
 import pkgutil
 import threading
 import contextlib
 from io import TextIOWrapper
-from typing import Dict, List, Union, Optional
+from enum import Enum, auto
+from typing import Dict, List, Tuple, Union, Callable, Optional, Generator
 
 import ZODB
 import zodburi
@@ -46,6 +49,123 @@ from pwncat.modules.enumerate import Scope
 
 class InteractiveExit(Exception):
     """Indicates we should exit the interactive terminal"""
+
+
+class ListenerError(Exception):
+    """Raised by utility functions within the listener class.
+    This is never raised in the main thread, and is only used
+    to consolidate errors from various socket and ssl libraries
+    when setting up and operating the listener."""
+
+
+class ListenerState(Enum):
+    """Background listener state"""
+
+    STOPPED = auto()
+    """ The listener is not started """
+    RUNNING = auto()
+    """ The listener is running """
+    FAILED = auto()
+    """ The listener encountered an exception and is in a failed state """
+
+
+class Listener(threading.Thread):
+    """Background Listener which acts a factory constructing sessions
+    in the background. Listeners should not be created directly. Rather,
+    you should use the ``Manager.create_listener`` method.
+    """
+
+    def __init__(
+        self,
+        manager: "Manager",
+        address: Tuple[str, int],
+        platform: Optional[str],
+        count: Optional[int] = None,
+        established: Optional[Callable[["Session"], bool]] = None,
+        ssl: bool = False,
+        ssl_cert: Optional[str] = None,
+        ssl_key: Optional[str] = None,
+    ):
+        super().__init__(daemon=True)
+
+        self.manager: "Manager" = manager
+        """ The controlling manager object """
+        self.address: Tuple[str, int] = address
+        """ The address to bind our listener to on the attacking machine """
+        self.platform: Optional[str] = platform
+        """ The platform to use when automatically establishing sessions """
+        self.count: Optional[int] = count
+        """ The number of connections to receive before exiting """
+        self.established: Optional[Callable[["Session"], bool]] = established
+        """ A callback used when a new session is established """
+        self.ssl: bool = ssl
+        """ Whether to wrap the listener in SSL """
+        self.ssl_cert: Optional[str] = ssl_cert
+        """ The SSL server certificate """
+        self.ssl_key: Optional[str] = ssl_key
+        """ The SSL server key """
+        self.state: ListenerState = ListenerState.STOPPED
+        self._stop_event: threading.Event = threading.Event()
+        """ An event used to signal the listener to stop """
+        self._session_queue: queue.Queue = queue.Queue()
+        """ Queue of newly established sessions. If this queue fills up, it is drained automatically. """
+        self._channel_queue: queue.Queue = queue.Queue()
+        """ Queue of channels waiting to be initialized in the case of an unidentified platform """
+
+    def iter_sessions(count: Optional[int] = None) -> Generator["Session", None, None]:
+        """
+        Synchronously iterate over new sessions. This generated will
+        yield sessions until no more sessions are found on the queue.
+        However, more sessions may be added after iterator (or while
+        iterating) over this generator. Reaching the end of this list
+        when count=None does not indicate that the listener has stopped.
+
+        :param count: the number of sessions to retreive or None for infinite
+        :type count: Optional[int]
+        :rtype: Generator[Session, None, None]
+        """
+
+    def iter_channels(count: Optional[int] = None) -> Generator["Channel", None, None]:
+        """
+        Synchronously iterate over new channels. This generated will
+        yield channels until no more channels are found on the queue.
+        However, more channels may be added after iterator (or while
+        iterating) over this generator. Reaching the end of this list
+        when count=None does not indicate that the listener has stopped.
+
+        :param count: number of channels to receive or None for infinite
+        :type count: Optional[int]
+        :rtype: Generator[Channel, None, None]
+        """
+
+    def _open_socket(self) -> socket.socket:
+        """Open the raw socket listener and return the new socket object"""
+
+    def _ssl_wrap(self, server: socket.socket) -> ssl.SSLSocket:
+        """Wrap the given server socket in an SSL context and return the new socket.
+        If the ``ssl`` option is not set, this method simply returns the original socket."""
+
+    def run(self):
+        """Execute the listener in the background. We have to be careful not
+        to trip up the manager, as this is running in a background thread."""
+
+        try:
+
+            # Start the listener and wrap in the SSL context
+            raw_server = self._open_socket()
+            server = self._ssl_wrap(raw_server)
+
+            # Set a short timeout so we don't block the thread
+            server.settimeout(0.1)
+
+            while not self._stop_event.is_set():
+                try:
+                    client = server.accept()
+                except socket.timeout:
+                    continue
+
+        finally:
+            pass
 
 
 class Session:
