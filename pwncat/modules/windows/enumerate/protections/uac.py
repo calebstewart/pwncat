@@ -102,7 +102,7 @@ class Module(EnumerateModule):
         for registry_value, registry_type in registry_values.items():
             try:
                 result = session.platform.powershell(
-                    f"Get-ItemPropertyValue {registry_key} -Name {registry_value}"
+                    f"Get-ItemPropertyValue '{registry_key}' -Name '{registry_value}'"
                 )
 
                 if not result:
@@ -120,4 +120,4 @@ class Module(EnumerateModule):
                         f"could not retrieve registry value {registry_value}: {exc}"
                     ) from exc
 
-            yield UACData(self.name, registry_values)
+        yield UACData(self.name, registry_values)
