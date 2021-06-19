@@ -8,6 +8,12 @@ from pwncat.platform.windows import Windows, PowershellError
 from pwncat.modules.enumerate import EnumerateModule
 
 
+"""
+TODO: This cooooould be improved by testing if the path actually exists,
+      and using Measure-Object to get the number of lines the history contains?
+"""
+
+
 class PowerShellHistory(Fact):
     def __init__(self, source, path: str):
         super().__init__(source=source, types=["powershell.history"])
