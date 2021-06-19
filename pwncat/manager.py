@@ -16,6 +16,8 @@ even if there was an uncaught exception. The normal method of creating a manager
 """
 import os
 import sys
+import queue
+import signal
 import fnmatch
 import pkgutil
 import threading
@@ -36,9 +38,9 @@ import pwncat.modules.enumerate
 from pwncat.util import RawModeExit, console
 from pwncat.config import Config
 from pwncat.target import Target
-from pwncat.channel import Channel, ChannelClosed
+from pwncat.channel import Channel, ChannelError, ChannelClosed
 from pwncat.commands import CommandParser
-from pwncat.platform import Platform
+from pwncat.platform import Platform, PlatformError
 
 
 class InteractiveExit(Exception):
@@ -319,9 +321,13 @@ class Session:
         while self.layers:
             self.layers.pop()(self)
 
-        self.platform.exit()
-
-        self.platform.channel.close()
+        try:
+            self.platform.exit()
+            self.platform.channel.close()
+        except (PlatformError, ChannelError) as exc:
+            self.log(
+                f"[yellow]warning[/yellow]: unexpected exception while closing: {exc}"
+            )
 
         self.died()
 
@@ -551,81 +557,107 @@ class Manager:
 
         while self.interactive_running:
 
-            # This is it's own main loop that will continue until
-            # it catches a C-d sequence.
             try:
-                self.parser.run()
-            except InteractiveExit:
 
-                if self.sessions and not confirm(
-                    "There are active sessions. Are you sure?"
-                ):
+                # This is it's own main loop that will continue until
+                # it catches a C-d sequence.
+                try:
+                    self.parser.run()
+                except InteractiveExit:
+
+                    if self.sessions and not confirm(
+                        "There are active sessions. Are you sure?"
+                    ):
+                        continue
+
+                    self.log("closing interactive prompt")
+                    break
+
+                # We can't enter raw mode without a session
+                if self.target is None:
+                    self.log("no active session, returning to local prompt")
                     continue
 
-                self.log("closing interactive prompt")
-                break
+                interactive_complete = threading.Event()
+                output_thread = None
 
-            # We can't enter raw mode without a session
-            if self.target is None:
-                self.log("no active session, returning to local prompt")
-                continue
+                def output_thread_main(
+                    target: Session, exception_queue: queue.SimpleQueue
+                ):
 
-            self.target.platform.interactive = True
-
-            interactive_complete = threading.Event()
-
-            def output_thread_main():
-
-                while not interactive_complete.is_set():
-
-                    data = self.target.platform.channel.recv(4096)
-
-                    if data != b"" and data is not None:
+                    while not interactive_complete.is_set():
                         try:
-                            data = self.target.platform.process_output(data)
-                            sys.stdout.buffer.write(data)
-                            sys.stdout.buffer.flush()
+                            data = target.platform.channel.recv(4096)
+
+                            if data != b"" and data is not None:
+                                data = target.platform.process_output(data)
+                                sys.stdout.buffer.write(data)
+                                sys.stdout.buffer.flush()
+                            else:
+                                interactive_complete.wait(timeout=0.1)
+
+                        except ChannelError as exc:
+                            exception_queue.put(exc)
+                            interactive_complete.set()
+                            # This is a hack to get the interactive loop out of a blocking
+                            # read call. The interactive loop will receive a KeyboardInterrupt
+                            os.kill(os.getpid(), signal.SIGINT)
                         except RawModeExit:
                             interactive_complete.set()
-                    else:
-                        interactive_complete.wait(timeout=0.1)
+                            os.kill(os.getpid(), signal.SIGINT)
 
-            output_thread = threading.Thread(target=output_thread_main)
-            output_thread.start()
+                try:
+                    self.target.platform.interactive = True
 
-            channel_closed = False
+                    exception_queue = queue.Queue(maxsize=1)
+                    output_thread = threading.Thread(
+                        target=output_thread_main, args=[self.target, exception_queue]
+                    )
+                    output_thread.start()
 
-            try:
-                self.target.platform.interactive_loop(interactive_complete)
-            except RawModeExit:
-                pass
-            except ChannelClosed:
-                channel_closed = True
-                self.log(
-                    f"[yellow]warning[/yellow]: {self.target.platform}: connection reset"
-                )
-            except Exception:
+                    try:
+                        self.target.platform.interactive_loop(interactive_complete)
+                    except RawModeExit:
+                        pass
+
+                    try:
+                        raise exception_queue.get(block=False)
+                    except queue.Empty:
+                        pass
+
+                    self.target.platform.interactive = False
+                except ChannelClosed:
+                    self.log(
+                        f"[yellow]warning[/yellow]: {self.target.platform}: connection reset"
+                    )
+                    self.target.died()
+                finally:
+                    interactive_complete.set()
+                    if output_thread is not None:
+                        output_thread.join()
+                        output_thread.join()
+            except:  # noqa: E722
+                # We don't want to die because of an uncaught exception, but
+                # at least let the user know something happened. This should
+                # probably be configurable somewhere.
                 pwncat.util.console.print_exception()
 
-            # Trigger thread to exit
-            interactive_complete.set()
-            output_thread.join()
-
-            # Exit interactive mode
-            if channel_closed:
-                self.target.died()
-            else:
-                self.target.platform.interactive = False
-
     def create_session(self, platform: str, channel: Channel = None, **kwargs):
-        """
-        Open a new session from a new or existing platform. If the platform
-        is a string, a new platform is created using ``create_platform`` and
-        a session is built around the platform. In that case, the arguments
-        are the same as for ``create_platform``.
+        r"""
+        Create a new session from a new or existing channel. The platform specified
+        should be the name registered name (e.g. ``linux``) of a platform class. If
+        no existing channel is provided, the keyword arguments are used to construct
+        a new channel.
 
-        A new Session object is returned which contains the created or
-        specified platform.
+        :param platform: name of the platform to use
+        :type platform: str
+        :param channel: A pre-constructed channel (default: None)
+        :type channel: Optional[Channel]
+        :param \*\*kwargs: keyword arguments for constructing a new channel
+        :rtype: Session
+        :raises:
+            ChannelError: there was an error while constructing the new channel
+            PlatformError: construction of a platform around the channel failed
         """
 
         session = Session(self, platform, channel, **kwargs)
@@ -637,6 +669,21 @@ class Manager:
         self.session_id += 1
 
         return session
+
+    def find_session_by_channel(self, channel: Channel):
+        """
+        Locate a session by it's channel object. This is mainly used when a ChannelError
+        is raised in order to locate the misbehaving session object from the exception
+        data.
+
+        :param channel: the channel you are looking for
+        :type channel: Channel
+        :rtype: Session
+        """
+
+        for session in self.sessions.values():
+            if session.platform.channel is channel:
+                return session
 
     def _process_input(self, data: bytes, has_prefix: bool):
         """Process stdin data from the user in raw mode"""

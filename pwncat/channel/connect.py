@@ -43,7 +43,20 @@ class Connect(Socket):
         ) as progress:
             progress.add_task("connecting", total=1, start=False)
             # Connect to the remote host
-            client = socket.create_connection((host, port))
+
+            # If we get an invalid host from the user, that cannot be resolved
+            # then we capture the GAI (getaddrinfo) exception and raise it as ChannelError
+            # so that it is handled properly by the parent methods
+
+            # We also try to catch ConnectionRefusedError after it
+            # this is caused when a wrong port number is used
+
+            try:
+                client = socket.create_connection((host, port))
+            except socket.gaierror:
+                raise ChannelError(self, "invalid host provided")
+            except ConnectionRefusedError:
+                raise ChannelError(self, "connection refused, check your port")
 
             progress.log(
                 f"connection to "

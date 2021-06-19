@@ -49,7 +49,7 @@ class Ssh(Channel):
             # Connect to the remote host's ssh server
             sock = socket.create_connection((host, port))
         except Exception as exc:
-            raise ChannelError(str(exc))
+            raise ChannelError(self, str(exc))
 
         # Create a paramiko SSH transport layer around the socket
         t = paramiko.Transport(sock)

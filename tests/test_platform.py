@@ -10,27 +10,8 @@ from pwncat.util import random_string
 from pwncat.platform.windows import PowershellError
 
 
-def test_platform_file_io(session):
-    """ Test file read/write of printable data """
-
-    # Generate random binary data
-    contents = os.urandom(1024)
-
-    # Create a new temporary file
-    with session.platform.tempfile(mode="wb") as filp:
-        filp.write(contents)
-        path = filp.name
-
-    # Ensure it exists
-    assert session.platform.Path(path).exists()
-
-    # Read the data back and ensure it matches
-    with session.platform.open(path, "rb") as filp:
-        assert contents == filp.read()
-
-
 def test_platform_dir_io(session):
-    """ Test creating a directory and interacting with the contents """
+    """Test creating a directory and interacting with the contents"""
 
     # Create a path object representing the new remote directory
     path = session.platform.Path(random_string())
@@ -61,7 +42,7 @@ def test_platform_run(session):
 
 
 def test_platform_su(session):
-    """ Test running `su` """
+    """Test running `su`"""
 
     try:
         session.platform.su("john", "P@ssw0rd")
@@ -77,7 +58,7 @@ def test_platform_su(session):
 
 
 def test_platform_sudo(session):
-    """ Testing running `sudo` """
+    """Testing running `sudo`"""
 
     try:
 
@@ -103,7 +84,7 @@ def test_platform_sudo(session):
 
 
 def test_windows_powershell(windows):
-    """ Test powershell execution """
+    """Test powershell execution"""
 
     # Run a real powershell snippet
     r = windows.platform.powershell("$PSVersionTable.PSVersion")
