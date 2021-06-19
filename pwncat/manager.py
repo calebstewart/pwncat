@@ -79,7 +79,8 @@ class Listener(threading.Thread):
         self,
         manager: "Manager",
         address: Tuple[str, int],
-        platform: Optional[str],
+        protocol: str = "socket",
+        platform: Optional[str] = None,
         count: Optional[int] = None,
         established: Optional[Callable[["Session"], bool]] = None,
         ssl: bool = False,
@@ -92,6 +93,8 @@ class Listener(threading.Thread):
         """ The controlling manager object """
         self.address: Tuple[str, int] = address
         """ The address to bind our listener to on the attacking machine """
+        self.protocol: str = protocol
+        """ Name of the channel protocol to use for incoming connections """
         self.platform: Optional[str] = platform
         """ The platform to use when automatically establishing sessions """
         self.count: Optional[int] = count
@@ -105,12 +108,16 @@ class Listener(threading.Thread):
         self.ssl_key: Optional[str] = ssl_key
         """ The SSL server key """
         self.state: ListenerState = ListenerState.STOPPED
+        """ The current state of the listener; only set internally """
+        self.failure_exception: Optional[Exception] = None
+        """ An exception which was caught and put the listener in ListenerState.FAILED state """
         self._stop_event: threading.Event = threading.Event()
         """ An event used to signal the listener to stop """
         self._session_queue: queue.Queue = queue.Queue()
         """ Queue of newly established sessions. If this queue fills up, it is drained automatically. """
         self._channel_queue: queue.Queue = queue.Queue()
         """ Queue of channels waiting to be initialized in the case of an unidentified platform """
+        self._session_lock: threading.Lock = threading.Lock()
 
     def iter_sessions(count: Optional[int] = None) -> Generator["Session", None, None]:
         """
@@ -125,6 +132,13 @@ class Listener(threading.Thread):
         :rtype: Generator[Session, None, None]
         """
 
+        while count:
+            try:
+                yield self._session_queue.get(block=False, timeout=None)
+                count -= 1
+            except queue.Empty:
+                return
+
     def iter_channels(count: Optional[int] = None) -> Generator["Channel", None, None]:
         """
         Synchronously iterate over new channels. This generated will
@@ -138,12 +152,90 @@ class Listener(threading.Thread):
         :rtype: Generator[Channel, None, None]
         """
 
-    def _open_socket(self) -> socket.socket:
-        """Open the raw socket listener and return the new socket object"""
+        while count:
+            try:
+                yield self._channel_queue.get(block=False, timeout=None)
+                count -= 1
+            except queue.Empty:
+                return
 
-    def _ssl_wrap(self, server: socket.socket) -> ssl.SSLSocket:
-        """Wrap the given server socket in an SSL context and return the new socket.
-        If the ``ssl`` option is not set, this method simply returns the original socket."""
+    def bootstrap_session(
+        self, channel: pwncat.channel.Channel, platform: str
+    ) -> "pwncat.manager.Session":
+        """
+        Establish a session from an existing channel using the specified platform.
+        If platform is None, then the given channel is placed onto the uninitialized
+        channel queue for later initialization.
+
+        :param channel: the channel to initialize
+        :type channel: pwncat.channel.Channel
+        :param platform: name of the platform to initialize
+        :type platform: Optional[str]
+        :rtype: pwncat.manager.Session
+        :raises:
+            ListenerError: incorrect platform or channel disconnected
+        """
+
+        with self._session_lock:
+
+            if self.count is not None and self.count <= 0:
+                raise ListenerError("listener max connections reached")
+
+            if platform is None:
+                # We can't initialize this channel, so we just throw it on the queue
+                self._channel_queue.put_nowait(channel)
+                return None
+
+            try:
+                session = self.manager.create_session(
+                    platform=platform, channel=channel
+                )
+
+                self.manager.log(
+                    f"[magenta]listener[/magenta]: [blue]{self.address[0]}[/blue]:[cyan]{self.address[1]}[/cyan]: {platform} session from {channel} established"
+                )
+
+                # Call established callback for session notification
+                if self.established is not None and not self.established(session):
+                    # The established callback can decide to ignore an established session
+                    session.close()
+                    return None
+
+                # Queue the session. This is an obnoxious loop, but
+                # basically, we attempt to queue the session, and if
+                # the queue is full, we remove a queued session, and
+                # retry. We keep doing this until it works. This is
+                # fine because the queue is just for notification
+                # purposes, and the sessions are already tracked by
+                # the manager.
+                while True:
+                    try:
+                        self._session_queue.put_nowait(session)
+                    except queue.Full:
+                        try:
+                            self._session_queue.get_nowait()
+                        except queue.Empty:
+                            pass
+
+                if self.count is not None:
+                    self.count -= 1
+                    if self.count <= 0:
+                        # Drain waiting channels
+                        self.manager.log(
+                            "[magenta]listener[/magenta]: [blue]{self.address[0]}[/blue]:[cyan]{self.address[0]}[/cyan]: max session count reached; shutting down"
+                        )
+                        self._stop_event.set()
+
+                return session
+            except (PlatformError, ChannelError) as exc:
+                raise ListenerError(str(exc)) from exc
+
+    def stop(self):
+        """Stop the listener"""
+
+        with self._session_lock:
+            self.count = 0
+            self._stop_event.set()
 
     def run(self):
         """Execute the listener in the background. We have to be careful not
@@ -158,14 +250,97 @@ class Listener(threading.Thread):
             # Set a short timeout so we don't block the thread
             server.settimeout(0.1)
 
+            self.state = ListenerState.RUNNING
+
             while not self._stop_event.is_set():
                 try:
-                    client = server.accept()
+                    # Accept a new client connection
+                    client, address = server.accept()
                 except socket.timeout:
+                    # No connection, loop and check if we've been stopped
                     continue
 
+                channel = None
+
+                try:
+                    # Construct a channel around the raw client
+                    channel = self._bootstrap_channel(client)
+
+                    # If we know the platform, create the session
+                    if self.platform is not None:
+                        self.bootstrap_session(channel, platform=self.platform)
+                except ListenerError as exc:
+                    # this connection didn't establish; log it
+                    self.manager.log(
+                        f"[magenta]listener[/magenta]: [blue]{self.address[0]}[/blue]:[cyan]{self.address[1]}[/cyan]: connection from [blue]{address[0]}[/blue]:[cyan]{address[1]}[/cyan] aborted: {exc}"
+                    )
+
+                    if channel is not None:
+                        channel.close()
+                    else:
+                        # Close the socket
+                        client.close()
+
+            self.state = ListenerState.STOPPED
+
+        except Exception as exc:
+            self.state = ListenerState.FAILED
+            self.failure_exception = exc
+            self._stop_event.set()
         finally:
-            pass
+            self._close_socket(raw_server, server)
+
+            if self.count is not None and self.count <= 0:
+                try:
+                    # Drain waiting channels
+                    while True:
+                        self._channel_queue.get_nowait().close()
+                except queue.Empty:
+                    pass
+
+    def _open_socket(self) -> socket.socket:
+        """Open the raw socket listener and return the new socket object"""
+
+        # Create a listener
+        try:
+            server = socket.create_server(
+                self.address, reuse_port=True, backlog=self.count
+            )
+
+            return server
+        except socket.error as exc:
+            raise ListenerError(str(exc))
+
+    def _ssl_wrap(self, server: socket.socket) -> ssl.SSLSocket:
+        """Wrap the given server socket in an SSL context and return the new socket.
+        If the ``ssl`` option is not set, this method simply returns the original socket."""
+
+        return server
+
+    def _close_socket(self, raw_server: socket.socket, server: socket.socket):
+        """Close the listener socket"""
+
+        if server is not raw_server and server is not None:
+            server.close()
+
+        if raw_server is not None:
+            raw_server.close()
+
+    def _bootstrap_channel(self, client: socket.socket) -> "pwncat.channel.Channel":
+        """
+        Create a channel with the listener parameters around the socket.
+
+        :param client: a newly established client socket
+        :type client: socket.socket
+        :rtype: pwncat.channel.Channel
+        """
+
+        try:
+            channel = pwncat.channel.create(protocol=self.protocol, client=client)
+        except ChannelError as exc:
+            raise ListenerError(str(exc))
+
+        return channel
 
 
 class Session:
@@ -179,6 +354,7 @@ class Session:
         manager,
         platform: Union[str, Platform],
         channel: Optional[Channel] = None,
+        active: bool = True,
         **kwargs,
     ):
         self.id = manager.session_id
@@ -214,7 +390,9 @@ class Session:
 
         # Register this session with the manager
         self.manager.sessions[self.id] = self
-        self.manager.target = self
+
+        if active or self.manager.target is None:
+            self.manager.target = self
 
         # Initialize the host reference
         self.hash = self.platform.get_host_hash()
@@ -488,6 +666,7 @@ class Manager:
         self.parser = CommandParser(self)
         self.interactive_running = False
         self.db: ZODB.DB = None
+        self.prompt_lock = threading.RLock()
 
         # This is needed because pwntools captures the terminal...
         # there's no way officially to undo it, so this is a nasty
@@ -772,6 +951,64 @@ class Manager:
                 # at least let the user know something happened. This should
                 # probably be configurable somewhere.
                 pwncat.util.console.print_exception()
+
+    def create_listener(
+        self,
+        protocol: str,
+        host: str,
+        port: int,
+        platform: Optional[str] = None,
+        ssl: bool = False,
+        ssl_cert: Optional[str] = None,
+        ssl_key: Optional[str] = None,
+        count: Optional[int] = None,
+        established: Optional[Callable[[Session], bool]] = None,
+    ) -> Listener:
+        """
+        Create and start a new background listener which will wait for connections from
+        victims and optionally automatically establish sessions. If no platform name is
+        provided, new ``Channel`` objects will be created and can be initialized by
+        iterating over them with ``listener.iter_channels`` and initialized with
+        ``listener.bootstrap_session``. If ``ssl`` is true, the socket will be wrapped in
+        an SSL context. The protocol is normally ``socket``, but can be any channel
+        protocol which supports a ``client`` parameter holding a socket object.
+
+        :param protocol: the name of the channel protocol to use (default: socket)
+        :type protocol: str
+        :param host: the host address on which to bind
+        :type host: str
+        :param port: the port on which to listen
+        :type port: int
+        :param platform: the platform to use when automatically establishing sessions or None
+        :type platform: Optional[str]
+        :param ssl: whether to wrap the listener in an SSL context (default: false)
+        :type ssl: bool
+        :param ssl_cert: the SSL PEM certificate path
+        :type ssl_cert: Optional[str]
+        :param ssl_key: the SSL PEM key path
+        :type ssl_key: Optional[str]
+        :param count: the number of sessions to establish before automatically stopping the listener
+        :type count: Optional[int]
+        :param established: a callback for when new sessions are established; returning false will
+                            immediately disconnect the new session.
+        :type established: Optional[Callback[[Session], bool]]
+        """
+
+        listener = Listener(
+            manager=self,
+            address=(host, port),
+            protocol=protocol,
+            platform=platform,
+            count=count,
+            established=established,
+            ssl=ssl,
+            ssl_cert=ssl_cert,
+            ssl_key=ssl_key,
+        )
+
+        listener.start()
+
+        return listener
 
     def create_session(self, platform: str, channel: Channel = None, **kwargs):
         r"""
