@@ -1,10 +1,92 @@
 """
 Windows-specific facts which are used in multiple places throughout the framework.
 """
-from typing import List, Optional
+from enum import IntFlag
+from typing import List, Callable, Optional
 from datetime import datetime
 
-from pwncat.facts import User, Group
+import pwncat
+from pwncat.facts import Fact, User, Group, ExecuteAbility
+from pwncat.modules import ModuleFailed
+from pwncat.platform import PlatformError
+
+
+class LuidAttribute(IntFlag):
+    DISABLED = 0x00000000
+    SE_PRIVILEGE_ENABLED_BY_DEFAULT = 0x00000001
+    SE_PRIVILEGE_ENABLED = 0x00000002
+    SE_PRIVILEGE_REMOVED = 0x00000004
+    SE_PRIVILEGE_USED_FOR_ACCESS = 0x80000000
+
+
+class ProcessTokenPrivilege(Fact):
+    """Describes a specific privilege"""
+
+    def __init__(self, source: str, name: str, attributes: int, handle: int, pid: int):
+        super().__init__(source=source, types=["token.privilege"])
+
+        self.name = name
+        self.attributes = LuidAttribute(attributes)
+        self.handle = handle
+        self.pid = pid
+
+    def title(self, session: "pwncat.manager.Session"):
+        attributes = str(self.attributes).removeprefix("LuidAttribute.").split("|")
+
+        for i in range(len(attributes)):
+            if attributes[i] == "DISABLED":
+                attributes[i] = "[red]DISABLED[/red]"
+            else:
+                attributes[i] = f"[blue]{attributes[i]}[/blue]"
+
+        return f"[cyan]{self.name}[/cyan] => {'|'.join(attributes)}"
+
+
+class UserToken(ExecuteAbility):
+    def __init__(self, source: str, uid: str, token: int):
+        super().__init__(source=source, source_uid=None, uid=uid)
+        self.types.append("token")
+
+        self.token = token
+
+    def can_impersonate(self, session: "pwncat.manager.Session"):
+        """Test if the current session can impersonate tokens"""
+
+        for priv in session.run("enumerate", types=["token.privilege"]):
+            if (
+                priv.name == "SeImpersonatePrivilege"
+                and LuidAttribute.SE_PRIVILEGE_ENABLED in priv.attributes
+            ):
+                return True
+
+        return False
+
+    def title(self, session: "pwncat.manager.Session"):
+
+        user = session.find_user(uid=self.uid)
+        if user is None:
+            user_name = f"SID({repr(self.uid)})"
+        else:
+            user_name = user.name
+
+        if self.can_impersonate(session):
+            return f"[red]Impersonatable[/red] [blue]{user_name}[/blue] Token: {self.token}"
+        return f"[blue]{user_name}[/blue] Token: {self.token}"
+
+    def shell(
+        self, session: "pwncat.manager.Session"
+    ) -> Callable[["pwncat.manager.Session"], None]:
+        """Execute a new shell as the specified user. In this case, just impersonate the user."""
+
+        if not self.can_impersonate(session):
+            raise ModuleFailed("impersonate privilege not enabled")
+
+        try:
+            session.platform.impersonate(self.token)
+        except PlatformError as exc:
+            raise ModuleFailed(f"failed to impersonate token: {exc}")
+
+        return lambda session: session.platform.revert_to_self()
 
 
 class WindowsUser(User):

@@ -14,6 +14,7 @@ and simply didn't have the time to go back and retroactively create one.
 - Added query-string arguments to connection strings for both the entrypoint
   and the `connect` command.
 - Added Enumeration States to allow session-bound enumerations
+- Added Windows privilege escalation via BadPotato plugin ([#106](https://github.com/calebstewart/pwncat/issues/106))
 
 ## [0.4.3] - 2021-06-18
 Patch fix release. Major fixes are the correction of file IO for LinuxWriters and
