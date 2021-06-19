@@ -793,9 +793,14 @@ class CommandLexer(RegexLexer):
         """Build the RegexLexer token list from the command definitions"""
 
         root = []
-        for command in commands:
+        sorted_commands = sorted(commands, key=lambda cmd: len(cmd.PROG), reverse=True)
+        for command in sorted_commands:
             root.append(
-                ("^" + re.escape(command.PROG), token.Name.Function, command.PROG)
+                (
+                    "^" + re.escape(command.PROG) + "( |$)",
+                    token.Name.Function,
+                    command.PROG,
+                )
             )
             mode = []
             if command.ARGS is not None:

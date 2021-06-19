@@ -29,5 +29,6 @@ with pwncat.manager.Manager("data/pwncatrc") as manager:
     listener = manager.create_listener(
         protocol="socket", host="0.0.0.0", port=4444, platform="windows"
     )
+    listener = manager.create_listener(protocol="socket", host="0.0.0.0", port=9999)
 
     manager.interactive()

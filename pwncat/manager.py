@@ -22,6 +22,8 @@ import signal
 import socket
 import fnmatch
 import pkgutil
+import datetime
+import tempfile
 import threading
 import contextlib
 from io import TextIOWrapper
@@ -32,7 +34,11 @@ import ZODB
 import zodburi
 import rich.progress
 import persistent.list
+from cryptography import x509
+from cryptography.x509.oid import NameOID
 from prompt_toolkit.shortcuts import confirm
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 
 import pwncat.db
 import pwncat.facts
@@ -119,7 +125,18 @@ class Listener(threading.Thread):
         """ Queue of channels waiting to be initialized in the case of an unidentified platform """
         self._session_lock: threading.Lock = threading.Lock()
 
-    def iter_sessions(count: Optional[int] = None) -> Generator["Session", None, None]:
+    def __str__(self):
+        return f"[blue]{self.address[0]}[/blue]:[cyan]{self.address[1]}[/cyan]"
+
+    @property
+    def pending(self) -> int:
+        """Retrieve the number of pending channels"""
+
+        return self._channel_queue.qsize()
+
+    def iter_sessions(
+        self, count: Optional[int] = None
+    ) -> Generator["Session", None, None]:
         """
         Synchronously iterate over new sessions. This generated will
         yield sessions until no more sessions are found on the queue.
@@ -132,14 +149,20 @@ class Listener(threading.Thread):
         :rtype: Generator[Session, None, None]
         """
 
-        while count:
+        while True:
+            if count is not None and count <= 0:
+                break
+
             try:
                 yield self._session_queue.get(block=False, timeout=None)
-                count -= 1
+                if count is not None:
+                    count -= 1
             except queue.Empty:
                 return
 
-    def iter_channels(count: Optional[int] = None) -> Generator["Channel", None, None]:
+    def iter_channels(
+        self, count: Optional[int] = None
+    ) -> Generator["Channel", None, None]:
         """
         Synchronously iterate over new channels. This generated will
         yield channels until no more channels are found on the queue.
@@ -152,10 +175,14 @@ class Listener(threading.Thread):
         :rtype: Generator[Channel, None, None]
         """
 
-        while count:
+        while True:
+            if count is not None and count <= 0:
+                break
+
             try:
                 yield self._channel_queue.get(block=False, timeout=None)
-                count -= 1
+                if count is not None:
+                    count -= 1
             except queue.Empty:
                 return
 
@@ -211,6 +238,7 @@ class Listener(threading.Thread):
                 while True:
                     try:
                         self._session_queue.put_nowait(session)
+                        break
                     except queue.Full:
                         try:
                             self._session_queue.get_nowait()
@@ -237,6 +265,8 @@ class Listener(threading.Thread):
             self.count = 0
             self._stop_event.set()
 
+        self.join()
+
     def run(self):
         """Execute the listener in the background. We have to be careful not
         to trip up the manager, as this is running in a background thread."""
@@ -248,7 +278,7 @@ class Listener(threading.Thread):
             server = self._ssl_wrap(raw_server)
 
             # Set a short timeout so we don't block the thread
-            server.settimeout(0.1)
+            server.settimeout(1)
 
             self.state = ListenerState.RUNNING
 
@@ -267,8 +297,7 @@ class Listener(threading.Thread):
                     channel = self._bootstrap_channel(client)
 
                     # If we know the platform, create the session
-                    if self.platform is not None:
-                        self.bootstrap_session(channel, platform=self.platform)
+                    self.bootstrap_session(channel, platform=self.platform)
                 except ListenerError as exc:
                     # this connection didn't establish; log it
                     self.manager.log(
@@ -315,7 +344,71 @@ class Listener(threading.Thread):
         """Wrap the given server socket in an SSL context and return the new socket.
         If the ``ssl`` option is not set, this method simply returns the original socket."""
 
-        return server
+        if not self.ssl:
+            return server
+
+        if self.ssl_cert is None and self.ssl_key is not None:
+            self.ssl_cert = self.ssl_key
+        if self.ssl_key is None and self.ssl_cert is not None:
+            self.ssl_key = self.ssl_cert
+
+        if self.ssl_cert is None or self.ssl_key is None:
+            with tempfile.NamedTemporaryFile("wb", delete=False) as filp:
+                self.manager.log(
+                    f"generating self-signed certificate at {repr(filp.name)}"
+                )
+
+                key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+                filp.write(
+                    key.private_bytes(
+                        encoding=serialization.Encoding.PEM,
+                        format=serialization.PrivateFormat.TraditionalOpenSSL,
+                        encryption_algorithm=serialization.NoEncryption(),
+                    )
+                )
+
+                # Literally taken from: https://cryptography.io/en/latest/x509/tutorial/
+                subject = issuer = x509.Name(
+                    [
+                        x509.NameAttribute(NameOID.COUNTRY_NAME, "US"),
+                        x509.NameAttribute(NameOID.COUNTRY_NAME, "US"),
+                        x509.NameAttribute(
+                            NameOID.STATE_OR_PROVINCE_NAME, "California"
+                        ),
+                        x509.NameAttribute(NameOID.LOCALITY_NAME, "San Francisco"),
+                        x509.NameAttribute(NameOID.ORGANIZATION_NAME, "My Company"),
+                        x509.NameAttribute(NameOID.COMMON_NAME, "mysite.com"),
+                    ]
+                )
+                cert = (
+                    x509.CertificateBuilder()
+                    .subject_name(subject)
+                    .issuer_name(issuer)
+                    .public_key(key.public_key())
+                    .serial_number(x509.random_serial_number())
+                    .not_valid_before(datetime.datetime.utcnow())
+                    .not_valid_after(
+                        datetime.datetime.utcnow() + datetime.timedelta(days=365)
+                    )
+                    .add_extension(
+                        x509.SubjectAlternativeName([x509.DNSName("localhost")]),
+                        critical=False,
+                    )
+                    .sign(key, hashes.SHA256())
+                )
+
+                filp.write(cert.public_bytes(serialization.Encoding.PEM))
+
+                self.ssl_cert = filp.name
+                self.ssl_key = filp.name
+
+        try:
+            context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            context.load_cert_chain(self.ssl_cert, self.ssl_key)
+
+            return context.wrap_socket(server)
+        except ssl.SSLError as exc:
+            raise ListenerError(str(exc))
 
     def _close_socket(self, raw_server: socket.socket, server: socket.socket):
         """Close the listener socket"""
@@ -666,7 +759,7 @@ class Manager:
         self.parser = CommandParser(self)
         self.interactive_running = False
         self.db: ZODB.DB = None
-        self.prompt_lock = threading.RLock()
+        self.listeners: List[Listener] = []
 
         # This is needed because pwntools captures the terminal...
         # there's no way officially to undo it, so this is a nasty
@@ -928,7 +1021,7 @@ class Manager:
                     try:
                         self.target.platform.interactive_loop(interactive_complete)
                     except RawModeExit:
-                        pass
+                        interactive_complete.set()
 
                     try:
                         raise exception_queue.get(block=False)
@@ -1007,6 +1100,8 @@ class Manager:
         )
 
         listener.start()
+
+        self.listeners.append(listener)
 
         return listener
 

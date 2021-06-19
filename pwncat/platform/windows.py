@@ -852,6 +852,9 @@ function prompt {
                 except EOFError:
                     self.channel.send(b"\rexit\r")
                     interactive_complete.wait()
+        except KeyboardInterrupt:
+            # This should only happen during an EOFError above
+            pass
         finally:
             pwncat.util.pop_term_state()
 
