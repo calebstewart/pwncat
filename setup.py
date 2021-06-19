@@ -20,7 +20,7 @@ dependency_links = []
 # Setup
 setup(
     name="pwncat",
-    version="0.4.2",
+    version="0.4.3",
     python_requires=">=3.8",
     description="A fancy reverse and bind shell handler",
     author="Caleb Stewart",
