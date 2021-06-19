@@ -8,6 +8,11 @@ The Changelog starts with v0.4.1, because we did not keep one before that,
 and simply didn't have the time to go back and retroactively create one.
 
 ## [Unreleased]
+### Added
+- Added `ssl-bind` and `ssl-connect` channel protocols for encrypted shells
+- Added `ncat`-style ssl arguments to entrypoint and `connect` command
+- Added query-string arguments to connection strings for both the entrypoint
+  and the `connect` command.
 
 ## [0.4.3] - 2021-06-18
 Patch fix release. Major fixes are the correction of file IO for LinuxWriters and
@@ -20,14 +25,10 @@ improved stability with better exception handling.
 ### Changed
 - Changed session tracking so session IDs aren't reused
 - Changed zsh prompt to match CWD of other shell prompts
-### Added
-- Added `ssl-bind` and `ssl-connect` channel protocols for encrypted shells
-- Added `ncat`-style ssl arguments to entrypoint and `connect` command
-- Added query-string arguments to connection strings for both the entrypoint
-  and the `connect` command.
 - Improved exception handling throughout framework ([#133](https://github.com/calebstewart/pwncat/issues/133))
 - Added explicit permission checks when opening files
 - Changed LinuxWriter close routine again to account for needed EOF signals ([#140](https://github.com/calebstewart/pwncat/issues/140))
+### Added
 - Added better file io test cases
 
 ## [0.4.2] - 2021-06-15
