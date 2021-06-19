@@ -8,6 +8,11 @@ The Changelog starts with v0.4.1, because we did not keep one before that,
 and simply didn't have the time to go back and retroactively create one.
 
 ## [Unreleased]
+
+## [0.4.3] - 2021-06-18
+Patch fix release. Major fixes are the correction of file IO for LinuxWriters and
+improved stability with better exception handling.
+
 ### Fixed
 - Pinned container base image to alpine 3.13.5 and installed to virtualenv ([#134](https://github.com/calebstewart/pwncat/issues/134))
 - Fixed syntax for f-strings in escalation command
