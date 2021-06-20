@@ -75,7 +75,7 @@ not support multiple platforms or multi-session interaction. The
 documentation for that version is still available on Read the Docs as
 the `stable` version.
 
-The current `master` branch is tentatively `v0.4.0a1`. This version has
+The current `master` branch is `v0.4.3`. This version has
 overhauled a lot of the framework to support multiple platforms and 
 multisession environments. Documentation for this version is available
 in the `latest` version on Read the Docs.
