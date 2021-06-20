@@ -272,6 +272,8 @@ class Listener(threading.Thread):
         to trip up the manager, as this is running in a background thread."""
 
         try:
+            raw_server = None
+            server = None
 
             # Start the listener and wrap in the SSL context
             raw_server = self._open_socket()
