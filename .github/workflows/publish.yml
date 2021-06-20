@@ -38,6 +38,13 @@ jobs:
           echo "## Changelog" >> this_version_changelog.md
           cat CHANGELOG.md | sed -n '/^## \['"$version"'\]/,/^## /p' | head -n -1 | tail -n +2 >> this_version_changelog.md
           echo "[Full Changelog](https://github.com/calebstewart/pwncat/blob/v$version/CHANGELOG.md)" >> this_version_changelog.md
+      - name: Publish Package to PyPi
+        env:
+          PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
+        run: |
+          pip install poetry
+          poetry config pypi-token.pypi $PYPI_TOKEN
+          poetry publish --build
       - name: Publish Plugins
         uses: softprops/action-gh-release@v1
         with:

@@ -1,3 +1,9 @@
+
+[tool.flakehell]
+ignore=["E501,E123,E121,E126,E133,E203,W505,W503,W504"]
+exclude=[".git","__pycache__","pwncat.egg-info","env","dist","build","data","docs","tests","test.py"]
+extended_default_ignore = []
+
 [tool.isort]
 profile = "black"
 length_sort = true
@@ -8,3 +14,51 @@ testpaths = [
     "tests",
 ]
 addopts = "-v"
+
+[tool.poetry]
+name = "pwncat-cs"
+version = "0.4.3"
+description = "Reverse and bind shell automation framework"
+authors = ["Caleb Stewart <caleb.stewart94@gmail.com>", "John Hammond"]
+readme = "README.md"
+repository = "https://github.com/calebstewart/pwncat"
+documentation = "https://pwncat.readthedocs.io"
+keywords = ["offsec", "cyber", "exploitation", "privesc", "automation"]
+packages = [
+  { include = "pwncat" },
+]
+license = "MIT"
+
+[tool.poetry.scripts]
+pwncat = "pwncat.__main__:main"
+pcat = "pwncat.__main__:main"
+pc = "pwncat.__main__:main"
+
+[tool.poetry.urls]
+"Bug Tracker" = "https://github.com/calebstewart/pwncat/issues"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+netifaces = "^0.11.0"
+packaging = "^20.9"
+prompt-toolkit = "^3.0.19"
+pycryptodome = "^3.10.1"
+requests = "^2.25.1"
+rich = "^10.4.0"
+python-rapidjson = "^1.0"
+ZODB3 = "^3.11.0"
+zodburi = "^2.5.0"
+paramiko = "^2.7.2"
+Jinja2 = "^3.0.1"
+
+[tool.poetry.dev-dependencies]
+flakehell = "^0.9.0"
+isort = "^5.8.0"
+pytest = "^6.2.4"
+Sphinx = "^4.0.2"
+sphinx-rtd-theme = "^0.5.2"
+enum-tools = "^0.6.4"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
