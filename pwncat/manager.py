@@ -13,6 +13,15 @@ even if there was an uncaught exception. The normal method of creating a manager
         # or open a connection
         session = manager.create_session(platform="linux", host="192.168.1.1", port=4444)
 
+Listeners
+---------
+
+The pwncat manager provides the ability to create background listeners. Background
+listeners are classes which inherit from :class:`threading.Thread`. To create a new
+listener, you can use the :func:`pwncat.manager.Manager.create_listener` method. To
+get an asynchronous notification of new sessions, you can use the ``established``
+callback which receives the new session as an argument.
+
 """
 import os
 import ssl
@@ -76,9 +85,27 @@ class ListenerState(Enum):
 
 
 class Listener(threading.Thread):
-    """Background Listener which acts a factory constructing sessions
+    """Background Listener which acts as a factory constructing sessions
     in the background. Listeners should not be created directly. Rather,
-    you should use the ``Manager.create_listener`` method.
+    you should use the :func:`pwncat.manager.Manager.create_listener` method.
+
+    .. code-block:: python
+        :caption: Using a background listener
+
+        def new_session(session: pwncat.manager.Session):
+            # Returning false causes the session to be removed immediately
+            return True
+
+        with Manager() as manager:
+            listener = manager.create_listener(
+                port=4444,
+                platform="linux",
+                ssl=True,
+                established=new_session,
+            )
+            # You can also stop the listener
+            # listener.stop()
+            manager.interactive()
     """
 
     def __init__(
