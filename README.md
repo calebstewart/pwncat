@@ -43,6 +43,36 @@ the latest usage and development documentation!
 
 **pwncat requires Python 3.9+.**
 
+## Installation
+
+pwncat is available on PyPI as `pwncat-cs`. It exposes an entrypoints named
+`pwncat`, `pcat` and `pc`. It **does** conflict with the `pwncat` package,
+so if you need both, we recommend using a virtual environment. pwncat also
+exposes an importable module named `pwncat` with full access to the internals
+and automation. You can install from PyPi like so:
+
+``` shell
+pip install pwncat-cs
+```
+
+pwncat uses [poetry](https://python-poetry.org) for dependency and build
+management. For a development environment, install poetry as described on their
+website, and then use it to manage your environment:
+
+``` shell
+# Clone the repo
+git clone https://github.com/calebstewart/pwncat
+cd pwncat
+# Enter/create the pwncat specific virtual environment
+poetry shell
+# Install dependencies
+poetry install
+# Use pwncat
+pwncat --help
+# Use `exit` to leave the virtual environment
+exit
+```
+
 ## Windows Support
 
 pwncat now supports windows starting at `v0.4.0a1`. The Windows platform
@@ -67,21 +97,6 @@ the only provided default plugins are the C2 and an implementation of [BadPotato
 pwncat can reflectively load .Net binaries to be used a plugins for the C2.
 For more information on Windows C2 plugins, please see the [documentation].
 
-## Version Details
-
-Currently, there are two versions of pwncat available. The last stable
-version is `v0.3.1`. There is a tagged commit for that version. It does
-not support multiple platforms or multi-session interaction. The
-documentation for that version is still available on Read the Docs as
-the `stable` version.
-
-The current `master` branch is tentatively `v0.4.0a1`. This version has
-overhauled a lot of the framework to support multiple platforms and 
-multisession environments. Documentation for this version is available
-in the `latest` version on Read the Docs.
-
-**v0.3.1 will not be updated further**
-
 ## Modules
 
 Recently, the architecture of the pwncat framework was redesigned to
@@ -91,45 +106,6 @@ privilege escalation. Interacting with modules is similar to most other
 post-exploitation platforms. You can utilize the familiar `run`, `search`
 and `info` commands and enter module contexts with the `use` command.
 Refer to the documentation for more information.
-
-## Install
-
-`pwncat` only depends on a working Python development environment. In order
-to install some of the packages required with `pip`, you will likely need
-your distribution's "Python Development" package. On Debian based systems,
-this is `python-dev`. For Arch, the development files are shipped with the
-main Python repository. For Enterprise Linux, the package is named 
-`python-devel`.
-
-`pwncat` is configured as a standard python package with `distutils`. You
-can install `pwncat` directly from GitHub with:
-
-```shell script
-pip install git+https://github.com/calebstewart/pwncat.git
-```
-
-Or, you can install after cloning the repository with:
-
-```shell script
-python setup.py install
-```
-
-It is recommended to install pwncat from a virtual environment.
-
-```shell script
-python3 -m venv pwncat-env
-source pwncat-env/bin/activate
-python setup.py install
-```
-
-If you would like to develop custom privilege escalation or persistence
-modules, we recommend you use the `develop` target vice the `install` target
-for `setup.py`. This allows changes to the local repository to immediately
-be observed with your installed package.
-
-The setup script will install three binaries. They are all identical, but
-provide convenience aliases for pwncat. The three binaries are: `pwncat`,
-`pc` and `pcat`.
 
 ### Connecting to a Victim
 
