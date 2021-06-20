@@ -86,6 +86,8 @@ class Command(CommandDefinition):
 
         if args.drop_duplicate:
             established = self._drop_duplicate
+        else:
+            established = None
 
         if args.platform is None:
             manager.print(
