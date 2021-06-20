@@ -1,9 +1,3 @@
-
-[tool.flakehell]
-ignore=["E501,E123,E121,E126,E133,E203,W505,W503,W504"]
-exclude=[".git","__pycache__","pwncat.egg-info","env","dist","build","data","docs","tests","test.py"]
-extended_default_ignore = []
-
 [tool.isort]
 profile = "black"
 length_sort = true
@@ -52,12 +46,12 @@ paramiko = "^2.7.2"
 Jinja2 = "^3.0.1"
 
 [tool.poetry.dev-dependencies]
-flakehell = "^0.9.0"
 isort = "^5.8.0"
 pytest = "^6.2.4"
 Sphinx = "^4.0.2"
 sphinx-rtd-theme = "^0.5.2"
 enum-tools = "^0.6.4"
+flake8 = "^3.9.2"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
