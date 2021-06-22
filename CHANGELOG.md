@@ -18,6 +18,9 @@ and simply didn't have the time to go back and retroactively create one.
   and the `connect` command.
 - Added Enumeration States to allow session-bound enumerations
 - Added PyPi publishing to GitHub `publish` workflow.
+- Added licensing for pwncat (MIT)
+### Removed
+- Removed `setup.py` and `requirements.txt`
 
 ## [0.4.3] - 2021-06-18
 Patch fix release. Major fixes are the correction of file IO for LinuxWriters and
