@@ -240,6 +240,13 @@ class Listener(threading.Thread):
             if self.count is not None and self.count <= 0:
                 raise ListenerError("listener max connections reached")
 
+            if (
+                self.manager.target is not None
+                and self.manager.target.platform.interactive
+            ):
+                # Throw a newline out there to clear up the output a bit
+                print("\r", end="\n")
+
             if platform is None:
                 # We can't initialize this channel, so we just throw it on the queue
                 self._channel_queue.put_nowait(channel)
@@ -250,7 +257,9 @@ class Listener(threading.Thread):
 
             try:
                 session = self.manager.create_session(
-                    platform=platform, channel=channel
+                    platform=platform,
+                    channel=channel,
+                    active=False,
                 )
 
                 self.manager.log(
