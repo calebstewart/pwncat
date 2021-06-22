@@ -214,7 +214,10 @@ class Listener(threading.Thread):
                 return
 
     def bootstrap_session(
-        self, channel: pwncat.channel.Channel, platform: str
+        self,
+        channel: pwncat.channel.Channel,
+        platform: str,
+        _queue_message: bool = False,
     ) -> "pwncat.manager.Session":
         """
         Establish a session from an existing channel using the specified platform.
@@ -225,6 +228,8 @@ class Listener(threading.Thread):
         :type channel: pwncat.channel.Channel
         :param platform: name of the platform to initialize
         :type platform: Optional[str]
+        :param _queue_message: only used internally to show unitialized channel message (default: False)
+        :type _queue_message: bool
         :rtype: pwncat.manager.Session
         :raises:
             ListenerError: incorrect platform or channel disconnected
@@ -238,6 +243,9 @@ class Listener(threading.Thread):
             if platform is None:
                 # We can't initialize this channel, so we just throw it on the queue
                 self._channel_queue.put_nowait(channel)
+                self.manager.log(
+                    f"[magenta]listener[/magenta]: {str(self)}: queuing pending channel: {channel} ({self._channel_queue.qsize()} pending)"
+                )
                 return None
 
             try:
@@ -1000,6 +1008,20 @@ class Manager:
                     if self.sessions and not confirm(
                         "There are active sessions. Are you sure?"
                     ):
+                        continue
+
+                    cancel = False
+
+                    for listener in self.listeners:
+                        if listener.pending and not confirm(
+                            "There are pending channels. Are you sure?"
+                        ):
+                            cancel = True
+                            break
+                        elif listener.pending:
+                            break
+
+                    if cancel:
                         continue
 
                     self.log("closing interactive prompt")
