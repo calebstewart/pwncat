@@ -8,7 +8,7 @@ write the contents back over the pipe. In some cases, this includes and requires
 and automatically decoding on the attacking host.
 
 The ``download`` command has a simply syntax which specifies the source and destination files only. The source file is
-a file on the remote host, which will be tab-completed at the pwncat prompt. The destination is a local file path
+a file on the remote host, which will be tab-completed at the ``pwncat`` prompt. The destination is a local file path
 on your local host which will be created (or overwritten if existing) with the content of the remote file.
 
 .. code-block:: bash

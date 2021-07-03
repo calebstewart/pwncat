@@ -1,4 +1,4 @@
-FROM alpine:3.13.5 as builder
+FROM alpine:latest as builder
 
 # Install python3 and development files
 RUN set -eux \
@@ -8,43 +8,42 @@ RUN set -eux \
 		linux-headers \
 		openssl-dev \
 		python3 \
-		python3-dev \
-		musl-dev \
-		cargo
+		python3-dev
+
+# Install pip
+RUN set -eux \
+	&& python3 -m ensurepip
+
+# Ensure pip is up to date
+RUN set -eux \
+	&& python3 -m pip install -U pip setuptools wheel
 
 # Copy pwncat source
 COPY . /pwncat
 
-# Setup virtual environment
-RUN set -eux \
-	&& python3 -m venv /opt/pwncat \
-	&& /opt/pwncat/bin/python -m ensurepip \
-	&& /opt/pwncat/bin/python -m pip install -U pip setuptools wheel setuptools_rust
-
 # Setup pwncat
 RUN set -eux \
 	&& cd /pwncat \
-	&& /opt/pwncat/bin/python setup.py install
+	&& python3 setup.py install
 
 # Cleanup
 RUN set -eux \
-	&& find /opt/pwncat/lib -type f -name '*.pyc' -print0 | xargs -0 -n1 rm -rf || true \
-	&& find /opt/pwncat/lib -type d -name '__pycache__' -print0 | xargs -0 -n1 rm -rf || true
+	&& find /usr/lib -type f -name '*.pyc' -print0 | xargs -0 -n1 rm -rf || true \
+	&& find /usr/lib -type d -name '__pycache__' -print0 | xargs -0 -n1 rm -rf || true
 
 
-FROM alpine:3.13.5 as final
+FROM alpine:latest as final
 
 RUN set -eux \
 	&& apk add --no-cache \
-		python3 libstdc++ \
+		python3 \
 	&& find /usr/lib -type f -name '*.pyc' -print0 | xargs -0 -n1 rm -rf || true \
 	&& find /usr/lib -type d -name '__pycache__' -print0 | xargs -0 -n1 rm -rf || true \
 	&& mkdir /work
 
-COPY --from=builder /opt/pwncat /opt/pwncat
-
-RUN /opt/pwncat/bin/python -m pwncat --download-plugins
+COPY --from=builder /usr/bin/pwncat /usr/bin/pwncat
+COPY --from=builder /usr/lib/python3.8 /usr/lib/python3.8
 
 # Set working directory
 WORKDIR /work
-ENTRYPOINT ["/opt/pwncat/bin/pwncat"]
+ENTRYPOINT ["/usr/bin/pwncat"]

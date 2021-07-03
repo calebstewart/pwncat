@@ -1,348 +1,48 @@
-"""
-This module implements the command parser, lexer, highlighter, etc for pwncat.
-Each command is defined as an individual module under ``pwncat/commands`` which
-defines a ``Command`` class that inherits from :class:`pwncat.commands.CommandDefinition`.
-
-Each command is capable of specifying the expected arguments similar to the way
-they specified with argparse. Internally, we use the :class:`Parameter` definitions
-to build an ``argparse`` parser. We also use them to build a lexer capable of
-automatic syntax highlighting at the prompt.
-
-To define a new command, simple create a new module under ``pwncat/commands`` and
-define a class named ``Command``.
-
-Example Custom Command
-----------------------
-
-.. code-block:: python
-    :caption: A Custom Command Placed in ``pwncat/commands``
-
-    class Command(CommandDefinition):
-        \""" Command documentation placed in the docstring \"""
-
-        PROG = "custom"
-        ARGS = {
-            "--option,-o": Parameter(Complete.NONE, help="help info", action="store_true"),
-            "positional": Parameter(
-                Complete.CHOICES,
-                metavar="POSITIONAL",
-                choices=["hello", "world"],
-                help="help information",
-            ),
-        }
-
-        def run(self, manager: "pwncat.manager.Manager", args: "argparse.Namespace"):
-            manager.log("we ran a custom command!")
-"""
-import os
-import re
-import sys
-import tty
-import fcntl
-import shlex
-import pkgutil
-import termios
-import argparse
-from io import TextIOWrapper
-from enum import Enum, auto
-from typing import Dict, List, Type, Callable, Iterable
-from functools import partial
-
-import rich.text
-from pygments import token
-from prompt_toolkit import ANSI, PromptSession
-from pygments.lexer import RegexLexer
-from pygments.styles import get_style_by_name
-from prompt_toolkit.lexers import PygmentsLexer
-from prompt_toolkit.styles import Style, merge_styles
-from prompt_toolkit.history import History
-from prompt_toolkit.document import Document
+#!/usr/bin/env python3
+import traceback
+from typing import TextIO, Type
+from prompt_toolkit import PromptSession, ANSI
+from prompt_toolkit.shortcuts import ProgressBar
 from prompt_toolkit.completion import (
     Completer,
+    PathCompleter,
     Completion,
     CompleteEvent,
+    NestedCompleter,
     WordCompleter,
     merge_completers,
 )
-from prompt_toolkit.key_binding import KeyBindings
-from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
+from pygments.lexer import RegexLexer, bygroups, include
+from pygments.token import *
+from pygments.style import Style
 from prompt_toolkit.styles.pygments import style_from_pygments_cls
-from prompt_toolkit.application.current import get_app
+from prompt_toolkit.lexers import PygmentsLexer
+from prompt_toolkit.document import Document
+from pygments.styles import get_style_by_name
+from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
+from prompt_toolkit.history import InMemoryHistory, History
+from typing import Dict, Any, List, Iterable
+from colorama import Fore
+from enum import Enum, auto
+import argparse
+import pkgutil
+import shlex
+import os
+import re
+
+from pprint import pprint
 
 import pwncat
 import pwncat.db
-from pwncat.util import console
-from pwncat.channel import ChannelClosed
-
-
-class Complete(Enum):
-    """
-    Command argument completion options. This defines how tab completion
-    works for an individual command parameter/argument. If you choose to
-    use the ``CHOICES`` type, you must specify the argparse ``choices``
-    argument to the :class:`Parameter` constructor. This argument can
-    either be an iterable or a callable which returns a generator. The
-    callable takes as an argument the manager. This allows you to have
-    contextual tab completions if needed.
-    """
-
-    CHOICES = auto()
-    """ Complete argument from the list of choices specified in ``choices`` parameter """
-    LOCAL_FILE = auto()
-    """ Complete argument as a local file path """
-    REMOTE_FILE = auto()
-    """ Complete argument as a remote file path """
-    NONE = auto()
-    """ Do not provide argument completions """
-
-
-class StoreConstOnce(argparse.Action):
-    """Only allow the user to store a value in the destination once. This prevents
-    users from selection multiple actions in the privesc parser."""
-
-    def __call__(self, parser, namespace, values, option_string=None):
-        if hasattr(self, "__" + self.dest + "_seen"):
-            raise argparse.ArgumentError(self, "only one action may be specified")
-        setattr(namespace, "__" + self.dest + "_seen", True)
-        setattr(namespace, self.dest, self.const)
-
-
-def StoreForAction(action: List[str]) -> Callable:
-    """Generates a custom argparse Action subclass which verifies that the current
-    selected "action" option is one of the provided actions in this function. If
-    not, an error is raised."""
-
-    class StoreFor(argparse.Action):
-        """Store the value if the currently selected action matches the list of
-        actions passed to this function."""
-
-        def __call__(self, parser, namespace, values, option_string=None):
-            if getattr(namespace, "action", None) not in action:
-                raise argparse.ArgumentError(
-                    self,
-                    f"{option_string}: only valid for {action}",
-                )
-
-            setattr(namespace, self.dest, values)
-
-    return StoreFor
-
-
-def StoreConstForAction(action: List[str]) -> Callable:
-    """Generates a custom argparse Action subclass which verifies that the current
-    selected "action" option is one of the provided actions in this function. If
-    not, an error is raised. This stores the constant `const` to the `dest` argument.
-    This is comparable to `store_const`, but checks that you have selected one of
-    the specified actions."""
-
-    class StoreFor(argparse.Action):
-        """Store the value if the currently selected action matches the list of
-        actions passed to this function."""
-
-        def __call__(self, parser, namespace, values, option_string=None):
-            if getattr(namespace, "action", None) not in action:
-                raise argparse.ArgumentError(
-                    self,
-                    f"{option_string}: only valid for {action}",
-                )
-
-            setattr(namespace, self.dest, self.const)
-
-    return StoreFor
-
-
-def get_module_choices(command):
-    """Yields a list of module choices to be used with command argument
-    choices to select a valid module for the current target. For example
-    you could use ``Parameter(Complete.CHOICES, choices=get_module_choices)``"""
-
-    if command.manager.target is None:
-        return
-
-    yield from [
-        module.name.removeprefix("agnostic.").removeprefix(
-            command.manager.target.platform.name + "."
-        )
-        for module in command.manager.target.find_module("*")
-    ]
-
-
-class Parameter:
-    """Generic parameter definition for commands.
-
-    This class allows you to specify the syntax highlighting, tab completion
-    and argparse settings for a command parameter in on go. The ``complete``
-    argument tells pwncat how to tab complete your argument. The ``token``
-    argument is normally ommitted but can be used to change the pygments
-    syntax highlighting for your argument. All other arguments are passed
-    directly to ``argparse`` when constructing the parser.
-
-    :param complete: the completion type
-    :type complete: Complete
-    :param token: the Pygments token to highlight this argument with
-    :type token: Pygments Token
-    :param group: true for a group definition, a string naming the group to be a part of, or none
-    :param mutex: for group definitions, indicates whether this is a mutually exclusive group
-    :param args: positional arguments for ``add_argument`` or ``add_argument_group``
-    :param kwargs: keyword arguments for ``add_argument`` or ``add_argument_group``
-    """
-
-    def __init__(
-        self,
-        complete: Complete,
-        token=token.Name.Label,
-        group: str = None,
-        *args,
-        **kwargs,
-    ):
-        self.complete = complete
-        self.token = token
-        self.group = group
-        self.args = args
-        self.kwargs = kwargs
-
-
-class Group:
-    """
-    This just wraps the parameters to the add_argument_group and add_mutually_exclusive_group
-    """
-
-    def __init__(self, mutex: bool = False, **kwargs):
-        self.mutex = mutex
-        self.kwargs = kwargs
-
-
-class CommandDefinition:
-    """
-    Generic structure for a local command.
-
-    The docstring for your command class becomes the long-form help for your command.
-    See the above example for a complete custom command definition.
-
-    :param manager: the controlling manager for this command
-    :type manager: pwncat.manager.Manager
-    """
-
-    PROG = "unimplemented"
-    """ The name of your new command """
-    ARGS: Dict[str, Parameter] = {}
-    """ A dictionary of parameter definitions created with the ``Parameter`` class.
-    If this is None, your command will receive the raw argument string and no processing
-    will be done except removing the leading command name.
-    """
-    GROUPS: Dict[str, Group] = {}
-    """ A dictionary mapping group definitions to group names. The parameters to Group
-    are passed directly to either add_argument_group or add_mutually_exclusive_group
-    with the exception of the mutex arg, which determines the group type. """
-    DEFAULTS = {}
-    """ A dictionary of default values (passed directly to ``ArgumentParser.set_defaults``) """
-    LOCAL = False
-    """ Whether this command is purely local or requires an connected remote host """
-
-    # An example definition of arguments
-    # PROG = "command"
-    # ARGS = {
-    #     "--all,-a": parameter(
-    #         Complete.NONE, action="store_true", help="A switch/option"
-    #     ),
-    #     "--file,-f": parameter(Complete.LOCAL_FILE, help="A local file"),
-    #     "--rfile": parameter(Complete.REMOTE_FILE, help="A remote file"),
-    #     "positional": parameter(
-    #         Complete.CHOICES, choices=["a", "b", "c"], help="Choose one!"
-    #     ),
-    # }
-
-    def __init__(self, manager: "pwncat.manager.Manager"):
-        """Initialize a new command instance. Parse the local arguments array
-        into an argparse object."""
-
-        self.manager = manager
-
-        # Create the parser object
-        if self.ARGS is not None:
-            self.parser = argparse.ArgumentParser(
-                prog=self.PROG,
-                description=self.__doc__,
-                formatter_class=argparse.RawDescriptionHelpFormatter,
-            )
-            self.build_parser(self.parser, self.ARGS, self.GROUPS)
-        else:
-            self.parser = None
-
-    def run(self, manager: "pwncat.manager.Manager", args):
-        """
-        This is the "main" for your new command. This should perform the action
-        represented by your command.
-
-        :param manager: the manager to operate on
-        :type manager: pwncat.manager.Manager
-        :param args: the argparse Namespace containing your parsed arguments
-        """
-        raise NotImplementedError
-
-    def build_parser(
-        self,
-        parser: argparse.ArgumentParser,
-        args: Dict[str, Parameter],
-        group_defs: Dict[str, Group],
-    ):
-        """
-        Parse the ARGS and DEFAULTS dictionaries to build an argparse ArgumentParser
-        for this command. You should not need to overload this.
-
-        :param parser: the parser object to add arguments to
-        :param args: the ARGS dictionary
-        """
-
-        groups = {}
-        for name, definition in group_defs.items():
-            if definition.mutex:
-                groups[name] = parser.add_mutually_exclusive_group(**definition.kwargs)
-            else:
-                groups[name] = parser.add_argument_group(**definition.kwargs)
-
-        for arg, param in args.items():
-            names = arg.split(",")
-
-            if param.group is not None and param.group not in groups:
-                raise ValueError(f"{param.group}: no such group")
-
-            if param.group is not None:
-                group = groups[param.group]
-            else:
-                group = parser
-
-            # Patch choice to work with a callable
-            if "choices" in param.kwargs and callable(param.kwargs["choices"]):
-                method = param.kwargs["choices"]
-
-                class wrapper:
-                    def __init__(wself, method):
-                        wself.method = method
-
-                    def __iter__(wself):
-                        yield from wself.method(self)
-
-                param.kwargs["choices"] = wrapper(method)
-
-            # Patch "type" so we can see "self"
-            if (
-                "type" in param.kwargs
-                and isinstance(param.kwargs["type"], tuple)
-                and param.kwargs["type"][0] == "method"
-            ):
-                param.kwargs["type"] = partial(param.kwargs["type"][1], self)
-
-            group.add_argument(*names, *param.args, **param.kwargs)
-
-        parser.set_defaults(**self.DEFAULTS)
+from pwncat.commands.base import CommandDefinition, Complete
+from pwncat.util import State, console
 
 
 def resolve_blocks(source: str):
-    """This is a dumb lexer that turns strings of text with code blocks (squigly
+    """ This is a dumb lexer that turns strings of text with code blocks (squigly
     braces) into a single long string separated by semicolons. All code blocks are
     converted to strings recursively with correct escaping levels. The resulting
-    string can be sent to break_commands to iterate over the commands."""
+    string can be sent to break_commands to iterate over the commands. """
 
     result = []
     in_brace = False
@@ -388,7 +88,7 @@ def resolve_blocks(source: str):
         i += 1
 
     if in_brace:
-        raise ValueError("mismatched braces")
+        raise ValueError(f"mismatched braces")
     if inside_quotes:
         raise ValueError("missing ending quote")
 
@@ -396,45 +96,37 @@ def resolve_blocks(source: str):
 
 
 class DatabaseHistory(History):
-    """Yield history from the host entry in the database"""
-
-    def __init__(self, manager):
-        super().__init__()
-        self.manager = manager
+    """ Yield history from the host entry in the database """
 
     def load_history_strings(self) -> Iterable[str]:
-        """Load the history from the database"""
-
-        with self.manager.db.transaction() as conn:
-            yield from reversed(conn.root.history)
+        """ Load the history from the database """
+        for history in (
+            pwncat.victim.session.query(pwncat.db.History)
+            .order_by(pwncat.db.History.id.desc())
+            .all()
+        ):
+            yield history.command
 
     def store_string(self, string: str) -> None:
-        """Store a command in the database"""
-
-        with self.manager.db.transaction() as conn:
-            conn.root.history.append(string)
+        """ Store a command in the database """
+        history = pwncat.db.History(host_id=pwncat.victim.host.id, command=string)
+        pwncat.victim.session.add(history)
 
 
 class CommandParser:
-    """Handles dynamically loading command classes, parsing input, and
-    dispatching commands. This class effectively has complete control over
-    the terminal whenever in an interactive pwncat session. It will change
-    termios modes for the control tty at will in order to support raw vs
-    command mode."""
+    """ Handles dynamically loading command classes, parsing input, and
+    dispatching commands. """
 
-    def __init__(self, manager: "pwncat.manager.Manager"):
-        """We need to dynamically load commands from pwncat.commands"""
+    def __init__(self):
+        """ We need to dynamically load commands from pwncat.commands """
 
-        self.manager = manager
         self.commands: List["CommandDefinition"] = []
 
         for loader, module_name, is_pkg in pkgutil.walk_packages(__path__):
             if module_name == "base":
                 continue
             self.commands.append(
-                loader.find_module(module_name)
-                .load_module(module_name)
-                .Command(manager)
+                loader.find_module(module_name).load_module(module_name).Command()
             )
 
         self.prompt: PromptSession = None
@@ -442,27 +134,20 @@ class CommandParser:
         self.loading_complete = False
         self.aliases: Dict[str, CommandDefinition] = {}
         self.shortcuts: Dict[str, CommandDefinition] = {}
-        self.found_prefix: bool = False
-        # Saved terminal state to support switching between raw and normal
-        # mode.
-        self.saved_term_state = None
 
     def setup_prompt(self):
-        """This needs to happen after __init__ when the database is fully
-        initialized."""
+        """ This needs to happen after __init__ when the database is fully
+        initialized. """
 
-        history = DatabaseHistory(self.manager)
-        completer = CommandCompleter(self.manager, self.commands)
+        if pwncat.victim is not None and pwncat.victim.host is not None:
+            history = DatabaseHistory()
+        else:
+            history = InMemoryHistory()
+
+        completer = CommandCompleter(self.commands)
         lexer = PygmentsLexer(CommandLexer.build(self.commands))
         style = style_from_pygments_cls(get_style_by_name("monokai"))
         auto_suggest = AutoSuggestFromHistory()
-        bindings = KeyBindings()
-
-        @bindings.add("c-q")
-        def _(event):
-            """Exit interactive mode"""
-
-            get_app().exit(exception=pwncat.manager.InteractiveExit())
 
         self.prompt = PromptSession(
             [
@@ -472,64 +157,34 @@ class CommandParser:
             ],
             completer=completer,
             lexer=lexer,
-            style=merge_styles(
-                [style, Style.from_dict({"bottom-toolbar": "#333333 bg:#ffffff"})]
-            ),
+            style=style,
             auto_suggest=auto_suggest,
             complete_while_typing=False,
             history=history,
-            bottom_toolbar=self._render_toolbar,
-            key_bindings=bindings,
         )
 
-    def _render_toolbar(self):
-        """Render the formatted text for the bottom toolbar"""
+    @property
+    def loaded(self):
+        return self.loading_complete
 
-        if self.manager.target is None:
-            markup_result = "Active Session: [red]None[/red]"
-        else:
-            markup_result = f"Active Session: {self.manager.target.platform}"
-
-        # Convert rich-style markup to prompt_toolkit formatted text
-        text = rich.text.Text.from_markup(markup_result)
-        segments = list(text.render(console))
-        rendered = []
-
-        # Here we take each segment's stile, invert the color and render the
-        # segment text. This is because the bottom toolbar has it's colors
-        # inverted.
-        for i in range(len(segments)):
-            style = segments[i].style.copy()
-            temp = style.color
-            style._color = segments[i].style.bgcolor
-            style._bgcolor = temp
-            rendered.append(style.render(segments[i].text))
-
-        # Join the rendered segments to ANSI escape sequences.
-        # This format can be parsed by prompt_toolkit formatted text.
-        ansi_result = "".join(rendered)
-
-        # Produce prompt_toolkit formatted text from the ANSI escaped string
-        return ANSI(ansi_result)
+    @loaded.setter
+    def loaded(self, value: bool):
+        assert value == True
+        self.loading_complete = True
+        self.eval(pwncat.config["on_load"], "on_load")
 
     def eval(self, source: str, name: str = "<script>"):
-        """Evaluate the given source file. This will execute the given string
+        """ Evaluate the given source file. This will execute the given string
         as a script of commands. Syntax is the same except that commands may
         be separated by semicolons, comments are accepted as following a "#" and
-        multiline strings are supported with '"{' and '}"' as delimeters."""
+        multiline strings are supported with '"{' and '}"' as delimeters. """
+
+        in_multiline_string = False
+        lineno = 1
 
         for command in resolve_blocks(source):
             try:
                 self.dispatch_line(command)
-            except ChannelClosed as exc:
-                # A channel was unexpectedly closed
-                self.manager.log(f"[red]warning[/red]: {exc.channel}: channel closed")
-                # Ensure any existing sessions are cleaned from the manager
-                exc.cleanup(self.manager)
-            except pwncat.manager.InteractiveExit:
-                # Within a script, `exit` means to exit the script, not the
-                # interpreter
-                break
             except Exception as exc:
                 console.log(
                     f"[red]error[/red]: [cyan]{name}[/cyan]: [yellow]{command}[/yellow]: {str(exc)}"
@@ -537,35 +192,25 @@ class CommandParser:
                 break
 
     def run_single(self):
-        """Execute one Read-Execute iteration. This will prompt the user for input."""
-
-        if self.prompt is None:
-            self.setup_prompt()
 
         try:
             line = self.prompt.prompt().strip()
-            self.dispatch_line(line)
-        except (EOFError, OSError, KeyboardInterrupt, pwncat.manager.InteractiveExit):
-            return
+        except (EOFError, OSError, KeyboardInterrupt):
+            pass
+        else:
+            if line != "":
+                self.dispatch_line(line)
 
     def run(self):
-        """Execute the pwncat REPL. This will continue running until an :class:`InteractiveExit`
-        exception or a :class:`EOFError` exception are raised."""
 
-        if self.prompt is None:
-            self.setup_prompt()
+        self.running = True
 
-        running = True
-
-        while running:
+        while self.running:
             try:
 
-                if self.manager.config.module:
+                if pwncat.config.module:
                     self.prompt.message = [
-                        (
-                            "fg:ansiyellow bold",
-                            f"({self.manager.config.module.name}) ",
-                        ),
+                        ("fg:ansiyellow bold", f"({pwncat.config.module.name}) ",),
                         ("fg:ansimagenta bold", "pwncat"),
                         ("", "$ "),
                     ]
@@ -585,27 +230,27 @@ class CommandParser:
             # We used to catch only KeyboardException, but this prevents a
             # badly written command from completely killing our remote
             # connection.
-            except EOFError:
-                # C-d was pressed. Assume we want to exit the prompt.
-                running = False
-            except KeyboardInterrupt:
-                # Normal C-c from a shell just clears the current prompt
-                continue
-            except ChannelClosed as exc:
-                # A channel was unexpectedly closed
-                self.manager.log(f"[red]warning[/red]: {exc.channel}: channel closed")
-                # Ensure any existing sessions are cleaned from the manager
-                exc.cleanup(self.manager)
-            except pwncat.manager.InteractiveExit:
-                # We don't want this caught below, so we catch it here
-                # then re-raise it to be caught by the interactive method
+            except pwncat.util.CommandSystemExit:
                 raise
+            except EOFError:
+                # We don't have a connection yet, just exit
+                if pwncat.victim is None or pwncat.victim.client is None:
+                    break
+                # We have a connection! Go back to raw mode
+                pwncat.victim.state = State.RAW
+                self.running = False
+            except KeyboardInterrupt:
+                continue
             except (Exception, KeyboardInterrupt):
                 console.print_exception(width=None)
                 continue
 
+    #             except KeyboardInterrupt:
+    #                 console.log("Keyboard Interrupt")
+    #                 continue
+
     def dispatch_line(self, line: str, prog_name: str = None):
-        """Parse the given line of command input and dispatch a command"""
+        """ Parse the given line of command input and dispatch a command """
 
         # Account for blank or whitespace only lines
         line = line.strip()
@@ -616,7 +261,7 @@ class CommandParser:
             # Spit the line with shell rules
             argv = shlex.split(line)
         except ValueError as e:
-            self.manager.log(f"[red]error[/red]: {e.args[0]}")
+            console.log(f"[red]error[/red]: {e.args[0]}")
             return
 
         if argv[0][0] in self.shortcuts:
@@ -634,12 +279,12 @@ class CommandParser:
                 if argv[0] in self.aliases:
                     command = self.aliases[argv[0]]
                 else:
-                    self.manager.log(f"[red]error[/red]: {argv[0]}: unknown command")
+                    console.log(f"[red]error[/red]: {argv[0]}: unknown command")
                     return
 
-            if self.manager.target is None and not command.LOCAL:
-                self.manager.log(
-                    f"[red]error[/red]: {argv[0]}: active session required"
+            if not self.loading_complete and not command.LOCAL:
+                console.log(
+                    f"[red]error[/red]: {argv[0]}: non-local command use before connection"
                 )
                 return
 
@@ -660,7 +305,7 @@ class CommandParser:
                 args = line
 
             # Run the command
-            command.run(self.manager, args)
+            command.run(args)
 
             if prog_name:
                 command.parser.prog = prog_name
@@ -669,129 +314,18 @@ class CommandParser:
             # The arguments were incorrect
             return
 
-    def parse_prefix(self, channel, data: bytes):
-        """Parse data received from the user when in pwncat's raw mode.
-        This will intercept key presses from the user and interpret the
-        prefix and any bound keyboard shortcuts. It also sends any data
-        without a prefix to the remote channel.
-
-        :param data: input data from user
-        :type data: bytes
-        """
-
-        buffer = b""
-
-        for c in data:
-            if not self.found_prefix and c != pwncat.config["prefix"].value:
-                buffer += c
-                continue
-            elif not self.found_prefix and c == pwncat.config["prefix"].value:
-                self.found_prefix = True
-                channel.send(buffer)
-                buffer = b""
-                continue
-            elif self.found_prefix:
-                try:
-                    binding = pwncat.config.binding(c)
-                    if binding.strip() == "pass":
-                        buffer += c
-                    else:
-                        # Restore the normal terminal
-                        self.restore_term()
-
-                        # Run the binding script
-                        self.eval(binding, "<binding>")
-
-                        # Drain any channel output
-                        channel.drain()
-                        channel.send(b"\n")
-
-                        # Go back to a raw terminal
-                        self.raw_mode()
-                except KeyError:
-                    pass
-                self.found_prefix = False
-
-        # Flush any remaining raw data bound for the victim
-        channel.send(buffer)
-
-    def raw_mode(self):
-        """Save the current terminal state and enter raw mode.
-        If the terminal is already in raw mode, this function
-        does nothing."""
-
-        if self.saved_term_state is not None:
-            return
-
-        # Ensure we don't have any weird buffering issues
-        sys.stdout.flush()
-
-        # Python doesn't provide a way to use setvbuf, so we reopen stdout
-        # and specify no buffering. Duplicating stdin allows the user to press C-d
-        # at the local prompt, and still be able to return to the remote prompt.
-        try:
-            os.dup2(sys.stdin.fileno(), sys.stdout.fileno())
-        except OSError:
-            pass
-        sys.stdout = TextIOWrapper(
-            os.fdopen(os.dup(sys.stdin.fileno()), "bw", buffering=0),
-            write_through=True,
-            line_buffering=False,
-        )
-
-        # Grab and duplicate current attributes
-        fild = sys.stdin.fileno()
-        old = termios.tcgetattr(fild)
-        new = termios.tcgetattr(fild)
-
-        # Remove ECHO from lflag and ensure we won't block
-        new[3] &= ~(termios.ECHO | termios.ICANON)
-        new[6][termios.VMIN] = 0
-        new[6][termios.VTIME] = 0
-        termios.tcsetattr(fild, termios.TCSADRAIN, new)
-
-        # Set raw mode
-        tty.setraw(sys.stdin)
-
-        orig_fl = fcntl.fcntl(sys.stdin, fcntl.F_GETFL)
-        fcntl.fcntl(sys.stdin, fcntl.F_SETFL, orig_fl)
-
-        self.saved_term_state = old, orig_fl
-
-    def restore_term(self, new_line=True):
-        """Restores the normal terminal settings. This does nothing if the
-        terminal is not currently in raw mode."""
-
-        if self.saved_term_state is None:
-            return
-
-        termios.tcsetattr(
-            sys.stdin.fileno(), termios.TCSADRAIN, self.saved_term_state[0]
-        )
-        # tty.setcbreak(sys.stdin)
-        fcntl.fcntl(sys.stdin, fcntl.F_SETFL, self.saved_term_state[1])
-
-        if new_line:
-            sys.stdout.write("\n")
-
-        self.saved_term_state = None
-
 
 class CommandLexer(RegexLexer):
-    """Implements a Regular Expression based pygments lexer for dynamically highlighting
-    the pwncat prompt during typing. The tokens are generated from command definitions."""
 
     tokens = {}
 
     @classmethod
     def build(cls, commands: List["CommandDefinition"]) -> Type["CommandLexer"]:
-        """Build the RegexLexer token list from the command definitions"""
+        """ Build the RegexLexer token list from the command definitions """
 
         root = []
         for command in commands:
-            root.append(
-                ("^" + re.escape(command.PROG), token.Name.Function, command.PROG)
-            )
+            root.append(("^" + re.escape(command.PROG), Name.Function, command.PROG))
             mode = []
             if command.ARGS is not None:
                 for args, param in command.ARGS.items():
@@ -804,38 +338,31 @@ class CommandLexer(RegexLexer):
                         else:
                             # Don't enter param state
                             mode.append((r"\s+" + re.escape(arg), param.token))
-                mode.append((r"\s+(\-\-help|\-h)", token.Name.Label))
-            mode.append((r"\"", token.String, "string"))
-            mode.append((r".", token.Text))
+                mode.append((r"\s+(\-\-help|\-h)", Name.Label))
+            mode.append((r"\"", String, "string"))
+            mode.append((r".", Text))
             cls.tokens[command.PROG] = mode
 
-        root.append((r".", token.Text))
+        root.append((r".", Text))
         cls.tokens["root"] = root
         cls.tokens["param"] = [
-            (r"\"", token.String, "string"),
-            (r"\s", token.Text, "#pop"),
-            (r"[^\s]", token.Text),
+            (r"\"", String, "string"),
+            (r"\s", Text, "#pop"),
+            (r"[^\s]", Text),
         ]
         cls.tokens["string"] = [
-            (r"[^\"\\]+", token.String),
-            (r"\\.", token.String.Escape),
-            ('"', token.String, "#pop"),
+            (r"[^\"\\]+", String),
+            (r"\\.", String.Escape),
+            ('"', String, "#pop"),
         ]
 
         return cls
 
 
 class RemotePathCompleter(Completer):
-    """Complete remote file names/paths"""
-
-    def __init__(self, manager: "pwncat.manager.Manager", *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.manager = manager
+    """ Complete remote file names/paths """
 
     def get_completions(self, document: Document, complete_event: CompleteEvent):
-
-        if self.manager.target is None:
-            return
 
         before = document.text_before_cursor.split()[-1]
         path, partial_name = os.path.split(before)
@@ -843,7 +370,12 @@ class RemotePathCompleter(Completer):
         if path == "":
             path = "."
 
-        for name in self.manager.target.platform.listdir(path):
+        pipe = pwncat.victim.subprocess(
+            f"ls -1 -a --color=never {shlex.quote(path)}", "r"
+        )
+
+        for name in pipe:
+            name = name.decode("utf-8").strip()
             if name.startswith(partial_name):
                 yield Completion(
                     name,
@@ -853,7 +385,7 @@ class RemotePathCompleter(Completer):
 
 
 class LocalPathCompleter(Completer):
-    """Complete local file names/paths."""
+    """ Complete local file names/paths """
 
     def get_completions(self, document: Document, complete_event: CompleteEvent):
 
@@ -877,17 +409,14 @@ class LocalPathCompleter(Completer):
 
 
 class CommandCompleter(Completer):
-    """Tab-complete commands and all of their arguments dynamically using the
-    command definitions and their associated argument definitions."""
+    """ Complete commands from a given list of commands """
 
-    def __init__(
-        self, manager: "pwncat.manager.Manager", commands: List["CommandDefinition"]
-    ):
-        """Construct a new command completer"""
+    def __init__(self, commands: List["CommandDefinition"]):
+        """ Construct a new command completer """
 
         self.layers = {}
         local_file_completer = LocalPathCompleter()
-        remote_file_completer = RemotePathCompleter(manager)
+        remote_file_completer = RemotePathCompleter()
 
         for command in commands:
             self.layers[command.PROG] = [None, [], {}]
@@ -918,7 +447,7 @@ class CommandCompleter(Completer):
     def get_completions(
         self, document: Document, complete_event: CompleteEvent
     ) -> Iterable[Completion]:
-        """Get a list of completions for the given document"""
+        """ Get a list of completions for the given document """
 
         text = document.text_before_cursor.lstrip()
         try:

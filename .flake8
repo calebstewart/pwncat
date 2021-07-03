@@ -1,3 +1,0 @@
-[flake8]
-ignore=E501,E123,E121,E126,E133,E203,W505,W503,W504
-exclude=.git,__pycache__,pwncat.egg-info,env,dist,build,data,docs,tests,test.py

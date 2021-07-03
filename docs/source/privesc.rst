@@ -1,47 +1,55 @@
 Automated Privilege Escalation
 ==============================
 
-pwncat has the ability to locate and exploit privilege escalation vulnerabilities. The vulnerabilities
-are identified through enumeration, and can be exploited through the ``escalate`` command. Internally,
-pwncat has two types of escalation objects. Firstly, there are abilities. These are actions
-which we are able to perform with the permissions of a different user on the target. The second type
-of objects are escalations. Escalations utilize one or more abilities to achieve a session as the
-targeted user.
+``pwncat`` has the ability to attempt automated privilege escalation methods. A number of methods are implemented by
+default such as:
 
-As an example, abilities could be things such as:
+* Set UID Binaries
+* Sudo (with and without password)
+* screen (CVE-2017-5618)
+* DirtyCOW
 
-* File Write
-* File Read
-* Binary execution
-
-Escalations could be things such as:
+Each of these methods utilize the capabilities of the GTFOBins module. The GTFOBins module provides a programmatic
+interface to gtfobins_. Each privilege escalation module implements shell, file read or file write capabilities.
+``pwncat`` will leverage these to get shell access as the specified user. ``pwncat`` does this by trying the following
+methods with the provided capabilities:
 
 * Executing a shell (the simplest option)
 * Reading user private keys and ssh-ing to localhost
 * Writing private keys
 * Implanting a backdoor user in /etc/passwd (if file-write as root is available)
 
+If ``pwncat`` does not find a method of gaining access as the specified user directly, it will attempt to escalate to
+any other user it can recursively to attempt to find a path to the requested user.
+
 Invoking Privilege Escalation
 -----------------------------
 
-There are two ``escalate`` subcommands. In order to locate direct escalation vectors, you can use the
-``list`` subcommand. This will use the enumeration framework to locate any escalations that may be
-possible as the active user.
+Privilege escalation is implemented utilizing ``pwncat`` modules. These modules can be run individually
+if desired or you can utilize the ``escalate.auto`` module which will recursively search for a path
+to a desired user.
+
+The ``escalate.auto`` module by default simply lists the escalation techniques which were found for the
+current user. To actually escalate to a new user, you can use the ``exec`` option. This option will
+go through every possible user and attempt to escalate. It then keeps attempting escalation until it finds
+a path to the requested user recursively.
+
+Escalation modules also implement ``read`` and ``write`` modes which attempt to read or write a file
+as the specified user. All three of ``read``, ``write``, and ``exec`` are also supported by every
+individual escalation module.
 
 .. code-block:: bash
 
-   # List direct escalations for any user
-   (local) pwncat$ escalate list
-   # List direct escalations to the specified user
-   (local) pwncat$ escalate list -u root
+   # Locate and list available techniques as the current user
+   (local) pwncat$ run escalate.auto
+   # Attempt automated escalation to the specified user
+   (local) pwncat$ run escalate.auto exec user=root shell=/bin/bash
+   # Attempt automated escalation to root with the current shell
+   (local) pwncat$ run escalate.auto exec
+   # Read /etc/shadow with the escalate.sudo module
+   (local) pwncat$ run escalate.sudo read user=root path=/etc/shadow
+   # Write a file as root
+   (local) pwncat$ run escalate.auto write user=root path=/tmp/test data="hello world!"
 
-Escalation can be triggered with the ``run`` subcommand. This command will first attempt to escalate
-directly to the requested user. If no direct escalations are possible, it will try to recursively
-escalate through other users based on the available direct escalations.
 
-.. code-block:: bash
-
-   # Escalate to root
-   (local) pwncat$ escalate run
-   # Escalate to a specified user
-   (local) pwncat$ escalate run -u john
+.. _gtfobins: https://gtfobins.github.io

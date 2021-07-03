@@ -1,17 +1,11 @@
-"""
-The gtfobins module provides an abstract interface into the GTFOBins database.
-The GTFOBins database maps binaries to special permissions which could be used
-for privilege escalation (among other things). Internally, pwncat uses this
-database to identify ways to read/write files as well as during escalation
-with things like SETUID binaries and sudo rules. A full list of all supported
-binaries can be seen in ``pwncat/data/gtfobins.json``.
-"""
-import os
-import shlex
-from enum import Flag, auto
-from typing import IO, Any, Dict, List, Tuple, BinaryIO, Callable, Generator
-
+#!/usr/bin/env python3
+from typing import Dict, Callable, Any, List, Generator, BinaryIO, IO, Tuple
+from enum import Enum, Flag, auto
+from base64io import Base64IO
 import rapidjson as json
+import shlex
+import os
+import io
 
 
 class ControlCodes:
@@ -26,22 +20,22 @@ class ControlCodes:
 
 
 class SudoNotPossible(Exception):
-    """The given sudo command spec is not compatible with the method attempted."""
+    """ The given sudo command spec is not compatible with the method attempted. """
 
 
 class MissingBinary(Exception):
-    """A method required an external binary that didn't exist"""
+    """ A method required an external binary that didn't exist """
 
 
 class BinaryNotFound(Exception):
-    """The binary asked for either doesn't provided the required functionality
-    or isn't present on the remote system"""
+    """ The binary asked for either doesn't provided the required functionality
+    or isn't present on the remote system """
 
 
 class Capability(Flag):
-    """The capabilities of a given GTFOBin Binary. A binary may have multiple
+    """ The capabilities of a given GTFOBin Binary. A binary may have multiple
     implementations of each capability, but these flags indicate a list of all
-    capabilities which a given binary supports."""
+    capabilities which a given binary supports. """
 
     READ = auto()
     """ File read """
@@ -57,7 +51,8 @@ class Capability(Flag):
 
 
 class Stream(Flag):
-    """What time of streaming data is required for a specific method."""
+    """ What time of streaming data is required for a specific method.
+    """
 
     RAW = auto()
     """ A raw, unencoded stream of data. If writing, this mode requires
@@ -75,10 +70,10 @@ class Stream(Flag):
 
 
 class Method:
-    """Abstract method class built from the JSON database"""
+    """ Abstract method class built from the JSON database """
 
     def __init__(self, binary: "Binary", cap: Capability, data: Dict[str, Any]):
-        """Create a new method associated with the given binary."""
+        """ Create a new method associated with the given binary. """
 
         try:
             self.stream = Stream._member_map_[data.get("stream", "PRINT").upper()]
@@ -95,11 +90,11 @@ class Method:
         self.cap = cap
 
     def sudo_args(self, binary_path: str, spec: str) -> bool:
-        """Check if this method is compatible with the given sudo command spec.
+        """ Check if this method is compatible with the given sudo command spec.
         It will evaluate whether there are wildcards, or if the given parameters
         satisfy the parameters needed for this method. The method returns the list
         of arguments that need to be added_lines to the sudo spec in order for it to
-        run this method.
+        run this method. 
 
         If this method is incompatible with the given sudo spec, SudoNotPossible
         is raised. If this spec is compatible, a list of arguments which need to
@@ -148,14 +143,13 @@ class Method:
 
     def build_payload(
         self,
-        gtfo: "GTFOBins",
         binary_path: str,
         spec: str = None,
         user: str = None,
         suid: bool = False,
         **kwargs,
     ) -> str:
-        """Generate a read payload"""
+        """ Generate a read payload """
 
         # Make sure both sudo_spec and sudo_user are provided if sudo_spec is
         assert spec is None or (spec is not None and user is not None)
@@ -163,7 +157,7 @@ class Method:
         # Make sure we can use this spec, and get remainig arguments
         if spec is not None:
             command, args = self.sudo_args(binary_path, spec)
-            args = gtfo.resolve_binaries(
+            args = self.binary.gtfo.resolve_binaries(
                 " ".join(args),
                 ctrl_c=ControlCodes.CTRL_C,
                 ctrl_z=ControlCodes.CTRL_Z,
@@ -184,7 +178,7 @@ class Method:
             args += self.args if self.args else []
             command = " ".join([binary_path, *args])
             # Resolve variables in the command/args
-            command = gtfo.resolve_binaries(
+            command = self.binary.gtfo.resolve_binaries(
                 command,
                 ctrl_c=ControlCodes.CTRL_C,
                 ctrl_z=ControlCodes.CTRL_Z,
@@ -197,7 +191,7 @@ class Method:
                 **kwargs,
             )
 
-        payload = gtfo.resolve_binaries(
+        payload = self.binary.gtfo.resolve_binaries(
             self.payload,
             command=command,
             ctrl_c=ControlCodes.CTRL_C,
@@ -218,46 +212,71 @@ class MethodWrapper:
     """
     Wraps a method and full binary path pair which together are capable of
     generating a payload to perform the specified capability.
-
+    
     """
 
     def __init__(self, method: Method, binary_path: str):
-        """Create a Method Wrapper which references a specific binary path.
-        and method arguments."""
+        """ Create a Method Wrapper which references a specific binary path. 
+        and method arguments. """
         self.binary_path = binary_path
         self.method = method
 
     def wrap_stream(self, pipe: BinaryIO) -> IO:
-        """Wrap the given BinaryIO pipe with the appropriate stream wrapper
+        """ Wrap the given BinaryIO pipe with the appropriate stream wrapper
         for this method. For "RAW" or "PRINT" streams, this is a null wrapper.
         For BASE64 and HEX streams, this will automatically decode the data as
         it is streamed. Closing the wrapper will automatically close the underlying
-        pipe."""
+        pipe. """
 
         if self.stream is Stream.RAW or self.stream is Stream.PRINT:
             return pipe
-        else:
-            # NOTE: we should remove these from gtfobins.json
+        elif self.stream is not Stream.BASE64:
             raise RuntimeError(
-                f"{self.stream.name}: non raw or print streams are no longer supported"
+                f"{self.stream.name}: we haven't implemented streaming of encodings besides base64"
             )
 
-    def build(self, gtfo: "GTFOBins", **kwargs) -> Tuple[str, str, str]:
-        """Build the payload for this method and binary path. Depending on
+        wrapped = Base64IO(pipe)
+        original_close = wrapped.close
+        original_write = wrapped.write
+
+        def close_wrapper():
+            """ This is a dirty hack because Base64IO doesn't close the underlying
+            stream when it closes. We want to assume this, so we wrap the function
+            with one that will close the underlying stream. We need to close
+            the Base64IO stream first, since data may be waiting to get decoded
+            and sent. """
+            original_close()
+            pipe.close()
+
+        def write_wrapper(data: bytes):
+            """ This is another nasty hack. The underlying Base64IO object 
+            erroneously returns the number of base64 bytes written, not the number
+            if source bytes written. This causes other Python IO classes to raise
+            an exception. We know our underlying socket will block on sending
+            data, so all data will be sent. Again, this is gross, but it makes
+            the python stdlib happy. """
+            n = original_write(data, line_length=76)
+            return min(len(data), (n * 3) // 4)
+
+        wrapped.close = close_wrapper
+        wrapped.write = write_wrapper
+        # We want this, but it may cause issues
+        wrapped.name = pipe.name
+
+        return wrapped
+
+    def build(self, **kwargs) -> Tuple[str, str, str]:
+        """ Build the payload for this method and binary path. Depending on
         capability and stream type, different named parameters are required.
-
+        
         """
-        return (
-            self.payload(gtfo=gtfo, **kwargs),
-            self.input(gtfo=gtfo, **kwargs),
-            self.exit(gtfo=gtfo, **kwargs),
-        )
+        return self.payload(**kwargs), self.input(**kwargs), self.exit(**kwargs)
 
-    def payload(self, gtfo: "GTFOBins", **kwargs) -> str:
-        return self.method.build_payload(gtfo, self.binary_path, **kwargs)
+    def payload(self, **kwargs) -> str:
+        return self.method.build_payload(self.binary_path, **kwargs)
 
-    def exit(self, gtfo: "GTFOBins", **kwargs) -> str:
-        original = gtfo.resolve_binaries(
+    def exit(self, **kwargs) -> str:
+        original = self.method.binary.gtfo.resolve_binaries(
             self.method.exit,
             ctrl_c=ControlCodes.CTRL_C,
             ctrl_z=ControlCodes.CTRL_Z,
@@ -275,8 +294,8 @@ class MethodWrapper:
 
         return original
 
-    def input(self, gtfo: "GTFOBins", **kwargs) -> str:
-        return gtfo.resolve_binaries(
+    def input(self, **kwargs) -> str:
+        return self.method.binary.gtfo.resolve_binaries(
             self.method.input,
             ctrl_c=ControlCodes.CTRL_C,
             ctrl_z=ControlCodes.CTRL_Z,
@@ -291,22 +310,23 @@ class MethodWrapper:
 
     @property
     def stream(self) -> Stream:
-        """Access this methods stream type"""
+        """ Access this methods stream type """
         return self.method.stream
 
     @property
     def cap(self) -> Capability:
-        """Access this methods capabilities"""
+        """ Access this methods capabilities """
         return self.method.cap
 
 
 class Binary:
-    """Encapsulates a GTFOBin and it's methods for all capabilities"""
+    """ Encapsulates a GTFOBin and it's methods for all capabilities """
 
     def __init__(self, gtfo: "GTFOBins", name: str, methods: List[Dict[str, Any]]):
-        """Create a GTFOBin from the given list of capabilities"""
+        """ Create a GTFOBin from the given list of capabilities """
 
         # Initialize to no capabilities
+        self.gtfo = gtfo
         self.caps = Capability.NONE
         self.methods: List[Method] = []
 
@@ -325,8 +345,8 @@ class Binary:
     def iter_methods(
         self, binary_path: str, caps: Capability, stream: Stream, spec: str = None
     ):
-        """Iterate over methods in this binary matching the capability and stream
-        masks"""
+        """ Iterate over methods in this binary matching the capability and stream
+        masks """
 
         # Only yield results with overlapping capabilities
         if not (self.caps & caps):
@@ -357,7 +377,7 @@ class GTFOBins:
     Wrapper around the GTFOBins database. Provides access to searching for methods
     of performing various capabilities generically. All iterations yield MethodWrapper
     objects.
-
+    
     :param gtfobins: path to the gtfobins database
     :type gtfobins: str
     :param which: a callable which resolves binary basenames to full paths. A second
@@ -366,9 +386,9 @@ class GTFOBins:
     """
 
     def __init__(self, gtfobins: str, which: Callable[[str], str]):
-        """Create a new GTFOBins object. This will load the JSON gtfobins data
+        """ Create a new GTFOBins object. This will load the JSON gtfobins data
         file specified in the `gtfobins` parameter. The `which` method is
-        remembered to lookup existing binaries on the target system for later."""
+        remembered to lookup existing binaries on the target system for later. """
 
         self.which = which
         self.binaries: Dict[str, Binary] = {}
@@ -382,8 +402,8 @@ class GTFOBins:
         self.parse_binary_data(binary_data)
 
     def parse_binary_data(self, binary_data: Dict[str, List[Dict[str, Any]]]):
-        """Parse the given GTFObins binary information into the associated
-        in-memory binary objects"""
+        """ Parse the given GTFObins binary information into the associated
+        in-memory binary objects """
 
         for name, data in binary_data.items():
             binary = Binary(self, name, data)
@@ -396,9 +416,9 @@ class GTFOBins:
         stream: Stream = None,
         **kwargs,
     ):
-        """Iterate over methods which are sudo-capable w/ the given sudo spec.
+        """ Iterate over methods which are sudo-capable w/ the given sudo spec.
         This will restrict the search to those binaries which match the given sudo
-        command spec."""
+        command spec. """
 
         if spec != "ALL":
             # This is the harder case. We have a specific specification for the
@@ -419,9 +439,9 @@ class GTFOBins:
             yield from self.iter_methods(caps, stream, spec=spec, **kwargs)
 
     def find_binary(self, binary_path: str, caps: Capability = Capability.ALL):
-        """Locate a binary by name. Only return a binary if the capabilities
+        """ Locate a binary by name. Only return a binary if the capabilities
         overlap. Raise an BinaryNotFound exception if the capabilities don't
-        match or the given binary doesn't exist on the remote system."""
+        match or the given binary doesn't exist on the remote system. """
 
         binary_name = os.path.basename(binary_path)
         if binary_name not in self.binaries:
@@ -439,9 +459,9 @@ class GTFOBins:
         stream: Stream = None,
         spec: str = None,
     ) -> Generator[MethodWrapper, None, None]:
-        """Iterate over methods for the given remote binary path. A binary will
+        """ Iterate over methods for the given remote binary path. A binary will
         be located by taking the basename of the given path, and the cross-
-        referencing with the given capabilities and stream types."""
+        referencing with the given capabilities and stream types. """
 
         binary_name = os.path.basename(binary_path)
         if binary_name not in self.binaries:
@@ -457,7 +477,7 @@ class GTFOBins:
         stream: Stream = None,
         spec: str = None,
     ) -> Generator[MethodWrapper, None, None]:
-        """Iterate over methods which provide the given capabilities"""
+        """ Iterate over methods which provide the given capabilities """
 
         for name, binary in self.binaries.items():
             path = self.which(name)
@@ -469,13 +489,12 @@ class GTFOBins:
             yield from binary.iter_methods(path, caps, stream, spec)
 
     def resolve_binaries(self, target: str, **args):
-        """resolve any missing binaries with the self.which method"""
+        """ resolve any missing binaries with the self.which method """
 
         while True:
             try:
-                return target.format(**args)
-            except ValueError as exc:
-                raise ValueError(target) from exc
+                target = target.format(**args)
+                break
             except KeyError as exc:
                 # The keyerror has the name in quotes for some reason
                 key = shlex.split(str(exc))[0]
@@ -491,3 +510,5 @@ class GTFOBins:
                     raise MissingBinary(key)
                 # Next time, we have it
                 args[key] = value
+
+        return target

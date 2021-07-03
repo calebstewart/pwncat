@@ -2,7 +2,7 @@ Connect
 =======
 
 This command initiates or receives a connection to a remote victim and establishes
-a pwncat session. Sessions can be established over any socket-like communication
+a ``pwncat`` session. Sessions can be established over any socket-like communication
 layer. Currently, communications channels for reverse and bind shells over raw
 sockets and SSH are implemented.
 
@@ -28,7 +28,7 @@ This command also accepts a second positional parameter to specify the port. Thi
 parameter cannot be used along with the port within the connection string. The
 reason for the second port argument is to support ``netcat`` like syntax.
 
-These rules mean that you can invoke pwncat in a similar fashion to common
+These rules mean that you can invoke ``pwncat`` in a similar fashion to common
 tools such as ``ssh`` and ``netcat``. For example, all of the following are valid:
 
 .. code-block:: bash
@@ -51,5 +51,5 @@ tools such as ``ssh`` and ``netcat``. For example, all of the following are vali
    connect reconnect://user:module@10.10.10.10
    connect [hostname, host hash or IP]
 
-For more concrete examples, see the ``Basic Usage`` page. The arguments to pwncat are
+For more concrete examples, see the ``Basic Usage`` page. The arguments to ``pwncat`` are
 the same as the arguments to ``connect``

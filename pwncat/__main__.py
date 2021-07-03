@@ -1,307 +1,121 @@
 #!/usr/bin/env python3
-import sys
+from io import TextIOWrapper
 import logging
-import argparse
-import importlib.metadata
+import selectors
+import shlex
+import sys
+import warnings
+import os
+from pathlib import Path
+import inspect
 
-from rich import box
-from rich.table import Table
-from rich.progress import Progress, SpinnerColumn
+from sqlalchemy import exc as sa_exc
+from sqlalchemy.exc import InvalidRequestError
+from paramiko.buffered_pipe import BufferedPipe
 
-import pwncat.manager
+import pwncat
 from pwncat.util import console
-from pwncat.channel import ChannelError
-from pwncat.modules import ModuleFailed
-from pwncat.commands import connect
-from pwncat.platform import PlatformError
+from pwncat.remote import Victim
 
 
 def main():
 
-    # Default log-level is "INFO"
-    logging.getLogger().setLevel(logging.INFO)
+    params = inspect.signature(BufferedPipe.read).parameters
 
-    parser = argparse.ArgumentParser(
-        description="""Start interactive pwncat session and optionally connect to existing victim via a known platform and channel type. This entrypoint can also be used to list known implants on previous targets."""
-    )
-    parser.add_argument(
-        "--version", "-v", action="store_true", help="Show version number and exit"
-    )
-    parser.add_argument(
-        "--download-plugins",
-        action="store_true",
-        help="Pre-download all Windows builtin plugins and exit immediately",
-    )
-    parser.add_argument(
-        "--config",
-        "-c",
-        type=argparse.FileType("r"),
-        default=None,
-        help="Custom configuration file (default: ./pwncatrc)",
-    )
-    parser.add_argument(
-        "--identity",
-        "-i",
-        type=argparse.FileType("r"),
-        default=None,
-        help="Private key for SSH authentication",
-    )
-    parser.add_argument(
-        "--listen",
-        "-l",
-        action="store_true",
-        help="Enable the `bind` protocol (supports netcat-style syntax)",
-    )
-    parser.add_argument(
-        "--platform",
-        "-m",
-        help="Name of the platform to use (default: linux)",
-        default="linux",
-    )
-    parser.add_argument(
-        "--port",
-        "-p",
-        help="Alternative way to specify port to support netcat-style syntax",
-    )
-    parser.add_argument(
-        "--list",
-        action="store_true",
-        help="List installed implants with remote connection capability",
-    )
-    parser.add_argument(
-        "connection_string",
-        metavar="[protocol://][user[:password]@][host][:port]",
-        help="Connection string describing victim",
-        nargs="?",
-    )
-    parser.add_argument(
-        "pos_port",
-        nargs="?",
-        metavar="port",
-        help="Alternative port number to support netcat-style syntax",
-    )
-    args = parser.parse_args()
+    if "flags" not in params:
+        console.log(
+            f"[red]error[/red]: pwncat requires a custom fork of paramiko. This can be installed with `pip install -U git+https://github.com/calebstewart/paramiko`"
+        )
+        sys.exit(1)
 
-    # Print the version number and exit.
-    if args.version:
-        print(importlib.metadata.version("pwncat"))
-        return
+    # Ignore SQL Alchemy warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=sa_exc.SAWarning)
 
-    # Create the session manager
-    with pwncat.manager.Manager(args.config) as manager:
+        # Default log-level is "INFO"
+        logging.getLogger().setLevel(logging.INFO)
 
-        if args.download_plugins:
-            for plugin_info in pwncat.platform.Windows.PLUGIN_INFO:
-                with pwncat.platform.Windows.open_plugin(
-                    manager, plugin_info.provides[0]
-                ):
-                    pass
+        # Build the victim object
+        pwncat.victim = Victim()
 
-            return
+        # Find the user configuration
+        config_path = (
+            Path(os.environ.get("XDG_CONFIG_HOME", "~/.config/"))
+            / "pwncat"
+            / "pwncatrc"
+        )
+        config_path = config_path.expanduser()
 
-        if args.list:
+        try:
+            # Read the config script
+            with config_path.open("r") as filp:
+                script = filp.read()
 
-            db = manager.db.open()
-            implants = []
+            # Run the script
+            pwncat.victim.command_parser.eval(script, str(config_path))
+        except (FileNotFoundError, PermissionError):
+            # The config doesn't exist
+            pass
 
-            table = Table(
-                "ID",
-                "Address",
-                "Platform",
-                "Implant",
-                "User",
-                box=box.MINIMAL_DOUBLE_HEAD,
-            )
+        # Arguments to `pwncat` are considered arguments to `connect`
+        # We use the `prog_name` argument to make the help for "connect"
+        # display "pwncat" in the usage. This is just a visual fix, and
+        # isn't used anywhere else.
+        pwncat.victim.command_parser.dispatch_line(
+            shlex.join(["connect"] + sys.argv[1:]), prog_name="pwncat"
+        )
 
-            # Locate all installed implants
-            for target in db.root.targets:
+        # Only continue if we successfully connected
+        if not pwncat.victim.connected:
+            sys.exit(0)
 
-                # Collect users
-                users = {}
-                for fact in target.facts:
-                    if "user" in fact.types:
-                        users[fact.id] = fact
+        # Make stdin unbuffered. Without doing this, some key sequences
+        # which are multi-byte don't get sent properly (e.g. up and left
+        # arrow keys)
+        sys.stdin = TextIOWrapper(
+            os.fdopen(sys.stdin.fileno(), "br", buffering=0),
+            write_through=True,
+            line_buffering=False,
+        )
 
-                # Collect implants
-                for fact in target.facts:
-                    if "implant.remote" in fact.types:
-                        table.add_row(
-                            target.guid,
-                            target.public_address[0],
-                            target.platform,
-                            fact.source,
-                            users[fact.uid].name,
-                        )
+        # Setup the selector to wait for data asynchronously from both streams
+        selector = selectors.DefaultSelector()
+        selector.register(sys.stdin, selectors.EVENT_READ, None)
+        selector.register(pwncat.victim.client, selectors.EVENT_READ, "read")
 
-            if not table.rows:
-                console.log("[red]error[/red]: no remote implants found")
-            else:
-                console.print(table)
+        # Initialize our state
+        done = False
 
-            return
-
-        console.log("Welcome to [red]pwncat[/red] 🐈!")
-
-        if (
-            args.connection_string is not None
-            or args.pos_port is not None
-            or args.port is not None
-            or args.listen
-            or args.identity is not None
-        ):
-            protocol = None
-            user = None
-            password = None
-            host = None
-            port = None
-
-            if args.connection_string:
-                m = connect.Command.CONNECTION_PATTERN.match(args.connection_string)
-                protocol = m.group("protocol")
-                user = m.group("user")
-                password = m.group("password")
-                host = m.group("host")
-                port = m.group("port")
-
-            if protocol is not None:
-                protocol = protocol.removesuffix("://")
-
-            if host is not None and host == "":
-                host = None
-
-            if protocol is not None and args.listen:
-                console.log(
-                    "[red]error[/red]: --listen is not compatible with an explicit connection string"
-                )
-                return
-
-            if (
-                sum(
-                    [
-                        port is not None,
-                        args.port is not None,
-                        args.pos_port is not None,
-                    ]
-                )
-                > 1
-            ):
-                console.log("[red]error[/red]: multiple ports specified")
-                return
-
-            if args.port is not None:
-                port = args.port
-            if args.pos_port is not None:
-                port = args.pos_port
-
-            if port is not None:
-                try:
-                    port = int(port.lstrip(":"))
-                except ValueError:
-                    console.log(f"[red]error[/red]: {port}: invalid port number")
-                    return
-
-            # Attempt to reconnect via installed implants
-            if (
-                protocol is None
-                and password is None
-                and port is None
-                and args.identity is None
-            ):
-                db = manager.db.open()
-                implants = []
-
-                # Locate all installed implants
-                for target in db.root.targets:
-
-                    if target.guid != host and target.public_address[0] != host:
-                        continue
-
-                    # Collect users
-                    users = {}
-                    for fact in target.facts:
-                        if "user" in fact.types:
-                            users[fact.id] = fact
-
-                    # Collect implants
-                    for fact in target.facts:
-                        if "implant.remote" in fact.types:
-                            implants.append((target, users[fact.uid], fact))
-
-                with Progress(
-                    "triggering implant",
-                    "•",
-                    "{task.fields[status]}",
-                    transient=True,
-                    console=console,
-                ) as progress:
-                    task = progress.add_task("", status="...")
-                    for target, implant_user, implant in implants:
-                        # Check correct user
-                        if user is not None and implant_user.name != user:
-                            continue
-                        # Check correct platform
-                        if (
-                            args.platform is not None
-                            and target.platform != args.platform
-                        ):
-                            continue
-
-                        progress.update(
-                            task, status=f"trying [cyan]{implant.source}[/cyan]"
-                        )
-
-                        # Attempt to trigger a new session
-                        try:
-                            session = implant.trigger(manager, target)
-                            manager.target = session
-                            used_implant = implant
+        try:
+            # This loop is only used to funnel data between the local
+            # and remote hosts when in raw mode. During the `pwncat`
+            # prompt, the main loop is handled by the CommandParser
+            # class `run` method.
+            while not done:
+                for k, _ in selector.select():
+                    if k.fileobj is sys.stdin:
+                        data = sys.stdin.buffer.read(64)
+                        pwncat.victim.process_input(data)
+                    else:
+                        data = pwncat.victim.recv()
+                        if data is None or len(data) == 0:
+                            done = True
                             break
-                        except ModuleFailed:
-                            db.transaction_manager.commit()
-                            continue
-
-            if manager.target is not None:
-                manager.target.log(
-                    f"connected via {used_implant.title(manager.target)}"
-                )
-            else:
-                try:
-                    manager.create_session(
-                        platform=args.platform,
-                        protocol=protocol,
-                        user=user,
-                        password=password,
-                        host=host,
-                        port=port,
-                        identity=args.identity,
-                    )
-                except (ChannelError, PlatformError) as exc:
-                    manager.log(f"connection failed: {exc}")
-
-        manager.interactive()
-
-        if manager.sessions:
-            with Progress(
-                SpinnerColumn(),
-                "closing sessions",
-                "•",
-                "{task.fields[status]}",
-                console=console,
-                transient=True,
-            ) as progress:
-                task = progress.add_task("task", status="...")
-
-                # Retrieve the existing session IDs list
-                session_ids = list(manager.sessions.keys())
-
-                # Close each session based on its ``session_id``
-                for session_id in session_ids:
-                    progress.update(
-                        task, status=str(manager.sessions[session_id].platform)
-                    )
-                    manager.sessions[session_id].close()
-
-                progress.update(task, status="done!", completed=100)
+                        sys.stdout.buffer.write(data)
+                        sys.stdout.flush()
+        except ConnectionResetError:
+            pwncat.victim.restore_local_term()
+            console.log("[yellow]warning[/yellow]: connection reset by remote host")
+        except (pwncat.util.CommandSystemExit, SystemExit):
+            console.log("closing connection")
+        finally:
+            # Restore the shell
+            pwncat.victim.restore_local_term()
+            try:
+                # Make sure everything was committed
+                pwncat.victim.session.commit()
+            except InvalidRequestError:
+                pass
 
 
 if __name__ == "__main__":

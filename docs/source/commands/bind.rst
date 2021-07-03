@@ -15,16 +15,16 @@ character. For example, to bind the lowercase "a" key to a command you could:
 
     bind "a" "some helpful command"
 
-If the key argument is longer than one character, it is assumed to be a key name. The key names accepted by pwncat
+If the key argument is longer than one character, it is assumed to be a key name. The key names accepted by ``pwncat``
 are taken directly at runtime from the list of known ANSI keystrokes defined in the ``prompt_toolkit`` package. They
 use the same syntax as in prompt toolkit. All key names are lowercase. The prompt_toolkit documentation covers the
 keys supported by their module in their `documentation here`_. Any key defined by prompt_toolkit is available for
-key binding by pwncat.
+key binding by ``pwncat``.
 
 Script Content
 --------------
 
-The target of a key binding is a script. Scripts in pwncat can be specified as a string, which can only contain a
+The target of a key binding is a script. Scripts in ``pwncat`` can be specified as a string, which can only contain a
 single command, or as a code block surrounded by curly braces. When in code block mode, you can use as many commands
 as you like, and even insert comments, blank lines, etc.
 

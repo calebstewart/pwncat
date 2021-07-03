@@ -20,7 +20,7 @@ users in one go. To use the default dictionary to test the root and bob users, y
 
     bruteforce -u root -u bob
 
-User names are automatically tab-completed at the pwncat prompt for your victim host.
+User names are automatically tab-completed at the ``pwncat`` prompt for your victim host.
 
 Selecting a Wordlist
 --------------------

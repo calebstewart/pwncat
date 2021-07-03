@@ -1,18 +1,31 @@
 #!/usr/bin/env python3
 import pwncat
-from pwncat.commands import CommandDefinition
+from pwncat.util import console
+from pwncat.commands.base import CommandDefinition, Complete, Parameter
 
 
 class Command(CommandDefinition):
     """
-    Exit the interactive prompt. If sessions are active, you will
-    be prompted to confirm. This shouldn't be run from a configuration
-    script.
+    Exit pwncat. You must provide the "--yes" parameter.
+    This prevents accidental closing of your remote session.
     """
 
     PROG = "exit"
-    ARGS = {}
+    ARGS = {
+        "--yes,-y": Parameter(
+            Complete.NONE,
+            action="store_true",
+            help="Confirm you would like to close pwncat",
+        )
+    }
     LOCAL = True
 
-    def run(self, manager, args):
-        raise pwncat.manager.InteractiveExit
+    def run(self, args):
+
+        # Ensure we confirmed we want to exit
+        if not args.yes:
+            console.log("[red]error[/red]: exit not confirmed (use '--yes')")
+            return
+
+        # Get outa here!
+        raise pwncat.util.CommandSystemExit

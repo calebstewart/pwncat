@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
-
+import pwncat
+from pwncat.commands.base import CommandDefinition, Complete, Parameter
 from pwncat.util import console
-from pwncat.commands import Complete, Parameter, CommandDefinition
+from colorama import Fore
 
 
 class Command(CommandDefinition):
-    """Alias an existing command with a new name. Specifying no alias or command
-    will list all aliases. Specifying an alias with no command will remove the
-    alias if it exists."""
+    """ Alias an existing command with a new name. Specifying no alias or command
+    will list all aliases. Specifying an alias with no command will remove the 
+    alias if it exists. """
 
     def get_command_names(self):
-        return [c.PROG for c in self.manager.parser.commands]
+        return [c.PROG for c in pwncat.victim.command_parser.commands]
 
     PROG = "alias"
     ARGS = {
@@ -25,16 +26,18 @@ class Command(CommandDefinition):
     }
     LOCAL = True
 
-    def run(self, manager, args):
+    def run(self, args):
         if args.alias is None:
-            for name, command in manager.parser.aliases.items():
+            for name, command in pwncat.victim.command_parser.aliases.items():
                 console.print(
                     f" [cyan]{name}[/cyan] \u2192 [yellow]{command.PROG}[/yellow]"
                 )
         elif args.command is not None:
             # This is safe because of "choices" in the argparser
-            manager.parser.aliases[args.alias] = [
-                c for c in manager.parser.commands if c.PROG == args.command
+            pwncat.victim.command_parser.aliases[args.alias] = [
+                c
+                for c in pwncat.victim.command_parser.commands
+                if c.PROG == args.command
             ][0]
         else:
-            del manager.parser.aliases[args.alias]
+            del pwncat.victim.command_parser.aliases[args.alias]
