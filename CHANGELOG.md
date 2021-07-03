@@ -14,6 +14,7 @@ and simply didn't have the time to go back and retroactively create one.
 - Added query-string arguments to connection strings for both the entrypoint
   and the `connect` command.
 - Added Enumeration States to allow session-bound enumerations
+- Added background listener API and commands ([#43](https://github.com/calebstewart/pwncat/issues/43))
 - Added Windows privilege escalation via BadPotato plugin ([#106](https://github.com/calebstewart/pwncat/issues/106))
 
 ## [0.4.3] - 2021-06-18
