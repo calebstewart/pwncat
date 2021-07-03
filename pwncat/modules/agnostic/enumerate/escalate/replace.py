@@ -25,7 +25,7 @@ class Module(EnumerateModule):
     user in the running session with the new user."""
 
     PLATFORM = None
-    SCHEDULE = Schedule.PER_USER
+    SCHEDULE = Schedule.ALWAYS
     PROVIDES = ["escalate.replace"]
 
     def enumerate(self, session: "pwncat.manager.Session"):

@@ -161,8 +161,14 @@ class EnumerateModule(BaseModule):
                 fact for fact in session.target.facts if fact.source != self.name
             ]
 
+            if self.name in session.target.enumerate_state:
+                del session.target.enumerate_state[self.name]
+
         if self.SCOPE is Scope.SESSION:
             session.facts = [fact for fact in session.facts if fact.source != self.name]
+
+            if self.name in session.enumerate_state:
+                del session.enumerate_state[self.name]
 
         return []
 
@@ -225,9 +231,6 @@ class EnumerateModule(BaseModule):
         :type cache: bool
         """
 
-        # Retrieve the DB target object
-        target = session.target
-
         if clear:
             self._clear_cache(session)
             return
@@ -261,11 +264,7 @@ class EnumerateModule(BaseModule):
                 continue
 
             # Only add the item if it doesn't exist
-            for f in target.facts:
-                if f == item:
-                    break
-            else:
-                session.register_fact(item, self.SCOPE, commit=False)
+            session.register_fact(item, self.SCOPE, commit=False)
 
             # Don't yield the actual fact if we didn't ask for this type
             if not types or any(
