@@ -66,6 +66,7 @@ from prompt_toolkit.completion import (
 )
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
+from prompt_toolkit.patch_stdout import patch_stdout
 from prompt_toolkit.styles.pygments import style_from_pygments_cls
 from prompt_toolkit.application.current import get_app
 
@@ -556,6 +557,7 @@ class CommandParser:
             self.setup_prompt()
 
         running = True
+        default_text = ""
 
         while running:
             try:
@@ -576,7 +578,10 @@ class CommandParser:
                         ("", "$ "),
                     ]
 
-                line = self.prompt.prompt().strip()
+                with patch_stdout(raw=True):
+                    line = self.prompt.prompt(default=default_text).strip()
+
+                default_text = ""
 
                 if line == "":
                     continue
@@ -788,9 +793,14 @@ class CommandLexer(RegexLexer):
         """Build the RegexLexer token list from the command definitions"""
 
         root = []
-        for command in commands:
+        sorted_commands = sorted(commands, key=lambda cmd: len(cmd.PROG), reverse=True)
+        for command in sorted_commands:
             root.append(
-                ("^" + re.escape(command.PROG), token.Name.Function, command.PROG)
+                (
+                    "^" + re.escape(command.PROG) + "( |$)",
+                    token.Name.Function,
+                    command.PROG,
+                )
             )
             mode = []
             if command.ARGS is not None:

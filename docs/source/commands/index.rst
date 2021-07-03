@@ -13,6 +13,8 @@ Command index
     download.rst
     escalate.rst
     load.rst
+    listen.rst
+    listeners.rst
     run.rst
     info.rst
     search.rst
