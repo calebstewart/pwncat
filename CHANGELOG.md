@@ -8,14 +8,21 @@ The Changelog starts with v0.4.1, because we did not keep one before that,
 and simply didn't have the time to go back and retroactively create one.
 
 ## [Unreleased]
+### Changed
+- Moved dependency management and building to [Poetry](https://python-poetry.org).
+- Changed package name to `pwncat-cs` in order to not conflict w/ cytopia/pwncat.
 ### Added
 - Added `ssl-bind` and `ssl-connect` channel protocols for encrypted shells
 - Added `ncat`-style ssl arguments to entrypoint and `connect` command
 - Added query-string arguments to connection strings for both the entrypoint
   and the `connect` command.
 - Added Enumeration States to allow session-bound enumerations
+- Added PyPi publishing to GitHub `publish` workflow.
+- Added licensing for pwncat (MIT)
 - Added background listener API and commands ([#43](https://github.com/calebstewart/pwncat/issues/43))
 - Added Windows privilege escalation via BadPotato plugin ([#106](https://github.com/calebstewart/pwncat/issues/106))
+### Removed
+- Removed `setup.py` and `requirements.txt`
 
 ## [0.4.3] - 2021-06-18
 Patch fix release. Major fixes are the correction of file IO for LinuxWriters and
