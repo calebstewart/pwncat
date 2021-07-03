@@ -1,12 +1,11 @@
 Modules
 =======
 
-Modules allow ``pwncat`` to abstractly handle many different operations without
-polluting the commands. Persistence, privilege escalation and enumeration are all
-implemented as modules within ``pwncat``. The modules are dynamically loaded at
-runtime. There is a set of default modules included with ``pwncat`` and also the
-ability to load custom modules at runtime (either manually or via local or global
-configuration script).
+pwncat has two programmable building blocks: commands and modules. Modules are
+specific to an open session. They are intended to retrieve some information or
+make a modification to a specific target. By default, modules are loaded from
+the ``pwncat/modules`` directory, but more modules can be loaded from a custom
+location via the ``load`` command.
 
 Module Contexts
 ---------------
@@ -24,7 +23,8 @@ require the module name as a parameter. It is inferred by the current context.
 Locating Modules
 ----------------
 
-Modules are located using the ``search`` command at the local prompt:
+Modules are located using the ``search`` command at the local prompt. You can
+also locate modules using tab completion at the local prompt.
 
 .. code-block:: bash
 

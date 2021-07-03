@@ -3,11 +3,11 @@ set -g lhost "127.0.0.1"
 # Set your command prefix
 set -g prefix c-k
 # Set the default private key to use for privilege escalation
-set -g privkey "data/pwncat" 
+set -g privkey "data/pwncat"
 # Set the pwncat backdoor user and password
 set -g backdoor_user "pwncat"
 set -g backdoor_pass "pwncat"
-set -g db "sqlite:///pwncat.sqlite"
+set -g db "file://db/pwncat"
 
 set -g on_load {
 	# Run a command upon a stable connection
@@ -27,4 +27,3 @@ alias down download
 # "!ls" run "local ls" given the below directives
 shortcut ! local
 shortcut @ run
-

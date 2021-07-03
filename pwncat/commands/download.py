@@ -1,35 +1,24 @@
 #!/usr/bin/env python3
-import pwncat
-from pwncat.commands.base import (
-    CommandDefinition,
-    Complete,
-    Parameter,
-    StoreConstOnce,
-    StoreForAction,
-    RemoteFileType,
-)
-from functools import partial
-from colorama import Fore
-from pwncat import util
-from pwncat.util import console
-import argparse
-import datetime
-import time
 import os
+import time
 
 from rich.progress import (
-    BarColumn,
-    DownloadColumn,
-    TextColumn,
-    TransferSpeedColumn,
-    TimeRemainingColumn,
     Progress,
-    TaskID,
+    BarColumn,
+    TextColumn,
+    DownloadColumn,
+    TimeRemainingColumn,
+    TransferSpeedColumn,
 )
+
+import pwncat
+from pwncat import util
+from pwncat.util import console
+from pwncat.commands import Complete, Parameter, CommandDefinition
 
 
 class Command(CommandDefinition):
-    """ Download a file from the remote host to the local host"""
+    """Download a file from the remote host to the local host"""
 
     PROG = "download"
     ARGS = {
@@ -37,7 +26,7 @@ class Command(CommandDefinition):
         "destination": Parameter(Complete.LOCAL_FILE, nargs="?"),
     }
 
-    def run(self, args):
+    def run(self, manager: "pwncat.manager.Manager", args):
 
         # Create a progress bar for the download
         progress = Progress(
@@ -60,14 +49,15 @@ class Command(CommandDefinition):
             )
 
         try:
-            length = pwncat.victim.get_file_size(args.source)
+            path = manager.target.platform.Path(args.source)
+            length = path.stat().st_size
             started = time.time()
             with progress:
                 task_id = progress.add_task(
                     "download", filename=args.source, total=length, start=False
                 )
                 with open(args.destination, "wb") as destination:
-                    with pwncat.victim.open(args.source, "rb", length=length) as source:
+                    with path.open("rb") as source:
                         progress.start_task(task_id)
                         util.copyfileobj(
                             source,

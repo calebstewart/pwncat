@@ -1,6 +1,4 @@
-import pwncat
-from pwncat.commands import CommandDefinition
-from pwncat.commands.base import Parameter, Complete
+from pwncat.commands import Complete, Parameter, CommandDefinition
 
 
 class Command(CommandDefinition):
@@ -14,11 +12,11 @@ class Command(CommandDefinition):
     }
     LOCAL = True
 
-    def run(self, args):
+    def run(self, manager, args):
 
-        for command in pwncat.victim.command_parser.commands:
+        for command in manager.parser.commands:
             if command.PROG == args.command:
-                pwncat.victim.command_parser.shortcuts[args.prefix] = command
+                manager.parser.shortcuts[args.prefix] = command
                 return
 
         self.parser.error(f"{args.command}: no such command")

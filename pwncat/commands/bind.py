@@ -1,16 +1,14 @@
 #!/usr/bin/env python3
-from prompt_toolkit.input.ansi_escape_sequences import REVERSE_ANSI_SEQUENCES
-from prompt_toolkit.keys import ALL_KEYS, Keys
 
-import pwncat
-from pwncat.commands.base import CommandDefinition, Complete, Parameter
-from pwncat.config import KeyType
+
 from pwncat.util import console
-from colorama import Fore
-import string
+from pwncat.config import KeyType
+from pwncat.commands import Complete, Parameter, CommandDefinition
 
 
 class Command(CommandDefinition):
+    """Create key aliases for when in raw mode. This only works from platforms
+    which provide a raw interaction (such as linux)."""
 
     PROG = "bind"
     ARGS = {
@@ -22,17 +20,19 @@ class Command(CommandDefinition):
             nargs="?",
         ),
         "script": Parameter(
-            Complete.NONE, help="The script to run when the key is pressed", nargs="?",
+            Complete.NONE,
+            help="The script to run when the key is pressed",
+            nargs="?",
         ),
     }
     LOCAL = True
 
-    def run(self, args):
+    def run(self, manager, args):
         if args.key is None:
-            for key, binding in pwncat.config.bindings.items():
+            for key, binding in manager.config.bindings.items():
                 console.print(f" [cyan]{key}[/cyan] = [yellow]{repr(binding)}[/yellow]")
         elif args.key is not None and args.script is None:
-            if args.key in pwncat.config.bindings:
-                del pwncat.config.bindings[args.key]
+            if args.key in manager.config.bindings:
+                del manager.config.bindings[args.key]
         else:
-            pwncat.config.bindings[args.key] = args.script
+            manager.config.bindings[args.key] = args.script

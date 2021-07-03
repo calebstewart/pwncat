@@ -1,22 +1,39 @@
-#!/usr/bin/env python3
-from typing import Any, Dict, List, Union
-import ipaddress
-import re
-import os
+"""
+This module houses the core pwncat configuration classes. pwncat configuration
+is not free-form. There are a specific set of known configuration names which
+can be set, and each one has a specific type. Type-checking is done at assignment
+by executing the callable used as the type for a given configuration. Configuration
+types generally do a good job of converting strings from the interactive promp to
+legitimate values for the configuration being modified. If it cannot be converted,
+a ``ValueError`` is raised.
 
-from prompt_toolkit.input.ansi_escape_sequences import (
-    REVERSE_ANSI_SEQUENCES,
-    ANSI_SEQUENCES,
-)
+There is currently no way to augment the configuration items exposed by pwncat.
+This may be added in the future, but currently, any configuration should be
+specific to your module or command.
+
+.. note::
+
+   If a module requires an argument which matches the name of a global configuration,
+   the value from the global configuration will be used as the default. This can be
+   used, for example, to automatically utilize the global values for backdoor users
+   or keys in your modules as configured by the user and decrease the number of
+   required parameters to a module.
+
+"""
+import os
+import copy
+import ipaddress
+from typing import Any, Dict, Union
+
 from prompt_toolkit.keys import ALL_KEYS, Keys
-import commentjson as json
+from prompt_toolkit.input.ansi_escape_sequences import REVERSE_ANSI_SEQUENCES
 
 from pwncat.modules import BaseModule
 
 
 def key_type(value: str) -> bytes:
-    """ Converts a key name to a ansi keycode. The value can either be a single
-    printable character or a named key from prompt_toolkit Keys """
+    """Converts a key name to a ansi keycode. The value can either be a single
+    printable character or a named key from prompt_toolkit Keys"""
     if len(value) == 1:
         return value.encode("utf-8")
     if value not in ALL_KEYS:
@@ -44,10 +61,35 @@ class KeyType:
 
 
 def local_file_type(value: str) -> str:
-    """ Ensure the local file exists """
+    """Ensure the local file exists"""
     if not os.path.isfile(value):
         raise ValueError(f"{value}: no such file or directory")
     return value
+
+
+def local_dir_type(value: str) -> str:
+    """Ensure the path specifies a local directory"""
+
+    # Expand ~ in the path
+    value = os.path.expanduser(value)
+
+    if not os.path.isdir(value):
+        raise ValueError(f"{value}: no such file or directory")
+    return value
+
+
+def bool_type(value: str) -> bool:
+
+    if isinstance(value, bool):
+        return value
+
+    value = value.lower()
+    if value == "1" or value == "true" or value == "on":
+        return True
+    elif value == "0" or value == "false" or value == "off":
+        return False
+
+    raise ValueError(f"{value}: expected boolean value")
 
 
 class Config:
@@ -64,8 +106,14 @@ class Config:
             "backdoor_user": {"value": "pwncat", "type": str},
             "backdoor_pass": {"value": "pwncat", "type": str},
             "on_load": {"value": "", "type": str},
-            "db": {"value": "sqlite:///:memory:", "type": str},
+            "db": {"value": "memory://", "type": str},
             "cross": {"value": None, "type": str},
+            "psmodules": {"value": ".", "type": local_dir_type},
+            "verbose": {"value": False, "type": bool_type},
+            "plugin_path": {
+                "value": "~/.local/share/pwncat",
+                "type": local_dir_type,
+            },
         }
 
         # Locals are set per-used-module
@@ -80,8 +128,22 @@ class Config:
             KeyType("c"): "set state command",
         }
 
+    def copy(self) -> "Config":
+        """Copy this configuration object exactly. This is mainly used
+        to allow for the possibility of running modules in the background
+        without being affected by future configuration changes."""
+
+        new = Config()
+
+        new.values = copy.copy(self.values)
+        new.locals = copy.copy(self.locals)
+        new.module = self.module
+        new.bindings = copy.copy(self.bindings)
+
+        return new
+
     def binding(self, name_or_value: Union[str, bytes]) -> str:
-        """ Get a key binding by it's key name or key value. """
+        """Get a key binding by it's key name or key value."""
 
         if isinstance(name_or_value, bytes):
             binding = [
@@ -95,31 +157,47 @@ class Config:
         return self.bindings[key]
 
     def set(self, name: str, value: Any, glob: bool = False):
-        """ Set a config value """
+        """Set a config value"""
 
-        if glob:
-            self.values[name]["value"] = self.values[name]["type"](value)
-            return
-        elif self.module is None or name not in self.module.ARGUMENTS:
+        if (
+            (glob and name not in self.values)
+            or (name not in self.values and self.module is None)
+            or (
+                self.module is not None
+                and name not in self.values
+                and name not in self.module.ARGUMENTS
+            )
+        ):
             raise KeyError(f"{name}: no such configuration value")
 
-        self.locals[name] = self.module.ARGUMENTS[name].type(value)
+        if glob or self.module is None or name not in self.module.ARGUMENTS:
+            self.values[name]["value"] = self.values[name]["type"](value)
+        else:
+            self.locals[name] = self.module.ARGUMENTS[name].type(value)
+
+    def get(self, name: str, default=None):
+        """get a value"""
+
+        try:
+            return self[name]
+        except KeyError:
+            return default
 
     def use(self, module: BaseModule):
-        """ Use the specified module. This clears the current
-        locals configuration. """
+        """Use the specified module. This clears the current
+        locals configuration."""
 
         self.locals = {}
         self.module = module
 
     def back(self):
-        """ Remove the currently used module and clear locals """
+        """Remove the currently used module and clear locals"""
 
         self.locals = {}
         self.module = None
 
     def __getitem__(self, name: str) -> Any:
-        """ Get a configuration item """
+        """Get a configuration item"""
 
         if name in self.locals:
             return self.locals[name]
@@ -127,7 +205,7 @@ class Config:
         return self.values[name]["value"]
 
     def __setitem__(self, name: str, value: Any):
-        """ Set a configuration item """
+        """Set a configuration item"""
         return self.set(name, value, glob=False)
 
     def __iter__(self):
