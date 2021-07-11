@@ -1,9 +1,11 @@
 """
 Windows-specific facts which are used in multiple places throughout the framework.
 """
-from typing import List, Optional
+import functools
+from typing import Any, List, Callable, Optional
 from datetime import datetime
 
+from pwncat.db import Fact
 from pwncat.facts import User, Group
 
 
@@ -122,3 +124,36 @@ class WindowsGroup(Group):
         self.group_description: str = description
         self.principal_source: str = principal_source
         self.domain: Optional[str] = domain
+
+
+class PowershellFact(Fact):
+    """Powershell Object Wrapper Fact"""
+
+    def __init__(
+        self,
+        source: str,
+        types: List[str],
+        obj: Any,
+        title: Callable,
+        description: Callable,
+    ):
+        super().__init__(source=source, types=types)
+
+        self.obj = obj
+
+        if description is not None:
+            self.description = functools.partial(description, self)
+        if title is not None:
+            self.title = functools.partial(title, self)
+
+    def description(self, session):
+        return None
+
+    def title(self, session):
+        return self.obj
+
+    def __getattr__(self, key: str):
+        try:
+            return self.obj[key]
+        except KeyError:
+            return super().__getattr__(key)
