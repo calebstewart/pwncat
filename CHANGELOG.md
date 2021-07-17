@@ -11,7 +11,7 @@ and simply didn't have the time to go back and retroactively create one.
 ### Fixed
 - Possible exception due to _pre-registering_ of 'session' with 'manager'
 ### Added
-- Added an exception handler to allow use of 'C-c' during __create_____session__
+- Added an exception handler to allow use of 'C-c' during __create_session__
 - Added alternatives to `bash`, for _better shell_
 
 ## [0.4.3] - 2021-06-18
