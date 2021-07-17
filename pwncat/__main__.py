@@ -280,7 +280,6 @@ def main():
                 except KeyboardInterrupt:
                     manager.log("[yellow]warning:[/yellow] cancelled by user")
 
-
         manager.interactive()
 
         if manager.sessions:

@@ -20,7 +20,6 @@ import stat
 import time
 import base64
 import shutil
-import signal
 import hashlib
 import pathlib
 import tarfile
