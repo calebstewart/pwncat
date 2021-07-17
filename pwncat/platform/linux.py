@@ -611,7 +611,7 @@ class Linux(Platform):
 
         if os.path.basename(self.shell) in ["sh", "dash"]:
             # Try to find a better shell
-            # a custom `pwncat shell promt` may not be available for all the shells
+            # a custom `pwncat shell prompt` may not be available for all shells
             # see `self.PROMPTS`
             better_shells = ["bash", "zsh", "ksh", "fish"]
 
