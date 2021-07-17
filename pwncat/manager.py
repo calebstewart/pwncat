@@ -89,10 +89,6 @@ class Session:
                 verbose=self.config.get("verbose", False),
             )
 
-        # Register this session with the manager
-        self.manager.sessions[self.id] = self
-        self.manager.target = self
-
         # Initialize the host reference
         self.hash = self.platform.get_host_hash()
 
@@ -102,6 +98,12 @@ class Session:
             self.log("loaded known host from db")
 
         self.platform.get_pty()
+
+        # Register this session with the manager
+        # some of the methods used above can raise an exception
+        # and we will register this session only when everything goes well
+        self.manager.sessions[self.id] = self
+        self.manager.target = self
 
     @property
     def config(self):
