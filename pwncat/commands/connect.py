@@ -244,3 +244,5 @@ class Command(CommandDefinition):
                 )
             except (ChannelError, PlatformError) as exc:
                 manager.log(f"connection failed: {exc}")
+            except KeyboardInterrupt:
+                manager.log("[yellow]warning[/yellow]: cancelled by user")
