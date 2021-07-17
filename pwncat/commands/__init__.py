@@ -523,7 +523,9 @@ class CommandParser:
                 self.dispatch_line(command)
             except ChannelClosed as exc:
                 # A channel was unexpectedly closed
-                self.manager.log(f"[yellow]warning[/yellow]: {exc.channel}: channel closed")
+                self.manager.log(
+                    f"[yellow]warning[/yellow]: {exc.channel}: channel closed"
+                )
                 # Ensure any existing sessions are cleaned from the manager
                 exc.cleanup(self.manager)
             except pwncat.manager.InteractiveExit:
@@ -593,7 +595,9 @@ class CommandParser:
                 continue
             except ChannelClosed as exc:
                 # A channel was unexpectedly closed
-                self.manager.log(f"[yellow]warning[/yellow]: {exc.channel}: channel closed")
+                self.manager.log(
+                    f"[yellow]warning[/yellow]: {exc.channel}: channel closed"
+                )
                 # Ensure any existing sessions are cleaned from the manager
                 exc.cleanup(self.manager)
             except pwncat.manager.InteractiveExit:
