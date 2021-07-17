@@ -8,6 +8,11 @@ The Changelog starts with v0.4.1, because we did not keep one before that,
 and simply didn't have the time to go back and retroactively create one.
 
 ## [Unreleased]
+### Fixed
+- Possible exception due to _pre-registering_ of 'session' with 'manager'
+### Added
+- Added an exception handler to allow use of 'C-c' during __create_____session__
+- Added alternatives to `bash`, for _better shell_
 
 ## [0.4.3] - 2021-06-18
 Patch fix release. Major fixes are the correction of file IO for LinuxWriters and
