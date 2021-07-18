@@ -247,5 +247,5 @@ class Command(CommandDefinition):
                 manager.log(f"connection failed: {exc}")
             except KeyboardInterrupt:
                 # hide '^C' from the output
-                sys.stdout.write('\b\b\r')
+                sys.stdout.write("\b\b\r")
                 manager.log("[yellow]warning[/yellow]: cancelled by user")
