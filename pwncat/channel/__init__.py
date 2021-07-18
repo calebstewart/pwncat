@@ -73,7 +73,7 @@ class ChannelTimeout(ChannelError):
     """
 
     def __init__(self, ch, data: bytes):
-        super().__init__(ch, f"channel recieve timed out: {repr(data)}")
+        super().__init__(ch, f"channel receive timed out: {repr(data)}")
         self.data: bytes = data
 
 
@@ -394,7 +394,7 @@ class Channel(ABC):
         return data
 
     def recvline(self, timeout: Optional[float] = None) -> bytes:
-        """Recieve data until a newline is received. The newline
+        """Receive data until a newline is received. The newline
         is not stripped. This is a default implementation that
         utilizes the ``recvuntil`` method.
 

@@ -20,7 +20,6 @@ import stat
 import time
 import base64
 import shutil
-import signal
 import hashlib
 import pathlib
 import tarfile
@@ -620,7 +619,7 @@ function prompt {
         """This routine upgrades a standard powershell or cmd shell to an
         instance of the pwncat stage two C2. It will first locate a valid
         writable temporary directory (from the list below) and then upload
-        stage one to that directory. Stage one is a simple DLL which recieves
+        stage one to that directory. Stage one is a simple DLL which receives
         a base64 encoded, gzipped payload to reflectively load and execute.
         We run stage one using Install-Util to bypass applocker."""
 

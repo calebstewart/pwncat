@@ -9,7 +9,7 @@ subprocess module.
     Depending on the platform you are connected to, you may only be
     able to run a single process at a time. Because of this, you
     should always ensure the process properly exits and you call
-    ``Popen.wait()`` or recieve a non-None result from ``Popen.poll()``
+    ``Popen.wait()`` or receive a non-None result from ``Popen.poll()``
     before calling other pwncat methods.
 
 """

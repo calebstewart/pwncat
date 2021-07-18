@@ -611,12 +611,19 @@ class Linux(Platform):
 
         if os.path.basename(self.shell) in ["sh", "dash"]:
             # Try to find a better shell
-            bash = self._do_which("bash")
-            if bash is not None:
-                self.session.log(f"upgrading from {self.shell} to {bash}")
-                self.shell = bash
-                self.channel.sendline(f"exec {self.shell}".encode("utf-8"))
-                time.sleep(0.5)
+            # a custom `pwncat shell prompt` may not be available for all shells
+            # see `self.PROMPTS`
+            better_shells = ["bash", "zsh", "ksh", "fish"]
+
+            for better_shell in better_shells:
+                shell = self._do_which(better_shell)
+
+                if shell is not None:
+                    self.session.log(f"upgrading from {self.shell} to {shell}")
+                    self.shell = shell
+                    self.channel.sendline(f"exec {self.shell}".encode("utf-8"))
+                    time.sleep(0.5)
+                    break
 
         self.refresh_uid()
 
