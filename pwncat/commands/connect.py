@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import re
+import sys
 
 from rich import box
 from rich.table import Table
@@ -245,4 +246,6 @@ class Command(CommandDefinition):
             except (ChannelError, PlatformError) as exc:
                 manager.log(f"connection failed: {exc}")
             except KeyboardInterrupt:
+                # hide '^C' from the output
+                sys.stdout.write('\b\b\r')
                 manager.log("[yellow]warning[/yellow]: cancelled by user")
