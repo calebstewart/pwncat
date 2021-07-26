@@ -80,6 +80,12 @@ def main():
         metavar="port",
         help="Alternative port number to support netcat-style syntax",
     )
+    parser.add_argument(
+        "--verbose",
+        "-V",
+        action="store_true",
+        help="Enable verbose output for the remote commands executed by `pwncat`"
+    )
     args = parser.parse_args()
 
     # Print the version number and exit.
@@ -89,6 +95,12 @@ def main():
 
     # Create the session manager
     with pwncat.manager.Manager(args.config) as manager:
+
+        if args.verbose:
+            # set the config variable `verbose` to `True` (globally)
+            manager.config.set(
+                'verbose', True, True
+            )
 
         if args.download_plugins:
             for plugin_info in pwncat.platform.Windows.PLUGIN_INFO:
