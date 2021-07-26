@@ -7,8 +7,10 @@ from pwncat.commands import Complete, Parameter, CommandDefinition
 
 
 class Command(CommandDefinition):
-    """Create key aliases for when in raw mode. This only works from platforms
-    which provide a raw interaction (such as linux)."""
+    """
+    Create key aliases for when in raw mode. This only works from platforms
+    which provide a raw interaction (such as linux).
+    """
 
     PROG = "bind"
     ARGS = {

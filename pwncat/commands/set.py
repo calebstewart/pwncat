@@ -5,7 +5,9 @@ from pwncat.commands import Complete, Parameter, CommandDefinition
 
 
 class Command(CommandDefinition):
-    """Set variable runtime variable parameters for pwncat"""
+    """
+    Set variable runtime variable parameters for pwncat
+    """
 
     def get_config_variables(self):
         options = ["state"] + list(self.manager.config.values)

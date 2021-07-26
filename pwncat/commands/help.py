@@ -10,7 +10,9 @@ from pwncat.commands import Complete, Parameter, CommandDefinition
 
 
 class Command(CommandDefinition):
-    """List known commands and print their associated help documentation."""
+    """
+    List known commands and print their associated help documentation.
+    """
 
     def get_command_names(self):
         try:
