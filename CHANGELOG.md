@@ -11,6 +11,7 @@ and simply didn't have the time to go back and retroactively create one.
 
 ### Fixed
 - Possible exception due to _pre-registering_ of `session` with `manager`
+- Updated Dockerfile to use __alpine:3.14__ for __python3.9__ and updated `setup.py` script
 ### Added
 - Added alternatives to `bash` to be used during _shell upgrade_ for a _better shell_
 - Added a warning message when a `KeyboardInterrupt` is caught
