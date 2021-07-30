@@ -129,7 +129,7 @@ be observed with your installed package.
 
 The setup script will install three binaries. They are all identical, but
 provide convenience aliases for pwncat. The three binaries are: `pwncat`,
-`pc` and `pcat`.
+`pc`.
 
 ### Connecting to a Victim
 
@@ -196,6 +196,10 @@ is the `pwncat` binary. It can be used like so:
 ``` shell
 # Connect to a bind shell at 10.0.0.1:4444
 docker run -v "/some/directory":/work -t pwncat 10.0.0.1 4444
+
+# If you face any issues related to Cursor Position Requests (CPR)
+# Run the docker container in interactive mode using `-i/--interactive`
+docker run -v "/some/directory":/work -t --interactive pwncat 10.0.0.1 4444
 ```
 
 In this example, only the files in `/some/directory` are exposed to the container.

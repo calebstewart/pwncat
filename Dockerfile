@@ -1,4 +1,4 @@
-FROM alpine:3.13.5 as builder
+FROM alpine:3.14 as builder
 
 # Install python3 and development files
 RUN set -eux \
@@ -32,7 +32,7 @@ RUN set -eux \
 	&& find /opt/pwncat/lib -type d -name '__pycache__' -print0 | xargs -0 -n1 rm -rf || true
 
 
-FROM alpine:3.13.5 as final
+FROM alpine:3.14 as final
 
 RUN set -eux \
 	&& apk add --no-cache \
