@@ -46,6 +46,7 @@ import argparse
 from io import TextIOWrapper
 from enum import Enum, auto
 from typing import Dict, List, Type, Callable, Iterable
+from pathlib import Path
 from functools import partial
 
 import rich.text
@@ -95,6 +96,31 @@ class Complete(Enum):
     """ Complete argument as a remote file path """
     NONE = auto()
     """ Do not provide argument completions """
+
+
+class ParseType(Enum):
+    """
+    Command type. This defines how command parameter arguments are parsed
+    """
+
+    NONE = auto()
+    """ No specific type given, so no interpreter needed """
+    LOCAL_FILE = auto()
+    """ File type """
+
+
+class ParameterParse:
+    def parse(value):
+        """This is where the parameter will be parsed"""
+        raise NotImplementedError
+
+
+class LocalFileParse:
+    def parse(value):
+        if value.startswith("~"):
+            homedir = str(Path.home())
+            return homedir + value[1:]
+        return value
 
 
 class StoreConstOnce(argparse.Action):
@@ -180,6 +206,8 @@ class Parameter:
 
     :param complete: the completion type
     :type complete: Complete
+    :param parser: the parsing type
+    :type parser: ParseType
     :param token: the Pygments token to highlight this argument with
     :type token: Pygments Token
     :param group: true for a group definition, a string naming the group to be a part of, or none
@@ -191,12 +219,14 @@ class Parameter:
     def __init__(
         self,
         complete: Complete,
+        parser=ParseType.NONE,
         token=token.Name.Label,
         group: str = None,
         *args,
         **kwargs,
     ):
         self.complete = complete
+        self.parser = parser
         self.token = token
         self.group = group
         self.args = args
@@ -337,6 +367,18 @@ class CommandDefinition:
             group.add_argument(*names, *param.args, **param.kwargs)
 
         parser.set_defaults(**self.DEFAULTS)
+
+    def parse_args(self, args, fallback):
+        if not self.parser:
+            return fallback
+
+        parsed = vars(self.parser.parse_args(args))
+        for [argkey, argobj] in self.ARGS.items():
+            if argkey not in parsed or argobj.parser is ParseType.NONE:
+                continue
+            if argobj.parser is ParseType.LOCAL_FILE:
+                parsed[argkey] = LocalFileParse.parse(parsed[argkey])
+        return argparse.Namespace(**parsed)
 
 
 def resolve_blocks(source: str):
@@ -659,10 +701,7 @@ class CommandParser:
                 prog_name = temp_name
 
             # Parse the arguments
-            if command.parser:
-                args = command.parser.parse_args(args)
-            else:
-                args = line
+            args = command.parse_args(args, line)
 
             # Run the command
             command.run(self.manager, args)
@@ -872,6 +911,10 @@ class LocalPathCompleter(Completer):
 
         if path == "":
             path = "."
+
+        if path.startswith("~"):
+            homedir = str(Path.home())
+            path = homedir + path[1:]
 
         # Ensure the directory exists
         if not os.path.isdir(path):
