@@ -21,6 +21,8 @@ and simply didn't have the time to go back and retroactively create one.
 - Added licensing for pwncat (MIT)
 - Added background listener API and commands ([#43](https://github.com/calebstewart/pwncat/issues/43))
 - Added Windows privilege escalation via BadPotato plugin ([#106](https://github.com/calebstewart/pwncat/issues/106))
+- Added command parameter parsers
+- Added homedir (`~`) support on local file completer and parser
 ### Removed
 - Removed `setup.py` and `requirements.txt`
 
