@@ -23,6 +23,7 @@ and simply didn't have the time to go back and retroactively create one.
 - Added Windows privilege escalation via BadPotato plugin ([#106](https://github.com/calebstewart/pwncat/issues/106))
 - Added command parameter parsers
 - Added homedir (`~`) support on local file completer and parser
+- Added homedir (`~`) support on remote file completer and parser
 ### Removed
 - Removed `setup.py` and `requirements.txt`
 

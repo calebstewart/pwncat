@@ -106,20 +106,32 @@ class ParseType(Enum):
     NONE = auto()
     """ No specific type given, so no interpreter needed """
     LOCAL_FILE = auto()
-    """ File type """
+    """ Local file type """
+    REMOTE_FILE = auto()
+    """ Remote file type """
 
 
 class ParameterParse:
-    def parse(value):
+    def parse(value, session: "pwncat.manager.Session"):
         """This is where the parameter will be parsed"""
         raise NotImplementedError
 
 
-class LocalFileParse:
-    def parse(value):
+class LocalFileParse(ParameterParse):
+    def parse(value, session: "pwncat.manager.Session"):
         if value.startswith("~"):
-            homedir = str(Path.home())
-            return homedir + value[1:]
+            return os.path.expanduser(value)
+        return value
+
+class RemoteFileParse(ParameterParse):
+    def parse(value, session: "pwncat.manager.Session"):
+        if value.startswith("~/") or value.startswith("~\\"):
+            homedir = session.platform.getenv("HOME")
+            if not homedir:
+                """ Windows support """
+                homedir = session.platform.getenv("USERPROFILE")
+            if homedir:
+                return homedir + value[1:]
         return value
 
 
@@ -376,8 +388,17 @@ class CommandDefinition:
         for [argkey, argobj] in self.ARGS.items():
             if argkey not in parsed or argobj.parser is ParseType.NONE:
                 continue
-            if argobj.parser is ParseType.LOCAL_FILE:
-                parsed[argkey] = LocalFileParse.parse(parsed[argkey])
+
+            if argobj.parser is not ParseType.NONE:
+                parser = None
+                if argobj.parser is ParseType.LOCAL_FILE:
+                    parser = LocalFileParse
+                elif argobj.parser is ParseType.REMOTE_FILE:
+                    parser = RemoteFileParse
+
+                if parser is not None:
+                    parsed[argkey] = parser.parse(parsed[argkey], self.manager.target)
+
         return argparse.Namespace(**parsed)
 
 
@@ -891,6 +912,14 @@ class RemotePathCompleter(Completer):
 
         if path == "":
             path = "."
+        
+        if path.startswith("~"):
+            homedir = self.manager.target.platform.getenv("HOME")
+            if not homedir:
+                """ Windows support """
+                homedir = self.manager.target.platform.getenv("USERPROFILE")
+            if homedir:
+                path = homedir + path[1:]
 
         for name in self.manager.target.platform.listdir(path):
             if name.startswith(partial_name):
@@ -913,8 +942,7 @@ class LocalPathCompleter(Completer):
             path = "."
 
         if path.startswith("~"):
-            homedir = str(Path.home())
-            path = homedir + path[1:]
+            path = os.path.expanduser(path)
 
         # Ensure the directory exists
         if not os.path.isdir(path):

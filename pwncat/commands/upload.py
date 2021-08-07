@@ -25,6 +25,7 @@ class Command(CommandDefinition):
         "destination": Parameter(
             Complete.REMOTE_FILE,
             nargs="?",
+            parser=ParseType.REMOTE_FILE
         ),
     }
 

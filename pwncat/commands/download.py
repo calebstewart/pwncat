@@ -14,7 +14,7 @@ from rich.progress import (
 import pwncat
 from pwncat import util
 from pwncat.util import console
-from pwncat.commands import Complete, Parameter, CommandDefinition
+from pwncat.commands import Complete, Parameter, CommandDefinition, ParseType
 
 
 class Command(CommandDefinition):
@@ -22,8 +22,8 @@ class Command(CommandDefinition):
 
     PROG = "download"
     ARGS = {
-        "source": Parameter(Complete.REMOTE_FILE),
-        "destination": Parameter(Complete.LOCAL_FILE, nargs="?"),
+        "source": Parameter(Complete.REMOTE_FILE, parser=ParseType.REMOTE_FILE),
+        "destination": Parameter(Complete.LOCAL_FILE, nargs="?", parser=ParseType.LOCAL_FILE),
     }
 
     def run(self, manager: "pwncat.manager.Manager", args):
