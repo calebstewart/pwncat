@@ -11,6 +11,7 @@ and simply didn't have the time to go back and retroactively create one.
 
 ### Fixed
 - Possible exception due to _pre-registering_ of `session` with `manager`
+- Fixed base64 stream in `LinuxWriter`
 ### Added
 - Added alternatives to `bash` to be used during _shell upgrade_ for a _better shell_
 - Added a warning message when a `KeyboardInterrupt` is caught
