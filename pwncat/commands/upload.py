@@ -23,9 +23,7 @@ class Command(CommandDefinition):
     ARGS = {
         "source": Parameter(Complete.LOCAL_FILE, parser=ParseType.LOCAL_FILE),
         "destination": Parameter(
-            Complete.REMOTE_FILE,
-            nargs="?",
-            parser=ParseType.REMOTE_FILE
+            Complete.REMOTE_FILE, nargs="?", parser=ParseType.REMOTE_FILE
         ),
     }
 

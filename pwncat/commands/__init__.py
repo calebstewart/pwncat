@@ -46,7 +46,6 @@ import argparse
 from io import TextIOWrapper
 from enum import Enum, auto
 from typing import Dict, List, Type, Callable, Iterable
-from pathlib import Path
 from functools import partial
 
 import rich.text
@@ -123,12 +122,13 @@ class LocalFileParse(ParameterParse):
             return os.path.expanduser(value)
         return value
 
+
 class RemoteFileParse(ParameterParse):
     def parse(value, session: "pwncat.manager.Session"):
         if value.startswith("~/") or value.startswith("~\\"):
             homedir = session.platform.getenv("HOME")
             if not homedir:
-                """ Windows support """
+                """Windows support"""
                 homedir = session.platform.getenv("USERPROFILE")
             if homedir:
                 return homedir + value[1:]
@@ -912,11 +912,11 @@ class RemotePathCompleter(Completer):
 
         if path == "":
             path = "."
-        
+
         if path.startswith("~"):
             homedir = self.manager.target.platform.getenv("HOME")
             if not homedir:
-                """ Windows support """
+                """Windows support"""
                 homedir = self.manager.target.platform.getenv("USERPROFILE")
             if homedir:
                 path = homedir + path[1:]
