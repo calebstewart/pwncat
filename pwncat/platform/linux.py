@@ -19,6 +19,7 @@ import hashlib
 import pathlib
 import tempfile
 import subprocess
+import base64
 from io import TextIOWrapper, BufferedIOBase, UnsupportedOperation
 from typing import List, Union, BinaryIO, Optional, Generator
 from subprocess import TimeoutExpired, CalledProcessError
@@ -382,7 +383,7 @@ class LinuxWriter(BufferedIOBase):
         0x7F,
     ]
 
-    def __init__(self, popen, on_close=None, name: str = None):
+    def __init__(self, popen, on_close=None, name: str = None, stream = Stream.RAW):
         super().__init__()
 
         self.popen = popen
@@ -390,6 +391,7 @@ class LinuxWriter(BufferedIOBase):
         self.since_newline = 0
         self.on_close = on_close
         self.name = name
+        self.stream = stream
 
     def readable(self):
         return False
@@ -418,7 +420,9 @@ class LinuxWriter(BufferedIOBase):
         if self.popen.poll() is not None:
             raise PermissionError("file write failed")
 
-        if self.popen.platform.has_pty:
+        if self.stream is Stream.BASE64:
+            self.popen.stdin.write(base64.b64encode(b))
+        elif self.popen.platform.has_pty:
             # Control sequences need escaping
             translated = []
             for idx, c in enumerate(b):

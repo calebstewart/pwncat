@@ -346,6 +346,7 @@ class GTFOFileWrite(FileWriteAbility):
                 exit_cmd.encode("utf-8")
             ),
             name=path,
+            stream=self.method.stream
         )
 
         # Automatically decode to the specified encoding if requested
