@@ -11,11 +11,14 @@ and simply didn't have the time to go back and retroactively create one.
 
 ### Fixed
 - Possible exception due to _pre-registering_ of `session` with `manager`
+- Added possibly missing `OSError` for `readlink` call for _shell resolution_
 ### Added
 - Added alternatives to `bash` to be used during _shell upgrade_ for a _better shell_
 - Added a warning message when a `KeyboardInterrupt` is caught
+- Added `-p` (privileged) flag for `sh` command under `Linux` class
 ### Changed
 - Changed some 'red' warning message color to 'yellow'
+- Updated checks for `uid`, `gid`, `euid`, `egid` for `LinuxPath` class
 
 ## [0.4.3] - 2021-06-18
 Patch fix release. Major fixes are the correction of file IO for LinuxWriters and
