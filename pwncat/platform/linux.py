@@ -122,14 +122,14 @@ class PopenLinux(pwncat.subprocess.Popen):
             except ValueError:
                 pass
 
-        # This gets a 'lil... funky... Normally, the ChannelFile
+        # This gets a 'lil... funky... Normally, the `ChannelFile`
         # wraps a non-blocking socket in a blocking file object
-        # because this what we normally we want and allows us
+        # because this is what we normally want and it allows us
         # to implement our own timeouts. However, here we want
         # a non-blocking call to check for EOF, so we set the
         # internal ``blocking`` flag to False which can cause
         # a `BlockingIOError` caught below. We need to do this
-        # in a nested `try-finaly` so we gaurantee catching it
+        # in a nested `try-finally` so we guarantee catching it
         # and resetting the flag before calling `_receive_returncode`.
         try:
             try:
@@ -494,17 +494,31 @@ class LinuxPath(pathlib.PurePosixPath):
     def readable(self):
         """Test if a file is readable"""
 
-        uid = self._target._id["euid"]
-        gid = self._target._id["egid"]
+        # refresh the uid, to pick up any changes
+        self._target.refresh_uid()
+
+        uid = self._target._id["ruid"]
+        gid = self._target._id["rgid"]
+        euid = self._target._id["euid"]
+        egid = self._target._id["egid"]
         groups = self._target._id["groups"]
 
-        file_uid = self.stat().st_uid
-        file_gid = self.stat().st_gid
-        file_mode = self.stat().st_mode
+        # get the stats for the current path
+        _stat = self.stat()
 
-        if uid == file_uid and (file_mode & stat.S_IRUSR):
+        file_uid = _stat.st_uid
+        file_gid = _stat.st_gid
+        file_mode = _stat.st_mode
+
+        if (uid == 0 or euid == 0) and (file_mode & stat.S_IRUSR):
             return True
-        elif (gid == file_gid or file_gid in groups) and (file_mode & stat.S_IRGRP):
+        elif (uid == file_uid or euid == file_uid) and (file_mode & stat.S_IRUSR):
+            return True
+        elif (gid == 0 or egid == 0) and (file_mode & stat.S_IRGRP):
+            return True
+        elif (gid == file_gid or egid == file_gid or file_gid in groups) and (
+            file_mode & stat.S_IRGRP
+        ):
             return True
         elif file_mode & stat.S_IROTH:
             return True
@@ -512,18 +526,33 @@ class LinuxPath(pathlib.PurePosixPath):
         return False
 
     def writable(self):
+        """Test if the file is writable"""
 
-        uid = self._target._id["euid"]
-        gid = self._target._id["egid"]
+        # refresh the uid, to pick up any changes
+        self._target.refresh_uid()
+
+        uid = self._target._id["ruid"]
+        gid = self._target._id["rgid"]
+        euid = self._target._id["euid"]
+        egid = self._target._id["egid"]
         groups = self._target._id["groups"]
 
-        file_uid = self.stat().st_uid
-        file_gid = self.stat().st_gid
-        file_mode = self.stat().st_mode
+        # get the stats for the current path
+        _stat = self.stat()
 
-        if uid == file_uid and (file_mode & stat.S_IWUSR):
+        file_uid = _stat.st_uid
+        file_gid = _stat.st_gid
+        file_mode = _stat.st_mode
+
+        if (uid == 0 or euid == 0) and (file_mode & stat.S_IWUSR):
             return True
-        elif (gid == file_gid or file_gid in groups) and (file_mode & stat.S_IWGRP):
+        elif (uid == file_uid or euid == file_uid) and (file_mode & stat.S_IWUSR):
+            return True
+        elif (gid == 0 or egid == 0) and (file_mode & stat.S_IWGRP):
+            return True
+        elif (gid == file_gid or egid == file_gid or file_gid in groups) and (
+            file_mode & stat.S_IWGRP
+        ):
             return True
         elif file_mode & stat.S_IWOTH:
             return True
@@ -1080,7 +1109,7 @@ class Linux(Platform):
 
         if shell:
             # Ensure this works normally
-            command = shlex.join(["/bin/sh", "-c", command])
+            command = shlex.join(["/bin/sh", "-p", "-c", command])
 
         if cwd is not None:
             command = f"(cd {cwd} && {command})"
@@ -1486,7 +1515,7 @@ class Linux(Platform):
             raise ValueError("expected a command string or list of arguments")
 
         if "shell" in popen_kwargs and popen_kwargs["shell"]:
-            command = shlex.join(["/bin/sh", "-c", command])
+            command = shlex.join(["/bin/sh", "-p", "-c", command])
             popen_kwargs["shell"] = False
 
         if "env" in popen_kwargs and popen_kwargs["env"] is not None:
@@ -1615,7 +1644,7 @@ class Linux(Platform):
                 pid = self.getenv("$")
                 # Grab the path to the executable representing the shell
                 self.shell = self.Path("/proc", pid, "exe").readlink()
-            except (FileNotFoundError, PermissionError):
+            except (FileNotFoundError, PermissionError, OSError):
                 # Fall back to SHELL even though it's not really trustworthy
                 self.shell = self.getenv("SHELL")
         else:
