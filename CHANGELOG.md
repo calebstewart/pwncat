@@ -11,9 +11,13 @@ and simply didn't have the time to go back and retroactively create one.
 
 ### Fixed
 - Possible exception due to _pre-registering_ of `session` with `manager`
+- Fixed verbose logging handler to be __unique__ for every `channel`
+- Fixed docstrings in `Command` modules
 ### Added
 - Added alternatives to `bash` to be used during _shell upgrade_ for a _better shell_
 - Added a warning message when a `KeyboardInterrupt` is caught
+- Added `--verbose/-V` for argument parser
+- Added `OSError` for `bind` protocol to show appropriate error messages
 ### Changed
 - Changed some 'red' warning message color to 'yellow'
 
