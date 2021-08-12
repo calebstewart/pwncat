@@ -173,6 +173,9 @@ def main():
                 host = m.group("host")
                 port = m.group("port")
 
+                if password is not None:
+                    password = password.removeprefix(":")
+
             if protocol is not None:
                 protocol = protocol.removesuffix("://")
 
