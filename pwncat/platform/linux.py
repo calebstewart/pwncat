@@ -642,20 +642,9 @@ class Linux(Platform):
         """Spawn a PTY in the current shell. If a PTY is already running
         then this method does nothing."""
 
-        # Check if we are currently in a PTY
-        if self.has_pty:
-            return
-
-        pty_command = None
-        shell = self.shell
-
-        if pty_command is None:
-            script_path = self.which("script")
-            if script_path is not None:
-                pty_command = f""" exec {script_path} -qc {shell} /dev/null 2>&1\n"""
-
-        if pty_command is None:
-            python_path = self.which(
+        PTY_OPTIONS = [
+            (["script"], " {binary_path} -qc {shell} /dev/null 2>&1"),
+            (
                 [
                     "python",
                     "python2",
@@ -664,38 +653,64 @@ class Linux(Platform):
                     "python3.6",
                     "python3.8",
                     "python3.9",
-                ]
-            )
-            if python_path is not None:
-                pty_command = f""" exec {python_path} -c "import pty; pty.spawn('{shell}')" 2>&1\n"""
-
-        if pty_command is not None:
-            self.logger.info(pty_command.rstrip("\n"))
-            self.channel.send(pty_command.encode("utf-8"))
-
-            self.has_pty = True
-
-            # Preserve interactivity
-            if not self.interactive:
-                self._interactive = True
-                self.interactive = False
-
-            # When starting a pty, history is sometimes re-enabled
-            self.disable_history()
-
-            # Ensure that the TTY settings make sense
-            self.Popen(
-                [
-                    "stty",
-                    "400:1:bf:8a33:3:1c:7f:15:4:0:1:0:11:13:1a:0:12:f:17:16:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0",
                 ],
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-            ).wait()
+                """ {binary_path} -c "import pty; pty.spawn('{shell}')" 2>&1""",
+            ),
+        ]
 
+        # Check if we are currently in a PTY
+        if self.has_pty:
             return
 
-        raise PlatformError("no avialable pty methods")
+        # Grab the current shell PID
+        pid = self.getenv("$")
+
+        for binaries, payload_format in PTY_OPTIONS:
+            for binary in binaries:
+                binary_path = self.which(binary)
+                if binary_path is None:
+                    continue
+
+                payload = payload_format.format(
+                    binary_path=binary_path, shell=self.shell
+                )
+
+                # Send the payload
+                self.logger.info(payload)
+                self.channel.sendline(payload.encode("utf-8"))
+
+                # Preserve interactivity. This has to happen for `getenv` to function
+                # It should do no harm if the pty method failed
+                self.has_pty = True
+                if not self.interactive:
+                    self._interactive = True
+                    self.interactive = False
+
+                # Seemed to work
+                new_pid = self.getenv("$")
+                if new_pid != pid:
+                    break
+
+                # We failed, reset the flag
+                self.has_pty = False
+            else:
+                continue
+            break
+        else:
+            raise PlatformError("no avialable pty methods")
+
+        # When starting a pty, history is sometimes re-enabled
+        self.disable_history()
+
+        # Ensure that the TTY settings make sense
+        self.Popen(
+            [
+                "stty",
+                "400:1:bf:8a33:3:1c:7f:15:4:0:1:0:11:13:1a:0:12:f:17:16:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0",
+            ],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+        ).wait()
 
     def get_host_hash(self) -> str:
         """

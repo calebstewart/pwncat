@@ -121,6 +121,9 @@ class Method:
         elif spec[-1] == "*":
             has_wildcard = True
             command = spec.rstrip("*")
+        else:
+            has_wildcard = False
+            command = spec
 
         # The sudo command is just "/path/to/binary", we are allowed to add any
         # parameters we want.
