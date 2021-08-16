@@ -50,7 +50,11 @@ class Socket(Channel):
 
         if client is not None:
             # Report host and port number to base channel
-            host, port = client.getpeername()
+            host, port, *_ = client.getpeername()
+
+            # Localhost is sometimes a IPv4 and sometimes IPv6 socket, just normalize the name
+            if host == "::1" or host == "127.0.0.1":
+                host = "localhost"
 
             if "host" not in kwargs:
                 kwargs["host"] = host
@@ -77,6 +81,10 @@ class Socket(Channel):
         self._connected = True
         self.client = client
         self.address = client.getpeername()
+
+        # Localhost is sometimes a IPv4 and sometimes IPv6 socket, just normalize the name
+        if self.address[0] == "::1" or self.address[0] == "127.0.0.1":
+            self.address = ("localhost", *self.address[1:])
 
         self.client.setblocking(False)
         fcntl.fcntl(self.client, fcntl.F_SETFL, os.O_NONBLOCK)
