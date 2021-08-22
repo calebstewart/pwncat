@@ -697,7 +697,7 @@ class Linux(Platform):
                 continue
             break
         else:
-            raise PlatformError("no avialable pty methods")
+            raise PlatformError("no available pty methods")
 
         # When starting a pty, history is sometimes re-enabled
         self.disable_history()
