@@ -173,7 +173,7 @@ class Parameter:
     This class allows you to specify the syntax highlighting, tab completion
     and argparse settings for a command parameter in on go. The ``complete``
     argument tells pwncat how to tab complete your argument. The ``token``
-    argument is normally ommitted but can be used to change the pygments
+    argument is normally omitted but can be used to change the pygments
     syntax highlighting for your argument. All other arguments are passed
     directly to ``argparse`` when constructing the parser.
 

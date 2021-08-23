@@ -75,7 +75,7 @@ class Module(EnumerateModule):
     and operating system name (normally GNU/Linux).
 
     This module also provides a similar enumeration to the
-    common Linux Exploit Suggestor, and will report known
+    common Linux Exploit Suggester, and will report known
     vulnerabilities which are applicable to the detected
     kernel version.
     """

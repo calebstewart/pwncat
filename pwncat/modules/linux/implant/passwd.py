@@ -89,7 +89,7 @@ class Module(ImplantModule):
             with session.platform.open("/etc/passwd", "r") as filp:
                 passwd_contents = list(filp)
         except (FileNotFoundError, PermissionError):
-            raise ModuleFailed("faild to read /etc/passwd")
+            raise ModuleFailed("failed to read /etc/passwd")
 
         # Hash the password
         yield Status("hashing password")

@@ -261,7 +261,7 @@ class Module(EnumerateModule):
         for line in result.split("\n"):
             line = line.rstrip()
 
-            # Skipe header lines
+            # Skip header lines
             if not line.startswith(" ") and not line.startswith("\t"):
                 continue
 

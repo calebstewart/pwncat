@@ -163,7 +163,7 @@ class Method:
         # Make sure both sudo_spec and sudo_user are provided if sudo_spec is
         assert spec is None or (spec is not None and user is not None)
 
-        # Make sure we can use this spec, and get remainig arguments
+        # Make sure we can use this spec, and get remaining arguments
         if spec is not None:
             command, args = self.sudo_args(binary_path, spec)
             args = gtfo.resolve_binaries(
@@ -405,7 +405,7 @@ class GTFOBins:
 
         if spec != "ALL":
             # This is the harder case. We have a specific specification for the
-            # command wecan run.
+            # command we can run.
 
             # If there are arguments, remove them and grab the first item, which
             # will be the path or binary name
@@ -489,7 +489,7 @@ class GTFOBins:
                     quote = False
                 # Find the remote binary that matches
                 value = self.which(key, quote=quote)
-                # Whoops! No dependancy
+                # Whoops! No dependency
                 if value is None:
                     raise MissingBinary(key)
                 # Next time, we have it

@@ -394,7 +394,7 @@ class Path:
             raise OSError(exc.stdout) from exc
 
     def touch(self, mode: int = 0o666, exist_ok: bool = True):
-        """Createa file at this path. If the file already exists, function
+        """Create a file at this path. If the file already exists, function
         succeeds if exist_ok is true (and it's modification time is updated).
         Otherwise FileExistsError is raised."""
 
