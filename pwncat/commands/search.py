@@ -10,7 +10,9 @@ from pwncat.commands import Complete, Parameter, CommandDefinition
 
 
 class Command(CommandDefinition):
-    """View info about a module"""
+    """
+    View info about a module
+    """
 
     PROG = "search"
     ARGS = {

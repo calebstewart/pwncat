@@ -66,7 +66,8 @@ class Command(CommandDefinition):
 
     The list command is simply a wrapper around enumerating "escalation.*".
     This makes the escalation workflow more straightforward, but is not
-    required."""
+    required.
+    """
 
     PROG = "escalate"
     ARGS = {

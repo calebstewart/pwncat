@@ -836,7 +836,7 @@ class Linux(Platform):
             while True:
                 try:
                     proc = self.run(
-                        "(id -ru;id -u;id -g;id -rg;id -G;)",
+                        "(id -ru;id -u;id -rg;id -g;id -G;)",
                         capture_output=True,
                         text=True,
                         check=True,

@@ -5,7 +5,9 @@ from pwncat.commands import Complete, Parameter, CommandDefinition
 
 
 class Command(CommandDefinition):
-    """Set variable runtime variable parameters for pwncat"""
+    """
+    Set variable runtime variable parameters for pwncat
+    """
 
     def get_config_variables(self):
         options = ["state"] + list(self.manager.config.values)
@@ -84,6 +86,12 @@ class Command(CommandDefinition):
                     if args.variable == "db":
                         # Ensure the database is re-opened, if it was already
                         manager.open_database()
+                    if manager.sessions and args.variable == "verbose":
+                        # If the user changed the verbose option
+                        # then apply it to every `session` to take effect
+                        for session_id in manager.sessions:
+                            session = manager.sessions[session_id]
+                            session.platform.set_verbose(args.value == "True")
                 except ValueError as exc:
                     console.log(f"[red]error[/red]: {exc}")
             elif args.variable is not None:
