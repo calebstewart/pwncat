@@ -16,6 +16,7 @@ and simply didn't have the time to go back and retroactively create one.
 - Fixed handling of `socket.getpeername` when `Socket` channel uses IPv6 ([#159](https://github.com/calebstewart/pwncat/issues/159)).
 - Fixed verbose logging handler to be __unique__ for every `channel`
 - Fixed docstrings in `Command` modules
+- Changed docker base image to `python3.9-alpine` to fix python version issues.
 ### Added
 - Added alternatives to `bash` to be used during _shell upgrade_ for a _better shell_
 - Added a warning message when a `KeyboardInterrupt` is caught
