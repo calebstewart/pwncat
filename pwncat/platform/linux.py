@@ -21,7 +21,7 @@ import tempfile
 import subprocess
 from io import TextIOWrapper, BufferedIOBase, UnsupportedOperation
 from typing import List, Union, BinaryIO, Optional, Generator
-from subprocess import TimeoutExpired, CalledProcessError
+from subprocess import DEVNULL, TimeoutExpired, CalledProcessError
 
 import pkg_resources
 
@@ -1336,7 +1336,7 @@ class Linux(Platform):
         length: Optional[int] = None,
         suffix: Optional[str] = None,
         directory: Optional[str] = None,
-        **kwargs,
+        mode: Optional[str] = None,
     ):
         """
         Create a temporary file on the remote host and open it with the specified mode.
@@ -1366,6 +1366,11 @@ class Linux(Platform):
 
         if suffix is None:
             suffix = ""
+        else:
+            suffix = "." + suffix
+
+        if mode is None:
+            mode = "wb"
 
         path = ""
 
@@ -1385,18 +1390,20 @@ class Linux(Platform):
             try:
                 result = self.run(
                     [mktemp, "-p", str(tempdir), "--suffix", suffix, "X" * length],
+                    stderr=DEVNULL,
                     capture_output=True,
                     text=True,
                 )
                 path = result.stdout.rstrip("\n")
             except CalledProcessError as exc:
                 raise PermissionError(str(exc))
-        else:
+
+        if mktemp is None and not path:
             path = tempdir / (util.random_string(length) + suffix)
             while path.exists():
                 path = tempdir / (util.random_string(length) + suffix)
 
-        return self.open(path, **kwargs)
+        return self.open(path, mode)
 
     def su(self, user: str, password: Optional[str] = None):
         """
@@ -1723,7 +1730,7 @@ class Linux(Platform):
                     int(fields[3]),
                     int(fields[2]),
                     int(fields[13]),
-                    int(fields[1]),
+                    # int(fields[1]),
                 ]
             )
         )
