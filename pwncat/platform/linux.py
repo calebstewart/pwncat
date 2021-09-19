@@ -621,7 +621,7 @@ class Linux(Platform):
             self.shell = "/bin/sh"
             self.channel.sendline(b" export SHELL=/bin/sh")
 
-        if True or self._do_which("which") is None:
+        if self._do_which("which") is None:
             self._do_which = self._do_custom_which
 
         if os.path.basename(self.shell) in ["sh", "dash"]:
