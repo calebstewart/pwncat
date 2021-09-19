@@ -5,6 +5,7 @@ import rich.markup
 
 import pwncat
 from pwncat.db import Fact
+from pwncat.gtfobins import Stream
 from pwncat.facts.ability import build_gtfo_ability
 from pwncat.platform.linux import Linux
 from pwncat.modules.enumerate import Schedule, EnumerateModule
@@ -70,7 +71,9 @@ class Module(EnumerateModule):
                         build_gtfo_ability(
                             self.name, uid, method, source_uid=None, suid=True
                         )
-                        for method in session.platform.gtfo.iter_binary(path)
+                        for method in session.platform.gtfo.iter_binary(
+                            path, stream=Stream.RAW
+                        )
                     )
         finally:
             proc.wait()
