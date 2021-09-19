@@ -343,6 +343,12 @@ class LinuxReader(BufferedIOBase):
             self.popen.terminate()
             self.popen.wait()
 
+        # This happens immediately upon the first read attempt because the process will have
+        # exited. During testing, this seems reliable. It's not ideal, but we don't know what
+        # the remote process is...
+        if self.popen.returncode != 0:
+            raise PermissionError(self.name)
+
         self.detach()
 
 
@@ -483,6 +489,12 @@ class LinuxWriter(BufferedIOBase):
             # at least attempt to do whatever cleanup we can.
             self.popen.kill()
             self.popen.wait()
+
+        # This happens immediately upon the first read attempt because the process will have
+        # exited. During testing, this seems reliable. It's not ideal, but we don't know what
+        # the remote process is...
+        if self.popen.returncode != 0:
+            raise PermissionError(self.name)
 
         # Ensure we don't touch stdio again
         self.detach()
