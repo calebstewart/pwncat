@@ -621,6 +621,9 @@ class Linux(Platform):
             self.shell = "/bin/sh"
             self.channel.sendline(b" export SHELL=/bin/sh")
 
+        if True or self._do_which("which") is None:
+            self._do_which = self._do_custom_which
+
         if os.path.basename(self.shell) in ["sh", "dash"]:
             # Try to find a better shell
             # a custom `pwncat shell prompt` may not be available for all shells
@@ -815,6 +818,25 @@ class Linux(Platform):
 
         for name in p.stdout.split("\n"):
             yield name
+
+    def _do_custom_which(self, name: str):
+        """This is custom which implementation that will not find built-in commands.
+        It is altogether inferior to the real which, but if `which` isn't available,
+        it will do the job."""
+
+        try:
+            result = self.run(
+                f"""IFS=':'; for path in $PATH; do if [ -f "$path/{name}" ]; then echo "$path/{name}"; break; fi; done; IFS=' '""",
+                shell=True,
+                capture_output=True,
+                check=True,
+                text=True,
+            )
+            if result.stdout.rstrip("\n") == "":
+                return None
+            return result.stdout.rstrip("\n")
+        except CalledProcessError:
+            return None
 
     def _do_which(self, name: str) -> str:
         """
