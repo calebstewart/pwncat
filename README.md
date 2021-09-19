@@ -41,12 +41,12 @@ refer to the documentation for up to date usage and API documentation!
 pwncat [documentation] is being built out on Read the Docs. Head there for
 the latest usage and development documentation!
 
-**pwncat requires Python 3.9+.**
+**pwncat requires Python 3.9+ on Linux**
 
 ## Windows Support
 
-pwncat now supports windows starting at `v0.4.0a1`. The Windows platform
-utilizes a .Net-based C2 library which is loaded automatically. Windows
+`pwncat` now supports connections from Windows targets starting at `v0.4.0a1`. The Windows
+platform utilizes a .Net-based C2 library which is loaded automatically. Windows
 targets should connect with either a `cmd.exe` or `powershell.exe` shell, and
 pwncat will take care of the rest.
 
@@ -94,8 +94,8 @@ Refer to the documentation for more information.
 
 ## Install
 
-`pwncat` only depends on a working Python development environment. In order
-to install some of the packages required with `pip`, you will likely need
+`pwncat` only depends on a working Python development environment running on Linux.
+In order to install some of the packages required with `pip`, you will likely need
 your distribution's "Python Development" package. On Debian based systems,
 this is `python-dev`. For Arch, the development files are shipped with the
 main Python repository. For Enterprise Linux, the package is named 
