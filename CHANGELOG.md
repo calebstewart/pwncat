@@ -17,8 +17,9 @@ and simply didn't have the time to go back and retroactively create one.
 - Fixed verbose logging handler to be __unique__ for every `channel`
 - Fixed docstrings in `Command` modules
 - Changed docker base image to `python3.9-alpine` to fix python version issues.
-- Added logic for calling correct paramiko method when reloading an encrypted SSH privat ekey ([#185](https://github.com/calebstewart/issues/185)).
-- Forced `Stream.RAW` for all GTFOBins interaction ([#195](https://github.com/calebstewart/issues/195)).
+- Added logic for calling correct paramiko method when reloading an encrypted SSH privat ekey ([#185](https://github.com/calebstewart/pwncat/issues/185)).
+- Forced `Stream.RAW` for all GTFOBins interaction ([#195](https://github.com/calebstewart/pwncat/issues/195)).
+- Added custom `which` implementation for linux when `which` is not available ([#193](https://github.com/calebstewart/pwncat/issues/193)).
 ### Added
 - Added alternatives to `bash` to be used during _shell upgrade_ for a _better shell_
 - Added a warning message when a `KeyboardInterrupt` is caught
