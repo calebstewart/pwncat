@@ -1274,7 +1274,7 @@ class Linux(Platform):
         if "w" in mode:
 
             for method in self.gtfo.iter_methods(
-                caps=Capability.WRITE, stream=Stream.PRINT | Stream.RAW
+                caps=Capability.WRITE, stream=Stream.RAW
             ):
                 try:
                     payload, input_data, exit_cmd = method.build(
@@ -1303,7 +1303,7 @@ class Linux(Platform):
             )
         else:
             for method in self.gtfo.iter_methods(
-                caps=Capability.READ, stream=Stream.PRINT | Stream.RAW
+                caps=Capability.READ, stream=Stream.RAW
             ):
                 try:
                     payload, input_data, exit_cmd = method.build(
