@@ -156,7 +156,7 @@ def join(argv: List[str]):
 def quote(token: str):
     """Quote the token much like shlex.quote, except don't use single quotes
     this will escape any double quotes in the string and wrap it in double
-    quotes. If there are no spaces, it returns the stirng unchanged."""
+    quotes. If there are no spaces, it returns the string unchanged."""
     for c in token:
         if c in string.whitespace:
             break

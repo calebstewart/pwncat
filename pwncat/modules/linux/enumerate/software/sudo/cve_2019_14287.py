@@ -66,7 +66,7 @@ class Module(EnumerateModule):
                     for method in session.platform.gtfo.iter_sudo(
                         command, caps=Capability.ALL
                     ):
-                        # Build a generic GTFO bins capability
+                        # Build a generic GTFObins capability
                         yield build_gtfo_ability(
                             source=self.name,
                             uid=0,

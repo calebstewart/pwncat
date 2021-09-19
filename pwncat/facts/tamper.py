@@ -49,7 +49,7 @@ class Tamper(Fact):
         :param session: the session on which to operate
         :type session: pwncat.manager.Session
         """
-        raise ModuleFailed("not reverable")
+        raise ModuleFailed("not revertable")
 
     def _annotate_title(self, session, title):
         """Just a helper for annotating the description with details on

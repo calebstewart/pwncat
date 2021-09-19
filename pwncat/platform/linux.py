@@ -1,6 +1,6 @@
 """
 The Linux platform provides Linux shell support ontop of any channel.
-The Linux platfrom expects the channel to expose a shell whose stdio
+The Linux platform expects the channel to expose a shell whose stdio
 is connected directly to the channel IO. At a minimum stdin and stdout
 must be connected.
 
@@ -122,14 +122,14 @@ class PopenLinux(pwncat.subprocess.Popen):
             except ValueError:
                 pass
 
-        # This gets a 'lil... funky... Normally, the ChannelFile
+        # This gets a 'lil... funky... Normally, the `ChannelFile`
         # wraps a non-blocking socket in a blocking file object
-        # because this what we normally we want and allows us
+        # because this is what we normally want and it allows us
         # to implement our own timeouts. However, here we want
         # a non-blocking call to check for EOF, so we set the
         # internal ``blocking`` flag to False which can cause
         # a `BlockingIOError` caught below. We need to do this
-        # in a nested `try-finaly` so we gaurantee catching it
+        # in a nested `try-finally` so we guarantee catching it
         # and resetting the flag before calling `_receive_returncode`.
         try:
             try:

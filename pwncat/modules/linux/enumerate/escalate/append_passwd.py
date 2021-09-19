@@ -73,7 +73,7 @@ class AppendPasswd(EscalationReplace):
 
 
 class Module(EnumerateModule):
-    """Check for possible methods of escalation via modiying /etc/passwd"""
+    """Check for possible methods of escalation via modifying /etc/passwd"""
 
     PROVIDES = ["escalate.replace"]
     SCHEDULE = Schedule.PER_USER

@@ -22,7 +22,7 @@ for working with remote shells.
 - Disable history in the remote shell
 - Normalize shell prompt
 - Locate useful binaries (using `which`)
-- Attempt to spawn a pseudoterminal (pty) for a full interactive session
+- Attempt to spawn a pseudo-terminal (pty) for a full interactive session
 
 `pwncat` knows how to spawn pty's with a few different methods and will
 cross-reference the methods with the executables previously enumerated. After
@@ -53,7 +53,7 @@ pwncat will take care of the rest.
 The libraries implementing the C2 are implemented at [pwncat-windows-c2].
 The DLLs for the C2 will be automatically downloaded from the targeted release
 for you. If you do not have internet connectivity on your target machine,
-you can tell pwncat to prestage the DLLs using the `--download-plugins`
+you can tell pwncat to pre-stage the DLLs using the `--download-plugins`
 argument. If you are running a release version of pwncat, you can also download
 a tarball of all built-in plugins from the releases page.
 
@@ -77,7 +77,7 @@ the `stable` version.
 
 The current `master` branch is `v0.4.3`. This version has
 overhauled a lot of the framework to support multiple platforms and 
-multisession environments. Documentation for this version is available
+multi-session environments. Documentation for this version is available
 in the `latest` version on Read the Docs.
 
 **v0.3.1 will not be updated further**
@@ -85,7 +85,7 @@ in the `latest` version on Read the Docs.
 ## Modules
 
 Recently, the architecture of the pwncat framework was redesigned to
-encorporate a generic "module" structure. All functionality is now 
+incorporate a generic "module" structure. All functionality is now
 implemented as modules. This includes enumeration, persistence and
 privilege escalation. Interacting with modules is similar to most other
 post-exploitation platforms. You can utilize the familiar `run`, `search`
@@ -156,7 +156,7 @@ pwncat -i id_rsa user@10.10.10.10
 pwncat -p 2222 user@10.10.10.10
 pwncat user@10.10.10.10:2222
 # Reconnect utilizing installed persistence
-#   If reconnection failes and no protocol is specified,
+#   If reconnection fails and no protocol is specified,
 #   SSH is used as a fallback.
 pwncat reconnect://user@10.10.10.10
 pwncat reconnect://user@c228fc49e515628a0c13bdc4759a12bf

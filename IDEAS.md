@@ -207,7 +207,7 @@ configuration is not set locally when `run` is executed, then the global
 configuration will be checked for matching arguments for the module.
 
 ```sh
-# Install a persistence mthod with a bind channel
+# Install a persistence method with a bind channel
 use persistence/system/cron
 set method channels/bind
 set schedule "* * */1 *"
@@ -303,7 +303,7 @@ pwncat.victim.progress.status("Here's a status update", task=task)
 
 The progress bar itself will be managed by the `Victim` object. We can keep the standard
 now where iterative/generator based results are used to update a task, but also allows
-modules to directly call `pwncat.victim.progres.status`. This would do away with the `Status`
+modules to directly call `pwncat.victim.progress.status`. This would do away with the `Status`
 class. Further, it allows the `module.run` method to return the raw result of the underlying 
 method allowing more flexibility in the return values of modules. It allows modules to have 
 asynchronous (generator) return values.

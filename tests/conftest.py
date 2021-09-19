@@ -75,7 +75,7 @@ set -g db "memory://"
                 yield session
                 break
             except ChannelError:
-                # This seems to be because of the contaiener setup, so we just add
+                # This seems to be because of the container setup, so we just add
                 # a little sleep in
                 time.sleep(2)
         else:

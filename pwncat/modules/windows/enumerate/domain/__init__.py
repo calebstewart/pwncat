@@ -21,7 +21,7 @@ class DomainObject(Fact):
         return self.domain[name]
 
     def title(self, session: "pwncat.manager.Session"):
-        return f"Active Dirctory Domain: [magenta]{self.domain['Name']}[/magenta]"
+        return f"Active Directory Domain: [magenta]{self.domain['Name']}[/magenta]"
 
     def description(self, session: "pwncat.manager.Session"):
         output = []

@@ -148,7 +148,7 @@ class Module(BaseModule):
             raise ModuleFailed(f"while importing Invoke-BloodHound: {exc}")
 
         # Try to create a temporary file. We're just going to delete it, but
-        # this gives us a tangeable temporary path to put the zip file.
+        # this gives us a tangible temporary path to put the zip file.
         yield Status("locating a suitable temporary file location")
         with session.platform.tempfile(suffix="zip", mode="w") as filp:
             file_path = filp.name
