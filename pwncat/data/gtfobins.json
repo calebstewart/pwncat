@@ -174,11 +174,6 @@
     },
     {
       "type": "read",
-      "stream": "print",
-      "payload": "{command} // {lfile}"
-    },
-    {
-      "type": "read",
       "stream": "raw",
       "payload": "{command} 'BEGIN {{system(\"{cat} {lfile}\")}}'"
     },
@@ -439,7 +434,7 @@
     {
       "type": "read",
       "stream": "print",
-      "payload": "{command}",
+      "payload": "{command} 2>/dev/null",
       "args": [
         "--line-format=%L",
         "/dev/null",
@@ -909,8 +904,9 @@
     {
       "type": "read",
       "stream": "print",
-      "payload": "{command}",
+      "payload": "{command} | {head} --bytes=-1",
       "args": [
+        "-a",
         "''",
         "{lfile}"
       ]
@@ -1370,11 +1366,6 @@
     },
     {
       "type": "read",
-      "stream": "print",
-      "payload": "{command} // {lfile}"
-    },
-    {
-      "type": "read",
       "stream": "raw",
       "payload": "{command} 'BEGIN {{system(\"{cat} {lfile}\")}}'"
     }
@@ -1444,11 +1435,6 @@
     {
       "type": "shell",
       "payload": "{command} 'BEGIN {{system(\"{shell} -p\")}}'"
-    },
-    {
-      "type": "read",
-      "stream": "print",
-      "payload": "{command} // {lfile}"
     },
     {
       "type": "read",
@@ -2386,7 +2372,7 @@
     {
       "type": "read",
       "stream": "print",
-      "payload": "{command}",
+      "payload": "{command} | {head} --bytes=-1",
       "args": [
         "-m",
         "{lfile}"
