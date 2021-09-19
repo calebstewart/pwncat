@@ -635,7 +635,7 @@ function prompt {
             "\\Windows\\System32\\spool\\SERVERS",
             "\\Windows\\System32\\spool\\drivers\\color",
             "\\Windows\\System32\\Tasks\\Microsoft\\Windows\\SyncCenter",
-            "\\Windows\\System32\\Tasks_Migrated (after performing a version upgrade of Windows 10)",
+            "\\Windows\\System32\\Tasks_Migrated",
             "\\Windows\\SysWOW64\\FxsTmp",
             "\\Windows\\SysWOW64\\com\\dmp",
             "\\Windows\\SysWOW64\\Tasks\\Microsoft\\Windows\\SyncCenter",
