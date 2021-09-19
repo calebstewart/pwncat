@@ -65,7 +65,12 @@ class Ssh(Channel):
             except paramiko.ssh_exception.SSHException:
                 password = prompt("RSA Private Key Passphrase: ", is_password=True)
                 try:
-                    key = paramiko.RSAKey.from_private_key_file(identity, password)
+                    if isinstance(identity, str):
+                        key = paramiko.RSAKey.from_private_key_file(identity, password)
+                    else:
+                        # Seek back to the beginning of the file (the above load read the whole file)
+                        identity.seek(0)
+                        key = paramiko.RSAKey.from_private_key(identity, password)
                 except paramiko.ssh_exception.SSHException:
                     raise ChannelError(self, "invalid private key or passphrase")
 
