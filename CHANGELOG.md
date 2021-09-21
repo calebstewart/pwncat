@@ -21,12 +21,14 @@ and simply didn't have the time to go back and retroactively create one.
 - Forced `Stream.RAW` for all GTFOBins interaction ([#195](https://github.com/calebstewart/pwncat/issues/195)).
 - Added custom `which` implementation for linux when `which` is not available ([#193](https://github.com/calebstewart/pwncat/issues/193)).
 - Correctly handle `--listen` argument ([#201](https://github.com/calebstewart/pwncat/issues/201))
+- Added handler for `OSError` when attempting to detect the running shell ([#179](https://github.com/calebstewart/pwncat/issues/179))
 ### Added
 - Added alternatives to `bash` to be used during _shell upgrade_ for a _better shell_
 - Added a warning message when a `KeyboardInterrupt` is caught
 - Added `--verbose/-V` for argument parser
 - Added `OSError` for `bind` protocol to show appropriate error messages
 ### Changed
+- Removed handling of `shell` argument to `Popen` to prevent `euid` problems ([#179](https://github.com/calebstewart/pwncat/issues/179))
 - Changed some 'red' warning message color to 'yellow'
 - Leak private keys for all users w/ file-read ability as UID=0 ([#181](https://github.com/calebstewart/pwncat/issues/181))
 - Raise `PermissionError` when underlying processes terminate unsuccessfully for `LinuxReader` and `LinuxWriter`

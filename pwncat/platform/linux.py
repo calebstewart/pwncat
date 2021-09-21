@@ -1127,9 +1127,12 @@ class Linux(Platform):
                 f"attempting to run {repr(command)} during execution of {self.command_running.args}!"
             )
 
-        if shell:
-            # Ensure this works normally
-            command = shlex.join(["/bin/sh", "-c", command])
+        # This breaks `euid` situations. Not all shells support -p, so I think just not
+        # using this is a better option. I'm leaving it here just in case removing it
+        # causes problems in the future. Tests seem positive so far.
+        # if shell:
+        #     # Ensure this works normally
+        #     command = shlex.join(["/bin/sh", "-c", command])
 
         if cwd is not None:
             command = f"(cd {cwd} && {command})"
@@ -1664,9 +1667,11 @@ class Linux(Platform):
                 pid = self.getenv("$")
                 # Grab the path to the executable representing the shell
                 self.shell = self.Path("/proc", pid, "exe").readlink()
-            except (FileNotFoundError, PermissionError):
+            except (FileNotFoundError, PermissionError, OSError):
                 # Fall back to SHELL even though it's not really trustworthy
                 self.shell = self.getenv("SHELL")
+                if self.shell is None or self.shell == "":
+                    self.shell = "/bin/sh"
         else:
 
             # Going interactive requires a pty
