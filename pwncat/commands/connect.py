@@ -151,6 +151,8 @@ class Command(CommandDefinition):
                 "[red]error[/red]: --listen is not compatible with an explicit connection string"
             )
             return
+        elif args.listen:
+            protocol = "bind"
 
         if (
             sum(
