@@ -1672,6 +1672,9 @@ class Linux(Platform):
                 self.shell = self.getenv("SHELL")
                 if self.shell is None or self.shell == "":
                     self.shell = "/bin/sh"
+
+            # Refresh the currently tracked user and group IDs
+            self.refresh_uid()
         else:
 
             # Going interactive requires a pty
