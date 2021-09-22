@@ -27,6 +27,7 @@ and simply didn't have the time to go back and retroactively create one.
 - Added `--verbose/-V` for argument parser
 - Added `OSError` for `bind` protocol to show appropriate error messages
 - Contributing guidelines for GitHub maintainers
+- Installation instructions for BlackArch
 ### Changed
 - Changed some 'red' warning message color to 'yellow'
 - Leak private keys for all users w/ file-read ability as UID=0 ([#181](https://github.com/calebstewart/pwncat/issues/181))
