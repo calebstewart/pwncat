@@ -56,7 +56,7 @@ schedule, but in general the following rules apply:
   stable, but still has not attained `v1.0.0` status, and therefore minor
   releases could make breaking API changes. However, a concerted effort
   should be made to make all changes backwards compatible.
-  
+
 As mentioned above, pwncat has not reached `v1.0.0` yet. As such, I don't have
 rules yet for `MAJOR` version bumps. I will update this file as the situation
 develops.
@@ -122,3 +122,79 @@ WINDOWS_HOST=10.10.10.10 WINDOWS_BIND_PORT=4444 ./run-tests.sh
 The included unit tests are not great. They do not have a lot of coverage, but
 they at least ensure that the basic automated functionality of pwncat is not
 broken across some common target types.
+
+## Maintainer Responsibilities and Expectations
+
+The primary maintainer or repository owner will be Caleb Stewart (`calebstewart`)
+until otherwised announced or changed in the future. Other users may be invited
+as Co-Maintainers in the future to assist in the daily maintenance, issue review
+and pull request review processes with the project. The follow section describes
+the expectations of Co-Maintainers within the project and their conduct.
+
+This is a community project supported by open source software and as such, there
+are no requirements for participation in development or review. At any time, a
+Co-Maintainer can request to leave the project with no hard feelings. Co-Maintainers
+will be invited based on consistent interaction with the project including issues,
+pull requests and discussions. Additionally, the quality of interactions with
+respect to the above contribution guidelines will also be taken into account.
+
+We understand this is a part time involvement. There is no expectation or
+agreement between you and this project which requires your participation.
+pwncat is an open source project, and participation is obviously voluntary.
+If at any time, you feel overwhelmed or simply lack the free time to
+support the project, you have no responsiblity to contribute simply by
+accepting the role of a co-maintainer.
+
+Just as Co-Maintainer participation is not bound by any formal requirements or
+agreement, the status of Co-Maintainer can be revoked at any time by the primary
+maintainer normally based on the following criteria:
+
+- Active particpation in issues and pull requests.
+- Professionalism in correspondence with contributors.
+- Adherence to the above contribution guidelines.
+- Other factors determined by the primary maintainer which negatively impact
+  the pwncat community or code base.
+
+In addition to the above guidelines for issue and pull request submission,
+Co-Maintainers are expected to participate in third-part issues and pull
+requests. This is the main goal of inviting Co-Maintainers. Your assistance
+in maintaining the project and producing a helpful tool for the community
+is greatly appreciated. :)
+
+As a Co-Maintainer, you **do not** have permission to merge pull requests which
+implement new features into any branch. Co-Maintainers are expected to assist in
+the review and application of bug fixes and resolution of issues. When creating new
+features, the primary maintainer is responsible for approving and merging changes.
+Merging changes into `release` branches is strictly a role of the primary maintainer.
+
+Further, Co-Maintainers should not cut new releases of any kind. Cutting minor and
+major releases is the sole responsibility of the primary maintainer. If a
+Co-Maintainer believes a new minor release is needed in order to implement important
+bug fixes, a pull request can be opened bumping the version number **separately
+from any other changes** explaining the need for a new version release and request
+a review from the primary maintainer. At which point, the primary maintainer will
+review and cut a release if appropriate.
+
+In contrast, Co-Maintainers are expected to do the following as your personal
+life permits:
+
+- Uphold the above contributing guidelines at all times. This includes when
+  opening personal issues and pull requests as well as helping to *instruct*
+  users when the guidelines are not being followed. This project should always
+  foster Open Source contribution and learning, and therefore this instruction
+  to third-party contributors should always be polite and constructive.
+- Participate as a primary voice in issues and pull requests. In no way are
+  you required to particpate in every issue or pull request, however as a
+  Co-Maintainer, you are expected to have a higher level of knowledge,
+  participation and/or professionalism when interacting with third-parties.
+- Merge bug-fixes which adhere to the above contribution guidelines and which
+  have been thoroughly tested. Co-Maintainers act as reviewers for bug-fix pull
+  requests and have permission to merge those changes into the `master` branch.
+
+If you have an interest in becoming a Co-Maintainer, would like to be removed
+as a Co-Maintainer or have a general question about these guidelines, feel free
+to reach out to the primary maintainer. At the time of writing, you can reach
+out in the following ways:
+
+- Open a discussion in the `Discussions` tab of GitHub.
+- Send an E-mail directly to `Caleb Stewart <caleb.stewart94@gmail.com>`.
