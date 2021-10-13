@@ -615,20 +615,15 @@ class Linux(Platform):
 
         if self.shell == "" or self.shell is None:
             self.shell = "/bin/sh"
-
-        # This doesn't make sense, but happened for some people (see issue #116)
-        if os.path.basename(self.shell) in ["nologin", "false", "sync", "git-shell"]:
-            self.shell = "/bin/sh"
-            self.channel.sendline(b" export SHELL=/bin/sh")
-
+                      
         if self._do_which("which") is None:
             self._do_which = self._do_custom_which
 
-        if os.path.basename(self.shell) in ["sh", "dash"]:
+        better_shells = ["bash", "zsh", "ksh", "fish"]
+        if os.path.basename(self.shell) not in better_shells:
             # Try to find a better shell
             # a custom `pwncat shell prompt` may not be available for all shells
             # see `self.PROMPTS`
-            better_shells = ["bash", "zsh", "ksh", "fish"]
 
             for better_shell in better_shells:
                 shell = self._do_which(better_shell)
