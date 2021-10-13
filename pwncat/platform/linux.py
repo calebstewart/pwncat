@@ -1740,7 +1740,7 @@ class Linux(Platform):
         #  14 total size in bytes
 
         for i in range(len(fields)):
-            if fields[i] == "?":
+            if not fields[i].isdigit():
                 fields[i] = "0"
 
         stat = os.stat_result(
