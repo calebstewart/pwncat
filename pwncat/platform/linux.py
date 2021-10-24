@@ -1735,8 +1735,12 @@ class Linux(Platform):
         #  14 total size in bytes
 
         for i in range(len(fields)):
-            if not fields[i].isdigit():
+            if fields[i] == "?":
                 fields[i] = "0"
+
+        # Fix stat output issues in some enviroments
+        if fields[1] == "W":
+            fields[1] = "0"
 
         stat = os.stat_result(
             tuple(
