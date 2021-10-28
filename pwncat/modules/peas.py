@@ -1,5 +1,5 @@
 from typing import List, Type
-from time import sleep
+from time import sleep, gmtime as time_gmtime
 from pwncat.subprocess import DEVNULL, CalledProcessError
 
 import pwncat
@@ -7,20 +7,28 @@ from pwncat.modules import BaseModule, Status, Argument
 from pwncat.platform import Platform, Windows, Linux
 from pwncat.util import random_string
 
+gmtime = time_gmtime()
+logfile_name = f"peass_log_{gmtime[3]}-{gmtime[4]}-{gmtime[4]}.log"
 
-def stream_process(process):
+def stream_process(process, logfile):
+    """This function allows the process to print the live output to our stdout."""
     go = process.poll() is None
     for line in process.stdout:
-        print(line.rstrip().decode())
+        current_line = line.rstrip().decode()
+        with open(logfile, "a") as logfile_open:
+            logfile_open.write(current_line)
+        print(current_line)
     return go
 
 
-def stream(process):
-    while stream_process(process):
+def stream(process, logfile):
+    """This is like short call for the stream_process func."""
+    while stream_process(process, logfile):
         sleep(0.1)
 
 
 def mktemp(session: "pwncat.manager.Session", mode: str = "wb", suffix: str = ""):
+    """This function helps to create temperory files."""
     platform = session.platform
 
     if not "." in suffix:
@@ -87,5 +95,5 @@ class PeassModule(BaseModule):
         self.enumerate(session, source)
         yield Status(session)
 
-    def enumerate(self, session: "pwncat.manager.Session", source) -> None:
-        None
+    def enumerate(self, session: "pwncat.manager.Session", source):
+        """This function where the PEAS-ng script is running."""

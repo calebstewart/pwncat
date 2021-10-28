@@ -1,7 +1,7 @@
 from requests import get
 
 import pwncat
-from pwncat.modules.peas import PeassModule, mktemp, stream
+from pwncat.modules.peas import PeassModule, mktemp, stream, logfile_name
 from pwncat.platform import Windows
 from pwncat.subprocess import PIPE, STDOUT
 
@@ -26,6 +26,6 @@ class Module(PeassModule):
         dst.write(winpeas)
         dst.close()
 
-        proc = session.platform.Popen(dst.name, stdout=PIPE, stderr=STDOUT)
+        proc = session.platform.Popen(str(dst.name), stdout=PIPE, stderr=STDOUT)
 
-        stream(proc)
+        stream(proc, logfile_name)

