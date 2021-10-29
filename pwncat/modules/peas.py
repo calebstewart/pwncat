@@ -32,8 +32,11 @@ def stream_process(process, logfile):
 def stream(process, logfile):
     """This is like short call for the stream_process func."""
     with open(logfile, "w") as logfile_open:
-        logfile_open.write("\x1b[30mYou SHOULD NOT use a text editor!\n")
-        logfile_open.write("Use `cat` command on terminal or `type` command on windows cmd!\x1b[0m\n")
+        logfile_open.write("\x1b[30m------------------------------------------------------\n")
+        logfile_open.write("You SHOULD NOT use a text editor!\n")
+        logfile_open.write("Use `cat` command on terminal or `type` command on windows cmd!\n")
+        logfile_open.write("------------------------------------------------------\x1b[0m\n")
+
 
     while stream_process(process, logfile):
         sleep(0.1)
