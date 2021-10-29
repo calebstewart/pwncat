@@ -16,8 +16,8 @@ def stream_process(process, logfile):
     for line in process.stdout:
         current_line = line.rstrip().decode()
         with open(logfile, "a") as logfile_open:
-            logfile_open.write(current_line)
-        print(current_line)
+            logfile_open.write(current_line+"\n")
+        print(current_line, flush=True)
     return go
 
 
