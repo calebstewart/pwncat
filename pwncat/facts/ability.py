@@ -25,7 +25,7 @@ def build_gtfo_ability(
     **kwargs,
 ) -> Union["GTFOFileRead", "GTFOFileWrite", "GTFOExecute"]:
     r"""Build a escalation ability from a GTFOBins method. This will return
-    one of of the GTFO ability classes based on the capabilties exposed by
+    one of of the GTFO ability classes based on the capabilities exposed by
     the given GTFOBins method.
 
     :param source: the generating module
@@ -64,7 +64,7 @@ class FileReadAbility(Fact):
 
     :param source: generating module name
     :type source: str
-    :param source_uid: the starting UID or None if it doesnt matter
+    :param source_uid: the starting UID or None if it doesn't matter
     :type source_uid: Optional[Union[int, str]]
     :param uid: the target UID
     :type uid: Union[int, str]
@@ -98,7 +98,7 @@ class FileWriteAbility(Fact):
 
     :param source: generating module name
     :type source: str
-    :param source_uid: the starting UID or None if it doesnt matter
+    :param source_uid: the starting UID or None if it doesn't matter
     :type source_uid: Optional[Union[int, str]]
     :param uid: the target UID
     :type uid: Union[int, str]
@@ -132,7 +132,7 @@ class ExecuteAbility(Fact):
 
     :param source: generating module name
     :type source: str
-    :param source_uid: the starting UID or None if it doesnt matter
+    :param source_uid: the starting UID or None if it doesn't matter
     :type source_uid: Optional[Union[int, str]]
     :param uid: the target UID
     :type uid: Union[int, str]
@@ -162,7 +162,7 @@ class SpawnAbility(Fact):
 
     :param source: generating module name
     :type source: str
-    :param source_uid: the starting UID or None if it doesnt matter
+    :param source_uid: the starting UID or None if it doesn't matter
     :type source_uid: Optional[Union[int, str]]
     :param uid: the target UID
     :type uid: Union[int, str]
@@ -191,7 +191,7 @@ class GTFOFileRead(FileReadAbility):
 
     :param source: generating module name
     :type source: str
-    :param source_uid: the starting UID or None if it doesnt matter
+    :param source_uid: the starting UID or None if it doesn't matter
     :type source_uid: Optional[Union[int, str]]
     :param uid: the target UID
     :type uid: Union[int, str]
@@ -223,7 +223,7 @@ class GTFOFileRead(FileReadAbility):
         errors: str = None,
         newline: str = None,
     ):
-        """Read the file data using a GTFO bins reader"""
+        """Read the file data using a GTFObins reader"""
 
         if any(c not in "rb" for c in mode):
             raise ValueError("only r/b modes allowed")
@@ -288,7 +288,7 @@ class GTFOFileWrite(FileWriteAbility):
 
     :param source: generating module name
     :type source: str
-    :param source_uid: the starting UID or None if it doesnt matter
+    :param source_uid: the starting UID or None if it doesn't matter
     :type source_uid: Optional[Union[int, str]]
     :param uid: the target UID
     :type uid: Union[int, str]
@@ -320,7 +320,7 @@ class GTFOFileWrite(FileWriteAbility):
         errors: str = None,
         newline: str = None,
     ):
-        """Read the file data using a GTFO bins reader"""
+        """Read the file data using a GTFObins reader"""
 
         if any(c not in "wb" for c in mode):
             raise ValueError("only w/b modes allowed")
@@ -385,7 +385,7 @@ class GTFOExecute(ExecuteAbility):
 
     :param source: generating module name
     :type source: str
-    :param source_uid: the starting UID or None if it doesnt matter
+    :param source_uid: the starting UID or None if it doesn't matter
     :type source_uid: Optional[Union[int, str]]
     :param uid: the target UID
     :type uid: Union[int, str]
@@ -408,7 +408,7 @@ class GTFOExecute(ExecuteAbility):
         self.kwargs = kwargs
 
     def send_command(self, session, command: bytes = None):
-        """Send the command to the target for this GTFObin"""
+        """Send the command to the target for this GTFObins"""
 
     def Popen(self, session, *args, **kwargs):
         """Emulate the platform.Popen method for execution as another user"""

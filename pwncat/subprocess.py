@@ -96,7 +96,7 @@ class Popen:
 
     def communicate(self, input: bytes = None, timeout: float = None):
         """Interact with process: Send data to stdin. Read data from stdout
-        and stderr, until end-of-file is readched. Wait for the process to
+        and stderr, until end-of-file is reached. Wait for the process to
         terminate and set the ``returncode`` attribute. The optional ``input``
         argument should be data to be sent to the child process, or None, if
         no data should be sent to the child. If streams were opened in text mode,

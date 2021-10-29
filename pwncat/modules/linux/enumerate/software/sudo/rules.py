@@ -6,6 +6,7 @@ import rich.markup
 
 from pwncat.db import Fact
 from pwncat.facts import build_gtfo_ability
+from pwncat.gtfobins import Stream
 from pwncat.platform.linux import Linux
 from pwncat.modules.enumerate import Schedule, EnumerateModule
 
@@ -238,7 +239,9 @@ class Module(EnumerateModule):
                                 source_uid=user.id,
                                 user=runas_user.name,
                             )
-                            for method in session.platform.gtfo.iter_sudo(spec)
+                            for method in session.platform.gtfo.iter_sudo(
+                                spec, stream=Stream.RAW
+                            )
                         )
 
                 return
@@ -261,7 +264,7 @@ class Module(EnumerateModule):
         for line in result.split("\n"):
             line = line.rstrip()
 
-            # Skipe header lines
+            # Skip header lines
             if not line.startswith(" ") and not line.startswith("\t"):
                 continue
 
@@ -304,5 +307,7 @@ class Module(EnumerateModule):
                         user=user.name,
                         source_uid=current_user.id,
                     )
-                    for method in session.platform.gtfo.iter_sudo(spec)
+                    for method in session.platform.gtfo.iter_sudo(
+                        spec, stream=Stream.RAW
+                    )
                 )

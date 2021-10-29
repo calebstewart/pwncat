@@ -86,7 +86,7 @@ victim machine. This mode is accessed via the ``bind`` protocol.
     :caption: Catching a reverse shell
 
     # netcat syntax
-    pwncat -l 4444
+    pwncat -lp 4444
     # Full connection string
     pwncat bind://0.0.0.0:4444
     # Assumed protocol

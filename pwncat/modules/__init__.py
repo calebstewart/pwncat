@@ -315,7 +315,7 @@ class BaseModule(metaclass=BaseModuleMeta):
     but only return one scalar value, setting this to true will collapse
     an array with only a single object to it's scalar value. """
     PLATFORM: typing.List[typing.Type["pwncat.platform.Platform"]] = []
-    """ The platform this module is compatibile with (can be multiple) """
+    """ The platform this module is compatible with (can be multiple) """
 
     def __init__(self):
         self.progress = None

@@ -18,7 +18,7 @@ class Command(CommandDefinition):
     """
     Connect to a remote victim. This command is only valid prior to an established
     connection. This command attempts to act similar to common tools such as netcat
-    and ssh simultaneosly. Connection strings come in two forms. Firstly, pwncat
+    and ssh simultaneously. Connection strings come in two forms. Firstly, pwncat
     can act like netcat. Using `connect [host] [port]` will connect to a bind shell,
     while `connect -l [port]` will listen for a reverse shell on the specified port.
 
@@ -151,6 +151,8 @@ class Command(CommandDefinition):
                 "[red]error[/red]: --listen is not compatible with an explicit connection string"
             )
             return
+        elif args.listen:
+            protocol = "bind"
 
         if (
             sum(

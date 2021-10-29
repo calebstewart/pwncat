@@ -17,13 +17,21 @@ and simply didn't have the time to go back and retroactively create one.
 - Fixed verbose logging handler to be __unique__ for every `channel`
 - Fixed docstrings in `Command` modules
 - Changed docker base image to `python3.9-alpine` to fix python version issues.
+- Added logic for calling correct paramiko method when reloading an encrypted SSH privat ekey ([#185](https://github.com/calebstewart/pwncat/issues/185)).
+- Forced `Stream.RAW` for all GTFOBins interaction ([#195](https://github.com/calebstewart/pwncat/issues/195)).
+- Added custom `which` implementation for linux when `which` is not available ([#193](https://github.com/calebstewart/pwncat/issues/193)).
+- Correctly handle `--listen` argument ([#201](https://github.com/calebstewart/pwncat/issues/201))
 ### Added
 - Added alternatives to `bash` to be used during _shell upgrade_ for a _better shell_
 - Added a warning message when a `KeyboardInterrupt` is caught
 - Added `--verbose/-V` for argument parser
 - Added `OSError` for `bind` protocol to show appropriate error messages
+- Contributing guidelines for GitHub maintainers
+- Installation instructions for BlackArch
 ### Changed
 - Changed some 'red' warning message color to 'yellow'
+- Leak private keys for all users w/ file-read ability as UID=0 ([#181](https://github.com/calebstewart/pwncat/issues/181))
+- Raise `PermissionError` when underlying processes terminate unsuccessfully for `LinuxReader` and `LinuxWriter`
 
 ## [0.4.3] - 2021-06-18
 Patch fix release. Major fixes are the correction of file IO for LinuxWriters and

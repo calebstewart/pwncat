@@ -1,6 +1,6 @@
 """
 The Linux platform provides Linux shell support ontop of any channel.
-The Linux platfrom expects the channel to expose a shell whose stdio
+The Linux platform expects the channel to expose a shell whose stdio
 is connected directly to the channel IO. At a minimum stdin and stdout
 must be connected.
 
@@ -122,14 +122,14 @@ class PopenLinux(pwncat.subprocess.Popen):
             except ValueError:
                 pass
 
-        # This gets a 'lil... funky... Normally, the ChannelFile
+        # This gets a 'lil... funky... Normally, the `ChannelFile`
         # wraps a non-blocking socket in a blocking file object
-        # because this what we normally we want and allows us
+        # because this is what we normally want and it allows us
         # to implement our own timeouts. However, here we want
         # a non-blocking call to check for EOF, so we set the
         # internal ``blocking`` flag to False which can cause
         # a `BlockingIOError` caught below. We need to do this
-        # in a nested `try-finaly` so we gaurantee catching it
+        # in a nested `try-finally` so we guarantee catching it
         # and resetting the flag before calling `_receive_returncode`.
         try:
             try:
@@ -343,6 +343,12 @@ class LinuxReader(BufferedIOBase):
             self.popen.terminate()
             self.popen.wait()
 
+        # This happens immediately upon the first read attempt because the process will have
+        # exited. During testing, this seems reliable. It's not ideal, but we don't know what
+        # the remote process is...
+        if self.popen.returncode != 0:
+            raise PermissionError(self.name)
+
         self.detach()
 
 
@@ -484,6 +490,12 @@ class LinuxWriter(BufferedIOBase):
             self.popen.kill()
             self.popen.wait()
 
+        # This happens immediately upon the first read attempt because the process will have
+        # exited. During testing, this seems reliable. It's not ideal, but we don't know what
+        # the remote process is...
+        if self.popen.returncode != 0:
+            raise PermissionError(self.name)
+
         # Ensure we don't touch stdio again
         self.detach()
 
@@ -609,6 +621,9 @@ class Linux(Platform):
             self.shell = "/bin/sh"
             self.channel.sendline(b" export SHELL=/bin/sh")
 
+        if self._do_which("which") is None:
+            self._do_which = self._do_custom_which
+
         if os.path.basename(self.shell) in ["sh", "dash"]:
             # Try to find a better shell
             # a custom `pwncat shell prompt` may not be available for all shells
@@ -697,7 +712,7 @@ class Linux(Platform):
                 continue
             break
         else:
-            raise PlatformError("no avialable pty methods")
+            raise PlatformError("no available pty methods")
 
         # When starting a pty, history is sometimes re-enabled
         self.disable_history()
@@ -803,6 +818,25 @@ class Linux(Platform):
 
         for name in p.stdout.split("\n"):
             yield name
+
+    def _do_custom_which(self, name: str):
+        """This is custom which implementation that will not find built-in commands.
+        It is altogether inferior to the real which, but if `which` isn't available,
+        it will do the job."""
+
+        try:
+            result = self.run(
+                f"""IFS=':'; for path in $PATH; do if [ -f "$path/{name}" ]; then echo "$path/{name}"; break; fi; done; IFS=' '""",
+                shell=True,
+                capture_output=True,
+                check=True,
+                text=True,
+            )
+            if result.stdout.rstrip("\n") == "":
+                return None
+            return result.stdout.rstrip("\n")
+        except CalledProcessError:
+            return None
 
     def _do_which(self, name: str) -> str:
         """
@@ -1262,7 +1296,7 @@ class Linux(Platform):
         if "w" in mode:
 
             for method in self.gtfo.iter_methods(
-                caps=Capability.WRITE, stream=Stream.PRINT | Stream.RAW
+                caps=Capability.WRITE, stream=Stream.RAW
             ):
                 try:
                     payload, input_data, exit_cmd = method.build(
@@ -1291,7 +1325,7 @@ class Linux(Platform):
             )
         else:
             for method in self.gtfo.iter_methods(
-                caps=Capability.READ, stream=Stream.PRINT | Stream.RAW
+                caps=Capability.READ, stream=Stream.RAW
             ):
                 try:
                     payload, input_data, exit_cmd = method.build(

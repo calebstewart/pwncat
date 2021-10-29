@@ -3,7 +3,7 @@ Channels represent the basic communication object within pwncat. Each channel
 abstracts a communication method with a target. By default, pwncat implements
 a few standard channels: socket bind/connect and ssh.
 
-A channel largely mimicks a standard socket, however exact compatibility with
+A channel largely mimics a standard socket, however exact compatibility with
 sockets was not the goal. Instead, it provides a low-level communication channel
 between the target and the attacker. Channels make no assumption about protocol
 of the C2 connection. This is the platform's job.
