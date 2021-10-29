@@ -7,22 +7,34 @@ from pwncat.modules import BaseModule, Status, Argument
 from pwncat.platform import Platform, Windows, Linux
 from pwncat.util import random_string
 
+
 gmtime = time_gmtime()
 logfile_name = f"peass_log_{gmtime[3]}-{gmtime[4]}-{gmtime[4]}.log"
+
+def log_output(logfile, current_line):
+    """I liked to split printing log func, it classes my work."""
+    # Please, don't use a text editor to read this logfile
+    # read it with cat on terminal, or with type on windows cmd
+    current_patched_line = current_line + "\n"
+    with open(logfile, "a") as logfile_open:
+        logfile_open.write(current_patched_line)
 
 def stream_process(process, logfile):
     """This function allows the process to print the live output to our stdout."""
     go = process.poll() is None
     for line in process.stdout:
         current_line = line.rstrip().decode()
-        with open(logfile, "a") as logfile_open:
-            logfile_open.write(current_line+"\n")
+        log_output(logfile, current_line)
         print(current_line, flush=True)
     return go
 
 
 def stream(process, logfile):
     """This is like short call for the stream_process func."""
+    with open(logfile, "w") as logfile_open:
+        logfile_open.write("\x1b[30mYou SHOULD NOT use a text editor!\n")
+        logfile_open.write("Use `cat` command on terminal or `type` command on windows cmd!\x1b[0m\n")
+
     while stream_process(process, logfile):
         sleep(0.1)
 
