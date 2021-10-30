@@ -10,7 +10,9 @@ class Module(PeassModule):
 
     PLATFORM = [Linux]
 
-    linpeas_lnk = "https://github.com/carlospolop/PEASS-ng/raw/master/linPEAS/linpeas.sh"
+    linpeas_lnk = (
+        "https://github.com/carlospolop/PEASS-ng/raw/master/linPEAS/linpeas.sh"
+    )
 
     def enumerate(self, session: "pwncat.manager.Session", source: str):
 
@@ -26,8 +28,8 @@ class Module(PeassModule):
         dst.write(linpeas)
         dst.close()
 
-
         proc = session.platform.Popen(
-            ["/bin/sh", str(dst.name)], stdout=PIPE, stderr=STDOUT)
+            ["/bin/sh", str(dst.name)], stdout=PIPE, stderr=STDOUT
+        )
 
         stream(proc, logfile_name)
