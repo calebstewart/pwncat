@@ -53,7 +53,7 @@ def mktemp(session: "pwncat.manager.Session", mode: str = "wb", suffix: str = ""
     """This function helps to create temperory files."""
     platform = session.platform
 
-    if not "." in suffix:
+    if "." not in suffix:
         suffix = "." + suffix
 
     if type(platform) == Windows:
