@@ -10,6 +10,13 @@ and simply didn't have the time to go back and retroactively create one.
 ## [Unreleased]
 
 ### Fixed
+- Added new `peas` module which run [PEASS-ng](https://github.com/carlospolop/PEASS-ng) scripts and binaries
+- Fixed mktemp function in the both platforms
+- Fixed linux state variable (`time of file birth`) due to unknowns errors
+
+## [Unreleased]
+
+### Fixed
 - Possible exception due to _pre-registering_ of `session` with `manager`
 - Covered edge case in sudo rule parsing for wildcards ([#183](https://github.com/calebstewart/pwncat/issue/183))
 - Added fallthrough cases for PTY methods in case of misbehaving binaries (looking at you: `screen`)
