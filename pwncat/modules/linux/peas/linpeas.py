@@ -1,9 +1,9 @@
 from requests import get as req_get
 
 import pwncat
-from pwncat.modules.peas import PeassModule, mktemp, stream, logfile_name
 from pwncat.platform import Linux
 from pwncat.subprocess import PIPE, STDOUT
+from pwncat.modules.peas import PeassModule, mktemp, stream, logfile_name
 
 
 class Module(PeassModule):

@@ -1,5 +1,5 @@
 import pwncat
-from pwncat.modules import ModuleFailed, BaseModule, Status
+from pwncat.modules import Status, BaseModule, ModuleFailed
 from pwncat.modules.peas import PeassModule
 
 

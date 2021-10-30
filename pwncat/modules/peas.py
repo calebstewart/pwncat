@@ -1,12 +1,12 @@
+from time import sleep
+from time import gmtime as time_gmtime
 from typing import List, Type
-from time import sleep, gmtime as time_gmtime
-from pwncat.subprocess import DEVNULL, CalledProcessError
 
 import pwncat
-from pwncat.modules import BaseModule, Status, Argument
-from pwncat.platform import Platform, Windows, Linux
 from pwncat.util import random_string
-
+from pwncat.modules import Status, Argument, BaseModule
+from pwncat.platform import Linux, Windows, Platform
+from pwncat.subprocess import DEVNULL, CalledProcessError
 
 gmtime = time_gmtime()
 logfile_name = f"peass_log_{gmtime[3]}-{gmtime[4]}-{gmtime[4]}.log"
