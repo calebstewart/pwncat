@@ -615,7 +615,7 @@ class Linux(Platform):
 
         if self.shell == "" or self.shell is None:
             self.shell = "/bin/sh"
-                      
+
         if self._do_which("which") is None:
             self._do_which = self._do_custom_which
 
