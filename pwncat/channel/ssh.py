@@ -33,6 +33,12 @@ class Ssh(Channel):
         if port is None:
             port = 22
 
+        if isinstance(port, str):
+            try:
+                port = int(port)
+            except ValueError:
+                raise ChannelError(self, "invalid port")
+
         if not user or user is None:
             raise ChannelError(self, "you must specify a user")
 

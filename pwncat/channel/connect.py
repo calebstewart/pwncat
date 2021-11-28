@@ -24,10 +24,16 @@ class Connect(Socket):
 
     def __init__(self, host: str, port: int, **kwargs):
         if not host:
-            raise ChannelError("no host address provided")
+            raise ChannelError(self, "no host address provided")
 
         if port is None:
-            raise ChannelError("no port provided")
+            raise ChannelError(self, "no port provided")
+
+        if isinstance(port, str):
+            try:
+                port = int(port)
+            except ValueError:
+                raise ChannelError(self, "invalid port")
 
         with Progress(
             f"connecting to [blue]{host}[/blue]:[cyan]{port}[/cyan]",

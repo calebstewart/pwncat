@@ -29,6 +29,12 @@ class Bind(Socket):
         if not host or host == "":
             host = "0.0.0.0"
 
+        if isinstance(port, str):
+            try:
+                port = int(port)
+            except ValueError:
+                raise ChannelError(self, "invalid port number")
+
         if port is None:
             raise ChannelError(self, "no port specified")
 
@@ -70,6 +76,8 @@ class Bind(Socket):
                 self._socket_connected(client)
             except KeyboardInterrupt:
                 raise ChannelError(self, "listener aborted")
+            except socket.error as exc:
+                raise ChannelError(self, str(exc))
             finally:
                 self.server.close()
 

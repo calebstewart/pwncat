@@ -7,7 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 The Changelog starts with v0.4.1, because we did not keep one before that,
 and simply didn't have the time to go back and retroactively create one.
 
-## [Unreleased]
+## [v0.5.0] - 2021-11-28
+This is a major release mainly due to the name change, and PyPI package addition.
+The package has been renamed to `pwncat-cs` and the default entrypoint has also
+been renamed to `pwncat-cs`. These changes were made in an effort to deconflict
+with [Cytopia pwncat](https://pwncat.org/). Beyond that, some new features were
+added as seen in the release notes below.
+
+I've tried to update all references to the old `pwncat` entrypoint, but may have
+missed some throughout the documentation or code. Please open an issue if you
+notice any old references to the previous name.
+
+It's worth noting that the internal module name is still `pwncat`, as Cytopia
+does not implement an importable package (only a command line entrypoint). I may
+change this name in the future, but for now it doesn't cause any issues and would
+require a major refactor so I'm going to leave it.
+
+### Changed
+- Moved dependency management and building to [Poetry](https://python-poetry.org).
+- Changed package name to `pwncat-cs` in order to not conflict w/ cytopia/pwncat.
+### Added
+- Added `ssl-bind` and `ssl-connect` channel protocols for encrypted shells
+- Added `ncat`-style ssl arguments to entrypoint and `connect` command
+- Added query-string arguments to connection strings for both the entrypoint
+  and the `connect` command.
+- Added Enumeration States to allow session-bound enumerations
+- Added PyPi publishing to GitHub `publish` workflow.
+- Added licensing for pwncat (MIT)
+- Added background listener API and commands ([#43](https://github.com/calebstewart/pwncat/issues/43))
+- Added Windows privilege escalation via BadPotato plugin ([#106](https://github.com/calebstewart/pwncat/issues/106))
+### Removed
+- Removed `setup.py` and `requirements.txt`
 
 ## [0.4.4] - 2021-11-28
 

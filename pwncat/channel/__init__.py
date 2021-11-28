@@ -581,9 +581,19 @@ def create(protocol: Optional[str] = None, **kwargs) -> Channel:
                 or kwargs["host"] == "0.0.0.0"
                 or kwargs["host"] is None
             ):
-                protocols.append("bind")
+                if (
+                    kwargs.get("certfile") is not None
+                    or kwargs.get("keyfile") is not None
+                    or kwargs.get("ssl")
+                ):
+                    protocols.append("ssl-bind")
+                else:
+                    protocols.append("bind")
             else:
-                protocols.append("connect")
+                if kwargs.get("ssl"):
+                    protocols.append("ssl-connect")
+                else:
+                    protocols.append("connect")
     else:
         protocols = [protocol]
 
@@ -600,8 +610,12 @@ from pwncat.channel.ssh import Ssh  # noqa: E402
 from pwncat.channel.bind import Bind  # noqa: E402
 from pwncat.channel.socket import Socket  # noqa: E402
 from pwncat.channel.connect import Connect  # noqa: E402
+from pwncat.channel.ssl_bind import SSLBind  # noqa: E402
+from pwncat.channel.ssl_connect import SSLConnect  # noqa: E402
 
 register("socket", Socket)
 register("bind", Bind)
 register("connect", Connect)
 register("ssh", Ssh)
+register("ssl-bind", SSLBind)
+register("ssl-connect", SSLConnect)

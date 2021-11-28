@@ -4,53 +4,56 @@ Installation
 .. toctree::
     :maxdepth: -1
 
-The only system dependency for pwncat is ``python3`` and ``pip``. For ``pip`` to install all Python dependencies,
-you will likely need your distributions Python Development package (``python3-dev`` for Debian-based distributions).
-Once you have a working ``pip`` installation, you can install pwncat with the provided setup script:
+The only system dependency for pwncat is ``python3`` and ``pip``. For ``pip`` to install all Python dependencies, you will likely need your distributions Python Development package (``python3-dev`` for Debian-based distributions). A virtual environment is recommended, but not required.
 
 .. code-block:: bash
+    :caption: Install pwncat w/ Virtual Environment
 
     # A virtual environment is recommended
     python -m venv /opt/pwncat
     # Install pwncat within the virtual environment
-    # Replace `latest` with a versioned tag if needed (e.g. `v0.4.0`)
-    /opt/pwncat/bin/pip install 'git+https://github.com/calebstewart/pwncat@latest#egg=pwncat'
+    /opt/pwncat/bin/pip install pwncat-cs
     # This allows you to use pwncat outside of the virtual environment
     ln -s /opt/pwncat/bin/pwncat /usr/local/bin
+
+.. code-block:: bash
+    :caption: Install pwncat without Virtual Environment
+
+    pip install pwncat-cs
 
 After installation, you can use pwncat via the installed script:
 
 .. code-block:: bash
 
-    $ pwncat --help
-    usage: pwncat [-h] [--config CONFIG] [--identity IDENTITY] [--listen]
-                  [--platform PLATFORM] [--port PORT] [--list]
-                  [[protocol://][user[:password]@][host][:port]] [port]
+    $ pwncat-cs --help
+    usage: pwncat-cs [-h] [--version] [--download-plugins] [--config CONFIG] [--ssl] [--ssl-cert SSL_CERT]
+                     [--ssl-key SSL_KEY] [--identity IDENTITY] [--listen] [--platform PLATFORM] [--port PORT] [--list]
+                     [[protocol://][user[:password]@][host][:port]] [port]
 
-    Start interactive pwncat session and optionally connect to existing victim
-    via a known platform and channel type. This entrypoint can also be used to
-    list known implants on previous targets.
+    Start interactive pwncat session and optionally connect to existing victim via a known platform and channel type. This
+    entrypoint can also be used to list known implants on previous targets.
 
     positional arguments:
       [protocol://][user[:password]@][host][:port]
                             Connection string describing victim
-      port                  Alternative port number to support netcat-style
-                            syntax
+      port                  Alternative port number to support netcat-style syntax
 
     optional arguments:
       -h, --help            show this help message and exit
+      --version, -v         Show version number and exit
+      --download-plugins    Pre-download all Windows builtin plugins and exit immediately
       --config CONFIG, -c CONFIG
                             Custom configuration file (default: ./pwncatrc)
+      --ssl                 Connect or listen with SSL
+      --ssl-cert SSL_CERT   Certificate for SSL-encrypted listeners (PEM)
+      --ssl-key SSL_KEY     Key for SSL-encrypted listeners (PEM)
       --identity IDENTITY, -i IDENTITY
                             Private key for SSH authentication
-      --listen, -l          Enable the `bind` protocol (supports netcat-style
-                            syntax)
+      --listen, -l          Enable the `bind` protocol (supports netcat-style syntax)
       --platform PLATFORM, -m PLATFORM
                             Name of the platform to use (default: linux)
-      --port PORT, -p PORT  Alternative way to specify port to support netcat-
-                            style syntax
-      --list                List installed implants with remote connection
-                            capability
+      --port PORT, -p PORT  Alternative way to specify port to support netcat-style syntax
+      --list                List installed implants with remote connection capability
 
 BlackArch Package
 -----------------
@@ -105,15 +108,11 @@ builtin plugins from the GitHub releases page. You can then extract it into your
 Development Environment
 -----------------------
 
-If you would like to develop modules for pwncat (such as privilege escalation or persistence module), you can use
-the ``setuptools`` "develop" target instead of "install". This installs pwncat via symlinks, which means any
-modifications of the local code will be reflected in the installed package:
+pwncat utilizes the Poetry dependency and build manager. After installing poetry, you can use it to manage a local development environment.
 
 .. code-block:: bash
 
     git clone https://github.com/calebstewart/pwncat.git
     cd pwncat
-    python -m venv env
-    . env/bin/activate
-    python setup.py develop
-
+    poetry shell
+    poetry install

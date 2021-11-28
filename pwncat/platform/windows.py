@@ -849,10 +849,12 @@ function prompt {
                         self.session.manager.log(
                             "[yellow]warning[/yellow]: Ctrl-C does not work for windows targets"
                         )
-        except EOFError:
-            self.channel.send(b"\rexit\r")
-            self.channel.recvuntil(INTERACTIVE_END_MARKER)
-            raise pwncat.util.RawModeExit
+                except EOFError:
+                    self.channel.send(b"\rexit\r")
+                    interactive_complete.wait()
+        except KeyboardInterrupt:
+            # This should only happen during an EOFError above
+            pass
         finally:
             pwncat.util.pop_term_state()
 

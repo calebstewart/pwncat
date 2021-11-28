@@ -19,16 +19,31 @@ jobs:
         uses: actions/setup-python@v2
         with:
           python-version: "3.9"
-      - name: Install pwncat Module
-        run: "python setup.py install"
+      - name: Installing Python Poetry
+        run: pip install poetry
+      - name: Install and Build pwncat-cs Package
+        run: |
+          poetry install
+          poetry build
+      - name: Publish Package to TestPyPi
+        run: |
+          # Test that package publishing is going to work with the testpypi
+          # instance first before trying to package plugins.
+          poetry config pypi-token.testpypi ${{ secrets.TEST_PYPI_TOKEN }}
+          poetry config repositories.testpypi https://test.pypi.org/legacy/
+          poetry publish --repository testpypi
       - name: Download and Archive Plugins
         run: |
           # Have pwncat download all plugins needed
-          pwncat --download-plugins
+          poetry run pwncat-cs --download-plugins
 
           # They are stored in ~/.local/share/pwncat by default
           tar czvf pwncat-plugins.tar.gz --transform='s|.*pwncat/||' ~/.local/share/pwncat/*
-
+      - name: Publish Package to PyPi
+        run: |
+          # Everything looks good, publish to pypi
+          poetry config pypi-token.pypi ${{ secrets.PYPI_TOKEN }}
+          poetry publish
       - name: Extract Release Body
         run: |
           # Grab tag name without the `v`

@@ -12,6 +12,8 @@ Command index
     escalate.rst
     lcd.rst
     load.rst
+    listen.rst
+    listeners.rst
     lpwd.rst
     run.rst
     info.rst

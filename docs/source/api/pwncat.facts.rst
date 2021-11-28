@@ -13,7 +13,6 @@ Modules and Packages
    :maxdepth: -1
 
    pwncat.facts.ability
-   pwncat.facts.escalate
    pwncat.facts.implant
    pwncat.facts.linux
    pwncat.facts.tamper

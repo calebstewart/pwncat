@@ -18,6 +18,15 @@ requested. Unlike base modules, enumeration modules do not accept any
 custom arguments. However, they do still require a list of compatible
 platforms.
 
+Aside from schedules, you can also specify an enumeration scope. The default
+scope is ``Scope.HOST``. This scope saves facts to the database which is
+shared between sessions and between instances of pwncat. ``Scope.SESSION``
+defines facts which live only as long as the specific session is alive and
+are not shared with other sessions with the same target. The ``Scope.NONE``
+scope specifies that facts are never saved. This is normally used with
+``Schedule.ALWAYS`` to have enumeration modules run every time without saving
+the facts.
+
 When defining an enumeration module, you must define the
 :func:`EnumerateModule.enumerate` method. This method is a generator which
 can yield either facts or status updates, just like the
@@ -44,6 +53,7 @@ Example Enumerate Module
         PLATFORM = [Windows]
         SCHEDULE = Schedule.PER_USER
         PROVIDES = ["custom.fact.type"]
+        SCOPE = Scope.HOST
 
         def enumerate(self, session: "pwncat.manager.Session"):
             yield CustomFactObject(self.name)
@@ -52,8 +62,6 @@ Example Enumerate Module
 import typing
 import fnmatch
 from enum import Enum, auto
-
-import persistent
 
 import pwncat
 from pwncat.db import Fact
@@ -66,12 +74,23 @@ class Schedule(Enum):
 
     ALWAYS = auto()
     """ Execute the enumeration every time the module is executed """
-    NOSAVE = auto()
-    """ Similar to always, except that no enumerated information will be saved to the database """
     PER_USER = auto()
     """ Execute the enumeration once per user on the target """
     ONCE = auto()
     """ Execute the enumeration once and only once """
+
+
+class Scope(Enum):
+    """Defines whether the fact is scoped to the target host or
+    to the active session. Session-scoped facts are lost when a
+    session ends."""
+
+    HOST = auto()
+    """ Host scope; facts are saved in the database """
+    SESSION = auto()
+    """ Session scope; facts are lost when the session ends """
+    NONE = auto()
+    """ No scope; facts are never saved this is most often used with Schedule.ALWAYS """
 
 
 class EnumerateModule(BaseModule):
@@ -96,7 +115,8 @@ class EnumerateModule(BaseModule):
     """ List of fact types which this module is capable of providing """
     PLATFORM: typing.List[typing.Type[Platform]] = []
     """ List of supported platforms for this module """
-
+    SCOPE: Scope = Scope.HOST
+    """ Defines the scope for this fact (either host or session) """
     SCHEDULE: Schedule = Schedule.ONCE
     """ Determine the run schedule for this enumeration module """
 
@@ -122,6 +142,72 @@ class EnumerateModule(BaseModule):
     }
     """ Arguments accepted by all enumeration modules. This **should not** be overridden. """
 
+    def _get_cached(self, session: "pwncat.manager.Session"):
+        """Retrieve the cached items for this module in the specified scope"""
+
+        if self.SCOPE is Scope.HOST:
+            return [fact for fact in session.target.facts if fact.source == self.name]
+
+        if self.SCOPE is Scope.SESSION:
+            return [fact for fact in session.facts if fact.source == self.name]
+
+        return []
+
+    def _clear_cache(self, session: "pwncat.manager.Session"):
+        """Clear the cache based on the current scope"""
+
+        if self.SCOPE is Scope.HOST:
+            session.target.facts = [
+                fact for fact in session.target.facts if fact.source != self.name
+            ]
+
+            if self.name in session.target.enumerate_state:
+                del session.target.enumerate_state[self.name]
+
+        if self.SCOPE is Scope.SESSION:
+            session.facts = [fact for fact in session.facts if fact.source != self.name]
+
+            if self.name in session.enumerate_state:
+                del session.enumerate_state[self.name]
+
+        return []
+
+    def _mark_complete(self, session: "pwncat.manager.Session"):
+        """Mark this enumeration as complete for the scope and current schedule context"""
+
+        if self.SCOPE is Scope.HOST:
+            state = session.target.enumerate_state
+        elif self.SCOPE is Scope.SESSION or self.SCOPE is Scope.NONE:
+            state = session.enumerate_state
+
+        if self.SCHEDULE is Schedule.ONCE:
+            state[self.name] = True
+        elif self.SCHEDULE is Schedule.PER_USER:
+            if self.name not in state:
+                state[self.name] = [session.platform.getuid()]
+            elif session.platform.getuid() not in state[self.name]:
+                state[self.name].append(session.platform.getuid())
+
+    def _check_complete(self, session: "pwncat.manager.Session"):
+        """Check if this enumeration has already run for this scope and schedule context"""
+
+        if self.SCHEDULE is Schedule.ALWAYS:
+            return False
+
+        if self.SCOPE is Scope.HOST:
+            state = session.target.enumerate_state
+        elif self.SCOPE is Scope.SESSION or self.SCOPE is Scope.NONE:
+            state = session.enumerate_state
+
+        if self.name not in state:
+            return False
+        elif self.SCHEDULE is Schedule.ONCE:
+            return True
+        elif self.SCHEDULE is Schedule.PER_USER:
+            return session.platform.getuid() in state[self.name]
+
+        return False
+
     def run(
         self,
         session: "pwncat.manager.Session",
@@ -145,62 +231,40 @@ class EnumerateModule(BaseModule):
         :type cache: bool
         """
 
-        # Retrieve the DB target object
-        target = session.target
-
         if clear:
-            # Filter out all facts which were generated by this module
-            target.facts = persistent.list.PersistentList(
-                (f for f in target.facts if f.source != self.name)
-            )
-
-            # Remove the enumeration state if available
-            if self.name in target.enumerate_state:
-                del target.enumerate_state[self.name]
-
+            self._clear_cache(session)
             return
 
         # Yield all the know facts which have already been enumerated
         if cache and types:
             cached = [
                 f
-                for f in target.facts
-                if f.source == self.name
-                and any(
+                for f in self._get_cached(session)
+                if any(
                     any(fnmatch.fnmatch(item_type, req_type) for req_type in types)
                     for item_type in f.types
                 )
             ]
         elif cache:
-            cached = [f for f in target.facts if f.source == self.name]
+            cached = self._get_cached(session)
         else:
             cached = []
 
         yield from cached
 
         # Check if the module is scheduled to run now
-        if (self.name in target.enumerate_state) and (
-            (self.SCHEDULE == Schedule.ONCE and self.name in target.enumerate_state)
-            or (
-                self.SCHEDULE == Schedule.PER_USER
-                and session.platform.getuid() in target.enumerate_state[self.name]
-            )
-        ):
+        if self._check_complete(session):
             return
 
         for item in self.enumerate(session):
 
             # Allow non-fact status updates
-            if isinstance(item, Status) or self.SCHEDULE == Schedule.NOSAVE:
+            if isinstance(item, Status):
                 yield item
                 continue
 
             # Only add the item if it doesn't exist
-            for f in target.facts:
-                if f == item:
-                    break
-            else:
-                target.facts.append(item)
+            session.register_fact(item, self.SCOPE, commit=False)
 
             # Don't yield the actual fact if we didn't ask for this type
             if not types or any(
@@ -215,13 +279,7 @@ class EnumerateModule(BaseModule):
             else:
                 yield Status(item.title(session))
 
-        # Update state for restricted modules
-        if self.SCHEDULE == Schedule.ONCE:
-            target.enumerate_state[self.name] = True
-        elif self.SCHEDULE == Schedule.PER_USER:
-            if self.name not in target.enumerate_state:
-                target.enumerate_state[self.name] = persistent.list.PersistentList()
-            target.enumerate_state[self.name].append(session.platform.getuid())
+        self._mark_complete(session)
 
     def enumerate(
         self, session: "pwncat.manager.Session"

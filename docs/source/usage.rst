@@ -34,6 +34,11 @@ with three different C2 protocols: ``bind``, ``connect``, and ``ssh``. The first
 modes simply open a raw socket and assume there is a shell on the other end. In SSH mode, we legitimately
 authenticate to the victim host with provided credentials and utilize the SSH shell channel as our C2 channel.
 
+pwncat also implements SSL-wrapped versions of ``bind`` and ``connect`` protocols aptly named ``ssl-bind``
+and ``ssl-connect``. These protocols function largely the same as bind/connect, except that they operate
+over an encrypted SSL tunnel. You must use an encrypted bind or reverse shell on the victim side such
+as ``ncat --ssl`` or `socat OPENSSL-LISTEN:`.
+
 pwncat exposes these different C2 channel protocols via the ``protocol`` field of the connection string
 discussed below.
 
@@ -42,22 +47,30 @@ Connecting to a Victim
 
 Connecting to a victim is accomplished through a connection string. Connection strings are versatile ways
 to describe the parameters to a specific C2 Channel/Protocol. This looks something like:
-``[protocol://][user[:password]]@[host:][port]``
+``[protocol://][user[:password]]@[host:][port][?arg1=value&arg2=value]``
 
 Each field in the connection string translates to a parameter passed to the C2 channel. Some channels don't
 require all the parameters. For example, a ``bind`` or ``connect`` channel doesn't required a username or
-a password.
+a password. If there is not an explicit argument or parsed value within the above format, you can use the
+query string arguments to specify arbitrary channel arguments. You cannot specify the same argument twice
+(e.g. ``connect://hostname:1111?port=4444``).
 
 If the ``protocol`` field is not specified, pwncat will attempt to figure out the correct protocol
 contextually. The following rules apply:
 
 - If a user and host are provided, assume ``ssh`` protocol
-- If no user is provided but a host and port are provided, assume protocol is ``connect``
+- If no user is provided but a host, port and the ``--ssl`` argument, assume protocol is ``ssl-connect``
+- If no user is provided but a host and port are provided and no ``--ssl``, assume protocol is ``connect``
+- If no user or host is provided (or host is ``0.0.0.0``) and the ``certfile``, ``keyfile``, or
+  ``--ssl`` arguments are provided, protocol is assumed to be ``ssl-bind``
 - If no user or host is provided (or host is ``0.0.0.0``), protocol is assumed to be ``bind``
-- If a second positional integer parameter is specified, the protocol is assumed to be ``connect``
-  - This is the ``netcat`` syntax seen in the below examples for the ``connect`` protocol.
-- If the ``-l`` parameter is used, the protocol is assumed to be ``bind``.
-  - This is the ``netcat`` syntax seen in the below examples for the ``bind`` protocol.
+- If a second positional integer parameter is specified and ``--ssl`` is not, the protocol is assumed
+  to be ``connect``
+- If a second positional integer parameter is specified and ``--ssl`` is provided, the protocol is
+  assumed to be ``ssl-connect``
+- If the ``-l`` parameter is used and the ``certfile``, ``keyfile``, or ``--ssl`` arguments are
+  provided, the protocol is assumed to be ``ssl-bind``.
+- If the ``-l`` parameter is used alone, then the protocol is assumed to be ``bind``
 
 Connecting to a victim bind shell
 ---------------------------------
@@ -69,11 +82,26 @@ address which is routable (e.g. not NAT'd). The ``connect`` protocol provides th
     :caption: Connecting to a bind shell at 1.1.1.1:4444
 
     # netcat syntax
-    pwncat 192.168.1.1 4444
+    pwncat-cs 192.168.1.1 4444
     # Full connection string
-    pwncat connect://192.168.1.1:4444
+    pwncat-cs connect://192.168.1.1:4444
     # Connection string with assumed protocol
-    pwncat 192.168.1.1:4444
+    pwncat-cs 192.168.1.1:4444
+
+Connecting to a victim encrypted bind shell
+-------------------------------------------
+
+In this case, the victim is running a ssl-wrapped bind shell on an open port. The victim must be available at an
+address which is routable (e.g. not NAT'd). The ``ssl-connect`` protocol provides this capability.
+
+.. code-block:: bash
+    :caption: Connecting to a bind shell at 1.1.1.1:4444
+
+    # Full connection string
+    pwncat-cs connect://192.168.1.1:4444
+    # ncat style syntax
+    pwncat-cs --ssl 192.168.1.1 4444
+    pwncat-cs --ssl 192.168.1.1:4444
 
 Catching a victim reverse shell
 -------------------------------
@@ -86,13 +114,36 @@ victim machine. This mode is accessed via the ``bind`` protocol.
     :caption: Catching a reverse shell
 
     # netcat syntax
-    pwncat -lp 4444
+    pwncat-cs -lp 4444
     # Full connection string
-    pwncat bind://0.0.0.0:4444
+    pwncat-cs bind://0.0.0.0:4444
     # Assumed protocol
-    pwncat 0.0.0.0:4444
+    pwncat-cs 0.0.0.0:4444
     # Assumed protocol, assumed bind address
-    pwncat :4444
+    pwncat-cs :4444
+
+Catching a victim encrypted reverse shell
+-----------------------------------------
+
+In this case, the victim was exploited in such a way that they open an ssl connection to your attacking host
+on a specific port with a raw shell open on the other end. Your attacking host must be routable from the
+victim machine. This mode is accessed via the ``ssl-bind`` protocol.
+
+If the explicit ``ssl-bind`` protocol or the ``--ssl`` argument is provided without an explicit certfile
+or keyfile, a self-signed certificate is generated with dummy attributes. The certfile and keyfile can
+both point to the same bundled PEM file if both the key and certificate are present.
+
+.. code-block:: bash
+    :caption: Catching a reverse shell
+
+    # ncat style syntax
+    pwncat-cs --ssl --ssl-cert cert.pem --ssl-key cert.pem -lp 4444
+    # Full connection string
+    pwncat-cs ssl-bind://0.0.0.0:4444?certfile=/path/to/cert.pem&keyfile=/path/to/key.pem
+    # Auto-generated self-signed certificate
+    pwncat-cs --ssl -lp 4444
+    # Auto-generated self-signed certificate with explicit protocol
+    pwncat-cs ssl-bind://0.0.0.0:4444
 
 Connecting to a Remote SSH Server
 ---------------------------------
@@ -108,11 +159,11 @@ protocol.
     :caption: Connection to a remote SSH server
 
     # SSH style syntax (assumed protocol, prompted for password)
-    pwncat root@192.168.1.1
+    pwncat-cs root@192.168.1.1
     # Full connection string with password
-    pwncat "ssh://root:r00t5P@ssw0rd@192.168.1.1"
+    pwncat-cs "ssh://root:r00t5P@ssw0rd@192.168.1.1"
     # SSH style syntax w/ identity file
-    pwncat -i ./root_id_rsa root@192.168.1.1
+    pwncat-cs -i ./root_id_rsa root@192.168.1.1
 
 Connecting to a Windows Target
 ------------------------------
@@ -124,11 +175,11 @@ a platform during invocation. For example, to connect to a Windows bind shell at
     :caption: Connect to Windows bind shell
 
     # netcat syntax
-    pwncat -m windows 192.168.1.1 4444
+    pwncat-cs -m windows 192.168.1.1 4444
     # Full connection string
-    pwncat -m windows connect://192.168.1.1:4444
+    pwncat-cs -m windows connect://192.168.1.1:4444
     # Connection string with assumed protocol
-    pwncat -m windows 192.168.1.1:4444
+    pwncat-cs -m windows 192.168.1.1:4444
 
 Reconnecting to a victim
 ------------------------
@@ -141,7 +192,7 @@ with either the IP address or unique host ID of a target.
 .. code-block:: bash
     :caption: List Installed Persistent Implants
 
-    pwncat --list
+    pwncat-cs --list
 
 pwncat will attempt to reconnect to a host automatically if needed. Specifically, if no explicit protocol,
 port, identity or password is specified, pwncat assumes you would like to be reconnected to the specified
@@ -151,6 +202,6 @@ host and attempts to reconnect via a matching implant prior to attempting direct
     :caption: Reconnecting to a known host
 
     # Attempt reconnection as any user; specify host ID
-    pwncat 999c434fe6bd7383f1a6cc10f877644d
+    pwncat-cs 999c434fe6bd7383f1a6cc10f877644d
     # Attempt reconnection first as the specified user
-    pwncat user@192.168.1.1
+    pwncat-cs user@192.168.1.1

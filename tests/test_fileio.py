@@ -17,10 +17,7 @@ def do_file_test(session, content):
 
     # In some cases, the act of reading/writing causes a shell to hang
     # so double check that.
-    result = session.platform.run(
-        ["echo", "hello world"], capture_output=True, text=True
-    )
-    assert result.stdout == "hello world\n"
+    assert len(list(session.platform.Path("/").iterdir())) > 0
 
 
 def test_small_text(session):

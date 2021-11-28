@@ -3,10 +3,13 @@ import fnmatch
 from io import IOBase
 
 import pwncat.modules
-from pwncat import util
-from pwncat.util import strip_markup
 from pwncat.modules import Status, ModuleFailed
 from pwncat.modules.enumerate import EnumerateModule
+
+
+def iterate_two_lists(a, b):
+    yield from a
+    yield from b
 
 
 def list_wrapper(iterable):
@@ -98,7 +101,7 @@ class Module(pwncat.modules.BaseModule):
         facts = {}
 
         if cache:
-            for fact in session.target.facts:
+            for fact in iterate_two_lists(session.target.facts, session.facts):
                 if not types or any(
                     any(fnmatch.fnmatch(t2, t1) for t2 in fact.types) for t1 in types
                 ):
@@ -154,43 +157,3 @@ class Module(pwncat.modules.BaseModule):
                                 yield Status(item.title(session))
             except ModuleFailed as exc:
                 session.log(f"[red]{module.name}[/red]: {str(exc)}")
-
-        # We didn't ask for a report output file, so don't write one.
-        # Because output is none, the results were already returned
-        # in the above loop.
-        if output is None:
-            return
-
-        yield pwncat.modules.Status("writing report")
-
-        with output as filp:
-
-            with session.db as db:
-                host = db.query(pwncat.db.Host).filter_by(id=session.host).first()
-
-            filp.write(f"# {host.ip} - Enumeration Report\n\n")
-            filp.write("Enumerated Types:\n")
-            for typ in facts:
-                filp.write(f"- {typ}\n")
-            filp.write("\n")
-
-            for typ in facts:
-
-                filp.write(f"## {typ.upper()} Facts\n\n")
-
-                sections = []
-                for fact in facts[typ]:
-                    if getattr(fact.data, "description", None) is not None:
-                        sections.append(fact)
-                        continue
-                    filp.write(
-                        f"- {util.escape_markdown(strip_markup(str(fact.data)))}\n"
-                    )
-
-                filp.write("\n")
-
-                for section in sections:
-                    filp.write(
-                        f"### {util.escape_markdown(strip_markup(str(section.data)))}\n\n"
-                    )
-                    filp.write(f"```\n{section.data.description}\n```\n\n")
