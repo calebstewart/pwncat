@@ -32,6 +32,7 @@ and simply didn't have the time to go back and retroactively create one.
 - Added `OSError` for `bind` protocol to show appropriate error messages
 - Contributing guidelines for GitHub maintainers
 - Installation instructions for BlackArch
+- Added `lpwd` and `lcd` commands to interact with the local working directory ([#218](https://github.com/calebstewart/pwncat/issues/218))
 ### Changed
 - Removed handling of `shell` argument to `Popen` to prevent `euid` problems ([#179](https://github.com/calebstewart/pwncat/issues/179))
 - Changed some 'red' warning message color to 'yellow'
