@@ -9,6 +9,8 @@ and simply didn't have the time to go back and retroactively create one.
 
 ## [Unreleased]
 
+## [0.4.4] - 2021-11-28
+
 ### Fixed
 - Possible exception due to _pre-registering_ of `session` with `manager`
 - Covered edge case in sudo rule parsing for wildcards ([#183](https://github.com/calebstewart/pwncat/issue/183))
