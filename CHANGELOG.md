@@ -38,6 +38,7 @@ and simply didn't have the time to go back and retroactively create one.
 - Changed some 'red' warning message color to 'yellow'
 - Leak private keys for all users w/ file-read ability as UID=0 ([#181](https://github.com/calebstewart/pwncat/issues/181))
 - Raise `PermissionError` when underlying processes terminate unsuccessfully for `LinuxReader` and `LinuxWriter`
+- Removed `busybox` and `bruteforce` commands from documentation.
 
 ## [0.4.3] - 2021-06-18
 Patch fix release. Major fixes are the correction of file IO for LinuxWriters and

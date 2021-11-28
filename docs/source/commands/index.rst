@@ -7,8 +7,6 @@ Command index
     alias.rst
     back.rst
     bind.rst
-    bruteforce.rst
-    busybox.rst
     connect.rst
     download.rst
     escalate.rst
