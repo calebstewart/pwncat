@@ -21,6 +21,9 @@ and simply didn't have the time to go back and retroactively create one.
 - Forced `Stream.RAW` for all GTFOBins interaction ([#195](https://github.com/calebstewart/pwncat/issues/195)).
 - Added custom `which` implementation for linux when `which` is not available ([#193](https://github.com/calebstewart/pwncat/issues/193)).
 - Correctly handle `--listen` argument ([#201](https://github.com/calebstewart/pwncat/issues/201))
+- Added additional check for stat time of file birth field (#208)
+- Removed shell compare with ["nologin", "false", "sync", "git-shell"] (#210)
+- Added shell compare with not in ["bash", "zsh", "ksh", "fish"] (#210)
 ### Added
 - Added alternatives to `bash` to be used during _shell upgrade_ for a _better shell_
 - Added a warning message when a `KeyboardInterrupt` is caught
