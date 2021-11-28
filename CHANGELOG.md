@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 The Changelog starts with v0.4.1, because we did not keep one before that,
 and simply didn't have the time to go back and retroactively create one.
 
+## [Unreleased]
+
 ## [v0.5.0] - 2021-11-28
 This is a major release mainly due to the name change, and PyPI package addition.
 The package has been renamed to `pwncat-cs` and the default entrypoint has also
