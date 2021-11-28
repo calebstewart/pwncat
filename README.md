@@ -131,6 +131,16 @@ The setup script will install three binaries. They are all identical, but
 provide convenience aliases for pwncat. The three binaries are: `pwncat`,
 `pc` and `pcat`.
 
+## BlackArch Packaging
+
+[![Packaging status](https://repology.org/badge/vertical-allrepos/pwncat-caleb.svg)](https://repology.org/project/pwncat-caleb/versions)
+
+Installation on BlackArch is as simple as:
+
+``` shell
+pacman -Syu pwncat-caleb
+```
+
 ### Connecting to a Victim
 
 The command line parameters for pwncat attempt to be flexible and accept 

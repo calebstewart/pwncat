@@ -52,6 +52,16 @@ After installation, you can use pwncat via the installed script:
       --list                List installed implants with remote connection
                             capability
 
+BlackArch Package
+-----------------
+
+pwncat is packaged for BlackArch and in the standard repositories. Installation on
+BlackArch is as simple as:
+
+.. code-block:: bash
+
+    $ pacman -Syu pwncat-caleb
+
 Windows Plugin Binaries
 -----------------------
 
