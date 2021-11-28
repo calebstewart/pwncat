@@ -97,6 +97,44 @@ class Complete(Enum):
     """ Do not provide argument completions """
 
 
+class ParseType(Enum):
+    """
+    Command type. This defines how command parameter arguments are parsed
+    """
+
+    NONE = auto()
+    """ No specific type given, so no interpreter needed """
+    LOCAL_FILE = auto()
+    """ Local file type """
+    REMOTE_FILE = auto()
+    """ Remote file type """
+
+
+class ParameterParse:
+    def parse(value, session: "pwncat.manager.Session"):
+        """This is where the parameter will be parsed"""
+        raise NotImplementedError
+
+
+class LocalFileParse(ParameterParse):
+    def parse(value, session: "pwncat.manager.Session"):
+        if value.startswith("~"):
+            return os.path.expanduser(value)
+        return value
+
+
+class RemoteFileParse(ParameterParse):
+    def parse(value, session: "pwncat.manager.Session"):
+        if value.startswith("~/") or value.startswith("~\\"):
+            homedir = session.platform.getenv("HOME")
+            if not homedir:
+                """Windows support"""
+                homedir = session.platform.getenv("USERPROFILE")
+            if homedir:
+                return homedir + value[1:]
+        return value
+
+
 class StoreConstOnce(argparse.Action):
     """Only allow the user to store a value in the destination once. This prevents
     users from selection multiple actions in the privesc parser."""
@@ -180,6 +218,8 @@ class Parameter:
 
     :param complete: the completion type
     :type complete: Complete
+    :param parser: the parsing type
+    :type parser: ParseType
     :param token: the Pygments token to highlight this argument with
     :type token: Pygments Token
     :param group: true for a group definition, a string naming the group to be a part of, or none
@@ -191,12 +231,14 @@ class Parameter:
     def __init__(
         self,
         complete: Complete,
+        parser=ParseType.NONE,
         token=token.Name.Label,
         group: str = None,
         *args,
         **kwargs,
     ):
         self.complete = complete
+        self.parser = parser
         self.token = token
         self.group = group
         self.args = args
@@ -337,6 +379,27 @@ class CommandDefinition:
             group.add_argument(*names, *param.args, **param.kwargs)
 
         parser.set_defaults(**self.DEFAULTS)
+
+    def parse_args(self, args, fallback):
+        if not self.parser:
+            return fallback
+
+        parsed = vars(self.parser.parse_args(args))
+        for [argkey, argobj] in self.ARGS.items():
+            if argkey not in parsed or argobj.parser is ParseType.NONE:
+                continue
+
+            if argobj.parser is not ParseType.NONE:
+                parser = None
+                if argobj.parser is ParseType.LOCAL_FILE:
+                    parser = LocalFileParse
+                elif argobj.parser is ParseType.REMOTE_FILE:
+                    parser = RemoteFileParse
+
+                if parser is not None:
+                    parsed[argkey] = parser.parse(parsed[argkey], self.manager.target)
+
+        return argparse.Namespace(**parsed)
 
 
 def resolve_blocks(source: str):
@@ -663,10 +726,7 @@ class CommandParser:
                 prog_name = temp_name
 
             # Parse the arguments
-            if command.parser:
-                args = command.parser.parse_args(args)
-            else:
-                args = line
+            args = command.parse_args(args, line)
 
             # Run the command
             command.run(self.manager, args)
@@ -857,6 +917,14 @@ class RemotePathCompleter(Completer):
         if path == "":
             path = "."
 
+        if path.startswith("~"):
+            homedir = self.manager.target.platform.getenv("HOME")
+            if not homedir:
+                """Windows support"""
+                homedir = self.manager.target.platform.getenv("USERPROFILE")
+            if homedir:
+                path = homedir + path[1:]
+
         for name in self.manager.target.platform.listdir(path):
             if name.startswith(partial_name):
                 yield Completion(
@@ -876,6 +944,9 @@ class LocalPathCompleter(Completer):
 
         if path == "":
             path = "."
+
+        if path.startswith("~"):
+            path = os.path.expanduser(path)
 
         # Ensure the directory exists
         if not os.path.isdir(path):

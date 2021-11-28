@@ -209,8 +209,6 @@ class Command(CommandDefinition):
             console.log("[red]error[/red]: multiple ports specified")
             return
 
-        console.log(args.pos_port)
-
         if args.port is not None:
             query_args["port"] = args.port
         if args.pos_port is not None:
