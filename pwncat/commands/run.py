@@ -89,7 +89,7 @@ class Command(CommandDefinition):
 
         if isinstance(result, list):
             result = [r for r in result if not r.hidden]
-        elif result.hidden:
+        elif result is not None and result.hidden:
             result = None
 
         if args.raw:
