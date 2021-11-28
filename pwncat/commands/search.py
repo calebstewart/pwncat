@@ -10,7 +10,9 @@ from pwncat.commands import Complete, Parameter, CommandDefinition
 
 
 class Command(CommandDefinition):
-    """View info about a module"""
+    """
+    View info about a module
+    """
 
     PROG = "search"
     ARGS = {
@@ -36,7 +38,7 @@ class Command(CommandDefinition):
         )
 
         for module in modules:
-            # Rich will ellipsize the column, but we need to squeze
+            # Rich will ellipsize the column, but we need to squeeze
             # white space and remove newlines. `textwrap.shorten` is
             # the easiest way to do that, so we use a large size for
             # width.

@@ -3,7 +3,7 @@ from packaging import version
 
 import pwncat
 from pwncat.facts import build_gtfo_ability
-from pwncat.gtfobins import Capability
+from pwncat.gtfobins import Stream, Capability
 from pwncat.platform.linux import Linux
 from pwncat.modules.enumerate import Schedule, EnumerateModule
 
@@ -64,9 +64,9 @@ class Module(EnumerateModule):
             if "ALL" in userlist and "!root" in userlist:
                 for command in rule.commands:
                     for method in session.platform.gtfo.iter_sudo(
-                        command, caps=Capability.ALL
+                        command, caps=Capability.ALL, stream=Stream.RAW
                     ):
-                        # Build a generic GTFO bins capability
+                        # Build a generic GTFObins capability
                         yield build_gtfo_ability(
                             source=self.name,
                             uid=0,

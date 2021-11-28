@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import re
+import sys
 
 from rich import box
 from rich.table import Table
@@ -17,7 +18,7 @@ class Command(CommandDefinition):
     """
     Connect to a remote victim. This command is only valid prior to an established
     connection. This command attempts to act similar to common tools such as netcat
-    and ssh simultaneosly. Connection strings come in two forms. Firstly, pwncat
+    and ssh simultaneously. Connection strings come in two forms. Firstly, pwncat
     can act like netcat. Using `connect [host] [port]` will connect to a bind shell,
     while `connect -l [port]` will listen for a reverse shell on the specified port.
 
@@ -157,6 +158,9 @@ class Command(CommandDefinition):
             if query_args["protocol"] is not None:
                 query_args["protocol"] = query_args["protocol"].removesuffix("://")
 
+            if query_args["password"] is not None:
+                query_args["password"] = query_args["password"].removeprefix(":")
+
         if querystring is not None:
             for arg in querystring.split("&"):
                 if arg.find("=") == -1:
@@ -178,6 +182,8 @@ class Command(CommandDefinition):
                 "[red]error[/red]: --listen is not compatible with an explicit connection string"
             )
             return
+        elif args.listen:
+            query_args["protocol"] = "bind"
 
         if (query_args["certfile"] is None and query_args["keyfile"] is not None) or (
             query_args["certfile"] is not None and query_args["keyfile"] is None
@@ -292,3 +298,7 @@ class Command(CommandDefinition):
                 manager.create_session(**query_args)
             except (ChannelError, PlatformError) as exc:
                 manager.log(f"connection failed: {exc}")
+            except KeyboardInterrupt:
+                # hide '^C' from the output
+                sys.stdout.write("\b\b\r")
+                manager.log("[yellow]warning[/yellow]: cancelled by user")

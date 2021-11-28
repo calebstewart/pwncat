@@ -5,13 +5,13 @@ utilize the C2 libraries located at `pwncat-windows-c2 <https://github.com/caleb
 This will be automatically downloaded to the directory identified by the
 ``windows_c2_dir`` configuration which defaults to ``~/.local/share/pwncat/``.
 It will be uploaded and executed via ``Install-Util`` in order to automatically
-bypass AppLocker, and will provide you an unlogged, unconstrained powershell
+bypass AppLocker, and will provide you an un-logged, unconstrained powershell
 session as well as basic process and file IO routines.
 
 When operating in a platform-specific environment, you can safely execute multiple
 processes and open multiple files with this platform. However, you should be
 careful to cleanup all processes and files prior to return from your method
-or code as the C2 will not attempt to garbage collect file or proces handles.
+or code as the C2 will not attempt to garbage collect file or process handles.
 """
 import sys
 import gzip
@@ -64,7 +64,7 @@ class ProtocolError(PlatformError):
 
 @dataclass
 class stat_result:
-    """Python `os` doesn't provide a way to sainly construct a stat_result
+    """Python `os` doesn't provide a way to sanely construct a stat_result
     so I created this."""
 
     st_mode = 0
@@ -619,7 +619,7 @@ function prompt {
         """This routine upgrades a standard powershell or cmd shell to an
         instance of the pwncat stage two C2. It will first locate a valid
         writable temporary directory (from the list below) and then upload
-        stage one to that directory. Stage one is a simple DLL which recieves
+        stage one to that directory. Stage one is a simple DLL which receives
         a base64 encoded, gzipped payload to reflectively load and execute.
         We run stage one using Install-Util to bypass applocker."""
 
@@ -635,7 +635,7 @@ function prompt {
             "\\Windows\\System32\\spool\\SERVERS",
             "\\Windows\\System32\\spool\\drivers\\color",
             "\\Windows\\System32\\Tasks\\Microsoft\\Windows\\SyncCenter",
-            "\\Windows\\System32\\Tasks_Migrated (after peforming a version upgrade of Windows 10)",
+            "\\Windows\\System32\\Tasks_Migrated",
             "\\Windows\\SysWOW64\\FxsTmp",
             "\\Windows\\SysWOW64\\com\\dmp",
             "\\Windows\\SysWOW64\\Tasks\\Microsoft\\Windows\\SyncCenter",
@@ -943,7 +943,7 @@ function prompt {
         errors: str = None,
         newline: str = None,
     ):
-        """Mimick the built-in open method."""
+        """Mimic the built-in open method."""
 
         # Ensure all mode properties are valid
         for char in mode:
@@ -1040,7 +1040,7 @@ function prompt {
 
     def new_item(self, **kwargs):
         """Run the `New-Item` commandlet with specified arguments and
-        raise the appropriate local exception if requried. For a list of
+        raise the appropriate local exception if required. For a list of
         valid arguments, see the New-Item help documentation."""
 
         command = "New-Item "
@@ -1498,7 +1498,7 @@ function prompt {
         # Encode the assembly
         assembly = base64.b64encode(content).decode("utf-8")
 
-        # Load the assembly. Let protocol errors propogate
+        # Load the assembly. Let protocol errors propagate
         ident = self.run_method("Reflection", "load", assembly)
 
         plugin = DotNetPlugin(self, name, checksum, ident)

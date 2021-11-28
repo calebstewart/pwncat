@@ -543,6 +543,12 @@ class Session:
 
         self.platform.get_pty()
 
+        # Register this session with the manager
+        # some of the methods used above can raise an exception
+        # and we will register this session only when everything goes well
+        self.manager.sessions[self.id] = self
+        self.manager.target = self
+
     @property
     def config(self):
         """Get the configuration object for this manager. This

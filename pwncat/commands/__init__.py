@@ -174,7 +174,7 @@ class Parameter:
     This class allows you to specify the syntax highlighting, tab completion
     and argparse settings for a command parameter in on go. The ``complete``
     argument tells pwncat how to tab complete your argument. The ``token``
-    argument is normally ommitted but can be used to change the pygments
+    argument is normally omitted but can be used to change the pygments
     syntax highlighting for your argument. All other arguments are passed
     directly to ``argparse`` when constructing the parser.
 
@@ -524,7 +524,9 @@ class CommandParser:
                 self.dispatch_line(command)
             except ChannelClosed as exc:
                 # A channel was unexpectedly closed
-                self.manager.log(f"[red]warning[/red]: {exc.channel}: channel closed")
+                self.manager.log(
+                    f"[yellow]warning[/yellow]: {exc.channel}: channel closed"
+                )
                 # Ensure any existing sessions are cleaned from the manager
                 exc.cleanup(self.manager)
             except pwncat.manager.InteractiveExit:
@@ -598,7 +600,9 @@ class CommandParser:
                 continue
             except ChannelClosed as exc:
                 # A channel was unexpectedly closed
-                self.manager.log(f"[red]warning[/red]: {exc.channel}: channel closed")
+                self.manager.log(
+                    f"[yellow]warning[/yellow]: {exc.channel}: channel closed"
+                )
                 # Ensure any existing sessions are cleaned from the manager
                 exc.cleanup(self.manager)
             except pwncat.manager.InteractiveExit:

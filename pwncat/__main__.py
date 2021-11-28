@@ -91,6 +91,12 @@ def main():
         metavar="port",
         help="Alternative port number to support netcat-style syntax",
     )
+    parser.add_argument(
+        "--verbose",
+        "-V",
+        action="store_true",
+        help="Enable verbose output for the remote commands executed by `pwncat`",
+    )
     args = parser.parse_args()
 
     # Print the version number and exit.
@@ -100,6 +106,10 @@ def main():
 
     # Create the session manager
     with pwncat.manager.Manager(args.config) as manager:
+
+        if args.verbose:
+            # set the config variable `verbose` to `True` (globally)
+            manager.config.set("verbose", True, True)
 
         if args.download_plugins:
             for plugin_info in pwncat.platform.Windows.PLUGIN_INFO:
@@ -185,6 +195,9 @@ def main():
                 if query_args["protocol"] is not None:
                     query_args["protocol"] = query_args["protocol"].removesuffix("://")
 
+                if query_args["password"] is not None:
+                    query_args["password"] = query_args["password"].removeprefix(":")
+
             if querystring is not None:
                 for arg in querystring.split("&"):
                     if arg.find("=") == -1:
@@ -206,6 +219,8 @@ def main():
                     "[red]error[/red]: --listen is not compatible with an explicit connection string"
                 )
                 return
+            elif args.listen:
+                query_args["protocol"] = "bind"
 
             if (
                 query_args["certfile"] is None and query_args["keyfile"] is not None
@@ -328,6 +343,10 @@ def main():
                     )
                 except (ChannelError, PlatformError) as exc:
                     manager.log(f"connection failed: {exc}")
+                except KeyboardInterrupt:
+                    # hide '^C' from the output
+                    sys.stdout.write("\b\b\r")
+                    manager.log("[yellow]warning[/yellow]: cancelled by user")
 
         manager.interactive()
 

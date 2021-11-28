@@ -9,7 +9,7 @@ subprocess module.
     Depending on the platform you are connected to, you may only be
     able to run a single process at a time. Because of this, you
     should always ensure the process properly exits and you call
-    ``Popen.wait()`` or recieve a non-None result from ``Popen.poll()``
+    ``Popen.wait()`` or receive a non-None result from ``Popen.poll()``
     before calling other pwncat methods.
 
 """
@@ -95,7 +95,7 @@ class Popen:
 
     def communicate(self, input: bytes = None, timeout: float = None):
         """Interact with process: Send data to stdin. Read data from stdout
-        and stderr, until end-of-file is readched. Wait for the process to
+        and stderr, until end-of-file is reached. Wait for the process to
         terminate and set the ``returncode`` attribute. The optional ``input``
         argument should be data to be sent to the child process, or None, if
         no data should be sent to the child. If streams were opened in text mode,

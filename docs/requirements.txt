@@ -10,4 +10,6 @@ zodburi==2.4.0
 jinja2
 paramiko==2.7.2
 sphinx-toolbox==2.11.2
+apeye<1.0.0
 enum-tools==0.6.4
+sphinx_rtd_theme==1.0.0

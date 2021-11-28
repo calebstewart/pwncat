@@ -5,9 +5,11 @@ from pwncat.commands import Complete, Parameter, CommandDefinition
 
 
 class Command(CommandDefinition):
-    """Alias an existing command with a new name. Specifying no alias or command
+    """
+    Alias an existing command with a new name. Specifying no alias or command
     will list all aliases. Specifying an alias with no command will remove the
-    alias if it exists."""
+    alias if it exists.
+    """
 
     def get_command_names(self):
         return [c.PROG for c in self.manager.parser.commands]

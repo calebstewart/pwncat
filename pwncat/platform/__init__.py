@@ -394,7 +394,7 @@ class Path:
             raise OSError(exc.stdout) from exc
 
     def touch(self, mode: int = 0o666, exist_ok: bool = True):
-        """Createa file at this path. If the file already exists, function
+        """Create a file at this path. If the file already exists, function
         succeeds if exist_ok is true (and it's modification time is updated).
         Otherwise FileExistsError is raised."""
 
@@ -494,8 +494,9 @@ class Platform(ABC):
 
         self.session = session
         self.channel = channel
-        self.logger = logging.getLogger(str(channel))
+        self.logger = logging.getLogger(str(id(channel)))
         self.logger.setLevel(logging.DEBUG)
+        self._verbose_logging_handler = None
         self.name = "unknown"
         self._current_user = None
 
@@ -507,8 +508,8 @@ class Platform(ABC):
             handler.setFormatter(logging.Formatter("%(asctime)s - %(message)s"))
             self.logger.addHandler(handler)
 
-        if verbose:
-            self.logger.addHandler(RichHandler())
+        # set the logging verbosity
+        self.set_verbose(verbose)
 
         base_path = self.PATH_TYPE
         target = self
@@ -942,6 +943,24 @@ class Platform(ABC):
     @abstractmethod
     def unlink(self, target: str):
         """Remove a link to a file (similar to `rm`)"""
+
+    def set_verbose(self, verbose: bool):
+        """Enable or disable verbose output
+        If enabled, commands that are executed by `pwncat`
+        are logged in the output for the user
+        otherwise `pwncat` do not show them"""
+
+        # if `verbose` is `True` and there is no handler for it
+        # then we create one and add it to `self.logger`
+        # otherwise if there is a handler for it
+        # then we remove it and set it to `None`
+
+        if verbose and self._verbose_logging_handler is None:
+            self._verbose_logging_handler = RichHandler()
+            self.logger.addHandler(self._verbose_logging_handler)
+        elif not verbose and self._verbose_logging_handler is not None:
+            self.logger.removeHandler(self._verbose_logging_handler)
+            self._verbose_logging_handler = None
 
 
 def register(platform: Type[Platform]):

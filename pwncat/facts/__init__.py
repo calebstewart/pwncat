@@ -17,6 +17,7 @@ import pwncat
 from pwncat.db import Fact
 from pwncat.channel import ChannelError
 from pwncat.modules import ModuleFailed
+from pwncat.platform import PlatformError
 from pwncat.facts.tamper import (  # noqa: F401
     Tamper,
     CreatedFile,
@@ -369,7 +370,7 @@ class PrivateKey(Implant):
                     user=user.name,
                     identity=filp.name,
                 )
-            except ChannelError as exc:
+            except (ChannelError, PlatformError) as exc:
                 manager.log(
                     f"[yellow]warning[/yellow]: {self.source} implant failed; removing implant types."
                 )

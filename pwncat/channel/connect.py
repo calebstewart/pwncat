@@ -54,9 +54,11 @@ class Connect(Socket):
             try:
                 client = socket.create_connection((host, port))
             except socket.gaierror:
-                raise ChannelError(self, "invalid host provided")
+                raise ChannelError(self, "unable to resolve host")
             except ConnectionRefusedError:
                 raise ChannelError(self, "connection refused, check your port")
+            except OSError:
+                raise ChannelError(self, "invalid host provided")
 
             progress.log(
                 f"connection to "

@@ -1,0 +1,13 @@
+data/
+.github/
+tests/
+docs/
+db/
+*.md
+*.txt
+*.sh
+test.py
+.flake8
+.gitattributes
+.gitignore
+.git/

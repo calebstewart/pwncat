@@ -1,6 +1,6 @@
 """
 The Linux platform provides Linux shell support ontop of any channel.
-The Linux platfrom expects the channel to expose a shell whose stdio
+The Linux platform expects the channel to expose a shell whose stdio
 is connected directly to the channel IO. At a minimum stdin and stdout
 must be connected.
 
@@ -122,14 +122,14 @@ class PopenLinux(pwncat.subprocess.Popen):
             except ValueError:
                 pass
 
-        # This gets a 'lil... funky... Normally, the ChannelFile
+        # This gets a 'lil... funky... Normally, the `ChannelFile`
         # wraps a non-blocking socket in a blocking file object
-        # because this what we normally we want and allows us
+        # because this is what we normally want and it allows us
         # to implement our own timeouts. However, here we want
         # a non-blocking call to check for EOF, so we set the
         # internal ``blocking`` flag to False which can cause
         # a `BlockingIOError` caught below. We need to do this
-        # in a nested `try-finaly` so we gaurantee catching it
+        # in a nested `try-finally` so we guarantee catching it
         # and resetting the flag before calling `_receive_returncode`.
         try:
             try:
@@ -343,6 +343,12 @@ class LinuxReader(BufferedIOBase):
             self.popen.terminate()
             self.popen.wait()
 
+        # This happens immediately upon the first read attempt because the process will have
+        # exited. During testing, this seems reliable. It's not ideal, but we don't know what
+        # the remote process is...
+        if self.popen.returncode != 0:
+            raise PermissionError(self.name)
+
         self.detach()
 
 
@@ -484,6 +490,12 @@ class LinuxWriter(BufferedIOBase):
             self.popen.kill()
             self.popen.wait()
 
+        # This happens immediately upon the first read attempt because the process will have
+        # exited. During testing, this seems reliable. It's not ideal, but we don't know what
+        # the remote process is...
+        if self.popen.returncode != 0:
+            raise PermissionError(self.name)
+
         # Ensure we don't touch stdio again
         self.detach()
 
@@ -604,19 +616,24 @@ class Linux(Platform):
         if self.shell == "" or self.shell is None:
             self.shell = "/bin/sh"
 
-        # This doesn't make sense, but happened for some people (see issue #116)
-        if os.path.basename(self.shell) in ["nologin", "false", "sync", "git-shell"]:
-            self.shell = "/bin/sh"
-            self.channel.sendline(b" export SHELL=/bin/sh")
+        if self._do_which("which") is None:
+            self._do_which = self._do_custom_which
 
-        if os.path.basename(self.shell) in ["sh", "dash"]:
+        better_shells = ["bash", "zsh", "ksh", "fish"]
+        if os.path.basename(self.shell) not in better_shells:
             # Try to find a better shell
-            bash = self._do_which("bash")
-            if bash is not None:
-                self.session.log(f"upgrading from {self.shell} to {bash}")
-                self.shell = bash
-                self.channel.sendline(f"exec {self.shell}".encode("utf-8"))
-                time.sleep(0.5)
+            # a custom `pwncat shell prompt` may not be available for all shells
+            # see `self.PROMPTS`
+
+            for better_shell in better_shells:
+                shell = self._do_which(better_shell)
+
+                if shell is not None:
+                    self.session.log(f"upgrading from {self.shell} to {shell}")
+                    self.shell = shell
+                    self.channel.sendline(f"exec {self.shell}".encode("utf-8"))
+                    time.sleep(0.5)
+                    break
 
         self.refresh_uid()
 
@@ -635,20 +652,9 @@ class Linux(Platform):
         """Spawn a PTY in the current shell. If a PTY is already running
         then this method does nothing."""
 
-        # Check if we are currently in a PTY
-        if self.has_pty:
-            return
-
-        pty_command = None
-        shell = self.shell
-
-        if pty_command is None:
-            script_path = self.which("script")
-            if script_path is not None:
-                pty_command = f""" exec {script_path} -qc {shell} /dev/null 2>&1\n"""
-
-        if pty_command is None:
-            python_path = self.which(
+        PTY_OPTIONS = [
+            (["script"], " {binary_path} -qc {shell} /dev/null 2>&1"),
+            (
                 [
                     "python",
                     "python2",
@@ -657,38 +663,64 @@ class Linux(Platform):
                     "python3.6",
                     "python3.8",
                     "python3.9",
-                ]
-            )
-            if python_path is not None:
-                pty_command = f""" exec {python_path} -c "import pty; pty.spawn('{shell}')" 2>&1\n"""
-
-        if pty_command is not None:
-            self.logger.info(pty_command.rstrip("\n"))
-            self.channel.send(pty_command.encode("utf-8"))
-
-            self.has_pty = True
-
-            # Preserve interactivity
-            if not self.interactive:
-                self._interactive = True
-                self.interactive = False
-
-            # When starting a pty, history is sometimes re-enabled
-            self.disable_history()
-
-            # Ensure that the TTY settings make sense
-            self.Popen(
-                [
-                    "stty",
-                    "400:1:bf:8a33:3:1c:7f:15:4:0:1:0:11:13:1a:0:12:f:17:16:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0",
                 ],
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-            ).wait()
+                """ {binary_path} -c "import pty; pty.spawn('{shell}')" 2>&1""",
+            ),
+        ]
 
+        # Check if we are currently in a PTY
+        if self.has_pty:
             return
 
-        raise PlatformError("no avialable pty methods")
+        # Grab the current shell PID
+        pid = self.getenv("$")
+
+        for binaries, payload_format in PTY_OPTIONS:
+            for binary in binaries:
+                binary_path = self.which(binary)
+                if binary_path is None:
+                    continue
+
+                payload = payload_format.format(
+                    binary_path=binary_path, shell=self.shell
+                )
+
+                # Send the payload
+                self.logger.info(payload)
+                self.channel.sendline(payload.encode("utf-8"))
+
+                # Preserve interactivity. This has to happen for `getenv` to function
+                # It should do no harm if the pty method failed
+                self.has_pty = True
+                if not self.interactive:
+                    self._interactive = True
+                    self.interactive = False
+
+                # Seemed to work
+                new_pid = self.getenv("$")
+                if new_pid != pid:
+                    break
+
+                # We failed, reset the flag
+                self.has_pty = False
+            else:
+                continue
+            break
+        else:
+            raise PlatformError("no available pty methods")
+
+        # When starting a pty, history is sometimes re-enabled
+        self.disable_history()
+
+        # Ensure that the TTY settings make sense
+        self.Popen(
+            [
+                "stty",
+                "400:1:bf:8a33:3:1c:7f:15:4:0:1:0:11:13:1a:0:12:f:17:16:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0",
+            ],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+        ).wait()
 
     def get_host_hash(self) -> str:
         """
@@ -782,6 +814,25 @@ class Linux(Platform):
         for name in p.stdout.split("\n"):
             yield name
 
+    def _do_custom_which(self, name: str):
+        """This is custom which implementation that will not find built-in commands.
+        It is altogether inferior to the real which, but if `which` isn't available,
+        it will do the job."""
+
+        try:
+            result = self.run(
+                f"""IFS=':'; for path in $PATH; do if [ -f "$path/{name}" ]; then echo "$path/{name}"; break; fi; done; IFS=' '""",
+                shell=True,
+                capture_output=True,
+                check=True,
+                text=True,
+            )
+            if result.stdout.rstrip("\n") == "":
+                return None
+            return result.stdout.rstrip("\n")
+        except CalledProcessError:
+            return None
+
     def _do_which(self, name: str) -> str:
         """
         Locate the specified binary on the remote host. Normally, this is done through
@@ -814,7 +865,7 @@ class Linux(Platform):
             while True:
                 try:
                     proc = self.run(
-                        "(id -ru;id -u;id -g;id -rg;id -G;)",
+                        "(id -ru;id -u;id -rg;id -g;id -G;)",
                         capture_output=True,
                         text=True,
                         check=True,
@@ -1071,9 +1122,12 @@ class Linux(Platform):
                 f"attempting to run {repr(command)} during execution of {self.command_running.args}!"
             )
 
-        if shell:
-            # Ensure this works normally
-            command = shlex.join(["/bin/sh", "-c", command])
+        # This breaks `euid` situations. Not all shells support -p, so I think just not
+        # using this is a better option. I'm leaving it here just in case removing it
+        # causes problems in the future. Tests seem positive so far.
+        # if shell:
+        #     # Ensure this works normally
+        #     command = shlex.join(["/bin/sh", "-c", command])
 
         if cwd is not None:
             command = f"(cd {cwd} && {command})"
@@ -1240,7 +1294,7 @@ class Linux(Platform):
         if "w" in mode:
 
             for method in self.gtfo.iter_methods(
-                caps=Capability.WRITE, stream=Stream.PRINT | Stream.RAW
+                caps=Capability.WRITE, stream=Stream.RAW
             ):
                 try:
                     payload, input_data, exit_cmd = method.build(
@@ -1269,7 +1323,7 @@ class Linux(Platform):
             )
         else:
             for method in self.gtfo.iter_methods(
-                caps=Capability.READ, stream=Stream.PRINT | Stream.RAW
+                caps=Capability.READ, stream=Stream.RAW
             ):
                 try:
                     payload, input_data, exit_cmd = method.build(
@@ -1608,9 +1662,14 @@ class Linux(Platform):
                 pid = self.getenv("$")
                 # Grab the path to the executable representing the shell
                 self.shell = self.Path("/proc", pid, "exe").readlink()
-            except (FileNotFoundError, PermissionError):
+            except (FileNotFoundError, PermissionError, OSError):
                 # Fall back to SHELL even though it's not really trustworthy
                 self.shell = self.getenv("SHELL")
+                if self.shell is None or self.shell == "":
+                    self.shell = "/bin/sh"
+
+            # Refresh the currently tracked user and group IDs
+            self.refresh_uid()
         else:
 
             # Going interactive requires a pty
@@ -1686,6 +1745,10 @@ class Linux(Platform):
         for i in range(len(fields)):
             if fields[i] == "?":
                 fields[i] = "0"
+
+        # Fix stat output issues in some enviroments
+        if fields[1] == "W":
+            fields[1] = "0"
 
         stat = os.stat_result(
             tuple(

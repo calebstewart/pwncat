@@ -2,7 +2,7 @@
 This package defines all database objects. pwncat internally uses
 the ZODB database, which stores data as persistent Python objects.
 Each class defined under this package is a persistent Python
-class which is stored verabtim in the database. For documentation
+class which is stored verbatim in the database. For documentation
 on how to create persistent classes, please see the ZODB
 documentation.
 """

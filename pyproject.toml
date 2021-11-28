@@ -11,7 +11,7 @@ addopts = "-v"
 
 [tool.poetry]
 name = "pwncat-cs"
-version = "0.4.3"
+version = "0.5.0"
 description = "Reverse and bind shell automation framework"
 authors = ["Caleb Stewart <caleb.stewart94@gmail.com>", "John Hammond"]
 readme = "README.md"
@@ -24,9 +24,7 @@ packages = [
 license = "MIT"
 
 [tool.poetry.scripts]
-pwncat = "pwncat.__main__:main"
-pcat = "pwncat.__main__:main"
-pc = "pwncat.__main__:main"
+pwncat-cs = "pwncat.__main__:main"
 
 [tool.poetry.urls]
 "Bug Tracker" = "https://github.com/calebstewart/pwncat/issues"

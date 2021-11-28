@@ -25,10 +25,10 @@ After installation, you can use pwncat via the installed script:
 
 .. code-block:: bash
 
-    $ pwncat --help
-    usage: pwncat [-h] [--version] [--download-plugins] [--config CONFIG] [--ssl] [--ssl-cert SSL_CERT]
-                  [--ssl-key SSL_KEY] [--identity IDENTITY] [--listen] [--platform PLATFORM] [--port PORT] [--list]
-                  [[protocol://][user[:password]@][host][:port]] [port]
+    $ pwncat-cs --help
+    usage: pwncat-cs [-h] [--version] [--download-plugins] [--config CONFIG] [--ssl] [--ssl-cert SSL_CERT]
+                     [--ssl-key SSL_KEY] [--identity IDENTITY] [--listen] [--platform PLATFORM] [--port PORT] [--list]
+                     [[protocol://][user[:password]@][host][:port]] [port]
 
     Start interactive pwncat session and optionally connect to existing victim via a known platform and channel type. This
     entrypoint can also be used to list known implants on previous targets.
@@ -54,6 +54,16 @@ After installation, you can use pwncat via the installed script:
                             Name of the platform to use (default: linux)
       --port PORT, -p PORT  Alternative way to specify port to support netcat-style syntax
       --list                List installed implants with remote connection capability
+
+BlackArch Package
+-----------------
+
+pwncat is packaged for BlackArch and in the standard repositories. Installation on
+BlackArch is as simple as:
+
+.. code-block:: bash
+
+    $ pacman -Syu pwncat-caleb
 
 Windows Plugin Binaries
 -----------------------

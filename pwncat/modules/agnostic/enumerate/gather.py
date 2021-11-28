@@ -73,7 +73,7 @@ class Module(pwncat.modules.BaseModule):
     PLATFORM = None
 
     def run(self, session, output, modules, types, clear, cache, exclude):
-        """Perform a enumeration of the given moduels and save the output"""
+        """Perform a enumeration of the given modules and save the output"""
 
         module_names = modules
 

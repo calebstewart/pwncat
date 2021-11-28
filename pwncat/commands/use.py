@@ -6,7 +6,9 @@ from pwncat.commands import Complete, Parameter, CommandDefinition, get_module_c
 
 
 class Command(CommandDefinition):
-    """Set the currently used module in the config handler"""
+    """
+    Set the currently used module in the config handler
+    """
 
     PROG = "use"
     ARGS = {

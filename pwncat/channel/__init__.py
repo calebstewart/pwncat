@@ -3,7 +3,7 @@ Channels represent the basic communication object within pwncat. Each channel
 abstracts a communication method with a target. By default, pwncat implements
 a few standard channels: socket bind/connect and ssh.
 
-A channel largely mimicks a standard socket, however exact compatibility with
+A channel largely mimics a standard socket, however exact compatibility with
 sockets was not the goal. Instead, it provides a low-level communication channel
 between the target and the attacker. Channels make no assumption about protocol
 of the C2 connection. This is the platform's job.
@@ -73,7 +73,7 @@ class ChannelTimeout(ChannelError):
     """
 
     def __init__(self, ch, data: bytes):
-        super().__init__(ch, f"channel recieve timed out: {repr(data)}")
+        super().__init__(ch, f"channel receive timed out: {repr(data)}")
         self.data: bytes = data
 
 
@@ -394,7 +394,7 @@ class Channel(ABC):
         return data
 
     def recvline(self, timeout: Optional[float] = None) -> bytes:
-        """Recieve data until a newline is received. The newline
+        """Receive data until a newline is received. The newline
         is not stripped. This is a default implementation that
         utilizes the ``recvuntil`` method.
 
