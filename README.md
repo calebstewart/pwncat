@@ -43,83 +43,7 @@ the latest usage and development documentation!
 
 **pwncat requires Python 3.9+ on Linux**
 
-## Naming Changes
-
-Due to the naming conflict with [Cytopia's pwncat](https://pwncat.org/), I have
-decided to rename the package to `pwncat-cs`. This includes renaming the
-entrypoint so that there are no direct conflicts with Cytopia's project. If you
-are updating from `v0.4.*`, the command name will now have changed, and the `pcat`
-and `pc` varianst have been removed. See the most recent release notes for more
-details.
-
-The added benefit of this move is that the project is now pushed to PyPI for
-easier installation/updating in the future.
-
 ## Installation
-
-pwncat is available on PyPI as `pwncat-cs`. It exposes an entrypoints named
-`pwncat`, `pcat` and `pc`. It **does** conflict with the `pwncat` package,
-so if you need both, we recommend using a virtual environment. pwncat also
-exposes an importable module named `pwncat` with full access to the internals
-and automation. You can install from PyPi like so:
-
-``` shell
-pip install pwncat-cs
-```
-
-pwncat uses [poetry](https://python-poetry.org) for dependency and build
-management. For a development environment, install poetry as described on their
-website, and then use it to manage your environment:
-
-``` shell
-# Clone the repo
-git clone https://github.com/calebstewart/pwncat
-cd pwncat
-# Enter/create the pwncat specific virtual environment
-poetry shell
-# Install dependencies
-poetry install
-# Use pwncat
-pwncat --help
-# Use `exit` to leave the virtual environment
-exit
-```
-
-## Windows Support
-
-`pwncat` now supports connections from Windows targets starting at `v0.4.0a1`. The Windows
-platform utilizes a .Net-based C2 library which is loaded automatically. Windows
-targets should connect with either a `cmd.exe` or `powershell.exe` shell, and
-pwncat will take care of the rest.
-
-The libraries implementing the C2 are implemented at [pwncat-windows-c2].
-The DLLs for the C2 will be automatically downloaded from the targeted release
-for you. If you do not have internet connectivity on your target machine,
-you can tell pwncat to pre-stage the DLLs using the `--download-plugins`
-argument. If you are running a release version of pwncat, you can also download
-a tarball of all built-in plugins from the releases page.
-
-The plugins are stored by default in `~/.local/share/pwncat`, however this is
-configurable with the `plugin_path` configuration. If you download the packaged
-set of plugins from the releases page, you should extract it to the path pointed
-to by `plugin_path`.
-
-Aside from the main C2 DLLs, other plugins may also be available. Currently,
-the only provided default plugins are the C2 and an implementation of [BadPotato].
-pwncat can reflectively load .Net binaries to be used a plugins for the C2.
-For more information on Windows C2 plugins, please see the [documentation].
-
-## Modules
-
-Recently, the architecture of the pwncat framework was redesigned to
-incorporate a generic "module" structure. All functionality is now
-implemented as modules. This includes enumeration, persistence and
-privilege escalation. Interacting with modules is similar to most other
-post-exploitation platforms. You can utilize the familiar `run`, `search`
-and `info` commands and enter module contexts with the `use` command.
-Refer to the documentation for more information.
-
-## Install
 
 `pwncat` only depends on a working Python development environment running on Linux.
 In order to install some of the packages required with `pip`, you will likely need
@@ -155,6 +79,52 @@ poetry install
 # Enter the virtual environment
 poetry shell
 ```
+
+## Naming Changes
+
+Due to the naming conflict with [Cytopia's pwncat](https://pwncat.org/), I have
+decided to rename the package to `pwncat-cs`. This includes renaming the
+entrypoint so that there are no direct conflicts with Cytopia's project. If you
+are updating from `v0.4.*`, the command name will now have changed, and the `pcat`
+and `pc` varianst have been removed. See the most recent release notes for more
+details.
+
+The added benefit of this move is that the project is now pushed to PyPI for
+easier installation/updating in the future.
+
+## Windows Support
+
+`pwncat` now supports connections from Windows targets starting at `v0.4.0a1`. The Windows
+platform utilizes a .Net-based C2 library which is loaded automatically. Windows
+targets should connect with either a `cmd.exe` or `powershell.exe` shell, and
+pwncat will take care of the rest.
+
+The libraries implementing the C2 are implemented at [pwncat-windows-c2].
+The DLLs for the C2 will be automatically downloaded from the targeted release
+for you. If you do not have internet connectivity on your target machine,
+you can tell pwncat to pre-stage the DLLs using the `--download-plugins`
+argument. If you are running a release version of pwncat, you can also download
+a tarball of all built-in plugins from the releases page.
+
+The plugins are stored by default in `~/.local/share/pwncat`, however this is
+configurable with the `plugin_path` configuration. If you download the packaged
+set of plugins from the releases page, you should extract it to the path pointed
+to by `plugin_path`.
+
+Aside from the main C2 DLLs, other plugins may also be available. Currently,
+the only provided default plugins are the C2 and an implementation of [BadPotato].
+pwncat can reflectively load .Net binaries to be used a plugins for the C2.
+For more information on Windows C2 plugins, please see the [documentation].
+
+## Modules
+
+Recently, the architecture of the pwncat framework was redesigned to
+incorporate a generic "module" structure. All functionality is now
+implemented as modules. This includes enumeration, persistence and
+privilege escalation. Interacting with modules is similar to most other
+post-exploitation platforms. You can utilize the familiar `run`, `search`
+and `info` commands and enter module contexts with the `use` command.
+Refer to the documentation for more information.
 
 ## BlackArch Packaging
 

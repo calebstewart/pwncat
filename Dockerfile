@@ -21,7 +21,7 @@ RUN set -eux \
 # Setup pwncat
 RUN set -eux \
 	&& cd /opt/pwncat \
-	&& python setup.py install
+	&& pip install .
 
 FROM python:3.9-alpine as final
 
@@ -32,13 +32,13 @@ RUN set -eux \
 
 # Copy installed packages from builder image
 COPY --from=builder /usr/local/lib/python3.9 /usr/local/lib/python3.9
-COPY --from=builder /usr/local/bin/pwncat /usr/local/bin/pwncat
+COPY --from=builder /usr/local/bin/pwncat-cs /usr/local/bin/pwncat-cs
 
 # Ensure we have the pwncat plugins downloaded
-RUN python -m pwncat --download-plugins
+RUN pwncat-cs --download-plugins
 
 # Set working directory
 WORKDIR /work
 
 # Entrypoint is pwncat itself
-ENTRYPOINT ["python", "-m", "pwncat"]
+ENTRYPOINT ["pwncat-cs"]

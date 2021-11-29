@@ -11,3 +11,4 @@ test.py
 .gitattributes
 .gitignore
 .git/
+!README.md
