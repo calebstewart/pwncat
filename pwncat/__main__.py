@@ -101,7 +101,7 @@ def main():
 
     # Print the version number and exit.
     if args.version:
-        print(importlib.metadata.version("pwncat"))
+        print(importlib.metadata.version("pwncat-cs"))
         return
 
     # Create the session manager
