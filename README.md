@@ -136,7 +136,6 @@ Installation on BlackArch is as simple as:
 pacman -Syu pwncat-caleb
 ```
 
->>>>>>> master
 ### Connecting to a Victim
 
 The command line parameters for pwncat attempt to be flexible and accept
