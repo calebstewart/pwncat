@@ -63,5 +63,24 @@ Reconnecting With Implants
 
 Remote implants provide a way to reconnect to a target at will. Reconnecting can be accomplished by simply
 executing the pwncat entrypoint and specifying either the IP address or unique host ID of the target.
-pwncat will automatically check for installed implants and attempt to reconnect. See the Usage section for
-examples.
+pwncat will automatically check for installed implants and attempt to reconnect.
+
+To list all installed remote implants, use the ``--list`` argument:
+
+.. code-block:: bash
+
+   $ pwncat-cs --list
+                                    ╷                ╷          ╷                                       ╷
+   ID                               │ Address        │ Platform │ Implant                               │ User
+   ══════════════════════════════════╪════════════════╪══════════╪═══════════════════════════════════════╪═══════
+   ab8b7df2a1f83fa6694b0315aaf1deec │ 192.168.10.100 │ linux    │ linux.implant.authorized_key          │ caleb
+
+When attempting to reconnect, you only need to provide the unique host ID from the above table. You can also provide the remote address, but keep in mind that if multiple hosts sit behind a single NAT, the host ID is more reliable for reconnecting.
+
+.. code-block:: bash
+
+   $ pwncat-cs ab8b7df2a1f83fa6694b0315aaf1deec
+   [03:08:13] Welcome to pwncat 🐈!
+              trigger implant: linux.implant.authorized_key
+   [03:08:18] 192.168.10.100:22: loaded known host from db
+              192.168.10.100:22: connected via backdoor public key added to caleb authorized_keys
