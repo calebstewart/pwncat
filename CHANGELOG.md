@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 The Changelog starts with v0.4.1, because we did not keep one before that,
 and simply didn't have the time to go back and retroactively create one.
 
+## [Unreleased]
+
+### Changed
+- Fixed parsing of `--ssl` argument in main entrypoint ([#225](https://github.com/calebstewart/pwncat/issues/225))
+
 ## [0.5.1] - 2021-12-07
 Minor bug fixes. Mainly typos from changing the package name.
 

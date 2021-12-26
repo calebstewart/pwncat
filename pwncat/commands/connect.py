@@ -4,7 +4,6 @@ import sys
 
 from rich import box
 from rich.table import Table
-from rich.progress import Progress
 
 import pwncat
 from pwncat.util import console
@@ -255,41 +254,31 @@ class Command(CommandDefinition):
                     if "implant.remote" in fact.types:
                         implants.append((target, users[fact.uid], fact))
 
-            with Progress(
-                "triggering implant",
-                "•",
-                "{task.fields[status]}",
-                transient=True,
-                console=console,
-            ) as progress:
-                task = progress.add_task("", status="...")
-                for target, implant_user, implant in implants:
-                    # Check correct query_args["user"]
-                    if (
-                        query_args["user"] is not None
-                        and implant_user.name != query_args["user"]
-                    ):
-                        continue
-                    # Check correct platform
-                    if (
-                        query_args["platform"] is not None
-                        and target.platform != query_args["platform"]
-                    ):
-                        continue
+            for target, implant_user, implant in implants:
+                # Check correct query_args["user"]
+                if (
+                    query_args["user"] is not None
+                    and implant_user.name != query_args["user"]
+                ):
+                    continue
+                # Check correct platform
+                if (
+                    query_args["platform"] is not None
+                    and target.platform != query_args["platform"]
+                ):
+                    continue
 
-                    progress.update(
-                        task, status=f"trying [cyan]{implant.source}[/cyan]"
-                    )
+                manager.log(f"trigger implant: [cyan]{implant.source}[/cyan]")
 
-                    # Attempt to trigger a new session
-                    try:
-                        session = implant.trigger(manager, target)
-                        manager.target = session
-                        used_implant = implant
-                        break
-                    except (ChannelError, PlatformError, ModuleFailed):
-                        db.transaction_manager.commit()
-                        continue
+                # Attempt to trigger a new session
+                try:
+                    session = implant.trigger(manager, target)
+                    manager.target = session
+                    used_implant = implant
+                    break
+                except (ChannelError, PlatformError, ModuleFailed):
+                    db.transaction_manager.commit()
+                    continue
 
         if used_implant is not None:
             manager.target.log(f"connected via {used_implant.title(manager.target)}")

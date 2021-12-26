@@ -233,9 +233,9 @@ def main():
             if query_args["certfile"] is not None or query_args["keyfile"] is not None:
                 query_args["ssl"] = True
 
-            if query_args["protocol"] is not None and args.ssl:
+            if query_args["protocol"] not in [None, "bind", "connect"] and args.ssl:
                 console.log(
-                    "[red]error[/red]: --ssl is incompatible with an explicit protocol"
+                    f"[red]error[/red]: --ssl is incompatible with an [yellow]{query_args['protocol']}[/yellow] protocol"
                 )
                 return
 
@@ -296,41 +296,31 @@ def main():
                         if "implant.remote" in fact.types:
                             implants.append((target, users[fact.uid], fact))
 
-                with Progress(
-                    "triggering implant",
-                    "•",
-                    "{task.fields[status]}",
-                    transient=True,
-                    console=console,
-                ) as progress:
-                    task = progress.add_task("", status="...")
-                    for target, implant_user, implant in implants:
-                        # Check correct query_args["user"]
-                        if (
-                            query_args["user"] is not None
-                            and implant_user.name != query_args["user"]
-                        ):
-                            continue
-                        # Check correct platform
-                        if (
-                            query_args["platform"] is not None
-                            and target.platform != query_args["platform"]
-                        ):
-                            continue
+                for target, implant_user, implant in implants:
+                    # Check correct query_args["user"]
+                    if (
+                        query_args["user"] is not None
+                        and implant_user.name != query_args["user"]
+                    ):
+                        continue
+                    # Check correct platform
+                    if (
+                        query_args["platform"] is not None
+                        and target.platform != query_args["platform"]
+                    ):
+                        continue
 
-                        progress.update(
-                            task, status=f"trying [cyan]{implant.source}[/cyan]"
-                        )
+                    manager.log(f"trigger implant: [cyan]{implant.source}[/cyan]")
 
-                        # Attempt to trigger a new session
-                        try:
-                            session = implant.trigger(manager, target)
-                            manager.target = session
-                            used_implant = implant
-                            break
-                        except ModuleFailed:
-                            db.transaction_manager.commit()
-                            continue
+                    # Attempt to trigger a new session
+                    try:
+                        session = implant.trigger(manager, target)
+                        manager.target = session
+                        used_implant = implant
+                        break
+                    except ModuleFailed:
+                        db.transaction_manager.commit()
+                        continue
 
             if manager.target is not None:
                 manager.target.log(
