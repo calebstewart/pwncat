@@ -18,26 +18,35 @@ class Module(BaseModule):
     PLATFORM = None
     """ No platform restraints """
     ARGUMENTS = {
+        "list": Argument(Bool, default=False, help="list installed implants"),
         "remove": Argument(Bool, default=False, help="remove installed implants"),
         "escalate": Argument(
             Bool, default=False, help="escalate using an installed local implant"
         ),
     }
 
-    def run(self, session, remove, escalate):
+    def run(self, session, remove, escalate, **kwargs):
         """Perform the requested action"""
 
-        if (not remove and not escalate) or (remove and escalate):
-            raise ModuleFailed("expected one of escalate or remove")
+        if sum([remove, escalate, kwargs.get("list")]) > 1:
+            raise ModuleFailed("expected one of escalate, remove or list")
+
+        if remove is False and escalate is False:
+            kwargs["list"] = True
 
         # Look for matching implants
         implants = list(
             implant
             for implant in session.run("enumerate", types=["implant.*"])
             if not escalate
+            or kwargs.get("list")
             or "implant.replace" in implant.types
             or "implant.spawn" in implant.types
         )
+
+        if not implants:
+            console.print("No installed implants.")
+            return
 
         try:
             session._progress.stop()
@@ -50,6 +59,8 @@ class Module(BaseModule):
                 prompt = "Which should we remove (e.g. '1 2 4', default: all)? "
             elif escalate:
                 prompt = "Which should we attempt escalation with (e.g. '1 2 4', default: all)? "
+            else:
+                return
 
             while True:
                 selections = Prompt.ask(prompt, console=console)
