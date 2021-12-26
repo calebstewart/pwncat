@@ -8,6 +8,7 @@ import time
 import pathlib
 import tempfile
 import subprocess
+from io import StringIO
 from typing import Callable, Optional
 
 import rich.markup
@@ -356,30 +357,24 @@ class PrivateKey(Implant):
         else:
             raise ModuleFailed(f"unknown username for uid={self.uid}")
 
-        with tempfile.NamedTemporaryFile("w") as filp:
-            filp.write(self.content)
-            filp.flush()
+        try:
+            # Connect via SSH
+            session = manager.create_session(
+                "linux",
+                host=target.public_address[0],
+                user=user.name,
+                identity=StringIO(self.content + "\n"),
+            )
+        except (ChannelError, PlatformError) as exc:
+            manager.log(
+                f"[yellow]warning[/yellow]: {self.source} implant failed; removing implant types."
+            )
+            self.authorized = False
+            self.types.remove("implant.remote")
+            self.types.remove("implant.replace")
+            raise ModuleFailed(str(exc)) from exc
 
-            pathlib.Path(filp.name).chmod(0o600)
-
-            try:
-                # Connect via SSH
-                session = manager.create_session(
-                    "linux",
-                    host=target.public_address[0],
-                    user=user.name,
-                    identity=filp.name,
-                )
-            except (ChannelError, PlatformError) as exc:
-                manager.log(
-                    f"[yellow]warning[/yellow]: {self.source} implant failed; removing implant types."
-                )
-                self.authorized = False
-                self.types.remove("implant.remote")
-                self.types.remove("implant.replace")
-                raise ModuleFailed(str(exc)) from exc
-
-            return session
+        return session
 
 
 class EscalationReplace(Fact):

@@ -40,8 +40,8 @@ rich = "^10.4.0"
 python-rapidjson = "^1.0"
 ZODB3 = "^3.11.0"
 zodburi = "^2.5.0"
-paramiko = "^2.7.2"
 Jinja2 = "^3.0.1"
+paramiko-ng = "^2.8.8"
 
 [tool.poetry.dev-dependencies]
 isort = "^5.8.0"
