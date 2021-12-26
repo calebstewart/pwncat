@@ -195,6 +195,16 @@ class Command(CommandDefinition):
         if query_args["certfile"] is not None or query_args["keyfile"] is not None:
             query_args["ssl"] = True
 
+        if query_args["protocol"] not in [None, "bind", "connect"] and query_args.get(
+            "ssl"
+        ):
+            console.log(
+                f"[red]error[/red]: --ssl is incompatible with an [yellow]{query_args['protocol']}[/yellow] protocol"
+            )
+            return
+        elif query_args["protocol"] is not None:
+            query_args["protocol"] = "ssl-" + query_args["protocol"]
+
         if (
             sum(
                 [
@@ -207,8 +217,6 @@ class Command(CommandDefinition):
         ):
             console.log("[red]error[/red]: multiple ports specified")
             return
-
-        console.log(args.pos_port)
 
         if args.port is not None:
             query_args["port"] = args.port

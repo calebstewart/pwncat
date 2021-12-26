@@ -23,7 +23,15 @@ class SSLBind(Bind):
 
         self.context.load_cert_chain(certfile, keyfile)
 
-        self.server = self.context.wrap_socket(self.server)
+        # self.server = self.context.wrap_socket(self.server)
+
+    def _socket_connected(self, client):
+        try:
+            client = self.context.wrap_socket(client, server_side=True)
+        except ssl.SSLError as exc:
+            raise ChannelError(self, str(exc))
+
+        super()._socket_connected(client)
 
     def connect(self):
 

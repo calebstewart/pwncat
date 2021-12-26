@@ -15,6 +15,7 @@ and simply didn't have the time to go back and retroactively create one.
 - Utilized Paramiko SSHClient which will also utilize the SSHAgent if available by default and supports key types aside from RSA ([#91](https://github.com/calebstewart/pwncat/issues/91))
 - Added implant module `list` command to match documentation ([#224](https://github.com/calebstewart/pwncat/issues/224)).
 - Update documentation to clarify implant reconnection
+- Fixed `--ssl` argument parsing for bind channels.
 
 ## [0.5.1] - 2021-12-07
 Minor bug fixes. Mainly typos from changing the package name.

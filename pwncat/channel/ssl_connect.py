@@ -17,6 +17,6 @@ class SSLConnect(Connect):
 
             client = self.context.wrap_socket(client)
         except ssl.SSLError as exc:
-            raise ChannelError(str(exc))
+            raise ChannelError(self, str(exc))
 
         super()._socket_connected(client)
