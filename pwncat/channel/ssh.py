@@ -8,7 +8,7 @@ An optional port argument is also accepted.
 """
 import os
 import socket
-from typing import Optional
+from typing import Union, TextIO, Optional
 
 import paramiko
 from prompt_toolkit import prompt
@@ -46,65 +46,31 @@ class Ssh(Channel):
             password = prompt("Password: ", is_password=True)
 
         try:
-            # Connect to the remote host's ssh server
-            sock = socket.create_connection((host, port))
-        except Exception as exc:
-            raise ChannelError(self, str(exc))
+            client = paramiko.client.SSHClient()
+            client.set_missing_host_key_policy(paramiko.client.AutoAddPolicy)
 
-        # Create a paramiko SSH transport layer around the socket
-        t = paramiko.Transport(sock)
-        try:
-            t.start_client()
-        except paramiko.SSHException:
-            sock.close()
-            raise ChannelError(self, "ssh negotiation failed")
+            client.connect(
+                hostname=host,
+                port=port,
+                username=user,
+                password=password,
+                pkey=load_private_key(identity),
+                allow_agent=True,
+                look_for_keys=False,
+            )
 
-        if identity is not None:
-            try:
-                # Load the private key for the user
-                if isinstance(identity, str):
-                    key = paramiko.RSAKey.from_private_key_file(
-                        os.path.expanduser(identity)
-                    )
-                else:
-                    key = paramiko.RSAKey.from_private_key(identity)
-            except paramiko.ssh_exception.SSHException:
-                password = prompt("RSA Private Key Passphrase: ", is_password=True)
-                try:
-                    if isinstance(identity, str):
-                        key = paramiko.RSAKey.from_private_key_file(identity, password)
-                    else:
-                        # Seek back to the beginning of the file (the above load read the whole file)
-                        identity.seek(0)
-                        key = paramiko.RSAKey.from_private_key(identity, password)
-                except paramiko.ssh_exception.SSHException:
-                    raise ChannelError(self, "invalid private key or passphrase")
+            columns, rows = os.get_terminal_size(0)
+            shell = client.invoke_shell(width=columns, height=rows)
+            shell.setblocking(0)
 
-            # Attempt authentication
-            try:
-                t.auth_publickey(user, key)
-            except paramiko.ssh_exception.AuthenticationException as exc:
-                raise ChannelError(self, str(exc))
-        else:
-            try:
-                t.auth_password(user, password)
-            except paramiko.ssh_exception.AuthenticationException as exc:
-                raise ChannelError(self, str(exc))
+            self.client = shell
+            self.address = (host, port)
+            self._connected = True
 
-        if not t.is_authenticated():
-            t.close()
-            sock.close()
-            raise ChannelError(self, "authentication failed")
-
-        # Open an interactive session
-        chan = t.open_session()
-        chan.get_pty()
-        chan.invoke_shell()
-        chan.setblocking(0)
-
-        self.client = chan
-        self.address = (host, port)
-        self._connected = True
+        except paramiko.ssh_exception.AuthenticationException as exc:
+            raise ChannelError(self, f"ssh authentication failed: {str(exc)}") from exc
+        except (paramiko.ssh_exception.SSHException, socket.error) as exc:
+            raise ChannelError(self, f"ssh connection failed: {str(exc)}") from exc
 
     @property
     def connected(self):
@@ -153,3 +119,36 @@ class Ssh(Channel):
             pass
 
         return data
+
+
+def load_private_key(identity: Union[str, TextIO], passphrase: str = None):
+    """Load a private key and return the appropriate PKey object"""
+
+    if identity is None:
+        return None
+
+    try:
+        if isinstance(identity, str):
+            return paramiko.pkey.load_private_key_file(
+                os.path.expanduser(identity), password=passphrase
+            )
+
+        identity.seek(0)
+        return paramiko.pkey.load_private_key(identity.read(), password=passphrase)
+    except paramiko.PasswordRequiredException:
+        # Bad passphrase
+        if passphrase is not None:
+            raise
+
+        try:
+            # No passphrase, prompt for one
+            passphrase = prompt("Private Key Passphrase: ", is_password=True)
+        except KeyboardInterrupt:
+            passphrase = None
+
+        # No passphrase given, re-raise
+        if passphrase is None:
+            raise
+
+        # Try again with the given passphrase
+        return load_private_key(identity, passphrase=passphrase)

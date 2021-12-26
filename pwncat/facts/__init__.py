@@ -5,8 +5,6 @@ should not generally need to use these types except as reference
 when interacting with data returned by an enumeration module.
 """
 import time
-import pathlib
-import tempfile
 import subprocess
 from io import StringIO
 from typing import Callable, Optional
