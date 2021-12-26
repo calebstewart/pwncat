@@ -4,7 +4,6 @@ import sys
 
 from rich import box
 from rich.table import Table
-from rich.progress import Progress
 
 import pwncat
 from pwncat.util import console
