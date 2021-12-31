@@ -49,9 +49,9 @@ sphinx-toolbox = "^2.15.2"
 isort = "^5.8.0"
 pytest = "^6.2.4"
 Sphinx = "^4.0.2"
-sphinx-rtd-theme = "^0.5.2"
-enum-tools = "^0.6.4"
+enum-tools = "^0.7.0"
 flake8 = "^3.9.2"
+furo = "^2021.11.23"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
