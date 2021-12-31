@@ -43,15 +43,18 @@ zodburi = "^2.5.0"
 Jinja2 = "^3.0.1"
 paramiko-ng = "^2.8.8"
 PyNaCl = "^1.4.0"
-sphinx-toolbox = "^2.15.2"
+sphinx-toolbox = { version = "^2.15.2", optional = true }
+Sphinx = { version= "^4.0.2", optional = true }
+enum-tools = { version= "^0.7.0", optional = true }
+furo = { version= "^2021.11.23", optional = true }
 
 [tool.poetry.dev-dependencies]
 isort = "^5.8.0"
 pytest = "^6.2.4"
-Sphinx = "^4.0.2"
-sphinx-rtd-theme = "^0.5.2"
-enum-tools = "^0.6.4"
 flake8 = "^3.9.2"
+
+[tool.poetry.extras]
+docs = ["sphinx-toolbox", "Sphinx", "enum-tools", "furo"]
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

@@ -16,6 +16,8 @@ and simply didn't have the time to go back and retroactively create one.
 - Added implant module `list` command to match documentation ([#224](https://github.com/calebstewart/pwncat/issues/224)).
 - Update documentation to clarify implant reconnection
 - Fixed `--ssl` argument parsing for bind channels.
+- Moved documentation theme to [furo](https://github.com/pradyunsg/furo).
+- Added Extras group for documentation depenedencies and removed `docs/requirements.txt`.
 
 ## [0.5.1] - 2021-12-07
 Minor bug fixes. Mainly typos from changing the package name.
