@@ -11,7 +11,7 @@ addopts = "-v"
 
 [tool.poetry]
 name = "pwncat-cs"
-version = "0.5.1"
+version = "0.5.2"
 description = "Reverse and bind shell automation framework"
 authors = ["Caleb Stewart <caleb.stewart94@gmail.com>", "John Hammond"]
 readme = "README.md"
