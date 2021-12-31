@@ -3,7 +3,7 @@ name = "alabaster"
 version = "0.7.12"
 description = "A configurable sidebar-enabled Sphinx theme"
 category = "main"
-optional = false
+optional = true
 python-versions = "*"
 
 [[package]]
@@ -11,7 +11,7 @@ name = "apeye"
 version = "1.1.0"
 description = "Handy tools for working with URLs and APIs."
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.6.1"
 
 [package.dependencies]
@@ -31,7 +31,7 @@ name = "appdirs"
 version = "1.4.4"
 description = "A small Python module for determining appropriate platform-specific dirs, e.g. a \"user data dir\"."
 category = "main"
-optional = false
+optional = true
 python-versions = "*"
 
 [[package]]
@@ -39,7 +39,7 @@ name = "atomicwrites"
 version = "1.4.0"
 description = "Atomic file writes."
 category = "dev"
-optional = false
+optional = true
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
 
 [[package]]
@@ -47,7 +47,7 @@ name = "attrs"
 version = "21.4.0"
 description = "Classes Without Boilerplate"
 category = "dev"
-optional = false
+optional = true
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
 
 [package.extras]
@@ -61,7 +61,7 @@ name = "autodocsumm"
 version = "0.2.7"
 description = "Extended sphinx autodoc including automatic autosummaries"
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.6"
 
 [package.dependencies]
@@ -72,7 +72,7 @@ name = "babel"
 version = "2.9.1"
 description = "Internationalization utilities"
 category = "main"
-optional = false
+optional = true
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
 
 [package.dependencies]
@@ -99,7 +99,7 @@ name = "beautifulsoup4"
 version = "4.10.0"
 description = "Screen-scraping library"
 category = "main"
-optional = false
+optional = true
 python-versions = ">3.0.0"
 
 [package.dependencies]
@@ -131,7 +131,7 @@ name = "cachecontrol"
 version = "0.12.10"
 description = "httplib2 caching for requests"
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.6"
 
 [package.dependencies]
@@ -178,7 +178,7 @@ name = "click"
 version = "8.0.3"
 description = "Composable command line interface toolkit"
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.6"
 
 [package.dependencies]
@@ -208,7 +208,7 @@ name = "consolekit"
 version = "1.3.0"
 description = "Additional utilities for click."
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.6"
 
 [package.dependencies]
@@ -248,7 +248,7 @@ name = "css-parser"
 version = "1.0.6"
 description = "A CSS Cascading Style Sheets library for Python"
 category = "main"
-optional = false
+optional = true
 python-versions = "*"
 
 [[package]]
@@ -256,7 +256,7 @@ name = "deprecation"
 version = "2.1.0"
 description = "A library to handle automated deprecations"
 category = "main"
-optional = false
+optional = true
 python-versions = "*"
 
 [package.dependencies]
@@ -267,7 +267,7 @@ name = "deprecation-alias"
 version = "0.2.0"
 description = "A wrapper around 'deprecation' providing support for deprecated aliases."
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.6.1"
 
 [package.dependencies]
@@ -279,7 +279,7 @@ name = "dict2css"
 version = "0.2.4"
 description = "A μ-library for constructing cascading style sheets from Python dictionaries."
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.6"
 
 [package.dependencies]
@@ -291,7 +291,7 @@ name = "docutils"
 version = "0.16"
 description = "Docutils -- Python Documentation Utilities"
 category = "main"
-optional = false
+optional = true
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
 
 [[package]]
@@ -299,7 +299,7 @@ name = "domdf-python-tools"
 version = "3.1.0"
 description = "Helpful functions for Python 🐍 🛠️"
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.6"
 
 [package.dependencies]
@@ -314,8 +314,8 @@ dates = ["pytz (>=2019.1)"]
 name = "enum-tools"
 version = "0.7.0"
 description = "Tools to expand Python's enum module."
-category = "dev"
-optional = false
+category = "main"
+optional = true
 python-versions = ">=3.6"
 
 [package.dependencies]
@@ -331,7 +331,7 @@ name = "flake8"
 version = "3.9.2"
 description = "the modular source code checker: pep8 pyflakes and co"
 category = "dev"
-optional = false
+optional = true
 python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,>=2.7"
 
 [package.dependencies]
@@ -343,8 +343,8 @@ pyflakes = ">=2.3.0,<2.4.0"
 name = "furo"
 version = "2021.11.23"
 description = "A clean customisable Sphinx documentation theme."
-category = "dev"
-optional = false
+category = "main"
+optional = true
 python-versions = ">=3.6"
 
 [package.dependencies]
@@ -361,7 +361,7 @@ name = "html5lib"
 version = "1.1"
 description = "HTML parser based on the WHATWG HTML specification"
 category = "main"
-optional = false
+optional = true
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
 
 [package.dependencies]
@@ -387,7 +387,7 @@ name = "imagesize"
 version = "1.3.0"
 description = "Getting image size from png/jpeg/jpeg2000/gif file"
 category = "main"
-optional = false
+optional = true
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
 
 [[package]]
@@ -395,7 +395,7 @@ name = "iniconfig"
 version = "1.1.1"
 description = "iniconfig: brain-dead simple config-ini parsing"
 category = "dev"
-optional = false
+optional = true
 python-versions = "*"
 
 [[package]]
@@ -403,7 +403,7 @@ name = "isort"
 version = "5.10.1"
 description = "A Python utility / library to sort Python imports."
 category = "dev"
-optional = false
+optional = true
 python-versions = ">=3.6.1,<4.0"
 
 [package.extras]
@@ -431,7 +431,7 @@ name = "lockfile"
 version = "0.12.2"
 description = "Platform-independent file locking module"
 category = "main"
-optional = false
+optional = true
 python-versions = "*"
 
 [[package]]
@@ -447,7 +447,7 @@ name = "mccabe"
 version = "0.6.1"
 description = "McCabe checker, plugin for flake8"
 category = "dev"
-optional = false
+optional = true
 python-versions = "*"
 
 [[package]]
@@ -455,7 +455,7 @@ name = "mistletoe"
 version = "0.8.1"
 description = "A fast, extensible Markdown parser in pure Python."
 category = "main"
-optional = false
+optional = true
 python-versions = "~=3.3"
 
 [[package]]
@@ -463,7 +463,7 @@ name = "msgpack"
 version = "1.0.3"
 description = "MessagePack (de)serializer."
 category = "main"
-optional = false
+optional = true
 python-versions = "*"
 
 [[package]]
@@ -471,7 +471,7 @@ name = "natsort"
 version = "8.0.2"
 description = "Simple yet flexible natural sorting in Python."
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.6"
 
 [package.extras]
@@ -534,7 +534,7 @@ name = "pluggy"
 version = "1.0.0"
 description = "plugin and hook calling mechanisms for python"
 category = "dev"
-optional = false
+optional = true
 python-versions = ">=3.6"
 
 [package.extras]
@@ -557,7 +557,7 @@ name = "py"
 version = "1.11.0"
 description = "library with cross-python path, ini-parsing, io, code, log facilities"
 category = "dev"
-optional = false
+optional = true
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
 
 [[package]]
@@ -565,7 +565,7 @@ name = "pycodestyle"
 version = "2.7.0"
 description = "Python style guide checker"
 category = "dev"
-optional = false
+optional = true
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
 
 [[package]]
@@ -589,7 +589,7 @@ name = "pyflakes"
 version = "2.3.1"
 description = "passive checker of Python programs"
 category = "dev"
-optional = false
+optional = true
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
 
 [[package]]
@@ -632,7 +632,7 @@ name = "pytest"
 version = "6.2.5"
 description = "pytest: simple powerful testing with Python"
 category = "dev"
-optional = false
+optional = true
 python-versions = ">=3.6"
 
 [package.dependencies]
@@ -661,7 +661,7 @@ name = "pytz"
 version = "2021.3"
 description = "World timezone definitions, modern and historical"
 category = "main"
-optional = false
+optional = true
 python-versions = "*"
 
 [[package]]
@@ -703,7 +703,7 @@ name = "ruamel.yaml"
 version = "0.17.19"
 description = "ruamel.yaml is a YAML parser/emitter that supports roundtrip preservation of comments, seq/map flow style, and map key order"
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3"
 
 [package.dependencies]
@@ -718,7 +718,7 @@ name = "ruamel.yaml.clib"
 version = "0.2.6"
 description = "C version of reader, parser and emitter for ruamel.yaml derived from libyaml"
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.5"
 
 [[package]]
@@ -734,7 +734,7 @@ name = "snowballstemmer"
 version = "2.2.0"
 description = "This package provides 29 stemmers for 28 languages generated from Snowball algorithms."
 category = "main"
-optional = false
+optional = true
 python-versions = "*"
 
 [[package]]
@@ -742,7 +742,7 @@ name = "soupsieve"
 version = "2.3.1"
 description = "A modern CSS selector implementation for Beautiful Soup."
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.6"
 
 [[package]]
@@ -750,7 +750,7 @@ name = "sphinx"
 version = "4.3.2"
 description = "Python documentation generator"
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.6"
 
 [package.dependencies]
@@ -781,7 +781,7 @@ name = "sphinx-autodoc-typehints"
 version = "1.11.1"
 description = "Type hints (PEP 484) support for the Sphinx autodoc extension"
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.5.2"
 
 [package.dependencies]
@@ -796,7 +796,7 @@ name = "sphinx-prompt"
 version = "1.5.0"
 description = "Sphinx directive to add unselectable prompt"
 category = "main"
-optional = false
+optional = true
 python-versions = "*"
 
 [package.dependencies]
@@ -808,7 +808,7 @@ name = "sphinx-tabs"
 version = "3.2.0"
 description = "Tabbed views for Sphinx"
 category = "main"
-optional = false
+optional = true
 python-versions = "~=3.6"
 
 [package.dependencies]
@@ -825,7 +825,7 @@ name = "sphinx-toolbox"
 version = "2.15.2"
 description = "Box of handy tools for Sphinx 🧰 📔"
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.6"
 
 [package.dependencies]
@@ -855,7 +855,7 @@ name = "sphinxcontrib-applehelp"
 version = "1.0.2"
 description = "sphinxcontrib-applehelp is a sphinx extension which outputs Apple help books"
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.5"
 
 [package.extras]
@@ -867,7 +867,7 @@ name = "sphinxcontrib-devhelp"
 version = "1.0.2"
 description = "sphinxcontrib-devhelp is a sphinx extension which outputs Devhelp document."
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.5"
 
 [package.extras]
@@ -879,7 +879,7 @@ name = "sphinxcontrib-htmlhelp"
 version = "2.0.0"
 description = "sphinxcontrib-htmlhelp is a sphinx extension which renders HTML help files"
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.6"
 
 [package.extras]
@@ -891,7 +891,7 @@ name = "sphinxcontrib-jsmath"
 version = "1.0.1"
 description = "A sphinx extension which renders display math in HTML via JavaScript"
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.5"
 
 [package.extras]
@@ -902,7 +902,7 @@ name = "sphinxcontrib-qthelp"
 version = "1.0.3"
 description = "sphinxcontrib-qthelp is a sphinx extension which outputs QtHelp document."
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.5"
 
 [package.extras]
@@ -914,7 +914,7 @@ name = "sphinxcontrib-serializinghtml"
 version = "1.1.5"
 description = "sphinxcontrib-serializinghtml is a sphinx extension which outputs \"serialized\" HTML files (json and pickle)."
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.5"
 
 [package.extras]
@@ -926,7 +926,7 @@ name = "tabulate"
 version = "0.8.9"
 description = "Pretty-print tabular data"
 category = "main"
-optional = false
+optional = true
 python-versions = "*"
 
 [package.extras]
@@ -937,7 +937,7 @@ name = "toml"
 version = "0.10.2"
 description = "Python Library for Tom's Obvious, Minimal Language"
 category = "dev"
-optional = false
+optional = true
 python-versions = ">=2.6, !=3.0.*, !=3.1.*, !=3.2.*"
 
 [[package]]
@@ -961,7 +961,7 @@ name = "typing-extensions"
 version = "4.0.1"
 description = "Backported and Experimental Type Hints for Python 3.6+"
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.6"
 
 [[package]]
@@ -990,7 +990,7 @@ name = "webencodings"
 version = "0.5.1"
 description = "Character encoding aliases for legacy web content"
 category = "main"
-optional = false
+optional = true
 python-versions = "*"
 
 [[package]]
@@ -1134,10 +1134,13 @@ docs = ["sphinx", "repoze.sphinx.autointerface"]
 test = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 
+[extras]
+docs = ["sphinx-toolbox", "Sphinx", "enum-tools", "furo"]
+
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.9"
-content-hash = "1e480b20c2371e582d857d9d05bed0c5b4a0cdc228dfcc68f54997a1cb76815e"
+content-hash = "550298dd8a174525c9b9655568b1173cd8f2b20dfeda626a27ee0cac242e8d5d"
 
 [metadata.files]
 alabaster = [
