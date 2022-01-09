@@ -233,16 +233,20 @@ def main():
             if query_args["certfile"] is not None or query_args["keyfile"] is not None:
                 query_args["ssl"] = True
 
-            if query_args["protocol"] not in [
-                None,
-                "bind",
-                "connect",
-            ] and query_args.get("ssl"):
+            if (
+                query_args["protocol"]
+                not in [
+                    None,
+                    "bind",
+                    "connect",
+                ]
+                and query_args.get("ssl")
+            ):
                 console.log(
                     f"[red]error[/red]: --ssl is incompatible with an [yellow]{query_args['protocol']}[/yellow] protocol"
                 )
                 return
-            elif query_args["protocol"] is not None:
+            elif query_args["protocol"] is not None and query_args.get("ssl"):
                 query_args["protocol"] = "ssl-" + query_args["protocol"]
 
             if (
