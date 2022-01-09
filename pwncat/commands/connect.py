@@ -202,7 +202,7 @@ class Command(CommandDefinition):
                 f"[red]error[/red]: --ssl is incompatible with an [yellow]{query_args['protocol']}[/yellow] protocol"
             )
             return
-        elif query_args["protocol"] is not None:
+        elif query_args["protocol"] is not None and query_args.get("ssl"):
             query_args["protocol"] = "ssl-" + query_args["protocol"]
 
         if (

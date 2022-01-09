@@ -9,6 +9,9 @@ and simply didn't have the time to go back and retroactively create one.
 
 ## [Unreleased]
 
+### Changed
+- Fixed parsing of `--ssl` argument ([#231](https://github.com/calebstewart/pwncat/issues/231)).
+
 ## [0.5.2] - 2021-12-31
 Bug fixes for argument parsing and improved SSH key support thanks to
 `paramiko-ng`. Moved to a prettier theme for ReadTheDocs documentation.
