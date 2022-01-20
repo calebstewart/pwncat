@@ -211,7 +211,7 @@ def main():
 
                     query_args[key] = "=".join(value)
 
-            if query_args["host"] is not None and query_args["host"] == "":
+            if None is not query_args['host'] == '':
                 query_args["host"] = None
 
             if query_args["protocol"] is not None and args.listen:
