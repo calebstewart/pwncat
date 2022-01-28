@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 The Changelog starts with v0.4.1, because we did not keep one before that,
 and simply didn't have the time to go back and retroactively create one.
 
+## [Unreleased]
+
+### Changed
+- Fixed `Manger.load_modules` call in `pwncat/commands/load.py`.
+
 ## [0.5.3] - 2022-01-09
 Fix for argument parsing bug introduced in `0.5.2` which caused bind/connect
 protocols to be automatically interpreted as SSL even when `--ssl` was not

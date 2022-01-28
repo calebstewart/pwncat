@@ -28,4 +28,4 @@ class Command(CommandDefinition):
 
     def run(self, manager: "pwncat.manager.Manager", args):
 
-        manager.load_modules(args.path)
+        manager.load_modules(*args.path)
