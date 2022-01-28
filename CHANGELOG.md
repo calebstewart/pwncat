@@ -7,7 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 The Changelog starts with v0.4.1, because we did not keep one before that,
 and simply didn't have the time to go back and retroactively create one.
 
-## [Unreleased]
+## [0.5.4] - 2022-01-27
+Bug fix for the `load` command.
 
 ### Changed
 - Fixed `Manger.load_modules` call in `pwncat/commands/load.py`.
