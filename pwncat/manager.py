@@ -37,8 +37,7 @@ import threading
 import contextlib
 from io import TextIOWrapper
 from enum import Enum, auto
-from typing import Dict, List, Tuple, Union, TextIO, Callable, Optional, Generator
-from pathlib import Path
+from typing import Dict, List, Tuple, Union, Callable, Optional, Generator
 
 import ZODB
 import zodburi
