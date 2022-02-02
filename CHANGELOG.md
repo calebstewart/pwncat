@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 The Changelog starts with v0.4.1, because we did not keep one before that,
 and simply didn't have the time to go back and retroactively create one.
 
+## [Unreleased]
+
+### Changed
+- Removed default configuration loading from `Manager` class.
+- Added XDG-compliant configuration and module loading to the main entrypoint.
+
 ## [0.5.4] - 2022-01-27
 Bug fix for the `load` command.
 
