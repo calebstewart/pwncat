@@ -821,36 +821,6 @@ class Manager:
         # Load standard modules
         self.load_modules(*pwncat.modules.__path__)
 
-        # Get our data directory
-        data_home = os.environ.get("XDG_DATA_HOME", "~/.local/share")
-        if not data_home:
-            data_home = "~/.local/share"
-
-        # Expand the user path
-        data_home = os.path.expanduser(os.path.join(data_home, "pwncat"))
-
-        # Find modules directory
-        modules_dir = os.path.join(data_home, "modules")
-
-        # Load local modules if they exist
-        if os.path.isdir(modules_dir):
-            self.load_modules(modules_dir)
-
-        # Load global configuration script, if available
-        try:
-            with open("/etc/pwncat/pwncatrc") as filp:
-                self.parser.eval(filp.read(), "/etc/pwncat/pwncatrc")
-        except (FileNotFoundError, PermissionError):
-            pass
-
-        # Load user configuration script
-        user_rc = os.path.join(data_home, "pwncatrc")
-        try:
-            with open(user_rc) as filp:
-                self.parser.eval(filp.read(), user_rc)
-        except (FileNotFoundError, PermissionError):
-            pass
-
         # Load local configuration script
         if isinstance(config, str):
             with open(config) as filp:
@@ -858,14 +828,6 @@ class Manager:
         elif config is not None:
             self.parser.eval(config.read(), getattr(config, "name", "fileobj"))
             config.close()
-        else:
-            try:
-                # If no config is specified, attempt to load `./pwncatrc`
-                # but don't fail if it doesn't exist.
-                with open("./pwncatrc") as filp:
-                    self.parser.eval(filp.read(), "./pwncatrc")
-            except (FileNotFoundError, PermissionError):
-                pass
 
         if self.db is None:
             self.open_database()

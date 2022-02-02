@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
+import os
 import sys
 import logging
 import argparse
 import importlib.metadata
+from pathlib import Path
 
 from rich import box
 from rich.table import Table
@@ -106,6 +108,42 @@ def main():
 
     # Create the session manager
     with pwncat.manager.Manager(args.config) as manager:
+
+        # Grab all data directories. The order of XDG_DATA_DIRS is reversed
+        # to ensure the importance is increasing.
+        data_dirs = [
+            Path(p)
+            for p in os.environ.get(
+                "XDG_DATA_DIRS", "/usr/local/share:/usr/share"
+            ).split(":")
+        ][::-1] + [Path(os.environ.get("XDG_DATA_HOME", "~/.local/share")).expanduser()]
+
+        # Grab all configuration directories. The order of XDG_CONFIG_DIRS is
+        # reverse to ensure importance is increasing. We also add `/etc/` because
+        # /etc/xdg is the default, but most people expect /etc.
+        config_dirs = (
+            [Path("/etc")]
+            + [
+                Path(p)
+                for p in os.environ.get("XDG_CONFIG_DIRS", "/etc/xdg").split(":")
+            ][::-1]
+            + [Path(os.environ.get("XDG_CONFIG_HOME", "~/.config")).expanduser()]
+        )
+
+        # Attempt to load modules from all data directories
+        for data_dir in data_dirs:
+            manager.load_modules(str(data_dir / "pwncat" / "modules"))
+
+        # Attempt to load all configuration files
+        for config_dir in config_dirs:
+            config_path = config_dir / "pwncat" / "pwncatrc"
+            try:
+                with config_path.open() as filp:
+                    manager.parser.eval(filp.read(), str(config_path))
+            except FileNotFoundError:
+                pass
+            except PermissionError as exc:
+                manager.log(f"ignoring config: {config_path}: {exc}")
 
         if args.verbose:
             # set the config variable `verbose` to `True` (globally)
