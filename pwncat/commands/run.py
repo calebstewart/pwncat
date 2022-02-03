@@ -20,12 +20,21 @@ class Command(CommandDefinition):
     To locate available modules, you can use the `search` command. To
     find documentation on individual modules including expected
     arguments, you can use the `info` command.
+
+    The `--reload/-r` argument can be used to force the module to be
+    reloaded from disk prior to execution. This is useful for debugging
+    mostly.
     """
 
     PROG = "run"
     ARGS = {
-        "--raw,-r": Parameter(
+        "--raw": Parameter(
             Complete.NONE, action="store_true", help="Display raw results unformatted"
+        ),
+        "--reload,-r": Parameter(
+            Complete.NONE,
+            action="store_true",
+            help="Reload the module prior to execution",
         ),
         "--traceback,-t": Parameter(
             Complete.NONE, action="store_true", help="Show traceback for module errors"
@@ -50,6 +59,18 @@ class Command(CommandDefinition):
         elif args.module is None:
             module_name = manager.config.module.name
 
+        if args.reload:
+            if args.module is not None:
+                # We have a target-specific module name, so we need to
+                # use find_module to locate the specific module. If this
+                # module doesn't exist, this does nothing, and we will error
+                # out below.
+                for module in manager.target.find_module(args.module, exact=True):
+                    manager.reload_module(module)
+            else:
+                # Reload the module from the config context
+                manager.reload_module(manager.config.module)
+
         # Parse key=value pairs
         values = {}
         for arg in args.args:
@@ -68,12 +89,6 @@ class Command(CommandDefinition):
 
             if args.module is not None:
                 manager.config.back()
-        except pwncat.modules.ModuleFailed as exc:
-            if args.traceback:
-                console.print_exception()
-            else:
-                console.log(f"[red]error[/red]: module failed: {exc}")
-            return
         except pwncat.modules.ModuleNotFound:
             console.log(f"[red]error[/red]: {module_name}: not found")
             return
@@ -85,6 +100,12 @@ class Command(CommandDefinition):
             return
         except pwncat.modules.InvalidArgument as exc:
             console.log(f"[red]error[/red]: invalid argument: {exc}")
+            return
+        except pwncat.modules.ModuleFailed as exc:
+            if args.traceback:
+                console.print_exception()
+            else:
+                console.log(f"[red]error[/red]: module failed: {exc}")
             return
 
         if isinstance(result, list):
