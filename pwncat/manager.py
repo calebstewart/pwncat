@@ -971,7 +971,20 @@ class Manager:
 
             # Update the current module context if we just replaced a module
             if old_module != new_module and self.config.module == old_module:
+                # Save the local configuration for the module
+                config = self.config.locals
+                # Use the new module
                 self.config.use(new_module)
+
+                # Attempt to re-set any configuration items previously set
+                # This could fail if the argument definitions changed on disk.
+                for key, value in config.items():
+                    try:
+                        self.config.set(key, value)
+                    except ValueError as exc:
+                        self.log(
+                            f"[yellow]warning[/yellow]: failed to re-set module config: {key}: {exc}"
+                        )
 
     def reload_module(
         self, module: Union[str, "pwncat.modules.BaseModule"]
