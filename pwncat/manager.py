@@ -921,32 +921,131 @@ class Manager:
 
         return self.db.open()
 
-    def load_modules(self, *paths):
+    def load_modules(self, *paths, force: bool = False):
         """Dynamically load modules from the specified paths
 
         If a module has the same name as an already loaded module, it will
         take it's place in the module list. This includes built-in modules.
+
+        If the fully qualified Python module name matches a built-in or
+        previously loaded module, then you will need to provide the `force`
+        argument. This forces a reload of the given python modules.
+
+        :param force: force reloading the module if already loaded
+        :type force: bool
         """
 
         for loader, module_name, _ in pkgutil.walk_packages(
-            paths, prefix="pwncat.modules."
+            [os.path.expanduser(p) for p in paths], prefix="pwncat.modules."
         ):
+            # Strip off the prefix
+            name = module_name.split("pwncat.modules.")[1]
 
-            # Why is this check *not* part of pkgutil??????? D:<
-            if module_name not in sys.modules:
-                module = loader.find_module(module_name).load_module(module_name)
-            else:
+            # If the module was already loaded and the user specified force,
+            # delete the reference from `sys.modules` so that the module is
+            # reloaded.
+            if module_name in sys.modules and force:
+                del sys.modules[module_name]
+
+            # This should happen automatically through pkgutils...
+            # but it didn't seem to be, so I just double check it here.
+            if module_name in sys.modules:
                 module = sys.modules[module_name]
+            else:
+                module = loader.find_module(module_name).load_module(module_name)
 
             if getattr(module, "Module", None) is None:
                 continue
 
-            # Create an instance of this module
-            module_name = module_name.split("pwncat.modules.")[1]
-            self.modules[module_name] = module.Module()
+            # Create a module instance
+            new_module = module.Module()
+            setattr(new_module, "name", name)
+            setattr(new_module, "_loader", loader)
+            setattr(new_module, "_module_name", module_name)
 
-            # Store it's name so we know it later
-            setattr(self.modules[module_name], "name", module_name)
+            # Save the old module
+            old_module = self.modules.get(name, new_module)
+
+            # Update the module list
+            self.modules[name] = new_module
+
+            # Update the current module context if we just replaced a module
+            if old_module != new_module and self.config.module == old_module:
+                # Save the local configuration for the module
+                config = self.config.locals
+                # Use the new module
+                self.config.use(new_module)
+
+                # Attempt to re-set any configuration items previously set
+                # This could fail if the argument definitions changed on disk.
+                for key, value in config.items():
+                    try:
+                        self.config.set(key, value)
+                    except ValueError as exc:
+                        self.log(
+                            f"[yellow]warning[/yellow]: failed to re-set module config: {key}: {exc}"
+                        )
+
+    def reload_module(
+        self, module: Union[str, "pwncat.modules.BaseModule"]
+    ) -> "pwncat.modules.BaseModule":
+        """Reload the given module from disk. The module can either be an
+        instance of a module returned from :py:meth:`~Session.find_module`
+        or a fully-qualified module name. If the selected module is currently
+        being used in a module context, the context will be switched to the
+        reloaded module, and all parameters will be reset (potentially causing
+        errors if the module arguments have changed).
+
+        :param module: fully-qualified module name or module object
+        :type module: Union[str, pwncat.modules.BaseModule]
+        """
+
+        # Locate the module to reload if passed as a string
+        if isinstance(module, str):
+            module = self.modules[module]
+
+        # "module" is ambiguous since Python uses it, so we save
+        # the module objects in old_module and new_module.
+        old_module = module
+
+        # Saved loader and python module name from the old module.
+        name = old_module.name
+        loader = old_module._loader
+        module_name = old_module._module_name
+
+        # Remove the python module from sys.modules so the loader
+        # will re-load it from disk.
+        if module_name in sys.modules:
+            del sys.modules[module_name]
+
+        # Load the python module
+        module = loader.find_module(module_name).load_module(module_name)
+
+        # Construct a pwncat module instance
+        new_module = module.Module()
+        setattr(new_module, "name", name)
+        setattr(new_module, "_loader", loader)
+        setattr(new_module, "_module_name", module_name)
+
+        # Store the new module
+        self.modules[name] = new_module
+
+        # Replace the current context if it was set to the old module
+        if self.config.module == old_module:
+            # Save the local configuration for the module
+            config = self.config.locals
+            # Use the new module
+            self.config.use(new_module)
+
+            # Attempt to re-set any configuration items previously set
+            # This could fail if the argument definitions changed on disk.
+            for key, value in config.items():
+                try:
+                    self.config.set(key, value)
+                except ValueError as exc:
+                    self.log(
+                        f"[yellow]warning[/yellow]: failed to re-set module config: {key}: {exc}"
+                    )
 
     def log(self, *args, **kwargs):
         """Output a log entry"""

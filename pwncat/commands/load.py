@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+from pathlib import Path
+
 import pwncat
 from pwncat.commands import Complete, Parameter, CommandDefinition
 
@@ -21,11 +23,30 @@ class Command(CommandDefinition):
             Complete.LOCAL_FILE,
             help="Path to a python package directory to load modules from",
             nargs="+",
-        )
+        ),
+        "--force,-f": Parameter(
+            Complete.NONE,
+            help="Force loading the given module(s) even if they were already loaded.",
+            action="store_true",
+            default=False,
+        ),
+        "--reload,-r": Parameter(
+            Complete.NONE,
+            help="Synonym for --force",
+            action="store_true",
+            dest="force",
+        ),
     }
     DEFAULTS = {}
     LOCAL = True
 
     def run(self, manager: "pwncat.manager.Manager", args):
 
-        manager.load_modules(*args.path)
+        # Python's pkgutil.walk_packages doesn't produce an error
+        # if the path doesn't exist, so we double check that each
+        # provided path exists prior to calling it.
+        for path in args.path:
+            if not Path(path).expanduser().exists():
+                self.parser.error(f"{path}: no such file or directory")
+
+        manager.load_modules(*args.path, force=args.force)

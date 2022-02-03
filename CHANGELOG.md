@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 The Changelog starts with v0.4.1, because we did not keep one before that,
 and simply didn't have the time to go back and retroactively create one.
 
+## [Unreleased]
+
+### Changed
+- Added `force` argument to `Manager.load_modules` to enable reloading modules.
+- Added the `Manager.reload_module` method to reload a specific module.
+- Added `--force/-f` and `--reload/-r` arguments to the `load` command ([#241](https://github.com/calebstewart/pwncat/issues/231)).
+- Added the `--reload/-r` argument to the `run` command to reload modules prior to executing.
+
 ## [0.5.4] - 2022-01-27
 Bug fix for the `load` command.
 
