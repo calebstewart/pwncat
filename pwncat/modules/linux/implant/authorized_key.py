@@ -98,7 +98,7 @@ class Module(ImplantModule):
             )
 
         if not os.path.isfile(key):
-            raise ModuleFailed(f"private key [bleu]{key}[/blue] does not exist")
+            raise ModuleFailed(f"private key [blue]{key}[/blue] does not exist")
 
         try:
             yield Status("reading public key")
