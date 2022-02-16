@@ -77,5 +77,5 @@ class Command(CommandDefinition):
                 f"uploaded [cyan]{human_readable_size(length)}[/cyan] "
                 f"in [green]{human_readable_delta(elapsed)}[/green]"
             )
-        except (FileNotFoundError, PermissionError, IsADirectoryError) as exc:
+        except (FileNotFoundError, PermissionError, IsADirectoryError, PlatformError) as exc:
             self.parser.error(str(exc))
