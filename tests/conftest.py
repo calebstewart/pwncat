@@ -8,8 +8,9 @@ import dataclasses
 from io import StringIO
 
 import pytest
-from pwncat.channel import ChannelError
 from Crypto.PublicKey import RSA
+
+from pwncat.channel import ChannelError
 
 PLATFORM_MAP = {"ubuntu": "linux", "centos": "linux", "windows": "windows"}
 
@@ -37,13 +38,13 @@ def connection_details_for(name):
 
 @pytest.fixture(params=["ubuntu", "centos"])
 def linux_details(request):
-    """ Get available connection details for linux hosts """
+    """Get available connection details for linux hosts"""
     return connection_details_for(request.param)
 
 
 @pytest.fixture(params=["windows"])
 def windows_details(request):
-    """ Get available connection details for windows hosts """
+    """Get available connection details for windows hosts"""
     return connection_details_for(request.param)
 
 
@@ -84,18 +85,18 @@ set -g db "memory://"
 
 @pytest.fixture(params=["windows", "ubuntu", "centos"])
 def session(request):
-    """ Start a session with any platform """
+    """Start a session with any platform"""
     yield from session_for(request)
 
 
 @pytest.fixture(params=["windows"])
 def windows(request):
-    """ Start a windows session """
+    """Start a windows session"""
     yield from session_for(request)
 
 
 @pytest.fixture(params=["ubuntu", "centos"])
 def linux(request):
-    """ Start a linux session """
+    """Start a linux session"""
 
     yield from session_for(request)

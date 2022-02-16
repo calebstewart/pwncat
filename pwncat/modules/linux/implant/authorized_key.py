@@ -93,7 +93,9 @@ class Module(ImplantModule):
         yield Status("verifying user permissions")
         current_user = session.current_user()
         if user != "__pwncat_current__" and current_user.id != 0:
-            raise ModuleFailed("only [blue]root[/blue] can install implants for other users")
+            raise ModuleFailed(
+                "only [blue]root[/blue] can install implants for other users"
+            )
 
         if not os.path.isfile(key):
             raise ModuleFailed(f"private key [bleu]{key}[/blue] does not exist")

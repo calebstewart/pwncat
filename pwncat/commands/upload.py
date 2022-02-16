@@ -14,6 +14,7 @@ from rich.progress import (
 import pwncat
 from pwncat.util import console, copyfileobj, human_readable_size, human_readable_delta
 from pwncat.commands import Complete, Parameter, CommandDefinition
+from pwncat.platform import PlatformError
 
 
 class Command(CommandDefinition):
@@ -77,5 +78,10 @@ class Command(CommandDefinition):
                 f"uploaded [cyan]{human_readable_size(length)}[/cyan] "
                 f"in [green]{human_readable_delta(elapsed)}[/green]"
             )
-        except (FileNotFoundError, PermissionError, IsADirectoryError, PlatformError) as exc:
+        except (
+            FileNotFoundError,
+            PermissionError,
+            IsADirectoryError,
+            PlatformError,
+        ) as exc:
             self.parser.error(str(exc))
