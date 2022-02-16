@@ -41,7 +41,7 @@ class AuthorizedKeyImplant(PrivateKey):
         user = session.find_user(uid=self.uid)
 
         if current_user.id != self.uid and current_user.id != 0:
-            raise ModuleFailed(f"must be root or {user.name}")
+            raise ModuleFailed(f"must be [blue]root[/blue] or [blue]{user.name}[/blue]")
 
         # Ensure the directory exists
         homedir = session.platform.Path(user.home)
@@ -93,10 +93,10 @@ class Module(ImplantModule):
         yield Status("verifying user permissions")
         current_user = session.current_user()
         if user != "__pwncat_current__" and current_user.id != 0:
-            raise ModuleFailed("only root can install implants for other users")
+            raise ModuleFailed("only [blue]root[/blue] can install implants for other users")
 
         if not os.path.isfile(key):
-            raise ModuleFailed(f"private key {key} does not exist")
+            raise ModuleFailed(f"private key [bleu]{key}[/blue] does not exist")
 
         try:
             yield Status("reading public key")
@@ -119,7 +119,7 @@ class Module(ImplantModule):
         for implant in session.run("enumerate", types=["implant.*"]):
             if implant.source == self.name and implant.uid == user_info.uid:
                 raise ModuleFailed(
-                    f"{self.name} already installed for {user_info.name}"
+                    f"[blue]{self.name}[/blue] already installed for [blue]{user_info.name}[/blue]"
                 )
 
         # Ensure the directory exists
