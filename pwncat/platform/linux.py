@@ -1111,7 +1111,7 @@ class Linux(Platform):
             )
 
         if isinstance(args, list):
-            command = shlex.join(args)
+            command = shlex.join(str(arg) for arg in args)
         elif isinstance(args, str):
             command = args
         else:

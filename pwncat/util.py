@@ -146,7 +146,7 @@ def human_readable_delta(seconds):
 
 
 def join(argv: List[str]):
-    """Join the string much line shlex.join, except assume that each token
+    """Join the string much like shlex.join, except assume that each token
     is expecting double quotes. This allows variable references within the
     tokens."""
 

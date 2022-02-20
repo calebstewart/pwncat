@@ -68,12 +68,6 @@ class Command(CommandDefinition):
 
             if args.module is not None:
                 manager.config.back()
-        except pwncat.modules.ModuleFailed as exc:
-            if args.traceback:
-                console.print_exception()
-            else:
-                console.log(f"[red]error[/red]: module failed: {exc}")
-            return
         except pwncat.modules.ModuleNotFound:
             console.log(f"[red]error[/red]: {module_name}: not found")
             return
@@ -85,6 +79,12 @@ class Command(CommandDefinition):
             return
         except pwncat.modules.InvalidArgument as exc:
             console.log(f"[red]error[/red]: invalid argument: {exc}")
+            return
+        except pwncat.modules.ModuleFailed as exc:
+            if args.traceback:
+                console.print_exception()
+            else:
+                console.log(f"[red]error[/red]: module failed: {exc}")
             return
 
         if isinstance(result, list):

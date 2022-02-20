@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import pytest
+
 from pwncat.modules import IncorrectPlatformError
 
 
@@ -13,13 +14,13 @@ def test_session_iter_users(session):
 
 
 def test_session_find_user_name(session):
-    """ Test that locating a user by name works """
+    """Test that locating a user by name works"""
 
     assert session.find_user(name="john") is not None
 
 
 def test_session_find_user_uid(linux):
-    """ Test locating a user by their UID (for linux only) """
+    """Test locating a user by their UID (for linux only)"""
 
     user = linux.find_user(uid=0)
 
@@ -28,7 +29,7 @@ def test_session_find_user_uid(linux):
 
 
 def test_session_find_user_sid(windows):
-    """ Test locating a user by their SID (for windows only) """
+    """Test locating a user by their SID (for windows only)"""
 
     # This is the SID of the Administrator in the windows servercore image...
     # This will only work from the testing container, but I've decided that's fine.
@@ -39,7 +40,7 @@ def test_session_find_user_sid(windows):
 
 
 def test_session_find_module(session):
-    """ Test that locating modules works """
+    """Test that locating modules works"""
 
     assert len(list(session.find_module("enumerate.*"))) > 0
     assert len(list(session.find_module("enumerate.user"))) == 1
@@ -47,7 +48,7 @@ def test_session_find_module(session):
 
 
 def test_session_run_module(session):
-    """ Test running a module within a session """
+    """Test running a module within a session"""
 
     # We should be able to enumerate a hostname
     facts = session.run("enumerate", types=["system.hostname"])
@@ -55,14 +56,14 @@ def test_session_run_module(session):
 
 
 def test_session_wrong_platform_linux(linux):
-    """ Test that windows modules don't run in linux """
+    """Test that windows modules don't run in linux"""
 
     with pytest.raises(IncorrectPlatformError):
         linux.run("windows.enumerate.user")
 
 
 def test_session_wrong_platform_windows(windows):
-    """ Test that linux modules don't run on windows """
+    """Test that linux modules don't run on windows"""
 
     with pytest.raises(IncorrectPlatformError):
         windows.run("linux.enumerate.user")
