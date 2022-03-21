@@ -1047,11 +1047,11 @@ class Linux(Platform):
                 with open(source, "rb") as src:
                     with self.tempfile(suffix=".c", mode="wb") as dest:
                         shutil.copyfileobj(src, dest)
-                        real_sources.append(dest.name)
+                        real_sources.append(str(dest.name))
             else:
                 with self.tempfile(mode="w", suffix=".c") as dest:
                     shutil.copyfileobj(source, dest)
-                    real_sources.append(dest.name)
+                    real_sources.append(str(dest.name))
 
         if output is None:
             # We just need to create a file...
@@ -1630,6 +1630,24 @@ class Linux(Platform):
 
         return proc
 
+    def context_changed(self):
+        """Shell or user context has been manually changed by the framework"""
+
+        # Update self.shell just in case the user changed shells
+        try:
+            # Get the PID of the running shell
+            pid = self.getenv("$")
+            # Grab the path to the executable representing the shell
+            self.shell = self.Path("/proc", pid, "exe").readlink()
+        except (FileNotFoundError, PermissionError, OSError):
+            # Fall back to SHELL even though it's not really trustworthy
+            self.shell = self.getenv("SHELL")
+            if self.shell is None or self.shell == "":
+                self.shell = "/bin/sh"
+
+        # Refresh the currently tracked user and group IDs
+        self.refresh_uid()
+
     @property
     def interactive(self) -> bool:
         """
@@ -1656,20 +1674,8 @@ class Linux(Platform):
             self.channel.drain()
             self._interactive = False
 
-            # Update self.shell just in case the user changed shells
-            try:
-                # Get the PID of the running shell
-                pid = self.getenv("$")
-                # Grab the path to the executable representing the shell
-                self.shell = self.Path("/proc", pid, "exe").readlink()
-            except (FileNotFoundError, PermissionError, OSError):
-                # Fall back to SHELL even though it's not really trustworthy
-                self.shell = self.getenv("SHELL")
-                if self.shell is None or self.shell == "":
-                    self.shell = "/bin/sh"
-
-            # Refresh the currently tracked user and group IDs
-            self.refresh_uid()
+            # update current user and shell variable
+            self.context_changed()
         else:
 
             # Going interactive requires a pty

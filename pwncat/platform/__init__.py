@@ -571,6 +571,10 @@ class Platform(ABC):
         return str(self.channel)
 
     @abstractmethod
+    def context_changed(self):
+        """Used to notify the platform that the pwncat framework changed shell or user context."""
+
+    @abstractmethod
     def exit(self):
         """Exit this session"""
 

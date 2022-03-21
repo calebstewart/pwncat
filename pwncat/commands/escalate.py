@@ -3,6 +3,7 @@ import time
 
 import pwncat
 from pwncat.util import console
+from pwncat.manager import Manager
 from pwncat.modules import ModuleFailed
 from pwncat.commands import Complete, Parameter, CommandDefinition
 
@@ -133,7 +134,7 @@ class Command(CommandDefinition):
         elif not found:
             console.log("[yellow]warning[/yellow]: no direct escalations found")
 
-    def do_escalate(self, manager: "pwncat.manager.Manager", task, user, args):
+    def do_escalate(self, manager: Manager, task, user, args):
         """Execute escalations until we find one that works"""
 
         attempted = []
@@ -178,7 +179,7 @@ class Command(CommandDefinition):
 
                     time.sleep(0.1)
 
-                    manager.target.platform.refresh_uid()
+                    manager.target.platform.context_changed()
 
                     # Construct the escalation link
                     link = Link(manager.target, escalation, result)
@@ -199,7 +200,10 @@ class Command(CommandDefinition):
                         manager.print(f" - {link}")
 
                     return result
-                except ModuleFailed:
+                except ModuleFailed as exc:
+                    manager.target.log(
+                        f"{escalation.title(manager.target)}: failed: {exc}"
+                    )
                     failed.append(escalation)
 
             if not args.recursive:
@@ -219,6 +223,7 @@ class Command(CommandDefinition):
                     time.sleep(0.1)
 
                     manager.target.platform.refresh_uid()
+
                     link = Link(manager.target, escalation, result)
 
                     if escalation.type == "escalate.replace":
@@ -229,5 +234,8 @@ class Command(CommandDefinition):
                     chain.append(link)
                     attempted.append(escalation.uid)
                     break
-                except ModuleFailed:
+                except ModuleFailed as exc:
+                    manager.target.log(
+                        f"{escalation.title(manager.target)}: failed: {exc}"
+                    )
                     failed.append(escalation)
