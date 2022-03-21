@@ -80,9 +80,14 @@ class Command(CommandDefinition):
                 try:
                     if manager.sessions and args.variable == "db":
                         raise ValueError("cannot change database with running session")
-                    manager.config.set(
-                        args.variable, args.value, getattr(args, "global")
-                    )
+                    if args.variable in manager.config:
+                        manager.config.set(
+                            args.variable, args.value, getattr(args, "global")
+                        )
+                    else:
+                        console.log(
+                            f"[red]error[/red]: invalid choice {repr(args.variable)}"
+                        )
                     if args.variable == "db":
                         # Ensure the database is re-opened, if it was already
                         manager.open_database()
@@ -95,10 +100,15 @@ class Command(CommandDefinition):
                 except ValueError as exc:
                     console.log(f"[red]error[/red]: {exc}")
             elif args.variable is not None:
-                value = manager.config[args.variable]
-                console.print(
-                    f" [cyan]{args.variable}[/cyan] = [yellow]{repr(value)}[/yellow]"
-                )
+                if args.variable in manager.config:
+                    value = manager.config[args.variable]
+                    console.print(
+                        f" [cyan]{args.variable}[/cyan] = [yellow]{repr(value)}[/yellow]"
+                    )
+                else:
+                    console.log(
+                        f"[red]error[/red]: invalid choice {repr(args.variable)}"
+                    )
             else:
                 for name in manager.config:
                     value = manager.config[name]
