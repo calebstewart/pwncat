@@ -21,6 +21,7 @@ from subprocess import (  # noqa: F401
     SubprocessError,
     CompletedProcess,
     CalledProcessError,
+    STDOUT
 )
 
 
