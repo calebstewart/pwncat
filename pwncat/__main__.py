@@ -177,11 +177,19 @@ def main():
             query_args["host"] = None
             query_args["port"] = None
             query_args["platform"] = args.platform
-            query_args["identity"] = args.identity
             query_args["certfile"] = args.ssl_cert
             query_args["keyfile"] = args.ssl_key
             query_args["ssl"] = args.ssl
             querystring = None
+            
+            if args.identity is not None:
+                import paramiko
+                if not 'load_private_key' in paramiko.__all__:
+                    console.log(
+                        "[red]error[/red]: Wrong version of paramiko found.  Make sure that only [blue]paramiko-ng[/blue] but not [blue]paramiko[/blue] is installed."
+                    )
+                    return
+            query_args["identity"] = args.identity
 
             if args.connection_string:
                 m = connect.Command.CONNECTION_PATTERN.match(args.connection_string)
