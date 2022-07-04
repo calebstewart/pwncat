@@ -13,6 +13,7 @@ and simply didn't have the time to go back and retroactively create one.
 - Fixed `set` command use with incorrect keys (e.g. `set invalid value`)
 
 ### Added
+- Permission checks on the .ssh directory before adding authkeys, tamper module for reverts.
 - Added missed `PlatformError` for `upload` command (e.g. "no gtfobins writers available")
 
 ## [0.5.4] - 2022-01-27

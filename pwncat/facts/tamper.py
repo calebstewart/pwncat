@@ -217,6 +217,7 @@ class CreatedDirectory(Tamper):
             session, f"created directory at [cyan]{self.path}[cyan]"
         )
 
+
 class ModifiedPermissions(Tamper):
     """Tracks permission changes to files and directories on the target.
     The previous permissions will be set on a revert.
@@ -252,7 +253,7 @@ class ModifiedPermissions(Tamper):
     def revert(self, session: "pwncat.manager.Session"):
 
         try:
-            session.platform.Path(self.path).chmod(mode)
+            session.platform.Path(self.path).chmod(self.mode)
         except FileNotFoundError:
             raise ModuleFailed("file not found error")
 

@@ -3,8 +3,9 @@ import os
 import pathlib
 
 import pwncat
-from pwncat.facts import PrivateKey, CreatedFile, CreatedDirectory, ModifiedPermissions
+from pwncat.facts import PrivateKey
 from pwncat.modules import Status, Argument, ModuleFailed
+from pwncat.facts.tamper import CreatedFile, CreatedDirectory, ModifiedPermissions
 from pwncat.platform.linux import Linux
 from pwncat.modules.implant import ImplantModule
 
@@ -133,14 +134,18 @@ class Module(ImplantModule):
             sshdir.mkdir(parents=True, exist_ok=True)
             # Register the fact that we created this directory
             # so that we can later revert it
-            session.register_fact(CreatedDirectory(self.source, implant.uid, str(sshdir)))
+            session.register_fact(
+                CreatedDirectory(self.source, implant.uid, str(sshdir))
+            )
 
         # Modify the permissions if it was incorrectly set
         permissions = sshdir.stat().st_mode
         if permissions != 0o40700:
             yield Status("fixing .ssh directory permissions")
             sshdir.chmod(0o40700)
-            session.register_fact(ModifiedPermissions(self.source, implant.uid, str(sshdir), permissions))
+            session.register_fact(
+                ModifiedPermissions(self.source, implant.uid, str(sshdir), permissions)
+            )
 
         authkeys_path = sshdir / "authorized_keys"
         creating_authkeys = False
@@ -166,7 +171,9 @@ class Module(ImplantModule):
             with authkeys_path.open("w") as filp:
                 filp.writelines(authkeys)
                 if creating_authkeys:
-                    session.register_fact(CreatedFile(self.source, implant.uid, str(authkeys_path)))
+                    session.register_fact(
+                        CreatedFile(self.source, implant.uid, str(authkeys_path))
+                    )
         except (FileNotFoundError, PermissionError) as exc:
             raise ModuleFailed(str(exc)) from exc
 
