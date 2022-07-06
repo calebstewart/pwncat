@@ -125,7 +125,7 @@ class Module(ImplantModule):
             T.append(CreatedDirectory(self.name, user_info.id, str(sshdir)))
 
         yield Status("fixing .ssh directory permissions")
-        mode = sshdir.stat().st_mode % (1 << 9)
+        mode = sshdir.stat().st_mode & 0o777
         if mode != 0o700:
             sshdir.chmod(0o700)
             T.append(ModifiedPermissions(self.name, user_info.id, str(sshdir), mode))
