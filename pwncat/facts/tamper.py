@@ -216,3 +216,107 @@ class CreatedDirectory(Tamper):
         return self._annotate_title(
             session, f"created directory at [cyan]{self.path}[cyan]"
         )
+
+
+class ModifiedPermissions(Tamper):
+    """Tracks permission changes to files and directories on the target.
+    The previous permissions will be set on a revert.
+
+    :param source: generating module or routine
+    :type source: str
+    :param uid: UID needed to revert
+    :type uid: Union[int, str]
+    :param path: path to replaced file
+    :type path: str
+    :param mode: original permissions on the file or directory
+    :type mode: int
+    :param timestamp: the datetime that this change occurred
+    :type timestamp: Optional[datetime.datetime]
+    """
+
+    def __init__(
+        self,
+        source: str,
+        uid: Union[int, str],
+        path: str,
+        mode: int,
+        timestamp: Optional[datetime.datetime] = None,
+    ):
+        super().__init__(source, uid, timestamp=timestamp)
+
+        self.path = path
+        self.mode = mode
+
+    @property
+    def revertable(self):
+        return True
+
+    def revert(self, session: "pwncat.manager.Session"):
+
+        try:
+            session.platform.Path(self.path).chmod(self.mode)
+        except FileNotFoundError:
+            raise ModuleFailed("file not found error")
+
+        self.reverted = True
+
+    def title(self, session: "pwncat.manager.Session"):
+        print(session.find_user(uid=self.uid))
+        return self._annotate_title(
+            session, f"modified permissions on [cyan]{self.path}[cyan]"
+        )
+
+
+class ModifiedOwnership(Tamper):
+    """Tracks ownership changes to files and directories on the target.
+    The previous ownerships will be set on a revert.
+
+    :param source: generating module or routine
+    :type source: str
+    :param uid: UID needed to revert
+    :type uid: Union[int, str]
+    :param path: path to replaced file
+    :type path: str
+    :param o_uid: UID of the original owner
+    :type o_uid: int
+    :param o_gid: GID of the original owner
+    :type o_gid: int
+    :param timestamp: the datetime that this change occurred
+    :type timestamp: Optional[datetime.datetime]
+    """
+
+    def __init__(
+        self,
+        source: str,
+        uid: Union[int, str],
+        path: str,
+        o_uid: int,
+        o_gid: int,
+        timestamp: Optional[datetime.datetime] = None,
+    ):
+        super().__init__(source, uid, timestamp=timestamp)
+
+        self.path = path
+        self.o_uid = o_uid
+        self.o_gid = o_gid
+
+    @property
+    def revertable(self):
+        return True
+
+    def revert(self, session: "pwncat.manager.Session"):
+
+        try:
+            session.platform.chown(
+                session.platform.Path(self.path), self.o_uid, self.o_gid
+            )
+        except (FileNotFoundError, PermissionError):
+            raise ModuleFailed("file not found error")
+
+        self.reverted = True
+
+    def title(self, session: "pwncat.manager.Session"):
+        print(session.find_user(uid=self.uid))
+        return self._annotate_title(
+            session, f"modified ownership of [cyan]{self.path}[cyan]"
+        )
