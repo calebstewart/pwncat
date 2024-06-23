@@ -11,6 +11,7 @@ and simply didn't have the time to go back and retroactively create one.
 ### Fixed
 - Fixed `shlex.join` use with non-str type objects (e.g. `RemotePath`)
 - Fixed `set` command use with incorrect keys (e.g. `set invalid value`)
+- Fixed `sessions` command for Windows platform with more robust variable type checks (e.g. `TypeError`)
 
 ### Added
 - Added missed `PlatformError` for `upload` command (e.g. "no gtfobins writers available")
