@@ -14,6 +14,7 @@ and simply didn't have the time to go back and retroactively create one.
 
 ### Added
 - Added missed `PlatformError` for `upload` command (e.g. "no gtfobins writers available")
+- Addes Python 3.13 support
 
 ## [0.5.4] - 2022-01-27
 Bug fix for the `load` command.

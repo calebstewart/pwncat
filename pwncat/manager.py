@@ -23,43 +23,46 @@ get an asynchronous notification of new sessions, you can use the ``established`
 callback which receives the new session as an argument.
 
 """
+
+import contextlib
+import datetime
+import fnmatch
+import importlib
+import importlib.util
 import os
-import ssl
-import sys
+import pkgutil
 import queue
 import signal
 import socket
-import fnmatch
-import pkgutil
-import datetime
+import ssl
+import sys
 import tempfile
 import threading
-import contextlib
-from io import TextIOWrapper
 from enum import Enum, auto
-from typing import Dict, List, Tuple, Union, Callable, Optional, Generator
+from io import TextIOWrapper
+from typing import Callable, Dict, Generator, List, Optional, Tuple, Union
 
+import persistent.list
+import rich.progress
 import ZODB
 import zodburi
-import rich.progress
-import persistent.list
 from cryptography import x509
-from cryptography.x509.oid import NameOID
-from prompt_toolkit.shortcuts import confirm
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.x509.oid import NameOID
+from prompt_toolkit.shortcuts import confirm
 
 import pwncat.db
 import pwncat.facts
 import pwncat.modules
 import pwncat.modules.enumerate
-from pwncat.util import RawModeExit, console
-from pwncat.config import Config
-from pwncat.target import Target
-from pwncat.channel import Channel, ChannelError, ChannelClosed
+from pwncat.channel import Channel, ChannelClosed, ChannelError
 from pwncat.commands import CommandParser
-from pwncat.platform import Platform, PlatformError
+from pwncat.config import Config
 from pwncat.modules.enumerate import Scope
+from pwncat.platform import Platform, PlatformError
+from pwncat.target import Target
+from pwncat.util import RawModeExit, console
 
 
 class InteractiveExit(Exception):
@@ -388,7 +391,8 @@ class Listener(threading.Thread):
 
     def _ssl_wrap(self, server: socket.socket) -> ssl.SSLSocket:
         """Wrap the given server socket in an SSL context and return the new socket.
-        If the ``ssl`` option is not set, this method simply returns the original socket."""
+        If the ``ssl`` option is not set, this method simply returns the original socket.
+        """
 
         if not self.ssl:
             return server
@@ -925,16 +929,18 @@ class Manager:
         """Dynamically load modules from the specified paths
 
         If a module has the same name as an already loaded module, it will
-        take it's place in the module list. This includes built-in modules.
+        take its place in the module list. This includes built-in modules.
         """
 
         for loader, module_name, _ in pkgutil.walk_packages(
             paths, prefix="pwncat.modules."
         ):
 
-            # Why is this check *not* part of pkgutil??????? D:<
             if module_name not in sys.modules:
-                module = loader.find_module(module_name).load_module(module_name)
+                try:
+                    module = importlib.import_module(module_name)
+                except ImportError:
+                    continue  # Skip modules that can't be loaded
             else:
                 module = sys.modules[module_name]
 
@@ -942,11 +948,11 @@ class Manager:
                 continue
 
             # Create an instance of this module
-            module_name = module_name.split("pwncat.modules.")[1]
-            self.modules[module_name] = module.Module()
+            short_name = module_name.split("pwncat.modules.")[1]
+            self.modules[short_name] = module.Module()
 
-            # Store it's name so we know it later
-            setattr(self.modules[module_name], "name", module_name)
+            # Store its name so we know it later
+            setattr(self.modules[short_name], "name", short_name)
 
     def log(self, *args, **kwargs):
         """Output a log entry"""
