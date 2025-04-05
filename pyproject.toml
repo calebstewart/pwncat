@@ -11,7 +11,7 @@ addopts = "-v"
 
 [tool.poetry]
 name = "pwncat-cs"
-version = "0.5.4"
+version = "0.5.5"
 description = "Reverse and bind shell automation framework"
 authors = ["Caleb Stewart <caleb.stewart94@gmail.com>", "John Hammond"]
 readme = "README.md"
@@ -32,7 +32,8 @@ pwncat-cs = "pwncat.__main__:main"
 [tool.poetry.dependencies]
 python = "^3.9"
 netifaces = "^0.11.0"
-packaging = "^20.9"
+packaging = ">=23.0"
+passlib = "^1.7.4"
 prompt-toolkit = "^3.0.19"
 pycryptodome = "^3.10.1"
 requests = "^2.25.1"

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from packaging import version
+from packaging.version import parse, InvalidVersion
 
 import pwncat
 from pwncat.facts import build_gtfo_ability
@@ -26,7 +26,11 @@ class Module(EnumerateModule):
             return
 
         # This vulnerability was patched in 1.8.28
-        if version.parse(sudo_info.version) >= version.parse("1.8.28"):
+        try:
+            parsed_version = parse(sudo_info.version)
+            if parsed_version >= parse("1.8.28"):
+                return
+        except InvalidVersion:
             return
 
         # Grab the current user/group

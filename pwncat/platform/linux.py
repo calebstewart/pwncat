@@ -1635,14 +1635,12 @@ class Linux(Platform):
 
         # Update self.shell just in case the user changed shells
         try:
-            # Get the PID of the running shell
-            pid = self.getenv("$")
-            # Grab the path to the executable representing the shell
-            self.shell = self.Path("/proc", pid, "exe").readlink()
-        except (FileNotFoundError, PermissionError, OSError):
-            # Fall back to SHELL even though it's not really trustworthy
+            pid = self.getenv("$").strip()
+            proc_exe_path = f"/proc/{pid}/exe"
+            self.shell = self.readlink(proc_exe_path)
+        except (FileNotFoundError, PermissionError, OSError, AttributeError):
             self.shell = self.getenv("SHELL")
-            if self.shell is None or self.shell == "":
+            if not self.shell:
                 self.shell = "/bin/sh"
 
         # Refresh the currently tracked user and group IDs

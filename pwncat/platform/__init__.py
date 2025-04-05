@@ -515,12 +515,11 @@ class Platform(ABC):
         target = self
 
         class RemotePath(base_path, Path):
-
-            _target = target
-            _stat = None
-
-            def __init__(self, *args):
-                base_path.__init__(*args)
+            def __new__(cls, *args, **kwargs):
+                obj = super().__new__(cls, *args, **kwargs)
+                obj._target = target
+                obj._stat = None
+                return obj
 
         self.Path = RemotePath
         """ A concrete Path object for this platform conforming to pathlib.Path """

@@ -35,6 +35,7 @@ import datetime
 import tempfile
 import threading
 import contextlib
+import importlib.util
 from io import TextIOWrapper
 from enum import Enum, auto
 from typing import Dict, List, Tuple, Union, Callable, Optional, Generator
@@ -922,31 +923,37 @@ class Manager:
         return self.db.open()
 
     def load_modules(self, *paths):
-        """Dynamically load modules from the specified paths
+        """
+        Dynamically load modules from the specified paths.
 
         If a module has the same name as an already loaded module, it will
-        take it's place in the module list. This includes built-in modules.
+        take its place in the module list. This includes built-in modules.
         """
 
-        for loader, module_name, _ in pkgutil.walk_packages(
-            paths, prefix="pwncat.modules."
-        ):
+        for loader, module_name, is_pkg in pkgutil.walk_packages(paths, prefix="pwncat.modules."):
+            # Locate the module spec
+            spec = importlib.util.find_spec(module_name)
+            if spec is None:
+                continue
 
-            # Why is this check *not* part of pkgutil??????? D:<
-            if module_name not in sys.modules:
-                module = loader.find_module(module_name).load_module(module_name)
+            # Always check `sys.modules` under `spec.name`.
+            # If it's already loaded, reuse that module; if not, load anew.
+            if spec.name in sys.modules:
+                module = sys.modules[spec.name]
             else:
-                module = sys.modules[module_name]
+                module = importlib.util.module_from_spec(spec)
+                sys.modules[spec.name] = module
+                spec.loader.exec_module(module)
 
-            if getattr(module, "Module", None) is None:
+            # We only care about modules that actually define `Module`
+            if not hasattr(module, "Module"):
                 continue
 
             # Create an instance of this module
-            module_name = module_name.split("pwncat.modules.")[1]
-            self.modules[module_name] = module.Module()
+            short_name = module_name.split("pwncat.modules.", 1)[1]
+            self.modules[short_name] = module.Module()
+            self.modules[short_name].name = short_name
 
-            # Store it's name so we know it later
-            setattr(self.modules[module_name], "name", module_name)
 
     def log(self, *args, **kwargs):
         """Output a log entry"""

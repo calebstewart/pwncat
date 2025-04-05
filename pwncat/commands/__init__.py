@@ -43,6 +43,7 @@ import shlex
 import pkgutil
 import termios
 import argparse
+import importlib.util
 from io import TextIOWrapper
 from enum import Enum, auto
 from typing import Dict, List, Type, Callable, Iterable
@@ -432,11 +433,14 @@ class CommandParser:
         for loader, module_name, is_pkg in pkgutil.walk_packages(__path__):
             if module_name == "base":
                 continue
-            self.commands.append(
-                loader.find_module(module_name)
-                .load_module(module_name)
-                .Command(manager)
-            )
+
+            spec = importlib.util.find_spec(f"{__name__}.{module_name}")
+            if spec is None:
+                raise ImportError(f"Could not find spec for module {module_name}")
+
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            self.commands.append(module.Command(manager))
 
         self.prompt: PromptSession = None
         self.toolbar: PromptSession = None

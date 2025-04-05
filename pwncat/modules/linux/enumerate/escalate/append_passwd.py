@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-import crypt
+
+from passlib.hash import sha512_crypt
 
 import pwncat
 from pwncat.util import console
@@ -31,7 +32,7 @@ class AppendPasswd(EscalationReplace):
         shell = session.platform.getenv("SHELL")
 
         # Hash the backdoor password
-        backdoor_hash = crypt.crypt(backdoor_pass, crypt.METHOD_SHA512)
+        backdoor_hash = sha512_crypt.using(salt_size=16).hash(backdoor_pass)
 
         if not any(line.startswith(f"{backdoor_user}:") for line in passwd_contents):
 
