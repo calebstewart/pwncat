@@ -207,6 +207,22 @@ In this example, only the files in `/some/directory` are exposed to the containe
 Obviously, for upload/download, the container will only be able to see the files
 exposed through any mounted directories.
 
+# Use pwncat from anywhere
+To use pwncat from anywhere in the filesystem, just create a **_function_**; It is better than symlink bec of the following:
+- Forwards arguments automatically with "$@".
+- Dynamically mounts the current directory ($(pwd)).
+- Needs no extra files—just lives in your shell config.
+- Easily editable for extra options or logic.
+- Portable across machines without breaking paths
+
+```shell
+pwncat-cs() {
+  docker run -it --rm --network host -v "$(pwd):/work" pwncat "$@"
+}
+ ```
+In above, you just have to put this in your zshrc/bashrc file and you can call pwncat-cs like a normal applications.
+You can "source" your zshrc file for immediate effect or you can just open a newer shell.
+
 ## Features and Functionality
 
 `pwncat` provides two main features. At it's core, it's goal is to automatically
