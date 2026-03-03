@@ -208,14 +208,13 @@ Obviously, for upload/download, the container will only be able to see the files
 exposed through any mounted directories.
 
 # Use pwncat from anywhere
-To use pwncat from anywhere in the filesystem, just create a function; It is better than symlink bec of the following:
+To use pwncat from anywhere in the filesystem, just create a **_function_**; It is better than symlink bec of the following:
 - Forwards arguments automatically with "$@".
 - Dynamically mounts the current directory ($(pwd)).
 - Needs no extra files—just lives in your shell config.
 - Easily editable for extra options or logic.
 - Portable across machines without breaking paths
 
-## Functions
 ```shell
 pwncat-cs() {
   docker run -it --rm --network host -v "$(pwd):/work" pwncat "$@"
