@@ -520,7 +520,7 @@ class Platform(ABC):
             _stat = None
 
             def __init__(self, *args):
-                base_path.__init__(*args)
+                super().__init__(*args)
 
         self.Path = RemotePath
         """ A concrete Path object for this platform conforming to pathlib.Path """

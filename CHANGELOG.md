@@ -9,6 +9,7 @@ and simply didn't have the time to go back and retroactively create one.
 
 ## [Unreleased]
 ### Fixed
+- Fixed running on python >= 12
 - Fixed `shlex.join` use with non-str type objects (e.g. `RemotePath`)
 - Fixed `set` command use with incorrect keys (e.g. `set invalid value`)
 

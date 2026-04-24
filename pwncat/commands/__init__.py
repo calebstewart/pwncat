@@ -433,8 +433,8 @@ class CommandParser:
             if module_name == "base":
                 continue
             self.commands.append(
-                loader.find_module(module_name)
-                .load_module(module_name)
+                loader.find_spec(module_name)
+                .loader.load_module(module_name)
                 .Command(manager)
             )
 
@@ -788,7 +788,8 @@ class CommandParser:
 
 class CommandLexer(RegexLexer):
     """Implements a Regular Expression based pygments lexer for dynamically highlighting
-    the pwncat prompt during typing. The tokens are generated from command definitions."""
+    the pwncat prompt during typing. The tokens are generated from command definitions.
+    """
 
     tokens = {}
 

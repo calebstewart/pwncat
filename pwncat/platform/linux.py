@@ -23,7 +23,7 @@ from io import TextIOWrapper, BufferedIOBase, UnsupportedOperation
 from typing import List, Union, BinaryIO, Optional, Generator
 from subprocess import TimeoutExpired, CalledProcessError
 
-import pkg_resources
+import importlib.resources as ilr
 
 import pwncat
 import pwncat.channel
@@ -332,7 +332,7 @@ class LinuxReader(BufferedIOBase):
         """Close the file and stop the process"""
 
         if self.popen is None:
-            raise UnsupportedOperation("reader is detached")
+            return
 
         if self.on_close is not None:
             self.on_close(self)
@@ -553,10 +553,10 @@ class Linux(Platform):
     name = "linux"
     PATH_TYPE = LinuxPath
     PROMPTS = {
-        "sh": """'$(command printf "(remote) $(whoami)@$(hostname):$PWD\\$ ")'""",
-        "dash": """'$(command printf "(remote) $(whoami)@$(hostname):$PWD\\$ ")'""",
+        "sh": """'$(command printf "(remote) $(whoami 2>/dev/null || id -un)@$(hostname 2>/dev/null || cat /proc/sys/kernel/hostname):$PWD$([ $(id -u) -eq 0 ] && printf \\\\\\\\043 || printf \\\\\\\\044) ")'""",
+        "dash": """'$(command printf "(remote) $(whoami 2>/dev/null || id -un)@$(hostname 2>/dev/null || cat /proc/sys/kernel/hostname):$PWD$([ $(id -u) -eq 0 ] && printf \\\\\\\\043 || printf \\\\\\\\044) ")'""",
         "zsh": """'%B%F{red}(remote) %B%F{yellow}%n@%M%B%F{reset}:%B%F{cyan}$PWD%B%(#.%b%F{white}#.%b%F{white}$)%b%F{reset} '""",
-        "default": """'$(command printf "\\[\\033[01;31m\\](remote)\\[\\033[0m\\] \\[\\033[01;33m\\]$(whoami)@$(hostname)\\[\\033[0m\\]:\\[\\033[1;36m\\]$PWD\\[\\033[0m\\]\\$ ")'""",
+        "default": """'$(command printf "\\[\\033[01;31m\\](remote)\\[\\033[0m\\] \\[\\033[01;33m\\]$(whoami 2>/dev/null || id -un)@$(hostname 2>/dev/null || cat /proc/sys/kernel/hostname)\\[\\033[0m\\]:\\[\\033[1;36m\\]$PWD\\[\\033[0m\\]$([ $(id -u) -eq 0 ] && printf \\\\\\\\043 || printf \\\\\\\\044) ")'""",
     }
 
     def __init__(self, session, channel: pwncat.channel.Channel, *args, **kwargs):
@@ -578,7 +578,7 @@ class Linux(Platform):
         # Load a GTFOBins database to assist in common operations
         # without relying on specific binaries being available.
         self.gtfo = GTFOBins(
-            pkg_resources.resource_filename("pwncat", "data/gtfobins.json"), self.which
+            ilr.files("pwncat").joinpath("data/gtfobins.json"), self.which
         )
 
         # Ensure history is disabled
@@ -739,7 +739,8 @@ class Linux(Platform):
                     task, status="retrieving hostname (hostname -f)"
                 )
                 result = self.run(
-                    "hostname -f", shell=True, check=True, text=True, encoding="utf-8"
+                    "hostname -f 2>/dev/null || cat /proc/sys/kernel/hostname",
+                    shell=True, check=True, text=True, encoding="utf-8"
                 )
                 hostname = result.stdout.strip()
             except CalledProcessError:
@@ -1720,7 +1721,8 @@ class Linux(Platform):
         """Get the name of the current user"""
 
         return self.run(
-            ["whoami"], capture_output=True, check=True, encoding="utf-8"
+            "whoami 2>/dev/null || id -un",
+            shell=True, capture_output=True, check=True, encoding="utf-8"
         ).stdout.rstrip("\n")
 
     def _parse_stat(self, result: str) -> os.stat_result:

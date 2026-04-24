@@ -3,7 +3,7 @@ import io
 import hashlib
 from subprocess import CalledProcessError
 
-import pkg_resources
+import importlib.resources as ilr
 
 import pwncat
 from pwncat.facts import Implant, CreatedFile
@@ -97,7 +97,7 @@ class Module(ImplantModule):
             raise ModuleFailed("only one pam implant may be installed at a time")
 
         yield Status("loading pam module source code")
-        with open(pkg_resources.resource_filename("pwncat", "data/pam.c"), "r") as filp:
+        with ilr.files("pwncat").joinpath("data/pam.c").open() as filp:
             sneaky_source = filp.read()
 
         yield Status("checking selinux state")

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import os.path
 
-import pkg_resources
+import importlib.resources as ilr
 
 import pwncat
 from pwncat.modules import Result, Status, Argument, BaseModule, ModuleFailed
@@ -109,9 +109,7 @@ class Module(BaseModule):
         for url in self.MODULES[group]:
             yield Status(f"loading {url.split('/')[-1]}")
 
-            path = pkg_resources.resource_filename(
-                "pwncat", os.path.join("data/PowerSploit", url)
-            )
+            path = ilr.files("pwncat").joinpath("data/PowerSploit").joinpath(url)
 
             try:
                 # Attempt to load the script in the PowerShell context.

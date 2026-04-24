@@ -388,7 +388,8 @@ class Listener(threading.Thread):
 
     def _ssl_wrap(self, server: socket.socket) -> ssl.SSLSocket:
         """Wrap the given server socket in an SSL context and return the new socket.
-        If the ``ssl`` option is not set, this method simply returns the original socket."""
+        If the ``ssl`` option is not set, this method simply returns the original socket.
+        """
 
         if not self.ssl:
             return server
@@ -934,7 +935,7 @@ class Manager:
 
             # Why is this check *not* part of pkgutil??????? D:<
             if module_name not in sys.modules:
-                module = loader.find_module(module_name).load_module(module_name)
+                module = loader.find_spec(module_name).loader.load_module(module_name)
             else:
                 module = sys.modules[module_name]
 
